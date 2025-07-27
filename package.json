@@ -35,10 +35,22 @@
         "icon": "$(rocket)"
       },
       {
+        "command": "forge.initComplete",
+        "title": "Initialize FORGE Complete Setup",
+        "category": "FORGE", 
+        "icon": "$(settings-gear)"
+      },
+      {
         "command": "forge.createTask",
         "title": "Create New Task",
         "category": "FORGE",
         "icon": "$(add)"
+      },
+      {
+        "command": "forge.createSmartTask",
+        "title": "Create Task with AI",
+        "category": "FORGE",
+        "icon": "$(sparkle)"
       },
       {
         "command": "forge.completeTask",

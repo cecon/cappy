@@ -479,4 +479,75 @@ export class TaskCreator {
 </body>
 </html>`;
     }
+
+    // New methods for Smart Task Creation
+    public async showWithPrefill(taskDetails: any): Promise<boolean> {
+        return new Promise((resolve) => {
+            this.panel = vscode.window.createWebviewPanel(
+                'forgeTaskCreator',
+                'Create FORGE Task',
+                vscode.ViewColumn.One,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true,
+                    localResourceRoots: []
+                }
+            );
+
+            this.panel.webview.html = this.getWebviewContentWithPrefill(taskDetails);
+
+            this.panel.webview.onDidReceiveMessage(async (message) => {
+                switch (message.command) {
+                    case 'createTask':
+                        const success = await this.createTask(message.taskData);
+                        resolve(success);
+                        this.panel?.dispose();
+                        break;
+                    case 'analyzeAtomicity':
+                        const analysis = await this.analyzeAtomicity(message.description);
+                        this.panel?.webview.postMessage({
+                            command: 'atomicityResult',
+                            result: analysis
+                        });
+                        break;
+                    case 'cancel':
+                        resolve(false);
+                        this.panel?.dispose();
+                        break;
+                }
+            });
+
+            this.panel.onDidDispose(() => {
+                resolve(false);
+            });
+        });
+    }
+
+    public async createTaskWithData(taskDetails: any): Promise<boolean> {
+        const taskData = {
+            name: taskDetails.name,
+            description: taskDetails.description,
+            estimatedHours: taskDetails.estimatedHours,
+            priority: taskDetails.priority,
+            category: taskDetails.category,
+            atomicitySuggestions: taskDetails.subtasks || []
+        };
+
+        return await this.createTask(taskData);
+    }
+
+    private getWebviewContentWithPrefill(taskDetails: any): string {
+        const content = this.getWebviewContent();
+        
+        // Replace the empty values with prefilled data
+        return content
+            .replace('id="taskName" placeholder="e.g. Add user authentication"', 
+                    `id="taskName" placeholder="e.g. Add user authentication" value="${taskDetails.name}"`)
+            .replace('id="description" placeholder="Describe what needs to be implemented...">', 
+                    `id="description" placeholder="Describe what needs to be implemented...">${taskDetails.description}`)
+            .replace('id="estimatedHours" value="2"', 
+                    `id="estimatedHours" value="${taskDetails.estimatedHours}"`)
+            .replace('<option value="Medium" selected>Medium</option>', 
+                    `<option value="${taskDetails.priority}" selected>${taskDetails.priority}</option>`);
+    }
 }

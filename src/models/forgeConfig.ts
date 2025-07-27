@@ -5,6 +5,24 @@ export interface ForgeConfig {
         language: string[];
         framework: string[];
         description?: string;
+        stackInstructions?: string; // Path to stack-specific instructions file
+    };
+    stack: {
+        primary: string; // e.g., 'typescript', 'python', 'rust', 'java'
+        secondary: string[]; // e.g., ['react', 'express', 'postgres']
+        patterns: string[]; // e.g., ['mvc', 'rest-api', 'microservices']
+        conventions: {
+            codeStyle: string[]; // e.g., ['eslint', 'prettier', 'airbnb']
+            testing: string[]; // e.g., ['jest', 'cypress', 'tdd']
+            architecture: string[]; // e.g., ['clean-architecture', 'ddd']
+        };
+    };
+    environment: {
+        os: 'windows' | 'macos' | 'linux';
+        shell: 'powershell' | 'bash' | 'zsh' | 'cmd' | 'fish';
+        editor: 'vscode' | 'cursor' | 'other';
+        packageManager: string; // 'npm', 'yarn', 'pnpm', 'pip', 'cargo', etc.
+        containerization: 'docker' | 'podman' | 'none';
     };
     context: {
         maxRules: number;
@@ -18,6 +36,9 @@ export interface ForgeConfig {
         defaultTemplate: string;
         autoTimeEstimation: boolean;
         atomicityWarning: boolean;
+        requireUnitTests: boolean;
+        testFramework: string;
+        testCoverage: number;
     };
     ai: {
         provider: 'copilot' | 'claude' | 'chatgpt' | 'custom';
@@ -36,6 +57,23 @@ export interface ForgeConfig {
 
 export const DEFAULT_FORGE_CONFIG: Partial<ForgeConfig> = {
     version: '1.0.0',
+    stack: {
+        primary: 'typescript',
+        secondary: ['node', 'express'],
+        patterns: ['rest-api'],
+        conventions: {
+            codeStyle: ['eslint', 'prettier'],
+            testing: ['jest'],
+            architecture: ['clean-architecture']
+        }
+    },
+    environment: {
+        os: 'windows',
+        shell: 'powershell',
+        editor: 'vscode',
+        packageManager: 'npm',
+        containerization: 'docker'
+    },
     context: {
         maxRules: 50,
         autoPrioritize: true,
@@ -47,7 +85,10 @@ export const DEFAULT_FORGE_CONFIG: Partial<ForgeConfig> = {
         maxAtomicHours: 3,
         defaultTemplate: 'standard',
         autoTimeEstimation: true,
-        atomicityWarning: true
+        atomicityWarning: true,
+        requireUnitTests: false,
+        testFramework: 'jest',
+        testCoverage: 80
     },
     ai: {
         provider: 'copilot',

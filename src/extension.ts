@@ -4,10 +4,12 @@ import { ForgePreventionRulesProvider } from './providers/preventionRulesProvide
 import { CopilotContextManager } from './utils/contextManager';
 import { ForgeConfig } from './models/forgeConfig';
 import { TaskCreator } from './commands/createTask';
+import { SmartTaskCreator } from './commands/createSmartTask';
 import { TaskCompleter } from './commands/completeTask';
 import { PreventionRuleAdder } from './commands/addPreventionRule';
 import { ForgeDashboard } from './webview/dashboard';
 import { ForgeInitializer } from './commands/initForge';
+import { initForgeComplete } from './commands/initForgeComplete';
 
 let copilotContextManager: CopilotContextManager;
 
@@ -34,9 +36,25 @@ export function activate(context: vscode.ExtensionContext) {
             preventionRulesProvider.refresh();
         }),
 
+        vscode.commands.registerCommand('forge.initComplete', async () => {
+            await initForgeComplete();
+            taskProvider.refresh();
+            preventionRulesProvider.refresh();
+            await copilotContextManager.updateContext();
+        }),
+
         vscode.commands.registerCommand('forge.createTask', async () => {
             const creator = new TaskCreator();
             const success = await creator.show();
+            if (success) {
+                taskProvider.refresh();
+                await copilotContextManager.updateContext();
+            }
+        }),
+
+        vscode.commands.registerCommand('forge.createSmartTask', async () => {
+            const smartCreator = new SmartTaskCreator();
+            const success = await smartCreator.show();
             if (success) {
                 taskProvider.refresh();
                 await copilotContextManager.updateContext();
