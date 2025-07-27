@@ -1,7 +1,7 @@
 # 🔨 FORGE Framework
 **F**ocus **O**rganize **R**ecord **G**row **E**volve
 
-> Turn your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically.
+> Transform your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically.
 
 <div align="center">
 
@@ -14,29 +14,39 @@
 [![Copilot Ready](https://img.shields.io/badge/GitHub%20Copilot-Ready-green.svg)](#-github-copilot-integration)
 [![Available Now](https://img.shields.io/badge/Status-Available%20on%20Marketplace-brightgreen.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
 
-[**Install Now**](#-installation) • [**Quick Start**](#-quick-start) • [**Examples**](#-examples) • [**GitHub**](https://github.com/cecon/forge-framework)
+[**Install Now**](#-installation) • [**Quick Start**](#-quick-start) • [**How to Use**](#-how-to-use) • [**Examples**](#-examples) • [**GitHub**](https://github.com/cecon/forge-framework)
 
 </div>
 
 ---
 
-## 🎯 The Problem with AI Coding Assistants
+## 🎯 What is FORGE Framework?
 
+FORGE is a **VS Code extension** that transforms GitHub Copilot into a learning AI that remembers your mistakes and project-specific patterns. Instead of giving generic suggestions, your AI assistant will learn from every problem you document and apply that knowledge automatically.
+
+### 🤔 The Problem
 ```diff
 ❌ Without FORGE:
-- AI suggests the same bad patterns repeatedly
-- No memory of your specific project context
+- GitHub Copilot suggests the same bad patterns repeatedly
+- No memory of your specific project context or stack
 - Keeps making mistakes you've already solved
 - Generic suggestions that don't fit your codebase
-- You have to keep explaining the same constraints
+- You waste time explaining the same constraints over and over
 
 ✅ With FORGE:
 - AI learns from every mistake you document
-- Remembers your project-specific prevention rules
+- Remembers your stack-specific rules (Windows PowerShell, TypeScript, etc.)
 - Suggests better code based on your accumulated knowledge
-- Understands your coding patterns and constraints
+- Understands your coding patterns and project constraints
 - Automatically applies lessons from previous tasks
 ```
+
+### 🎯 Core Concepts
+
+**🔨 Atomic Tasks (STEPs)**: Break work into ≤3 hour chunks for better focus and AI guidance
+**📚 Prevention Rules**: Every mistake becomes reusable knowledge for your AI
+**🤖 AI-First Development**: Designed specifically for working with GitHub Copilot
+**📈 Progressive Learning**: Your AI assistant gets smarter with every documented problem
 
 ## 🚀 What is FORGE?
 
@@ -49,7 +59,7 @@ FORGE is a **context framework for AI coding assistants** that turns GitHub Copi
 - **🎯 Atomic Tasks**: Break work into ≤3 hour chunks for better AI guidance
 - **📈 Progressive Learning**: Your AI assistant gets smarter over time
 
-## � Installation
+## 📦 Installation
 
 ### Option 1: VSCode Marketplace (Recommended)
 
@@ -70,7 +80,7 @@ code --install-extension eduardocecon.forge-framework
 - **[📦 Download from Marketplace](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)**
 - **[🔗 GitHub Repository](https://github.com/cecon/forge-framework)**
 
-## �📊 Real Results
+## 📊 Real Results
 
 Developers using FORGE with GitHub Copilot report:
 
@@ -92,15 +102,22 @@ Developers using FORGE with GitHub Copilot report:
 
 ### 1. Initialize FORGE in Your Project
 
-After installing the extension, open any project in VSCode and:
+After installing the extension, open any project in VSCode and run the **complete initialization**:
 
 ```bash
 # Use Command Palette (Ctrl+Shift+P) and search:
-> FORGE: Initialize Project
+> FORGE: Initialize Project Complete
 
 # Or use the keyboard shortcut:
 Ctrl+Shift+F, Ctrl+I
 ```
+
+**What this does:**
+- 🔍 **Auto-detects your environment** (OS, shell, package manager)
+- 📦 **Identifies your tech stack** (TypeScript, Python, Rust, etc.)
+- 📝 **Generates stack-specific instructions** for GitHub Copilot
+- ⚙️ **Creates environment-specific rules** (Windows PowerShell vs Unix bash)
+- 🗂️ **Sets up FORGE folder structure**
 
 ### 2. Automatic GitHub Copilot Integration
 
@@ -133,6 +150,95 @@ Ctrl+Shift+P → "FORGE: Create New Task"
 "Create FORGE task 'Add user authentication'"
 ```
 
+## 📖 How to Use
+
+### Step 1: Complete Project Setup
+Run the complete initialization to auto-configure your environment:
+```
+Ctrl+Shift+P → "FORGE: Initialize Project Complete"
+```
+
+**This automatically detects and configures:**
+- **Environment**: Windows PowerShell, macOS/Linux bash
+- **Stack**: TypeScript, Python, Rust, Node.js, etc.
+- **Package Manager**: npm, yarn, pip, cargo
+- **IDE Settings**: VSCode specific configurations
+
+### Step 2: Understanding the Two Workflows
+
+**🆕 CREATE Workflow** (New Projects)
+```
+STEP-0001: Project Foundation & Tech Stack
+STEP-0002: Core Architecture & Database
+STEP-0003: Authentication & Security
+STEP-0004: Core Features Implementation
+```
+
+**🔄 DEVELOP Workflow** (Existing Projects)
+```
+STEP-0001: Feature Analysis & Planning
+STEP-0002: Implementation & Testing  
+STEP-0003: Integration & Optimization
+STEP-0004: Documentation & Deployment
+```
+
+### Step 3: Create Your First Task
+```bash
+# Command Palette
+Ctrl+Shift+P → "FORGE: Create Task"
+
+# Or ask GitHub Copilot
+"Create FORGE task 'Add user login system'"
+```
+
+**What gets created:**
+```
+tasks/TASK_0001_ADD_USER_LOGIN/
+├── description.md      # What you want to build
+├── completion.md       # What you actually built
+├── difficulties.md     # Problems = Future prevention rules
+└── artifacts/          # Code, configs, docs
+```
+
+### Step 4: Work on the Task
+- **Focus**: Keep tasks ≤3 hours (atomic)
+- **Document**: Write down every problem in `difficulties.md`
+- **Ask Copilot**: "Help me with this FORGE task"
+
+### Step 5: Complete and Learn
+```bash
+Ctrl+Shift+P → "FORGE: Complete Task"
+```
+
+**FORGE extracts prevention rules from your difficulties:**
+```markdown
+❌ DON'T use bcrypt without salt rounds → always specify rounds (12+)
+   Source: TASK_0001 (weak passwords, security audit failed)
+```
+
+### Step 6: Watch Your AI Get Smarter
+Next time you create any authentication task, Copilot will automatically:
+- ✅ Suggest bcrypt with proper salt rounds
+- ✅ Add input validation
+- ✅ Include rate limiting
+- ✅ Apply all your accumulated knowledge
+
+### 🎯 Key Benefits
+
+**For Individual Developers:**
+- 🧠 **AI Learning**: Your GitHub Copilot remembers every mistake and solution
+- ⚡ **Faster Development**: No more explaining the same constraints repeatedly  
+- 🛡️ **Better Code Quality**: Prevention rules ensure consistent best practices
+- 📈 **Skill Growth**: Document problems to accelerate learning
+
+**For Teams:**
+- 🤝 **Knowledge Sharing**: Share prevention rules across team members
+- 🔄 **Consistent Patterns**: Everyone follows the same coding standards
+- 📚 **Onboarding**: New developers inherit team's accumulated knowledge
+- 🎯 **Focus**: Atomic tasks keep work manageable and reviewable
+
+---
+
 ## 🎬 See the Magic
 
 ### Before FORGE 😤
@@ -157,12 +263,13 @@ Copilot: "Based on your prevention rules from TASK_03, I'll create an endpoint w
 - Error handling without exposing sensitive data"
 ```
 
-## � VSCode Extension Features
+## 💻 VSCode Extension Features
 
 The **FORGE Framework VSCode Extension** provides:
 
 ### 🎮 Command Palette Integration
-- `FORGE: Initialize Project` - Set up FORGE in current workspace
+- `FORGE: Initialize Project Complete` - Auto-detect environment and stack, complete setup
+- `FORGE: Initialize Project` - Basic FORGE setup in current workspace
 - `FORGE: Create Task` - Create new atomic task with templates
 - `FORGE: Complete Task` - Mark task as done and extract prevention rules
 - `FORGE: Add Prevention Rule` - Manually add a rule from experience
@@ -189,7 +296,7 @@ Access via Command Palette → `FORGE: Open Dashboard`:
 - `Ctrl+Shift+F, Ctrl+C` - Complete current task
 - `Ctrl+Shift+F, Ctrl+D` - Open dashboard
 
-## �📁 How It Works
+## 📁 How It Works
 
 FORGE creates this structure that GitHub Copilot automatically reads:
 
@@ -454,11 +561,10 @@ Shall I create TASK_A first?"
 
 <div align="center">
 
-[![Discord](https://img.shields.io/discord/XXXXXXXXX?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/forge-framework)
 [![GitHub Discussions](https://img.shields.io/github/discussions/username/forge-framework?style=for-the-badge&logo=github)](https://github.com/username/forge-framework/discussions)
 [![Twitter Follow](https://img.shields.io/twitter/follow/ForgeFramework?style=for-the-badge&logo=twitter)](https://twitter.com/ForgeFramework)
 
-**[Join Discord](https://discord.gg/forge-framework)** • **[GitHub Discussions](https://github.com/username/forge-framework/discussions)** • **[Twitter](https://twitter.com/ForgeFramework)**
+**[GitHub Discussions](https://github.com/username/forge-framework/discussions)** • **[Twitter](https://twitter.com/ForgeFramework)**
 
 </div>
 
@@ -550,7 +656,7 @@ Each project has its own FORGE context. You can share common prevention rules ac
 Yes! FORGE stores everything locally in your project. Nothing is sent to external servers unless you explicitly share prevention rules with the community.
 </details>
 
-## � Links & Resources
+## 🔗 Links & Resources
 
 ### 📦 Official Extensions
 - **[VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)** - Official VSCode extension
@@ -576,7 +682,7 @@ We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for deta
 ### 💡 Have an Idea?
 [Share it on GitHub](https://github.com/cecon/forge-framework/issues/new?template=feature_request.md)
 
-## �📄 License
+## 📄 License
 
 FORGE Framework is [MIT licensed](LICENSE). Use it freely in personal and commercial projects.
 
