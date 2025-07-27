@@ -1,0 +1,54 @@
+# Build outputs
+out/test/**
+src/**
+.vscode-test/**
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/settings.json
+
+# Development files
+.gitignore
+.gitattributes
+tsconfig.json
+**/*.ts
+**/*.map
+.eslintrc.json
+
+# Documentation (keep only essential ones)
+IMPLEMENTATION_LOG.md
+EXTENSION_README.md
+
+# Dependencies that aren't needed
+node_modules/**
+!node_modules/yaml/**
+!node_modules/fs-extra/**
+!node_modules/date-fns/**
+
+# Tests
+**/test/**
+**/*.test.*
+**/*.spec.*
+
+# Source control
+.git/**
+.github/**
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime files
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+
+# Temporary files
+tmp/
+temp/
+
+# OS files
+.DS_Store
+Thumbs.db

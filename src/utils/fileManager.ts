@@ -85,8 +85,8 @@ export class FileManager {
         try {
             const items = await fs.readdir(tasksPath, { withFileTypes: true });
             return items
-                .filter(item => item.isDirectory())
-                .map(item => item.name)
+                .filter((item: fs.Dirent) => item.isDirectory())
+                .map((item: fs.Dirent) => item.name)
                 .sort();
         } catch (error) {
             return [];

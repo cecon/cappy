@@ -3,8 +3,7 @@
   "displayName": "FORGE Framework",
   "description": "Turn your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically",
   "version": "1.0.0",
-  "publisher": "forge-framework",
-  "icon": "assets/icon.png",
+  "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -212,19 +211,20 @@
     "publish": "vsce publish"
   },
   "devDependencies": {
-    "@types/vscode": "^1.74.0",
+    "@types/fs-extra": "^11.0.4",
     "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^5.45.0",
     "@typescript-eslint/parser": "^5.45.0",
-    "eslint": "^8.28.0",
-    "typescript": "^4.9.4",
     "@vscode/test-electron": "^2.2.0",
-    "@vscode/vsce": "^2.15.0"
+    "@vscode/vsce": "^2.15.0",
+    "eslint": "^8.28.0",
+    "typescript": "^4.9.4"
   },
   "dependencies": {
-    "yaml": "^2.3.4",
+    "date-fns": "^2.29.3",
     "fs-extra": "^11.1.1",
-    "date-fns": "^2.29.3"
+    "yaml": "^2.3.4"
   },
   "repository": {
     "type": "git",
