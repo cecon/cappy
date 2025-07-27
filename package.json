@@ -2,7 +2,7 @@
   "name": "forge-framework",
   "displayName": "FORGE Framework",
   "description": "Turn your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.74.0"
