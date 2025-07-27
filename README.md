@@ -5,18 +5,16 @@
 
 <div align="center">
 
-![FORGE Banner](assets/banner.svg)
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub stars](https://img.shields.io/github/stars/username/forge-framework.svg?style=social)](https://github.com/username/forge-framework/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/username/forge-framework.svg?style=social)](https://github.com/username/forge-framework/network)
-[![Discord](https://img.shields.io/discord/XXXXXXXXX?color=7289da&logo=discord&logoColor=white)](https://discord.gg/forge-framework)
+[![VSCode Marketplace](https://img.shields.io/visual-studio-marketplace/v/eduardocecon.forge-framework.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
+[![VSCode Marketplace Downloads](https://img.shields.io/visual-studio-marketplace/d/eduardocecon.forge-framework.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
+[![GitHub stars](https://img.shields.io/github/stars/cecon/forge-framework.svg?style=social)](https://github.com/cecon/forge-framework/stargazers)
 
-[![CI](https://github.com/username/forge-framework/workflows/CI/badge.svg)](https://github.com/username/forge-framework/actions)
-[![VSCode Extension](https://img.shields.io/badge/VSCode-Extension-007ACC.svg)](https://marketplace.visualstudio.com/items?itemName=forge-framework.forge)
-[![Copilot Ready](https://img.shields.io/badge/GitHub%20Copilot-Ready-green.svg)](docs/vscode-setup.md)
+[![VSCode Extension](https://img.shields.io/badge/VSCode-Extension-007ACC.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
+[![Copilot Ready](https://img.shields.io/badge/GitHub%20Copilot-Ready-green.svg)](#-github-copilot-integration)
+[![Available Now](https://img.shields.io/badge/Status-Available%20on%20Marketplace-brightgreen.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
 
-[**Quick Start**](#-quick-start) • [**Examples**](#-examples) • [**VSCode Setup**](docs/vscode-setup.md) • [**Discord**](https://discord.gg/forge-framework)
+[**Install Now**](#-installation) • [**Quick Start**](#-quick-start) • [**Examples**](#-examples) • [**GitHub**](https://github.com/cecon/forge-framework)
 
 </div>
 
@@ -51,7 +49,28 @@ FORGE is a **context framework for AI coding assistants** that turns GitHub Copi
 - **🎯 Atomic Tasks**: Break work into ≤3 hour chunks for better AI guidance
 - **📈 Progressive Learning**: Your AI assistant gets smarter over time
 
-## 📊 Real Results
+## � Installation
+
+### Option 1: VSCode Marketplace (Recommended)
+
+Install directly from the VSCode Marketplace:
+
+1. **Open VSCode Extensions** (`Ctrl+Shift+X`)
+2. **Search for**: `FORGE Framework`
+3. **Click Install** on `eduardocecon.forge-framework`
+
+**Or install via command line:**
+
+```bash
+code --install-extension eduardocecon.forge-framework
+```
+
+### Option 2: Direct Download
+
+- **[📦 Download from Marketplace](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)**
+- **[🔗 GitHub Repository](https://github.com/cecon/forge-framework)**
+
+## �📊 Real Results
 
 Developers using FORGE with GitHub Copilot report:
 
@@ -71,17 +90,19 @@ Developers using FORGE with GitHub Copilot report:
 
 ## 🏃‍♂️ Quick Start
 
-### 1. Install FORGE in VSCode
+### 1. Initialize FORGE in Your Project
+
+After installing the extension, open any project in VSCode and:
 
 ```bash
-# Install the VSCode extension
-code --install-extension forge-framework.forge
+# Use Command Palette (Ctrl+Shift+P) and search:
+> FORGE: Initialize Project
 
-# Or initialize manually
-curl -sSL https://raw.githubusercontent.com/username/forge-framework/main/scripts/forge-init.sh | bash
+# Or use the keyboard shortcut:
+Ctrl+Shift+F, Ctrl+I
 ```
 
-### 2. Configure GitHub Copilot
+### 2. Automatic GitHub Copilot Integration
 
 FORGE automatically creates `.vscode/copilot-instructions.md` with your accumulated knowledge:
 
@@ -136,7 +157,39 @@ Copilot: "Based on your prevention rules from TASK_03, I'll create an endpoint w
 - Error handling without exposing sensitive data"
 ```
 
-## 📁 How It Works
+## � VSCode Extension Features
+
+The **FORGE Framework VSCode Extension** provides:
+
+### 🎮 Command Palette Integration
+- `FORGE: Initialize Project` - Set up FORGE in current workspace
+- `FORGE: Create Task` - Create new atomic task with templates
+- `FORGE: Complete Task` - Mark task as done and extract prevention rules
+- `FORGE: Add Prevention Rule` - Manually add a rule from experience
+- `FORGE: Open Dashboard` - View project analytics and metrics
+- `FORGE: Update Copilot Context` - Refresh AI instructions
+
+### 📊 Interactive Dashboard
+Access via Command Palette → `FORGE: Open Dashboard`:
+
+- **📈 Task Metrics**: Completion rates, time estimates vs actual
+- **🛡️ Prevention Rules**: Categories, effectiveness scores
+- **🤖 Copilot Integration**: Context freshness, rules count  
+- **📋 Recent Activity**: Latest tasks and rule additions
+
+### 🎯 Smart Snippets & Syntax
+- **Task Templates**: Automatic structure for new tasks
+- **Prevention Rule Snippets**: Quick rule creation
+- **Markdown Highlighting**: FORGE-specific syntax highlighting
+- **Auto-completion**: Task names, rule categories, etc.
+
+### ⚡ Keyboard Shortcuts
+- `Ctrl+Shift+F, Ctrl+I` - Initialize FORGE
+- `Ctrl+Shift+F, Ctrl+T` - Create new task
+- `Ctrl+Shift+F, Ctrl+C` - Complete current task
+- `Ctrl+Shift+F, Ctrl+D` - Open dashboard
+
+## �📁 How It Works
 
 FORGE creates this structure that GitHub Copilot automatically reads:
 
@@ -173,9 +226,7 @@ Every problem becomes a **prevention rule** that guides your AI:
 
 GitHub Copilot automatically applies these rules to ALL future suggestions!
 
-## 🎯 VSCode Integration
-
-### Automatic Copilot Configuration
+## 🎯 GitHub Copilot Integration
 
 FORGE automatically updates your Copilot context with:
 
@@ -448,7 +499,7 @@ forge contribute-template --language python --framework django
 ## 📈 Roadmap
 
 ### 🚀 Q3 2025
-- [ ] VSCode Extension marketplace release
+- [x] ✅ **VSCode Extension marketplace release** - **AVAILABLE NOW!**
 - [ ] JetBrains IDE support (IntelliJ, PyCharm)
 - [ ] Advanced context management (priority, filtering)
 - [ ] Prevention rule marketplace
@@ -465,7 +516,7 @@ forge contribute-template --language python --framework django
 - [ ] Advanced pattern recognition
 - [ ] Cross-language rule translation
 
-**[View Full Roadmap →](https://github.com/username/forge-framework/projects/1)**
+**[View Full Roadmap →](https://github.com/cecon/forge-framework/projects/1)**
 
 ## 💬 FAQ
 
@@ -499,7 +550,33 @@ Each project has its own FORGE context. You can share common prevention rules ac
 Yes! FORGE stores everything locally in your project. Nothing is sent to external servers unless you explicitly share prevention rules with the community.
 </details>
 
-## 📄 License
+## � Links & Resources
+
+### 📦 Official Extensions
+- **[VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)** - Official VSCode extension
+- **[Extension Hub](https://marketplace.visualstudio.com/manage/publishers/eduardocecon/extensions/forge-framework/hub)** - Management dashboard
+
+### 🛠️ Development
+- **[GitHub Repository](https://github.com/cecon/forge-framework)** - Source code and issues
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute
+- **[Changelog](CHANGELOG.md)** - Version history
+
+### 📚 Documentation
+- **[Quick Start Guide](#-quick-start)** - Get started in 5 minutes
+- **[Examples](examples/)** - Real-world usage examples
+- **[Best Practices](docs/best-practices.md)** - Recommended workflows
+
+## 🤝 Contributing
+
+We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### 🐛 Found a Bug?
+[Report it on GitHub](https://github.com/cecon/forge-framework/issues/new?template=bug_report.md)
+
+### 💡 Have an Idea?
+[Share it on GitHub](https://github.com/cecon/forge-framework/issues/new?template=feature_request.md)
+
+## �📄 License
 
 FORGE Framework is [MIT licensed](LICENSE). Use it freely in personal and commercial projects.
 
@@ -509,10 +586,12 @@ FORGE Framework is [MIT licensed](LICENSE). Use it freely in personal and commer
 
 **Ready to transform your AI coding assistant into a learning partner?**
 
-[![Install VSCode Extension](https://img.shields.io/badge/Install%20VSCode%20Extension-007ACC?style=for-the-badge&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=forge-framework.forge)
-[![Quick Setup Guide](https://img.shields.io/badge/Quick%20Setup%20Guide-brightgreen?style=for-the-badge)](docs/vscode-setup.md)
-[![View Examples](https://img.shields.io/badge/View%20Examples-blue?style=for-the-badge)](examples/)
+[![Install VSCode Extension](https://img.shields.io/badge/Install%20VSCode%20Extension-007ACC?style=for-the-badge&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
+[![GitHub Repository](https://img.shields.io/badge/View%20on%20GitHub-black?style=for-the-badge&logo=github)](https://github.com/cecon/forge-framework)
+[![Quick Start Guide](https://img.shields.io/badge/Quick%20Start%20Guide-brightgreen?style=for-the-badge)](#-quick-start)
 
-Made with ❤️ for developers who want their AI to actually learn
+**🎯 Transform your development workflow today!**
+
+Made with ❤️ by [Eduardo Cecon](https://github.com/cecon) for developers who want their AI to actually learn
 
 </div>
