@@ -5,7 +5,7 @@
 
 <div align="center">
 
-![FORGE Banner](assets/banner.png)
+![FORGE Banner](assets/banner.svg)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/username/forge-framework.svg?style=social)](https://github.com/username/forge-framework/stargazers)

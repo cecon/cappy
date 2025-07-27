@@ -1,0 +1,240 @@
+{
+  "name": "forge-framework",
+  "displayName": "FORGE Framework",
+  "description": "Turn your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically",
+  "version": "1.0.0",
+  "publisher": "forge-framework",
+  "icon": "assets/icon.png",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Snippets",
+    "Formatters",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "ai",
+    "copilot",
+    "learning",
+    "productivity",
+    "automation",
+    "prevention",
+    "task-management"
+  ],
+  "activationEvents": [
+    "workspaceContains:.forge",
+    "onCommand:forge.createTask",
+    "onCommand:forge.init"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "forge.init",
+        "title": "Initialize FORGE in Workspace",
+        "category": "FORGE",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "forge.createTask",
+        "title": "Create New Task",
+        "category": "FORGE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "forge.completeTask",
+        "title": "Complete Current Task",
+        "category": "FORGE",
+        "icon": "$(check)"
+      },
+      {
+        "command": "forge.addPreventionRule",
+        "title": "Add Prevention Rule",
+        "category": "FORGE",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "forge.openDashboard",
+        "title": "Open Dashboard",
+        "category": "FORGE",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "forge.updateCopilotContext",
+        "title": "Update Copilot Context",
+        "category": "FORGE",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "forge.exportRules",
+        "title": "Export Prevention Rules",
+        "category": "FORGE",
+        "icon": "$(export)"
+      },
+      {
+        "command": "forge.refreshTasks",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "forge.openTask",
+        "title": "Open Task",
+        "icon": "$(go-to-file)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "forgeExplorer",
+          "name": "FORGE Tasks",
+          "when": "workspaceContains:.forge"
+        },
+        {
+          "id": "forgePreventionRules",
+          "name": "Prevention Rules",
+          "when": "workspaceContains:.forge"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "forgeExplorer",
+        "contents": "No FORGE tasks found.\n[Initialize FORGE](command:forge.init)\n[Create New Task](command:forge.createTask)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "forge.createTask",
+          "when": "view == forgeExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "forge.refreshTasks",
+          "when": "view == forgeExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "forge.addPreventionRule",
+          "when": "view == forgePreventionRules",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "forge.openTask",
+          "when": "view == forgeExplorer && viewItem == task",
+          "group": "navigation"
+        },
+        {
+          "command": "forge.completeTask",
+          "when": "view == forgeExplorer && viewItem == activeTask",
+          "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "forge.refreshTasks",
+          "when": "false"
+        },
+        {
+          "command": "forge.openTask",
+          "when": "false"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "forge.createTask",
+        "key": "ctrl+shift+f ctrl+n",
+        "when": "workspaceContains:.forge"
+      },
+      {
+        "command": "forge.completeTask",
+        "key": "ctrl+shift+f ctrl+c",
+        "when": "workspaceContains:.forge"
+      },
+      {
+        "command": "forge.openDashboard",
+        "key": "ctrl+shift+f ctrl+d",
+        "when": "workspaceContains:.forge"
+      }
+    ],
+    "configuration": {
+      "title": "FORGE Framework",
+      "properties": {
+        "forge.autoUpdateCopilotContext": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically update Copilot context when prevention rules change"
+        },
+        "forge.maxPreventionRules": {
+          "type": "number",
+          "default": 50,
+          "description": "Maximum number of prevention rules to include in Copilot context"
+        },
+        "forge.taskTimeEstimation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic task time estimation and atomicity analysis"
+        },
+        "forge.showNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notifications for FORGE events"
+        }
+      }
+    },
+    "snippets": [
+      {
+        "language": "markdown",
+        "path": "./snippets/forge.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "markdown",
+        "scopeName": "text.html.markdown.forge",
+        "path": "./syntaxes/forge-task.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "eslint": "^8.28.0",
+    "typescript": "^4.9.4",
+    "@vscode/test-electron": "^2.2.0",
+    "@vscode/vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "yaml": "^2.3.4",
+    "fs-extra": "^11.1.1",
+    "date-fns": "^2.29.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cecon/forge-framework.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cecon/forge-framework/issues"
+  },
+  "homepage": "https://github.com/cecon/forge-framework#readme",
+  "license": "MIT",
+  "author": "",
+  "type": "commonjs"
+}
