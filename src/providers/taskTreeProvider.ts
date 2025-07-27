@@ -4,11 +4,13 @@ import * as fs from 'fs';
 import { Task, TaskStatus } from '../models/task';
 import { FileManager } from '../utils/fileManager';
 
-export class ForgeTaskProvider implements vscode.TreeDataProvider<TaskItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<TaskItem | undefined | null | void> = new vscode.EventEmitter<TaskItem | undefined | null | void>();
-    readonly onDidChangeTreeData: vscode.Event<TaskItem | undefined | null | void> = this._onDidChangeTreeData.event;
+type TaskItemChangeEvent = TaskItem | undefined | null | void;
 
-    private fileManager: FileManager;
+export class ForgeTaskProvider implements vscode.TreeDataProvider<TaskItem> {
+    private readonly _onDidChangeTreeData: vscode.EventEmitter<TaskItemChangeEvent> = new vscode.EventEmitter<TaskItemChangeEvent>();
+    readonly onDidChangeTreeData: vscode.Event<TaskItemChangeEvent> = this._onDidChangeTreeData.event;
+
+    private readonly fileManager: FileManager;
 
     constructor() {
         this.fileManager = new FileManager();
@@ -49,7 +51,7 @@ export class ForgeTaskProvider implements vscode.TreeDataProvider<TaskItem> {
             const taskFolders = fs.readdirSync(tasksPath, { withFileTypes: true })
                 .filter(dirent => dirent.isDirectory())
                 .map(dirent => dirent.name)
-                .sort();
+                .sort((a, b) => a.localeCompare(b));
 
             for (const taskFolder of taskFolders) {
                 const taskPath = path.join(tasksPath, taskFolder);
@@ -168,7 +170,7 @@ export class ForgeTaskProvider implements vscode.TreeDataProvider<TaskItem> {
                     completedAt = stats.mtime;
                     
                     // Try to extract actual hours from completion.md
-                    const hoursMatch = completionContent.match(/actual.*?(\d+(?:\.\d+)?)\s*h/i);
+                    const hoursMatch = RegExp(/actual.*?(\d+(?:\.\d+)?)\s*h/i).exec(completionContent);
                     if (hoursMatch) {
                         actualHours = parseFloat(hoursMatch[1]);
                     }
@@ -184,7 +186,7 @@ export class ForgeTaskProvider implements vscode.TreeDataProvider<TaskItem> {
             let estimatedHours = 3; // default
             let atomicity = { isAtomic: true, estimatedHours: 3, confidence: 0.8 };
 
-            const hoursMatch = descriptionContent.match(/estimated.*?(\d+(?:\.\d+)?)\s*h/i);
+            const hoursMatch = RegExp(/estimated.*?(\d+(?:\.\d+)?)\s*h/i).exec(descriptionContent);
             if (hoursMatch) {
                 estimatedHours = parseFloat(hoursMatch[1]);
                 atomicity.estimatedHours = estimatedHours;
