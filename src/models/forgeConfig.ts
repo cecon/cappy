@@ -6,6 +6,8 @@ export interface ForgeConfig {
         framework: string[];
         description?: string;
         stackInstructions?: string; // Path to stack-specific instructions file
+        currentPhase?: string; // Current development phase for macro context
+        architectureNotes?: string; // High-level architecture overview
     };
     stack: {
         primary: string; // e.g., 'typescript', 'python', 'rust', 'java'
@@ -75,15 +77,15 @@ export const DEFAULT_FORGE_CONFIG: Partial<ForgeConfig> = {
         containerization: 'docker'
     },
     context: {
-        maxRules: 50,
+        maxRules: 15, // Reduced for solo dev - focus on what matters
         autoPrioritize: true,
         languageSpecific: true,
         projectPatterns: true,
         autoUpdateCopilot: true
     },
     tasks: {
-        maxAtomicHours: 3,
-        defaultTemplate: 'standard',
+        maxAtomicHours: 2, // Smaller chunks for solo velocity
+        defaultTemplate: 'lightweight',
         autoTimeEstimation: true,
         atomicityWarning: true,
         requireUnitTests: false,
@@ -93,8 +95,8 @@ export const DEFAULT_FORGE_CONFIG: Partial<ForgeConfig> = {
     ai: {
         provider: 'copilot',
         copilotIntegration: true,
-        contextFile: '.vscode/copilot-instructions.md',
-        maxContextSize: 8000
+        contextFile: '.github/copilot-instructions.md', // Private instructions in .gitignore
+        maxContextSize: 4000 // Smaller context to avoid Copilot ignoring
     },
     analytics: {
         enabled: true,

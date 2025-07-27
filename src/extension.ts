@@ -10,6 +10,8 @@ import { PreventionRuleAdder } from './commands/addPreventionRule';
 import { ForgeDashboard } from './webview/dashboard';
 import { ForgeInitializer } from './commands/initForge';
 import { initForgeComplete } from './commands/initForgeComplete';
+import { InitForgeSoloCommand } from './commands/initForgeSolo';
+import { FileManager } from './utils/fileManager';
 
 let copilotContextManager: CopilotContextManager;
 
@@ -34,6 +36,17 @@ export function activate(context: vscode.ExtensionContext) {
             await initializer.initialize();
             taskProvider.refresh();
             preventionRulesProvider.refresh();
+        }),
+
+        vscode.commands.registerCommand('forge.initSolo', async () => {
+            const fileManager = new FileManager();
+            const initSolo = new InitForgeSoloCommand(fileManager);
+            const success = await initSolo.execute();
+            if (success) {
+                taskProvider.refresh();
+                preventionRulesProvider.refresh();
+                await copilotContextManager.updateContext();
+            }
         }),
 
         vscode.commands.registerCommand('forge.initComplete', async () => {

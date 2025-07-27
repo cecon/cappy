@@ -29,8 +29,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "forge.init",
-        "title": "Initialize FORGE in Workspace",
+        "command": "forge.initSolo",
+        "title": "Initialize FORGE Framework",
         "category": "FORGE",
         "icon": "$(rocket)"
       },

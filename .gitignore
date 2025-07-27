@@ -80,7 +80,9 @@ Thumbs.db
 test-results/
 coverage/
 
-# FORGE Framework specific
-.forge/cache/
-.forge/temp/
+# FORGE Framework specific (Personal Development)
+.forge/
+.github/copilot-instructions.md
+.github/stack-instructions.md
 *.forge.lock
+.forge-context/
