@@ -3,9 +3,9 @@ import { ForgeTaskProvider } from './providers/taskTreeProvider';
 import { ForgePreventionRulesProvider } from './providers/preventionRulesProvider';
 import { CopilotContextManager } from './utils/contextManager';
 import { ForgeConfig } from './models/forgeConfig';
-import { TaskCreator } from './commands/createTask';
-import { SmartTaskCreator } from './commands/createSmartTask';
-import { TaskCompleter } from './commands/completeTask';
+import { StartActivityCommand } from './commands/startActivity';
+import { CompleteActivityCommand } from './commands/completeActivity';
+import { ViewHistoryCommand } from './commands/viewHistory';
 import { PreventionRuleAdder } from './commands/addPreventionRule';
 import { ForgeDashboard } from './webview/dashboard';
 import { ForgeInitializer } from './commands/initForge';
@@ -56,32 +56,29 @@ export function activate(context: vscode.ExtensionContext) {
             await copilotContextManager.updateContext();
         }),
 
-        vscode.commands.registerCommand('forge.createTask', async () => {
-            const creator = new TaskCreator();
-            const success = await creator.show();
-            if (success) {
-                taskProvider.refresh();
-                await copilotContextManager.updateContext();
-            }
-        }),
-
-        vscode.commands.registerCommand('forge.createSmartTask', async () => {
-            const smartCreator = new SmartTaskCreator();
-            const success = await smartCreator.show();
-            if (success) {
-                taskProvider.refresh();
-                await copilotContextManager.updateContext();
-            }
-        }),
-
-        vscode.commands.registerCommand('forge.completeTask', async (taskItem?) => {
-            const completer = new TaskCompleter();
-            const success = await completer.show(taskItem);
+        vscode.commands.registerCommand('forge.startActivity', async () => {
+            const startActivity = new StartActivityCommand();
+            const success = await startActivity.execute();
             if (success) {
                 taskProvider.refresh();
                 preventionRulesProvider.refresh();
                 await copilotContextManager.updateContext();
             }
+        }),
+
+        vscode.commands.registerCommand('forge.completeActivity', async () => {
+            const completeActivity = new CompleteActivityCommand();
+            const success = await completeActivity.execute();
+            if (success) {
+                taskProvider.refresh();
+                preventionRulesProvider.refresh();
+                await copilotContextManager.updateContext();
+            }
+        }),
+
+        vscode.commands.registerCommand('forge.viewHistory', async () => {
+            const viewHistory = new ViewHistoryCommand();
+            await viewHistory.execute();
         }),
 
         vscode.commands.registerCommand('forge.addPreventionRule', async () => {

@@ -67,6 +67,7 @@ temp/
 ._*
 .Spotlight-V100
 .Trashes
+.vscode-test/
 ehthumbs.db
 Thumbs.db
 

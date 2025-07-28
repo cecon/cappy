@@ -41,22 +41,22 @@
         "icon": "$(settings-gear)"
       },
       {
-        "command": "forge.createTask",
-        "title": "Create New Task",
+        "command": "forge.startActivity",
+        "title": "Start Activity",
         "category": "FORGE",
-        "icon": "$(add)"
+        "icon": "$(play)"
       },
       {
-        "command": "forge.createSmartTask",
-        "title": "Create Task with AI",
-        "category": "FORGE",
-        "icon": "$(sparkle)"
-      },
-      {
-        "command": "forge.completeTask",
-        "title": "Complete Current Task",
+        "command": "forge.completeActivity",
+        "title": "Complete Activity",
         "category": "FORGE",
         "icon": "$(check)"
+      },
+      {
+        "command": "forge.viewHistory",
+        "title": "View Activity History",
+        "category": "FORGE",
+        "icon": "$(history)"
       },
       {
         "command": "forge.addPreventionRule",
@@ -222,6 +222,8 @@
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
+    "@types/glob": "^8.0.0",
+    "@types/mocha": "^10.0.0",
     "@types/node": "16.x",
     "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^5.45.0",
@@ -229,6 +231,8 @@
     "@vscode/test-electron": "^2.2.0",
     "@vscode/vsce": "^2.15.0",
     "eslint": "^8.28.0",
+    "glob": "^8.0.3",
+    "mocha": "^10.1.0",
     "typescript": "^4.9.4"
   },
   "dependencies": {

@@ -34,7 +34,7 @@ export class InitForgeSoloCommand {
             // Criar estrutura básica
             await fs.ensureDir(forgeDir);
             await fs.ensureDir(githubDir);
-            await fs.ensureDir(path.join(forgeDir, 'steps'));
+            await fs.ensureDir(path.join(forgeDir, 'history'));
 
             // Coletar informações do projeto
             const projectInfo = await this.collectProjectInfo();
@@ -54,6 +54,7 @@ export class InitForgeSoloCommand {
             await this.createConfigFile(forgeDir, config);
             await this.createPrivateCopilotInstructions(githubDir, config);
             await this.createPreventionRulesFile(forgeDir);
+            await this.createEmptyCurrentActivity(forgeDir);
             await this.updateGitignore(workspaceFolder.uri.fsPath);
 
             vscode.window.showInformationMessage(
@@ -123,7 +124,7 @@ export class InitForgeSoloCommand {
     private async createPrivateCopilotInstructions(githubDir: string, config: ForgeConfig): Promise<void> {
         const instructionsPath = path.join(githubDir, 'copilot-instructions.md');
         
-        const template = `# GitHub Copilot Instructions - ${config.project.name} (Solo Dev)
+        const template = `# GitHub Copilot Instructions - ${config.project.name}
 
 ## 🎯 **Projeto Overview**
 **Linguagem**: ${config.project.language.join(', ')}
@@ -131,30 +132,38 @@ export class InitForgeSoloCommand {
 **Fase Atual**: ${config.project.currentPhase}
 **Arquitetura**: ${config.project.architectureNotes}
 
-## 🔨 **Workflow Solo Development**
+## 🔨 **Workflow de Atividade Única**
 
-### **Quando criar nova feature/task:**
-1. **Decompor**: Quebrar em chunks de 2h máximo
-2. **Contexto macro**: Sempre conectar ao objetivo geral do projeto
-3. **Prevention rules**: Aplicar lições aprendidas automaticamente
+### **Quando criar nova atividade:**
+1. **Analisar contexto**: Verificar estrutura do projeto e dependências
+2. **Perguntas de clarificação**: 3-5 perguntas específicas antes de implementar
+3. **Atividade única**: Apenas uma atividade ativa por vez em \`current-activity.md\`
+4. **Prevention rules**: Aplicar lições do arquivo \`prevention-rules.md\`
 
 ### **Durante desenvolvimento:**
-- **Iterações pequenas**: Testar frequentemente
-- **Documentar blockers**: Apenas problemas reais que economizam tempo
-- **Manter visão macro**: Cada STEP conectada aos objetivos gerais
+- **Foco total**: Uma atividade por vez, escopo ≤2 horas
+- **Documentar problemas**: Apenas em \`## ⚠️ Dificuldades Encontradas\`
+- **Conectar ao macro**: Cada atividade liga aos objetivos gerais
 
-### **Padrões do Projeto:**
-{STACK_PATTERNS_PLACEHOLDER}
+### **Ao completar:**
+- **Extrair lições**: Converter dificuldades em prevention rules
+- **Mover para histórico**: \`current-activity.md\` → \`history/TIMESTAMP-slug.md\`
+- **Limpar contexto**: Preparar para próxima atividade
 
 ## 🚨 **Prevention Rules Ativas**
 {PREVENTION_RULES_PLACEHOLDER}
 
 ## 📊 **Estado Atual**
-- **Última STEP**: {CURRENT_STEP}
+- **Atividade Atual**: {CURRENT_ACTIVITY}
 - **Próximos objetivos**: {NEXT_OBJECTIVES}
 
+## 🎯 **Comandos Reconhecidos**
+- \`"FORGE: Start Activity [nome]"\` → Inicia nova atividade com perguntas
+- \`"FORGE: Complete Activity"\` → Finaliza atividade atual
+- \`"FORGE: View History"\` → Lista atividades anteriores
+
 ---
-**Lembre-se**: Foco em velocidade sustentável. Documente apenas o que realmente ajuda.`;
+**Princípio**: Uma atividade de cada vez, com clarificação prévia e aprendizado contínuo.`;
 
         await fs.writeFile(instructionsPath, template);
     }
@@ -201,5 +210,19 @@ Este arquivo acumula lições aprendidas. Máximo 15 regras para manter foco.
             content += forgeIgnores;
             await fs.writeFile(gitignorePath, content);
         }
+    }
+
+    private async createEmptyCurrentActivity(forgeDir: string): Promise<void> {
+        const currentActivityPath = path.join(forgeDir, 'current-activity.md');
+        const emptyContent = `# Atividade: [Vazio]
+
+> Nenhuma atividade em andamento.
+> Use **FORGE: Start Activity** para iniciar uma nova atividade.
+
+---
+*Aguardando nova atividade...*
+`;
+
+        await fs.writeFile(currentActivityPath, emptyContent);
     }
 }
