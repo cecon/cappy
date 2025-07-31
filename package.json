@@ -23,7 +23,10 @@
     "task-management"
   ],
   "activationEvents": [
-    "*"
+    "onCommand:forge.init",
+    "onCommand:forge.createTask",
+    "onCommand:forge.openDashboard",
+    "workspaceContains:.forge"
   ],
   "main": "./out/extension.js",
   "contributes": {
