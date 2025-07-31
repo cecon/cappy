@@ -8,9 +8,9 @@ import { CompleteActivityCommand } from './commands/completeActivity';
 import { ViewHistoryCommand } from './commands/viewHistory';
 import { PreventionRuleAdder } from './commands/addPreventionRule';
 import { ForgeDashboard } from './webview/dashboard';
-import { ForgeInitializer } from './commands/initForge';
-import { initForgeComplete } from './commands/initForgeComplete';
-import { InitForgeSoloCommand } from './commands/initForgeSolo';
+import { InitForgeCommand } from './commands/initForge';
+import { TaskCreator } from './commands/createTask';
+import { TaskCompleter } from './commands/completeTask';
 import { FileManager } from './utils/fileManager';
 
 let copilotContextManager: CopilotContextManager;
@@ -32,28 +32,14 @@ export function activate(context: vscode.ExtensionContext) {
     // Register commands
     const commands = [
         vscode.commands.registerCommand('forge.init', async () => {
-            const initializer = new ForgeInitializer();
-            await initializer.initialize();
-            taskProvider.refresh();
-            preventionRulesProvider.refresh();
-        }),
-
-        vscode.commands.registerCommand('forge.initSolo', async () => {
             const fileManager = new FileManager();
-            const initSolo = new InitForgeSoloCommand(fileManager);
-            const success = await initSolo.execute();
+            const initForge = new InitForgeCommand(fileManager);
+            const success = await initForge.execute();
             if (success) {
                 taskProvider.refresh();
                 preventionRulesProvider.refresh();
                 await copilotContextManager.updateContext();
             }
-        }),
-
-        vscode.commands.registerCommand('forge.initComplete', async () => {
-            await initForgeComplete();
-            taskProvider.refresh();
-            preventionRulesProvider.refresh();
-            await copilotContextManager.updateContext();
         }),
 
         vscode.commands.registerCommand('forge.startActivity', async () => {
@@ -114,6 +100,26 @@ export function activate(context: vscode.ExtensionContext) {
             if (taskItem && taskItem.taskPath) {
                 const descriptionPath = vscode.Uri.file(`${taskItem.taskPath}/description.md`);
                 vscode.window.showTextDocument(descriptionPath);
+            }
+        }),
+
+        vscode.commands.registerCommand('forge.createTask', async () => {
+            const taskCreator = new TaskCreator();
+            const success = await taskCreator.show();
+            if (success) {
+                taskProvider.refresh();
+                preventionRulesProvider.refresh();
+                await copilotContextManager.updateContext();
+            }
+        }),
+
+        vscode.commands.registerCommand('forge.completeTask', async (taskItem) => {
+            const taskCompleter = new TaskCompleter();
+            const success = await taskCompleter.show(taskItem);
+            if (success) {
+                taskProvider.refresh();
+                preventionRulesProvider.refresh();
+                await copilotContextManager.updateContext();
             }
         })
     ];

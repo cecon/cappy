@@ -1,318 +1,292 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs-extra';
 import { FileManager } from '../utils/fileManager';
 import { ForgeConfig, DEFAULT_FORGE_CONFIG } from '../models/forgeConfig';
 
-export class ForgeInitializer {
-    private fileManager: FileManager;
+export class InitForgeCommand {
+    constructor(
+        private fileManager: FileManager
+    ) {}
 
-    constructor() {
-        this.fileManager = new FileManager();
-    }
-
-    public async initialize(): Promise<boolean> {
+    async execute(): Promise<boolean> {
         try {
-            if (!vscode.workspace.workspaceFolders) {
-                vscode.window.showErrorMessage('FORGE: No workspace folder found. Please open a folder first.');
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                vscode.window.showErrorMessage('🚨 Abra uma pasta de projeto primeiro para usar o FORGE');
                 return false;
             }
 
-            const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
-            const projectName = path.basename(workspaceRoot);
+            const forgeDir = path.join(workspaceFolder.uri.fsPath, '.forge');
+            const githubDir = path.join(workspaceFolder.uri.fsPath, '.github');
 
-            // Show progress
-            return await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: 'Initializing FORGE Framework',
-                cancellable: false
-            }, async (progress, token) => {
-                try {
-                    progress.report({ increment: 0, message: 'Setting up FORGE structure...' });
-
-                    // Create FORGE directory structure
-                    await this.fileManager.ensureForgeStructure();
-
-                    progress.report({ increment: 25, message: 'Detecting project languages and frameworks...' });
-
-                    // Detect project languages and frameworks
-                    const languages = await this.fileManager.getProjectLanguages();
-                    const frameworks = await this.fileManager.getProjectFrameworks();
-
-                    progress.report({ increment: 50, message: 'Creating configuration...' });
-
-                    // Create FORGE config
-                    const config: ForgeConfig = {
-                        ...DEFAULT_FORGE_CONFIG,
-                        project: {
-                            name: projectName,
-                            language: languages,
-                            framework: frameworks,
-                            description: await this.getProjectDescription()
-                        },
-                        createdAt: new Date(),
-                        lastUpdated: new Date()
-                    } as ForgeConfig;
-
-                    await this.fileManager.writeForgeConfig(config);
-
-                    progress.report({ increment: 75, message: 'Creating templates and initial files...' });
-
-                    // Create initial templates
-                    await this.createInitialTemplates();
-
-                    // Create initial Copilot instructions
-                    await this.createInitialCopilotInstructions(config);
-
-                    progress.report({ increment: 100, message: 'FORGE initialization complete!' });
-
-                    // Show success message with next steps
-                    const choice = await vscode.window.showInformationMessage(
-                        `FORGE Framework initialized successfully!\n\nProject: ${projectName}\nLanguages: ${languages.join(', ') || 'None detected'}\nFrameworks: ${frameworks.join(', ') || 'None detected'}`,
-                        'Create First Task',
-                        'Open Dashboard',
-                        'Learn More'
-                    );
-
-                    if (choice === 'Create First Task') {
-                        await vscode.commands.executeCommand('forge.createTask');
-                    } else if (choice === 'Open Dashboard') {
-                        await vscode.commands.executeCommand('forge.openDashboard');
-                    } else if (choice === 'Learn More') {
-                        await vscode.env.openExternal(vscode.Uri.parse('https://github.com/cecon/forge-framework'));
-                    }
-
-                    return true;
-                } catch (error) {
-                    vscode.window.showErrorMessage(`FORGE initialization failed: ${error}`);
+            // Verificar se já existe
+            if (await fs.pathExists(forgeDir)) {
+                const overwrite = await vscode.window.showWarningMessage(
+                    '⚠️ FORGE já foi inicializado neste projeto. Sobrescrever?',
+                    'Sim', 'Não'
+                );
+                if (overwrite !== 'Sim') {
                     return false;
                 }
+            }
+
+            // Mostrar progresso
+            return await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: '🔨 Inicializando FORGE Framework',
+                cancellable: false
+            }, async (progress) => {
+                
+                progress.report({ increment: 0, message: 'Criando estrutura...' });
+                
+                // 1. Criar estrutura básica
+                await fs.ensureDir(forgeDir);
+                await fs.ensureDir(githubDir);
+                await fs.ensureDir(path.join(forgeDir, 'history'));
+
+                progress.report({ increment: 20, message: 'Coletando informações do projeto...' });
+
+                // 2. Coletar informações do projeto
+                const projectInfo = await this.collectProjectInfo(workspaceFolder.uri.fsPath);
+
+                progress.report({ increment: 40, message: 'Configurando FORGE...' });
+
+                // 3. Criar configuração
+                const config: ForgeConfig = {
+                    version: DEFAULT_FORGE_CONFIG.version || '1.0.0',
+                    project: {
+                        name: projectInfo.name,
+                        language: projectInfo.languages || [projectInfo.language || 'unknown'],
+                        framework: projectInfo.framework || [],
+                        description: projectInfo.description
+                    },
+                    stack: DEFAULT_FORGE_CONFIG.stack!,
+                    environment: DEFAULT_FORGE_CONFIG.environment!,
+                    context: DEFAULT_FORGE_CONFIG.context!,
+                    tasks: DEFAULT_FORGE_CONFIG.tasks!,
+                    ai: DEFAULT_FORGE_CONFIG.ai!,
+                    analytics: DEFAULT_FORGE_CONFIG.analytics!,
+                    createdAt: new Date(),
+                    lastUpdated: new Date()
+                };
+
+                progress.report({ increment: 60, message: 'Criando arquivos de configuração...' });
+
+                // 4. Salvar configuração
+                await this.fileManager.writeForgeConfig(config);
+
+                progress.report({ increment: 80, message: 'Criando instruções para Copilot...' });
+
+                // 5. Criar instruções personalizadas para Copilot
+                await this.createCopilotInstructions(config, githubDir, projectInfo);
+
+                // 6. Criar arquivo de prevention rules
+                await this.createInitialPreventionRules(forgeDir);
+
+                // 7. Adicionar ao .gitignore
+                await this.updateGitignore(workspaceFolder.uri.fsPath);
+
+                progress.report({ increment: 100, message: 'Finalizado!' });
+
+                vscode.window.showInformationMessage(
+                    '🎉 FORGE Framework inicializado com sucesso! Use "FORGE: Start Activity" para começar.'
+                );
+
+                return true;
             });
+
         } catch (error) {
-            vscode.window.showErrorMessage(`FORGE initialization failed: ${error}`);
+            vscode.window.showErrorMessage(`Erro ao inicializar FORGE: ${error}`);
             return false;
         }
     }
 
-    private async getProjectDescription(): Promise<string> {
-        // Try to get description from package.json
-        const workspaceRoot = vscode.workspace.workspaceFolders![0].uri.fsPath;
-        const packageJsonPath = path.join(workspaceRoot, 'package.json');
+    private async collectProjectInfo(workspacePath: string): Promise<any> {
+        const projectName = path.basename(workspacePath);
+        
+        // Detectar linguagens
+        const languages = await this.detectLanguages(workspacePath);
+        
+        // Detectar frameworks
+        const frameworks = await this.detectFrameworks(workspacePath);
+
+        return {
+            name: projectName,
+            description: `Projeto ${projectName} - Desenvolvimento solo com FORGE`,
+            language: languages.length > 0 ? languages[0] : 'unknown',
+            languages: languages,
+            framework: frameworks,
+            type: this.inferProjectType(languages, frameworks)
+        };
+    }
+
+    private async detectLanguages(workspacePath: string): Promise<string[]> {
+        const languages: string[] = [];
+        
+        // Verificar arquivos comuns
+        if (await fs.pathExists(path.join(workspacePath, 'package.json'))) {
+            languages.push('javascript');
+            
+            // Verificar se é TypeScript
+            if (await fs.pathExists(path.join(workspacePath, 'tsconfig.json')) ||
+                await this.hasFilesWithExtension(workspacePath, '.ts')) {
+                languages.push('typescript');
+            }
+        }
+        
+        if (await this.hasFilesWithExtension(workspacePath, '.py')) {
+            languages.push('python');
+        }
+        
+        if (await this.hasFilesWithExtension(workspacePath, '.cs')) {
+            languages.push('csharp');
+        }
+        
+        if (await this.hasFilesWithExtension(workspacePath, '.java')) {
+            languages.push('java');
+        }
+        
+        return languages;
+    }
+
+    private async detectFrameworks(workspacePath: string): Promise<string[]> {
+        const frameworks: string[] = [];
         
         try {
-            const fs = require('fs');
-            if (fs.existsSync(packageJsonPath)) {
-                const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-                if (packageJson.description) {
-                    return packageJson.description;
-                }
-            }
-        } catch (error) {
-            // Ignore errors
-        }
-
-        // Try to get description from README
-        const readmePath = path.join(workspaceRoot, 'README.md');
-        try {
-            const fs = require('fs');
-            if (fs.existsSync(readmePath)) {
-                const readmeContent = fs.readFileSync(readmePath, 'utf8');
-                const lines = readmeContent.split('\n');
+            const packageJsonPath = path.join(workspacePath, 'package.json');
+            if (await fs.pathExists(packageJsonPath)) {
+                const packageJson = await fs.readJson(packageJsonPath);
+                const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
                 
-                // Look for first non-header line
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('!') && trimmed.length > 10) {
-                        return trimmed.substring(0, 200); // Limit length
-                    }
-                }
+                if (deps['react']) { frameworks.push('react'); }
+                if (deps['next']) { frameworks.push('nextjs'); }
+                if (deps['vue']) { frameworks.push('vue'); }
+                if (deps['@angular/core']) { frameworks.push('angular'); }
+                if (deps['express']) { frameworks.push('express'); }
+                if (deps['vscode']) { frameworks.push('vscode-extension'); }
             }
         } catch (error) {
             // Ignore errors
         }
-
-        return 'A software project managed with FORGE Framework';
+        
+        return frameworks;
     }
 
-    private async createInitialTemplates(): Promise<void> {
-        const workspaceRoot = vscode.workspace.workspaceFolders![0].uri.fsPath;
-        const templatesPath = path.join(workspaceRoot, '.forge', 'templates');
-
-        // Create description template
-        const descriptionTemplate = `# Task: {{TASK_NAME}}
-
-## 🎯 Objective
-{{TASK_DESCRIPTION}}
-
-## 📋 Requirements
-- [ ] Requirement 1
-- [ ] Requirement 2
-- [ ] Requirement 3
-
-## 🚫 Prevention Rules to Apply
-{{PREVENTION_RULES}}
-
-## ⏱️ Time Estimation
-**Estimated:** {{ESTIMATED_HOURS}} hours
-**Atomicity:** {{ATOMICITY_STATUS}}
-
-## 📝 Implementation Notes
-- Implementation approach
-- Key considerations
-- Dependencies needed
-
-## ✅ Definition of Done
-- [ ] Code implemented and tested
-- [ ] Documentation updated
-- [ ] Prevention rules applied
-- [ ] No linting errors
-- [ ] Ready for review
-
----
-*Created: {{CREATED_DATE}}*
-*FORGE Framework: Focus, Organize, Record, Grow, Evolve*
-`;
-
-        const completionTemplate = `# Task Completion: {{TASK_NAME}}
-
-## ✅ What Was Accomplished
-- Accomplishment 1
-- Accomplishment 2
-- Accomplishment 3
-
-## 📊 Time Analysis
-- **Estimated:** {{ESTIMATED_HOURS}} hours
-- **Actual:** {{ACTUAL_HOURS}} hours
-- **Variance:** {{VARIANCE}} ({{VARIANCE_PERCENTAGE}}%)
-
-## 🔧 Technologies Used
-- Technology 1
-- Technology 2
-
-## 📁 Artifacts Created
-- \`file1.ts\` - Description
-- \`file2.ts\` - Description
-
-## 🎓 Lessons Learned
-- Lesson 1
-- Lesson 2
-
-## 📈 Prevention Rules Generated
-{{GENERATED_RULES}}
-
----
-*Completed: {{COMPLETED_DATE}}*
-*Total Time: {{ACTUAL_HOURS}} hours*
-`;
-
-        const difficultiesTemplate = `# Difficulties & Prevention Rules: {{TASK_NAME}}
-
-## 🚨 Problems Encountered
-
-### Problem 1: [Description]
-**Issue:** Detailed description of what went wrong
-**Impact:** How much time was lost, what broke
-**Root Cause:** Why this happened
-
-**Prevention Rule:**
-❌ DON'T [what not to do] → [what to do instead]
-
----
-
-### Problem 2: [Description]
-**Issue:** Detailed description of what went wrong
-**Impact:** How much time was lost, what broke
-**Root Cause:** Why this happened
-
-**Prevention Rule:**
-❌ DON'T [what not to do] → [what to do instead]
-
----
-
-## 📚 Key Learnings for Future Tasks
-1. Learning 1
-2. Learning 2
-3. Learning 3
-
-## 🔄 Process Improvements
-- Process improvement 1
-- Process improvement 2
-
----
-*Note: Add prevention rules in the format "❌ DON'T [problem] → [solution]" for automatic Copilot integration*
-`;
-
-        // Write template files
-        const fs = require('fs-extra');
-        await fs.writeFile(path.join(templatesPath, 'description.md'), descriptionTemplate);
-        await fs.writeFile(path.join(templatesPath, 'completion.md'), completionTemplate);
-        await fs.writeFile(path.join(templatesPath, 'difficulties.md'), difficultiesTemplate);
-
-        // Create .gitignore for FORGE
-        const gitignorePath = path.join(workspaceRoot, '.forge', '.gitignore');
-        const gitignoreContent = `# FORGE Framework - Local files
-cache/
-temp/
-*.log
-*.tmp
-
-# Keep these files in version control
-!config.yml
-!templates/
-!prevention-rules.json
-`;
-        await fs.writeFile(gitignorePath, gitignoreContent);
+    private async hasFilesWithExtension(dirPath: string, extension: string): Promise<boolean> {
+        try {
+            const files = await fs.readdir(dirPath);
+            return files.some(file => file.endsWith(extension));
+        } catch {
+            return false;
+        }
     }
 
-    private async createInitialCopilotInstructions(config: ForgeConfig): Promise<void> {
-        const languageList = config.project.language.join(', ');
-        const frameworkList = config.project.framework.join(', ');
+    private inferProjectType(languages: string[], frameworks: string[]): string {
+        if (frameworks.includes('vscode-extension')) { return 'vscode-extension'; }
+        if (frameworks.includes('nextjs')) { return 'web-app'; }
+        if (frameworks.includes('react')) { return 'web-app'; }
+        if (languages.includes('python')) { return 'python-app'; }
+        if (languages.includes('typescript') || languages.includes('javascript')) { return 'node-app'; }
+        return 'general';
+    }
 
-        const initialInstructions = `# FORGE Framework Instructions for GitHub Copilot
+    private async createCopilotInstructions(config: ForgeConfig, githubDir: string, projectInfo: any): Promise<void> {
+        const instructionsPath = path.join(githubDir, 'copilot-instructions.md');
+        
+        const instructions = `# 🔨 FORGE Framework - Instruções para GitHub Copilot
 
-You are working with FORGE Framework. This project accumulates learning from development tasks.
+## 📋 **CONTEXTO DO PROJETO**
+- **Projeto**: ${config.project.name}
+- **Tipo**: ${projectInfo.type}
+- **Linguagem Principal**: ${config.project.language}
+- **Frameworks**: ${config.project.framework?.join(', ') || 'Nenhum detectado'}
 
-## Project Context
-- **Project**: ${config.project.name}
-- **Languages**: ${languageList || 'Not detected'}
-- **Frameworks**: ${frameworkList || 'Not detected'}
-- **Description**: ${config.project.description}
+## 🎯 **METODOLOGIA FORGE**
+Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) para desenvolvimento solo:
 
-## What is FORGE?
-FORGE (Focus, Organize, Record, Grow, Evolve) is a methodology for accumulating AI knowledge. Each task generates prevention rules that improve future development.
+### **Princípios:**
+1. **Tarefas Atômicas**: Máximo 2-3 horas por STEP
+2. **Aprendizado Contínuo**: Cada erro vira uma prevention rule
+3. **Contexto Preservado**: AI sempre informada do estado atual
+4. **Documentação Mínima**: Só o essencial que economiza tempo
 
-## When user says "Create FORGE task [NAME]":
-1. Analyze if the task is atomic (≤3 hours estimated)
-2. If not atomic, suggest breaking it down
-3. Apply any existing prevention rules relevant to the task
-4. Create the task structure with appropriate templates
+### **Prevention Rules Ativas:**
+*As regras serão carregadas automaticamente do arquivo .forge/prevention-rules.md*
 
-## Task Structure:
-\`\`\`
-tasks/
-├── TASK_XX_TASK_NAME/
-│   ├── description.md    # What to build
-│   ├── completion.md     # What was built  
-│   ├── difficulties.md  # Problems → Prevention rules
-│   └── artifacts/        # Generated code/files
-\`\`\`
+## 🛠️ **INSTRUÇÕES ESPECÍFICAS**
 
-## Prevention Rules:
-*No prevention rules yet. They will be automatically added as tasks are completed and difficulties are documented.*
+### **Para este projeto:**
+- Sempre verificar prevention rules antes de sugerir código
+- Manter consistência com o padrão de arquivos existente  
+- Focar em soluções simples e diretas
+- Documentar problemas encontrados para criar novas rules
 
-## Code Generation Guidelines:
-- Follow project's language and framework conventions
-- Include proper error handling
-- Add input validation where appropriate
-- Use environment variables for configuration
-- Include type hints/annotations where applicable
-- Add appropriate logging
-- Consider security implications
+### **Comandos FORGE disponíveis:**
+- \`FORGE: Start Activity\` - Iniciar nova tarefa
+- \`FORGE: Complete Activity\` - Finalizar tarefa atual
+- \`FORGE: Add Prevention Rule\` - Documentar erro/problema
+- \`FORGE: View History\` - Ver histórico de atividades
 
 ---
-*This context is automatically updated by FORGE Framework*
-*Initialized: ${new Date().toISOString()}*
+*Este arquivo é privado e não deve ser commitado. Ele contém suas instruções personalizadas para o GitHub Copilot.*
 `;
 
-        await this.fileManager.writeCopilotInstructions(initialInstructions);
+        await fs.writeFile(instructionsPath, instructions, 'utf8');
+    }
+
+    private async createInitialPreventionRules(forgeDir: string): Promise<void> {
+        const rulesPath = path.join(forgeDir, 'prevention-rules.md');
+        
+        const initialRules = `# 🛡️ Prevention Rules
+
+> Regras acumuladas de erros e padrões específicos deste projeto.
+
+## 📝 **Como usar:**
+1. Quando encontrar um erro/problema, documente aqui
+2. Use o comando "FORGE: Add Prevention Rule" para facilitar
+3. As regras são automaticamente incluídas no contexto do Copilot
+
+---
+
+## 🏗️ **Regras Gerais**
+
+### [SETUP] Inicialização do FORGE
+**Context:** Ao inicializar FORGE pela primeira vez  
+**Problem:** Usuário pode não entender os próximos passos  
+**Solution:** Sempre mostrar as opções disponíveis após inicialização  
+**Example:** Usar "FORGE: Start Activity" para começar primeira tarefa  
+
+---
+
+*⚡ Máximo de 15 regras para manter contexto enxuto e eficaz*
+`;
+
+        await fs.writeFile(rulesPath, initialRules, 'utf8');
+    }
+
+    private async updateGitignore(workspacePath: string): Promise<void> {
+        const gitignorePath = path.join(workspacePath, '.gitignore');
+        const forgeEntries = [
+            '',
+            '# FORGE Framework - Private AI Instructions',
+            '.github/copilot-instructions.md',
+            ''
+        ].join('\n');
+
+        try {
+            let gitignoreContent = '';
+            if (await fs.pathExists(gitignorePath)) {
+                gitignoreContent = await fs.readFile(gitignorePath, 'utf8');
+            }
+
+            // Verificar se já tem as entradas
+            if (!gitignoreContent.includes('.github/copilot-instructions.md')) {
+                gitignoreContent += forgeEntries;
+                await fs.writeFile(gitignorePath, gitignoreContent, 'utf8');
+            }
+        } catch (error) {
+            // Ignorar erros do .gitignore
+        }
     }
 }

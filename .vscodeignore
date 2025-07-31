@@ -17,12 +17,12 @@ tsconfig.json
 # Documentation (keep only essential ones)
 IMPLEMENTATION_LOG.md
 EXTENSION_README.md
+SINGLE_ACTIVITY_IMPLEMENTATION.md
+SOLO_DEVELOPMENT_CHANGES.md
+IMPLEMENTATION_COMPLETE.md
 
-# Dependencies that aren't needed
+# Dependencies - only include what's really needed at runtime
 node_modules/**
-!node_modules/yaml/**
-!node_modules/fs-extra/**
-!node_modules/date-fns/**
 
 # Tests
 **/test/**

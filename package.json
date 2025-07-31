@@ -2,7 +2,7 @@
   "name": "forge-framework",
   "displayName": "FORGE Framework",
   "description": "Transform your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically",
-  "version": "1.0.3",
+  "version": "1.0.8",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.74.0"
@@ -29,16 +29,10 @@
   "contributes": {
     "commands": [
       {
-        "command": "forge.initSolo",
+        "command": "forge.init",
         "title": "Initialize FORGE Framework",
         "category": "FORGE",
         "icon": "$(rocket)"
-      },
-      {
-        "command": "forge.initComplete",
-        "title": "Initialize FORGE Complete Setup",
-        "category": "FORGE", 
-        "icon": "$(settings-gear)"
       },
       {
         "command": "forge.startActivity",
@@ -91,6 +85,18 @@
         "command": "forge.openTask",
         "title": "Open Task",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "forge.createTask",
+        "title": "Create New Task",
+        "category": "FORGE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "forge.completeTask",
+        "title": "Complete Task",
+        "category": "FORGE",
+        "icon": "$(check)"
       }
     ],
     "views": {
@@ -225,6 +231,7 @@
     "@types/glob": "^8.0.0",
     "@types/mocha": "^10.0.0",
     "@types/node": "16.x",
+    "@types/sinon": "^17.0.4",
     "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^5.45.0",
     "@typescript-eslint/parser": "^5.45.0",
@@ -233,6 +240,7 @@
     "eslint": "^8.28.0",
     "glob": "^8.0.3",
     "mocha": "^10.1.0",
+    "sinon": "^21.0.0",
     "typescript": "^4.9.4"
   },
   "dependencies": {
