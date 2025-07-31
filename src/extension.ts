@@ -79,8 +79,15 @@ export function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('forge.openDashboard', () => {
-            const dashboard = new ForgeDashboard(context);
-            dashboard.show();
+            try {
+                console.log('🔨 FORGE Framework: Opening dashboard...');
+                const dashboard = new ForgeDashboard(context);
+                dashboard.show();
+                console.log('🔨 FORGE Framework: Dashboard opened successfully');
+            } catch (error) {
+                console.error('🔨 FORGE Framework: Error opening dashboard:', error);
+                vscode.window.showErrorMessage(`Failed to open FORGE Dashboard: ${error}`);
+            }
         }),
 
         vscode.commands.registerCommand('forge.updateCopilotContext', async () => {

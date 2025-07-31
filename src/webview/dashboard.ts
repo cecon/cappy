@@ -27,7 +27,9 @@ export class ForgeDashboard {
                 retainContextWhenHidden: true,
                 localResourceRoots: [],
                 // Disable service worker registration to prevent the error
-                enableCommandUris: false
+                enableCommandUris: false,
+                // Additional security options
+                enableFindWidget: false
             }
         );
 
@@ -282,7 +284,7 @@ export class ForgeDashboard {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; worker-src 'none';">
     <title>FORGE Dashboard</title>
     <style>
         body {
@@ -557,6 +559,34 @@ export class ForgeDashboard {
             \`;
         }
         
+        // Disable any potential service worker registration attempts
+        (function() {
+            // Block service worker registration completely
+            if ('serviceWorker' in navigator) {
+                Object.defineProperty(navigator, 'serviceWorker', {
+                    value: undefined,
+                    writable: false,
+                    configurable: false
+                });
+            }
+            
+            // Block any attempts to create workers
+            if (typeof Worker !== 'undefined') {
+                const OriginalWorker = Worker;
+                window.Worker = function() {
+                    throw new Error('Workers are disabled in FORGE webview');
+                };
+            }
+            
+            // Block SharedWorker too
+            if (typeof SharedWorker !== 'undefined') {
+                const OriginalSharedWorker = SharedWorker;
+                window.SharedWorker = function() {
+                    throw new Error('SharedWorkers are disabled in FORGE webview');
+                };
+            }
+        })();
+
         // Listen for messages from extension
         window.addEventListener('message', event => {
             try {
@@ -575,14 +605,6 @@ export class ForgeDashboard {
             vscode.postMessage({ command: 'loadDashboard' });
         } catch (error) {
             console.warn('Error posting initial message:', error);
-        }
-        
-        // Disable any potential service worker registration attempts
-        if ('serviceWorker' in navigator) {
-            // Override serviceWorker registration to prevent issues
-            navigator.serviceWorker.register = function() {
-                return Promise.reject(new Error('Service Worker disabled in FORGE webview'));
-            };
         }
     </script>
 </body>
