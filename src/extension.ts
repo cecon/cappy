@@ -7,7 +7,7 @@ import { StartActivityCommand } from './commands/startActivity';
 import { CompleteActivityCommand } from './commands/completeActivity';
 import { ViewHistoryCommand } from './commands/viewHistory';
 import { PreventionRuleAdder } from './commands/addPreventionRule';
-import { ForgeDashboard } from './webview/dashboard';
+import { ForgeDashboard } from './webview/markdownDashboard';
 import { InitForgeCommand } from './commands/initForge';
 import { TaskCreator } from './commands/createTask';
 import { TaskCompleter } from './commands/completeTask';
@@ -78,16 +78,11 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        vscode.commands.registerCommand('forge.openDashboard', () => {
-            try {
-                console.log('🔨 FORGE Framework: Opening dashboard...');
-                const dashboard = new ForgeDashboard(context);
-                dashboard.show();
-                console.log('🔨 FORGE Framework: Dashboard opened successfully');
-            } catch (error) {
-                console.error('🔨 FORGE Framework: Error opening dashboard:', error);
-                vscode.window.showErrorMessage(`Failed to open FORGE Dashboard: ${error}`);
-            }
+        vscode.commands.registerCommand('forge.openDashboard', async () => {
+            console.log('🔨 FORGE Framework: Opening dashboard...');
+            const dashboard = new ForgeDashboard(context);
+            await dashboard.show();
+            console.log('🔨 FORGE Framework: Dashboard opened successfully');
         }),
 
         vscode.commands.registerCommand('forge.updateCopilotContext', async () => {
