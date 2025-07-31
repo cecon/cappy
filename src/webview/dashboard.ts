@@ -25,7 +25,9 @@ export class ForgeDashboard {
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
-                localResourceRoots: []
+                localResourceRoots: [],
+                // Disable service worker registration to prevent the error
+                enableCommandUris: false
             }
         );
 
@@ -280,6 +282,7 @@ export class ForgeDashboard {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
     <title>FORGE Dashboard</title>
     <style>
         body {
@@ -556,15 +559,31 @@ export class ForgeDashboard {
         
         // Listen for messages from extension
         window.addEventListener('message', event => {
-            const message = event.data;
-            
-            if (message.command === 'updateDashboard') {
-                renderDashboard(message.data);
+            try {
+                const message = event.data;
+                
+                if (message.command === 'updateDashboard') {
+                    renderDashboard(message.data);
+                }
+            } catch (error) {
+                console.warn('Error handling message:', error);
             }
         });
         
-        // Request initial data
-        vscode.postMessage({ command: 'loadDashboard' });
+        // Request initial data with error handling
+        try {
+            vscode.postMessage({ command: 'loadDashboard' });
+        } catch (error) {
+            console.warn('Error posting initial message:', error);
+        }
+        
+        // Disable any potential service worker registration attempts
+        if ('serviceWorker' in navigator) {
+            // Override serviceWorker registration to prevent issues
+            navigator.serviceWorker.register = function() {
+                return Promise.reject(new Error('Service Worker disabled in FORGE webview'));
+            };
+        }
     </script>
 </body>
 </html>`;

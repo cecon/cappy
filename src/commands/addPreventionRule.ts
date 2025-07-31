@@ -44,7 +44,19 @@ export class PreventionRuleAdder {
     private async addPreventionRule(ruleData: any): Promise<boolean> {
         try {
             if (!vscode.workspace.workspaceFolders) {
-                vscode.window.showErrorMessage('No workspace folder found');
+                const openFolder = await vscode.window.showInformationMessage(
+                    '📁 FORGE precisa de uma pasta de projeto para adicionar regras de prevenção.\n\nAbra uma pasta primeiro.',
+                    'Abrir Pasta', 'Cancelar'
+                );
+                
+                if (openFolder === 'Abrir Pasta') {
+                    try {
+                        await vscode.commands.executeCommand('vscode.openFolder');
+                    } catch (error) {
+                        // Silently handle error - user can open folder manually
+                        vscode.window.showInformationMessage('Por favor, abra uma pasta manualmente via File > Open Folder');
+                    }
+                }
                 return false;
             }
 

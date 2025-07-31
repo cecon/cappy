@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs-extra';
+import * as sinon from 'sinon';
 import { InitForgeCommand } from '../../commands/initForge';
 import { FileManager } from '../../utils/fileManager';
 
@@ -135,18 +136,28 @@ suite('InitForge Command Tests', () => {
         assert.strictEqual(instructionsContent.includes('react'), true, 'Deve detectar React framework');
     });
 
-    test('Deve falhar se não houver workspace', async () => {
+    test('Deve mostrar mensagem amigável se não houver workspace', async () => {
         // Arrange - remover workspace
         Object.defineProperty(vscode.workspace, 'workspaceFolders', {
             value: undefined,
             configurable: true
         });
 
-        // Act
-        const result = await initCommand.execute();
+        // Mock showInformationMessage para evitar dialog
+        const showInfoStub = sinon.stub(vscode.window, 'showInformationMessage');
+        showInfoStub.resolves(undefined); // Simula cancelamento
 
-        // Assert
-        assert.strictEqual(result, false, 'Deve retornar false se não houver workspace');
+        try {
+            // Act
+            const result = await initCommand.execute();
+
+            // Assert
+            assert.strictEqual(result, false, 'Deve retornar false se não houver workspace, mas de forma amigável');
+            assert.strictEqual(showInfoStub.calledOnce, true, 'Deve mostrar mensagem informativa');
+            
+        } finally {
+            showInfoStub.restore();
+        }
     });
 
     test('Deve permitir sobrescrever configuração existente', async () => {

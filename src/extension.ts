@@ -16,7 +16,7 @@ import { FileManager } from './utils/fileManager';
 let copilotContextManager: CopilotContextManager;
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('FORGE Framework extension is now active!');
+    console.log('🔨 FORGE Framework: Extension activation started');
 
     // Initialize providers
     const taskProvider = new ForgeTaskProvider();
@@ -28,6 +28,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Initialize Copilot context manager
     copilotContextManager = new CopilotContextManager();
+
+    console.log('🔨 FORGE Framework: Providers and context manager initialized');
 
     // Register commands
     const commands = [
@@ -124,46 +126,69 @@ export function activate(context: vscode.ExtensionContext) {
         })
     ];
 
-    // Check if FORGE is already initialized
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (workspaceFolders) {
-        const forgeConfigPath = vscode.Uri.joinPath(workspaceFolders[0].uri, '.forge', 'config.yml');
-        vscode.workspace.fs.stat(forgeConfigPath).then(
-            () => {
-                // FORGE is initialized, start watching for changes
-                copilotContextManager.startWatching();
-                
-                // Show welcome message
-                if (vscode.workspace.getConfiguration('forge').get('showNotifications', true)) {
+    // Always show FORGE welcome message
+    setTimeout(() => {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        
+        if (workspaceFolders) {
+            // Check if FORGE is already initialized in this workspace
+            const forgeConfigPath = vscode.Uri.joinPath(workspaceFolders[0].uri, '.forge', 'config.yml');
+            vscode.workspace.fs.stat(forgeConfigPath).then(
+                () => {
+                    // FORGE is initialized, start watching for changes
+                    copilotContextManager.startWatching();
+                    
+                    // Show welcome message
+                    if (vscode.workspace.getConfiguration('forge').get('showNotifications', true)) {
+                        vscode.window.showInformationMessage(
+                            '🔨 FORGE Framework está ativo! Use "FORGE: Create Task" para começar.',
+                            'Create Task',
+                            'Open Dashboard'
+                        ).then(choice => {
+                            if (choice === 'Create Task') {
+                                vscode.commands.executeCommand('forge.createTask');
+                            } else if (choice === 'Open Dashboard') {
+                                vscode.commands.executeCommand('forge.openDashboard');
+                            }
+                        });
+                    }
+                },
+                () => {
+                    // FORGE not initialized in this workspace
                     vscode.window.showInformationMessage(
-                        'FORGE Framework is active! Use Ctrl+Shift+P → "FORGE: Create New Task" to get started.',
-                        'Create Task',
-                        'Open Dashboard'
+                        '🔨 FORGE Framework detectado! Inicialize para começar a acumular conhecimento de IA.',
+                        'Initialize FORGE',
+                        'Learn More'
                     ).then(choice => {
-                        if (choice === 'Create Task') {
-                            vscode.commands.executeCommand('forge.createTask');
-                        } else if (choice === 'Open Dashboard') {
-                            vscode.commands.executeCommand('forge.openDashboard');
+                        if (choice === 'Initialize FORGE') {
+                            vscode.commands.executeCommand('forge.init');
+                        } else if (choice === 'Learn More') {
+                            vscode.env.openExternal(vscode.Uri.parse('https://github.com/cecon/forge-framework'));
                         }
                     });
                 }
-            },
-            () => {
-                // FORGE not initialized, show initialization prompt
+            );
+        } else {
+            // No workspace open - still show FORGE is available
+            if (vscode.workspace.getConfiguration('forge').get('showNotifications', true)) {
                 vscode.window.showInformationMessage(
-                    'FORGE Framework detected! Initialize to start accumulating AI knowledge.',
-                    'Initialize FORGE',
+                    '🔨 FORGE Framework está ativo! Abra uma pasta de projeto para começar.',
+                    'Open Folder',
                     'Learn More'
                 ).then(choice => {
-                    if (choice === 'Initialize FORGE') {
-                        vscode.commands.executeCommand('forge.init');
+                    if (choice === 'Open Folder') {
+                        try {
+                            vscode.commands.executeCommand('vscode.openFolder');
+                        } catch (error) {
+                            console.warn('Failed to execute vscode.openFolder command:', error);
+                        }
                     } else if (choice === 'Learn More') {
                         vscode.env.openExternal(vscode.Uri.parse('https://github.com/cecon/forge-framework'));
                     }
                 });
             }
-        );
-    }
+        }
+    }, 1000); // Delay para garantir que VS Code terminou de carregar
 
     // Register all disposables
     context.subscriptions.push(...commands, copilotContextManager);
