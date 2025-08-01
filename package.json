@@ -1,8 +1,8 @@
 {
-  "name": "forge-framework",
-  "displayName": "FORGE Framework",
-  "description": "Transform your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically",
-  "version": "1.0.30",
+  "name": "capybara",
+  "displayName": "Capybara",
+  "description": "Your calm and wise AI coding companion that learns from your mistakes and prevents them automatically",
+  "version": "2.0.0",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -30,37 +30,37 @@
     "commands": [
       {
         "command": "forge.test",
-        "title": "🧪 Test FORGE Extension",
-        "category": "FORGE"
+        "title": "🧪 Test Capybara Extension",
+        "category": "Capybara"
       },
       {
         "command": "forge.init",
-        "title": "Initialize FORGE Framework",
-        "category": "FORGE"
+        "title": "Initialize Capybara",
+        "category": "Capybara"
       },
       {
         "command": "forge.createTask",
         "title": "Create New Task",
-        "category": "FORGE"
+        "category": "Capybara"
       },
       {
         "command": "forge.createSmartTask",
         "title": "Create Smart Task (AI-Assisted)",
-        "category": "FORGE"
+        "category": "Capybara"
       },
       {
         "command": "forge.addPreventionRule",
         "title": "Add Prevention Rule",
-        "category": "FORGE"
+        "category": "Capybara"
       },
       {
         "command": "forge.completeTask",
         "title": "Complete Task",
-        "category": "FORGE"
+        "category": "Capybara"
       }
     ],
     "configuration": {
-      "title": "FORGE Framework",
+      "title": "Capybara",
       "properties": {
         "forge.autoUpdateCopilotContext": {
           "type": "boolean",
@@ -80,7 +80,7 @@
         "forge.showNotifications": {
           "type": "boolean",
           "default": true,
-          "description": "Show notifications for FORGE events"
+          "description": "Show notifications for Capybara events"
         }
       }
     },

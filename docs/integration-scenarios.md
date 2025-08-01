@@ -81,8 +81,8 @@ d) ⏭️ Pular integração (configurar manualmente)
 
 ---
 
-## FORGE Framework Integration
-This project uses the FORGE Framework for atomic task management.
+## Capybara Integration
+This project uses the Capybara for atomic task management.
 
 **Stack Configuration**: See `.github/stack-instructions.md`
 **FORGE Config**: See `src/forgeConfig.json`
@@ -96,13 +96,13 @@ This project uses the FORGE Framework for atomic task management.
 
 **Resultado**:
 ```markdown
-# GitHub Copilot Instructions - FORGE Framework
+# GitHub Copilot Instructions - Capybara
 
 ## Stack-Specific Guidelines
 {LOAD_FROM: .github/stack-instructions.md}
 
-## FORGE Framework Integration
-This project uses the FORGE Framework for atomic task management...
+## Capybara Integration
+This project uses the Capybara for atomic task management...
 ```
 
 **Novo arquivo** `.github/stack-instructions.md`:
@@ -121,7 +121,7 @@ This project uses the FORGE Framework for atomic task management...
 
 **Detecção**: Se encontrar qualquer um:
 - `forgeConfig.json` 
-- Arquivo contém `FORGE Framework`
+- Arquivo contém `Capybara`
 - Existe `stack-instructions.md`
 
 **Resultado**: 

@@ -223,7 +223,7 @@ export class StartActivityCommand {
         });
 
         content += `---
-*Atividade gerenciada pelo FORGE Framework*
+*Atividade gerenciada pelo Capybara*
 `;
         
         return content;

@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { FileManager } from './fileManager';
 import { PreventionRule } from '../models/preventionRule';
-import { ForgeConfig } from '../models/forgeConfig';
+import { CapybaraConfig } from '../models/capybaraConfig';
 
 export class CopilotContextManager implements vscode.Disposable {
     private fileWatcher: vscode.FileSystemWatcher | undefined;
@@ -192,7 +192,7 @@ export class CopilotContextManager implements vscode.Disposable {
     }
 
     private async getProjectContext(): Promise<ProjectContext> {
-        const config = await this.fileManager.readForgeConfig();
+        const config = await this.fileManager.readCapybaraConfig();
         const languages = await this.fileManager.getProjectLanguages();
         const frameworks = await this.fileManager.getProjectFrameworks();
         
@@ -254,9 +254,9 @@ export class CopilotContextManager implements vscode.Disposable {
         const languageList = context.languages.join(', ');
         const frameworkList = context.frameworks.join(', ');
 
-        let instructions = `# FORGE Framework Instructions for GitHub Copilot
+        let instructions = `# Capybara Instructions for GitHub Copilot
 
-You are working with FORGE Framework. Apply these accumulated learnings when generating code.
+You are working with Capybara. Apply these accumulated learnings when generating code.
 
 ## Project Context
 - **Project**: ${context.projectName}
@@ -319,7 +319,7 @@ tasks/
 \`\`\`
 
 ---
-*This context is automatically updated by FORGE Framework. Last updated: ${new Date().toISOString()}*
+*This context is automatically updated by Capybara. Last updated: ${new Date().toISOString()}*
 *Total Prevention Rules: ${rules.length} | Rules in Context: ${limitedRules.length}*
 `;
 

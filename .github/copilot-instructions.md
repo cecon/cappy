@@ -1,23 +1,23 @@
-# 🔨 FORGE Framework - Instruções para LLM (Solo Development)
+# 🦫 Capybara - Instruções para LLM
 
 ## 📋 **VISÃO GERAL DO PROJETO**
 
-O **FORGE Framework** é uma extensão do VS Code que transforma o GitHub Copilot em um assistente de IA que aprende com os erros e padrões específicos do **desenvolvedor solo**. 
+O **Capybara** é uma extensão do VS Code que transforma o GitHub Copilot em um assistente de IA que aprende com os erros e padrões específicos do **desenvolvedor solo**. 
 
-**FORGE** significa: **F**ocus **O**rganize **R**ecord **G**row **E**volve
+**Capybara** é seu companheiro de programação: calmo, sábio e sempre aprendendo com você.
 
 ### 🎯 **OBJETIVO PRINCIPAL**
 Permitir que o AI assistant aprenda progressivamente com:
 - Erros documentados (Prevention Rules) **apenas os que realmente importam**
 - Padrões específicos do projeto **sem overhead desnecessário**
 - Contexto técnico acumulado **de forma leve e prática**
-- Tarefas atômicas bem definidas (≤2 horas) **com visão macro preservada**
+- Tarefas atômicas bem definidas (≤2 horas) **com visão macro preservada** e **apenas quando possível**
 
 ### 🏅 **PRINCÍPIOS PARA DESENVOLVIMENTO SOLO**
-1. **Instrução privada**: `.github/copilot-instructions.md` vai para `.gitignore` (desenvolvimento pessoal)
+1. **Instrução privada**: `.github/copilot-instructions.md` vai para `.gitignore` (mantendo o desenvolvimento pessoal)
 2. **Contexto enxuto**: Máximo 4000 chars para evitar que Copilot ignore
-3. **Prevention rules focadas**: Máximo 15 regras - apenas o essencial
-4. **Atomicidade balanceada**: 2h por STEP, mas sempre linkando ao objetivo macro
+3. **Prevention rules focadas**: Máximo 15 regras - apenas o essencial **configuravel no config.yaml**
+4. **Atomicidade balanceada**: 2h por STEP, mas sempre linkando ao objetivo macro **sempre que possível**
 5. **Documentação mínima**: Só documenta o que realmente economiza tempo futuro
 
 ---
@@ -26,7 +26,7 @@ Permitir que o AI assistant aprenda progressivamente com:
 
 ### **Diretórios Principais:**
 ```
-forge-framework/
+capybara/
 ├── src/                     # Código TypeScript da extensão
 │   ├── extension.ts         # Ponto de entrada principal
 │   ├── commands/           # Comandos da extensão (init, create, complete)
@@ -35,17 +35,17 @@ forge-framework/
 │   ├── utils/              # Utilitários (Context Manager, File Manager)
 │   └── webview/           # Interface web (Dashboard)
 ├── resources/              # Templates e instruções
-│   ├── instructions/      # Metodologia FORGE
+│   ├── instructions/      # Metodologia Capybara
 │   └── templates/         # Templates para arquivos
 ├── examples/              # Exemplos de uso
 ├── docs/                  # Documentação adicional
-└── syntaxes/             # Syntax highlighting para arquivos FORGE
+└── syntaxes/             # Syntax highlighting para arquivos
 ```
 
 ### **Arquivos Chave:**
 - `package.json`: Configuração da extensão VS Code
 - `src/extension.ts`: Ativação e registro de comandos
-- `resources/instructions/forge-methodology.md`: Metodologia completa
+- `resources/instructions/capybara-methodology.md`: Metodologia completa
 - `src/utils/contextManager.ts`: Gerenciamento do contexto do Copilot
 
 ---

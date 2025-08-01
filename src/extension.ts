@@ -1,15 +1,15 @@
 import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('🔨 FORGE Framework: Full activation started');
+    console.log('🔨 Capybara: Full activation started');
     
     // Show immediate activation message
-    vscode.window.showInformationMessage('🔨 FORGE Framework: All commands activated!');
+    vscode.window.showInformationMessage('🔨 Capybara: All commands activated!');
 
     // Register test command (known working)
     const testCommand = vscode.commands.registerCommand('forge.test', async () => {
-        vscode.window.showInformationMessage('🔨 FORGE Framework: Test command still working! 🎉');
-        console.log('🔨 FORGE Framework: Test command executed at', new Date().toISOString());
+        vscode.window.showInformationMessage('🔨 Capybara: Test command still working! 🎉');
+        console.log('🔨 Capybara: Test command executed at', new Date().toISOString());
     });
 
     // Register init command (safe version)
@@ -115,10 +115,10 @@ export function activate(context: vscode.ExtensionContext) {
         completeTaskCommand
     );
     
-    console.log('🔨 FORGE Framework: All commands registered successfully');
-    vscode.window.showInformationMessage('🔨 FORGE Framework: Ready! All 6 commands available.');
+    console.log('🔨 Capybara: All commands registered successfully');
+    vscode.window.showInformationMessage('🔨 Capybara: Ready! All 6 commands available.');
 }
 
 export function deactivate() {
-    console.log('🔨 FORGE Framework: Full deactivation');
+    console.log('🔨 Capybara: Full deactivation');
 }

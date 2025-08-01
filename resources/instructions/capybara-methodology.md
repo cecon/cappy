@@ -1,6 +1,6 @@
-# FORGE Methodology - Complete Workflow
+# Capybara Methodology - Complete Workflow
 
-## 🎯 **FORGE Core Rules**
+## 🎯 **Capybara Core Rules**
 
 ### **Two Distinct Workflows:**
 

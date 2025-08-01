@@ -1,28 +1,28 @@
-# 🔨 FORGE Framework
-**F**ocus **O**rganize **R**ecord **G**row **E**volve
+# 🦫 Capybara
+> Your calm and wise AI coding companion that learns from your mistakes and prevents them automatically.
 
 > Transform GitHub Copilot into your personal AI coding assistant that learns from your mistakes and prevents them automatically.
 
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![VSCode Marketplace](https://img.shields.io/visual-studio-marketplace/v/eduardocecon.forge-framework.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
-[![VSCode Marketplace Downloads](https://img.shields.io/visual-studio-marketplace/d/eduardocecon.forge-framework.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
-[![GitHub stars](https://img.shields.io/github/stars/cecon/forge-framework.svg?style=social)](https://github.com/cecon/forge-framework/stargazers)
+[![VSCode Marketplace](https://img.shields.io/visual-studio-marketplace/v/eduardocecon.capybara.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.capybara)
+[![VSCode Marketplace Downloads](https://img.shields.io/visual-studio-marketplace/d/eduardocecon.capybara.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.capybara)
+[![GitHub stars](https://img.shields.io/github/stars/cecon/capybara.svg?style=social)](https://github.com/cecon/capybara/stargazers)
 
-[![VSCode Extension](https://img.shields.io/badge/VSCode-Extension-007ACC.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
+[![VSCode Extension](https://img.shields.io/badge/VSCode-Extension-007ACC.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.capybara)
 [![Copilot Ready](https://img.shields.io/badge/GitHub%20Copilot-Ready-green.svg)](#-github-copilot-integration)
-[![Solo Developer](https://img.shields.io/badge/Optimized%20for-Solo%20Developers-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
+[![Solo Developer](https://img.shields.io/badge/Optimized%20for-Solo%20Developers-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.capybara)
 
-[**Install Now**](#-installation) • [**Quick Start**](#-quick-start) • [**How to Use**](#-how-to-use) • [**Examples**](#-examples) • [**GitHub**](https://github.com/cecon/forge-framework)
+[**Install Now**](#-installation) • [**Quick Start**](#-quick-start) • [**How to Use**](#-how-to-use) • [**Examples**](#-examples) • [**GitHub**](https://github.com/cecon/capybara)
 
 </div>
 
 ---
 
-## 🎯 What is FORGE Framework?
+## 🎯 What is Capybara?
 
-FORGE is a **VS Code extension** designed for **solo developers** that turns GitHub Copilot into a learning AI that remembers your mistakes and project-specific patterns. Create **private, personal instructions** that make your AI assistant smarter with every project.
+Capybara is a **VS Code extension** designed for **solo developers** that turns GitHub Copilot into a learning AI that remembers your mistakes and project-specific patterns. Create **private, personal instructions** that make your AI assistant smarter with every project.
 
 ### 🏅 **Optimized for Solo Development**
 - **Private Instructions**: `.github/copilot-instructions.md` added to `.gitignore` (your personal AI context)
@@ -33,14 +33,14 @@ FORGE is a **VS Code extension** designed for **solo developers** that turns Git
 
 ### 🤔 The Problem with Generic AI
 ```diff
-❌ Without FORGE:
+❌ Without Capybara:
 - GitHub Copilot suggests the same bad patterns repeatedly
 - No memory of your specific project context or stack
 - Keeps making mistakes you've already solved
 - Generic suggestions that don't fit your solo development style
 - You waste time explaining the same constraints over and over
 
-✅ With FORGE Solo:
+✅ With Capybara:
 - AI learns from every mistake you document (privately)
 - Remembers your stack-specific rules (Windows PowerShell, TypeScript, etc.)
 - Suggests better code based on your accumulated knowledge
@@ -57,9 +57,9 @@ FORGE is a **VS Code extension** designed for **solo developers** that turns Git
 **📈 Progressive Learning**: Your AI assistant gets smarter with every documented problem  
 **🎯 Macro Vision**: Connect small tasks to big project goals
 
-## 🚀 What is FORGE?
+## 🚀 What is Capybara?
 
-FORGE is a **context framework for AI coding assistants** that turns GitHub Copilot (and other LLMs) into a learning partner that gets smarter with every mistake you make and document.
+Capybara is a **context framework for AI coding assistants** that turns GitHub Copilot (and other LLMs) into a learning partner that gets smarter with every mistake you make and document.
 
 ### Core Philosophy
 
@@ -75,23 +75,23 @@ FORGE is a **context framework for AI coding assistants** that turns GitHub Copi
 Install directly from the VSCode Marketplace:
 
 1. **Open VSCode Extensions** (`Ctrl+Shift+X`)
-2. **Search for**: `FORGE Framework`
-3. **Click Install** on `eduardocecon.forge-framework`
+2. **Search for**: `Capybara`
+3. **Click Install** on `eduardocecon.capybara`
 
 **Or install via command line:**
 
 ```bash
-code --install-extension eduardocecon.forge-framework
+code --install-extension eduardocecon.capybara
 ```
 
 ### Option 2: Direct Download
 
-- **[📦 Download from Marketplace](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)**
-- **[🔗 GitHub Repository](https://github.com/cecon/forge-framework)**
+- **[📦 Download from Marketplace](https://marketplace.visualstudio.com/items?itemName=eduardocecon.capybara)**
+- **[🔗 GitHub Repository](https://github.com/cecon/capybara)**
 
 ## 📊 Real Results for Solo Developers
 
-Solo developers using FORGE with GitHub Copilot report:
+Solo developers using Capybara with GitHub Copilot report:
 
 <div align="center">
 
@@ -113,13 +113,13 @@ Solo developers using FORGE with GitHub Copilot report:
 
 ## 🏃‍♂️ Quick Start
 
-### 1. Initialize FORGE in Your Project
+### 1. Initialize Capybara in Your Project
 
 After installing the extension, open any project in VSCode and run:
 
 ```bash
 # Use Command Palette (Ctrl+Shift+P) and search:
-> FORGE: Initialize FORGE Framework
+> Capybara: Initialize Capybara
 
 # Or use the keyboard shortcut:
 Ctrl+Shift+F, Ctrl+I
@@ -130,11 +130,11 @@ Ctrl+Shift+F, Ctrl+I
 - 📦 **Identifies your tech stack** (TypeScript, Python, Rust, etc.)
 - 📝 **Creates private instructions** in `.github/copilot-instructions.md` (added to `.gitignore`)
 - ⚙️ **Optimizes for solo development** (max 4000 chars, 15 rules limit)
-- 🗂️ **Sets up FORGE folder structure** focused on velocity
+- 🗂️ **Sets up Capybara folder structure** focused on velocity
 
 ### 2. GitHub Copilot Integration
 
-FORGE automatically creates **private instructions** that stay on your machine:
+Capybara automatically creates **private instructions** that stay on your machine:
 
 ```markdown
 # GitHub Copilot Instructions - MyProject (Solo Dev)
@@ -167,7 +167,7 @@ FORGE automatically creates **private instructions** that stay on your machine:
 ### 3. Create Your First Task
 ```bash
 # Command Palette
-Ctrl+Shift+P → "FORGE: Create Task with AI"
+Ctrl+Shift+P → "Capybara: Create Task with AI"
 
 # Or ask GitHub Copilot
 "Vamos desenvolver uma nova atividade: Add user login system"
@@ -175,7 +175,7 @@ Ctrl+Shift+P → "FORGE: Create Task with AI"
 
 **What gets created:**
 ```
-.forge/
+.capy/
 ├── config.json                    # Optimized settings  
 ├── prevention-rules.md             # Max 15 rules that matter
 └── steps/STEP_0001_USER_LOGIN/
@@ -196,10 +196,10 @@ Ctrl+Shift+P → "FORGE: Create Task with AI"
 
 ### 5. Complete and Learn
 ```bash
-Ctrl+Shift+P → "FORGE: Complete Task"
+Ctrl+Shift+P → "Capybara: Complete Task"
 ```
 
-**FORGE extracts prevention rules for your context:**
+**Capybara extracts prevention rules for your context:**
 ```markdown
 ❌ DON'T use bcrypt without salt rounds → always specify rounds (12+)
    Context: Authentication tasks
@@ -231,7 +231,7 @@ Next time you create any authentication task, Copilot will automatically:
 
 ## 🎬 See the Magic
 
-### Before FORGE 😤
+### Before Capybara 😤
 ```
 You: "Create a user authentication endpoint"
 Copilot: *suggests basic code without validation*
@@ -242,9 +242,9 @@ Copilot: *suggests bcrypt*
 You: "Remember to hash passwords, validate emails..."
 ```
 
-### After FORGE 🎉
+### After Capybara 🎉
 ```
-You: "Create FORGE task 'Add user authentication'"
+You: "Create Capybara task 'Add user authentication'"
 Copilot: "Based on your prevention rules from TASK_03, I'll create an endpoint with:
 - Input validation (email format, password strength)
 - bcrypt password hashing 
@@ -255,19 +255,19 @@ Copilot: "Based on your prevention rules from TASK_03, I'll create an endpoint w
 
 ## 💻 VSCode Extension Features
 
-The **FORGE Framework VSCode Extension** provides:
+The **Capybara VSCode Extension** provides:
 
 ### 🎮 Command Palette Integration
-- `FORGE: Initialize Project Complete` - Auto-detect environment and stack, complete setup
-- `FORGE: Initialize Project` - Basic FORGE setup in current workspace
-- `FORGE: Create Task` - Create new atomic task with templates
-- `FORGE: Complete Task` - Mark task as done and extract prevention rules
-- `FORGE: Add Prevention Rule` - Manually add a rule from experience
-- `FORGE: Open Dashboard` - View project analytics and metrics
-- `FORGE: Update Copilot Context` - Refresh AI instructions
+- `Capybara: Initialize Project Complete` - Auto-detect environment and stack, complete setup
+- `Capybara: Initialize Project` - Basic Capybara setup in current workspace
+- `Capybara: Create Task` - Create new atomic task with templates
+- `Capybara: Complete Task` - Mark task as done and extract prevention rules
+- `Capybara: Add Prevention Rule` - Manually add a rule from experience
+- `Capybara: Open Dashboard` - View project analytics and metrics
+- `Capybara: Update Copilot Context` - Refresh AI instructions
 
 ### 📊 Interactive Dashboard
-Access via Command Palette → `FORGE: Open Dashboard`:
+Access via Command Palette → `Capybara: Open Dashboard`:
 
 - **📈 Task Metrics**: Completion rates, time estimates vs actual
 - **🛡️ Prevention Rules**: Categories, effectiveness scores
@@ -277,25 +277,25 @@ Access via Command Palette → `FORGE: Open Dashboard`:
 ### 🎯 Smart Snippets & Syntax
 - **Task Templates**: Automatic structure for new tasks
 - **Prevention Rule Snippets**: Quick rule creation
-- **Markdown Highlighting**: FORGE-specific syntax highlighting
+- **Markdown Highlighting**: Capybara-specific syntax highlighting
 - **Auto-completion**: Task names, rule categories, etc.
 
 ### ⚡ Keyboard Shortcuts
-- `Ctrl+Shift+F, Ctrl+I` - Initialize FORGE
+- `Ctrl+Shift+F, Ctrl+I` - Initialize Capybara
 - `Ctrl+Shift+F, Ctrl+T` - Create new task
 - `Ctrl+Shift+F, Ctrl+C` - Complete current task
 - `Ctrl+Shift+F, Ctrl+D` - Open dashboard
 
 ## 📁 How It Works
 
-FORGE creates this structure that GitHub Copilot automatically reads:
+Capybara creates this structure that GitHub Copilot automatically reads:
 
 ```
 your-project/
 ├── .vscode/
 │   └── copilot-instructions.md    # 🧠 AI context & prevention rules
-├── .forge/
-│   ├── config.yml                 # FORGE configuration
+├── .capy/
+│   ├── config.yml                 # Capybara configuration
 │   └── templates/                 # Task templates
 └── tasks/
     ├── TASK_01_PROJECT_SETUP/
@@ -325,7 +325,7 @@ GitHub Copilot automatically applies these rules to ALL future suggestions!
 
 ## 🎯 GitHub Copilot Integration
 
-FORGE automatically updates your Copilot context with:
+Capybara automatically updates your Copilot context with:
 
 - ✅ **Project-specific prevention rules**
 - ✅ **Coding patterns you prefer**  
@@ -338,7 +338,7 @@ FORGE automatically updates your Copilot context with:
 Ask Copilot to create tasks and it will:
 
 ```
-You: "Create FORGE task for Redis caching"
+You: "Create Capybara task for Redis caching"
 
 Copilot: "I'll create TASK_07_REDIS_CACHING with:
 
@@ -387,7 +387,7 @@ def create_user(email: str, password: str) -> Dict[str, Any]:
 
 ```bash
 # Initialize with Python-specific prevention rules
-forge init --language python --framework fastapi
+capybara init --language python --framework fastapi
 
 # Your Copilot will automatically know:
 # ❌ DON'T use mutable default arguments
@@ -411,7 +411,7 @@ async def create_user(user_data: UserCreate, db: AsyncSession = Depends(get_db))
 
 ```bash
 # Initialize with React-specific prevention rules  
-forge init --language typescript --framework react
+capybara init --language typescript --framework react
 
 # Your Copilot will automatically know:
 # ❌ DON'T use any type → use proper interfaces
@@ -441,11 +441,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ userId }) => {
 
 ```bash
 # Initialize with Rust-specific prevention rules
-forge init --language rust --framework actix
+capybara init --language rust --framework actix
 
 # Your Copilot will automatically know:
 # ❌ DON'T use .unwrap() in production → use proper error handling
-# ❌ DON'T forget feature flags for dependencies  
+# ❌ DON'T capybara feature flags for dependencies  
 # ❌ DON'T skip async error handling
 # ❌ DON'T use String when &str suffices
 ```
@@ -473,8 +473,8 @@ async fn create_user(
 ### Claude/ChatGPT (Secondary)
 ```bash
 # Export context for other AI assistants
-forge export-context --format claude
-forge export-context --format chatgpt
+capybara export-context --format claude
+capybara export-context --format chatgpt
 
 # Copy/paste the output to your AI assistant
 ```
@@ -482,20 +482,20 @@ forge export-context --format chatgpt
 ### Custom LLMs
 ```bash
 # Generate context in various formats
-forge export-context --format json
-forge export-context --format yaml
-forge export-context --format markdown
+capybara export-context --format json
+capybara export-context --format yaml
+capybara export-context --format markdown
 ```
 
 ## 📚 Examples & Templates
 
 ### 🌐 [Web API Development](examples/web-api/)
-FastAPI project showing FORGE + Copilot for building APIs.
+FastAPI project showing Capybara + Copilot for building APIs.
 - **Before**: Generic Copilot suggestions, repeated validation mistakes
 - **After**: Context-aware suggestions, security best practices applied automatically
 
 ### 📱 [React Application](examples/react-app/)
-TypeScript React app with FORGE-guided development.
+TypeScript React app with Capybara-guided development.
 - **Before**: Inconsistent component patterns, missing error handling
 - **After**: Consistent patterns, proper TypeScript, error boundaries
 
@@ -510,7 +510,7 @@ Python ETL pipeline with accumulated domain knowledge.
 
 ### Smart Context Management
 ```yaml
-# .forge/config.yml
+# .capy/config.yml
 context:
   max_rules: 50                    # Prevent context overload
   auto_prioritize: true            # Most important rules first
@@ -551,10 +551,10 @@ Shall I create TASK_A first?"
 
 <div align="center">
 
-[![GitHub Discussions](https://img.shields.io/github/discussions/username/forge-framework?style=for-the-badge&logo=github)](https://github.com/username/forge-framework/discussions)
-[![Twitter Follow](https://img.shields.io/twitter/follow/ForgeFramework?style=for-the-badge&logo=twitter)](https://twitter.com/ForgeFramework)
+[![GitHub Discussions](https://img.shields.io/github/discussions/username/capybara?style=for-the-badge&logo=github)](https://github.com/username/capybara/discussions)
+[![Twitter Follow](https://img.shields.io/twitter/follow/capybara?style=for-the-badge&logo=twitter)](https://twitter.com/capybara)
 
-**[GitHub Discussions](https://github.com/username/forge-framework/discussions)** • **[Twitter](https://twitter.com/ForgeFramework)**
+**[GitHub Discussions](https://github.com/username/capybara/discussions)** • **[Twitter](https://twitter.com/capybara)**
 
 </div>
 
@@ -566,7 +566,7 @@ Shall I create TASK_A first?"
 > *"I stopped making the same database migration mistakes. Copilot now reminds me of backup procedures and rollback testing automatically."*  
 > — **James Wilson**, DevOps Engineer
 
-> *"FORGE turned Copilot into a senior developer that remembers every lesson learned in my codebase."*  
+> *"Capybara turned Copilot into a senior developer that remembers every lesson learned in my codebase."*  
 > — **Lisa Kumar**, Full Stack Developer
 
 ## 🤝 Contributing
@@ -577,18 +577,18 @@ Share your prevention rules and help other developers avoid the same mistakes!
 
 ```bash
 # Share a prevention rule that saved you time
-forge contribute-rule "DON'T forget database indexes on foreign keys"
+capybara contribute-rule "DON'T forget database indexes on foreign keys"
 
 # Share your language-specific patterns
-forge contribute-template --language python --framework django
+capybara contribute-template --language python --framework django
 ```
 
 ### What We Need
 
 - **🐛 Prevention rules** - What mistakes have you made and solved?
-- **🔧 Language patterns** - How does FORGE work with your tech stack?
+- **🔧 Language patterns** - How does Capybara work with your tech stack?
 - **🎯 VSCode improvements** - Better Copilot integration ideas
-- **📚 Documentation** - Help others set up FORGE successfully
+- **📚 Documentation** - Help others set up Capybara successfully
 
 **[Read Full Contributing Guide →](CONTRIBUTING.md)**
 
@@ -601,7 +601,7 @@ forge contribute-template --language python --framework django
 - [ ] Prevention rule marketplace
 
 ### 🎯 Q4 2025
-- [ ] AI model fine-tuning with FORGE data
+- [ ] AI model fine-tuning with Capybara data
 - [ ] Multi-project context sharing
 - [ ] Advanced analytics (rule effectiveness)
 - [ ] Integration with more AI assistants
@@ -612,14 +612,14 @@ forge contribute-template --language python --framework django
 - [ ] Advanced pattern recognition
 - [ ] Cross-language rule translation
 
-**[View Full Roadmap →](https://github.com/cecon/forge-framework/projects/1)**
+**[View Full Roadmap →](https://github.com/cecon/capybara/projects/1)**
 
 ## 💬 FAQ
 
 <details>
-<summary><strong>Q: Does FORGE work without GitHub Copilot?</strong></summary>
+<summary><strong>Q: Does Capybara work without GitHub Copilot?</strong></summary>
 
-Yes! You can use FORGE methodology for documenting and learning from mistakes even without AI assistants. However, the real power comes from giving AI assistants your accumulated context.
+Yes! You can use Capybara methodology for documenting and learning from mistakes even without AI assistants. However, the real power comes from giving AI assistants your accumulated context.
 </details>
 
 <details>
@@ -631,29 +631,29 @@ Initially, there's a small overhead to document problems. But within weeks, you'
 <details>
 <summary><strong>Q: Can I use this with Claude/ChatGPT instead of Copilot?</strong></summary>
 
-Yes! FORGE exports context in formats compatible with other AI assistants. However, the VSCode integration is designed primarily for GitHub Copilot.
+Yes! Capybara exports context in formats compatible with other AI assistants. However, the VSCode integration is designed primarily for GitHub Copilot.
 </details>
 
 <details>
 <summary><strong>Q: What if I work on multiple projects?</strong></summary>
 
-Each project has its own FORGE context. You can share common prevention rules across projects or keep them separate. The framework adapts to your needs.
+Each project has its own Capybara context. You can share common prevention rules across projects or keep them separate. The framework adapts to your needs.
 </details>
 
 <details>
 <summary><strong>Q: Is my code/context data private?</strong></summary>
 
-Yes! FORGE stores everything locally in your project. Nothing is sent to external servers unless you explicitly share prevention rules with the community.
+Yes! Capybara stores everything locally in your project. Nothing is sent to external servers unless you explicitly share prevention rules with the community.
 </details>
 
 ## 🔗 Links & Resources
 
 ### 📦 Official Extensions
-- **[VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)** - Official VSCode extension
-- **[Extension Hub](https://marketplace.visualstudio.com/manage/publishers/eduardocecon/extensions/forge-framework/hub)** - Management dashboard
+- **[VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=eduardocecon.Capybara)** - Official VSCode extension
+- **[Extension Hub](https://marketplace.visualstudio.com/manage/publishers/eduardocecon/extensions/Capybara/hub)** - Management dashboard
 
 ### 🛠️ Development
-- **[GitHub Repository](https://github.com/cecon/forge-framework)** - Source code and issues
+- **[GitHub Repository](https://github.com/cecon/Capybara)** - Source code and issues
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute
 - **[Changelog](CHANGELOG.md)** - Version history
 
@@ -667,14 +667,14 @@ Yes! FORGE stores everything locally in your project. Nothing is sent to externa
 We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ### 🐛 Found a Bug?
-[Report it on GitHub](https://github.com/cecon/forge-framework/issues/new?template=bug_report.md)
+[Report it on GitHub](https://github.com/cecon/capybara/issues/new?template=bug_report.md)
 
 ### 💡 Have an Idea?
-[Share it on GitHub](https://github.com/cecon/forge-framework/issues/new?template=feature_request.md)
+[Share it on GitHub](https://github.com/cecon/capybara/issues/new?template=feature_request.md)
 
 ## 📄 License
 
-FORGE Framework is [MIT licensed](LICENSE). Use it freely in personal and commercial projects.
+Capybara is [MIT licensed](LICENSE). Use it freely in personal and commercial projects.
 
 ## 🚀 Get Started
 
@@ -682,8 +682,8 @@ FORGE Framework is [MIT licensed](LICENSE). Use it freely in personal and commer
 
 **Ready to transform your AI coding assistant into a learning partner?**
 
-[![Install VSCode Extension](https://img.shields.io/badge/Install%20VSCode%20Extension-007ACC?style=for-the-badge&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.forge-framework)
-[![GitHub Repository](https://img.shields.io/badge/View%20on%20GitHub-black?style=for-the-badge&logo=github)](https://github.com/cecon/forge-framework)
+[![Install VSCode Extension](https://img.shields.io/badge/Install%20VSCode%20Extension-007ACC?style=for-the-badge&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.capybara)
+[![GitHub Repository](https://img.shields.io/badge/View%20on%20GitHub-black?style=for-the-badge&logo=github)](https://github.com/cecon/capybara)
 [![Quick Start Guide](https://img.shields.io/badge/Quick%20Start%20Guide-brightgreen?style=for-the-badge)](#-quick-start)
 
 **🎯 Transform your development workflow today!**

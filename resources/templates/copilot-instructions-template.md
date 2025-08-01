@@ -1,7 +1,26 @@
-# GitHub Copilot Instructions - FORGE Framework
+# GitHub Copilot Instructions - Capybara
 
 ## 🎯 **Primary Directive**
-This project uses the **FORGE Framework** for atomic task management and automatic error prevention.
+This project uses **Capybara** for atomic task management and automatic error prevention.
+
+## 📚 **Stack-Specific Guidelines**
+{LOAD_FROM: .github/stack-instructions.md}
+
+**Note**: All code style, testing, and architectural conventions are defined in the stack-instructions file above. Always follow those guidelines when writing code.
+
+## ⚙️ **Environment-Specific Rules**
+{INJECT_ENVIRONMENT_RULES_HERE}
+
+**Configuration**: Environment rules loaded from `capybaraConfig.environment`
+- **OS**: {environment.os}
+- **Shell**: {environment.shell}  
+- **Editor**: {environment.editor}
+- **Package Manager**: {environment.packageManager}
+
+## 🦫 **Capybara Methodology**tructions - Capybara
+
+## 🎯 **Primary Directive**
+This project uses the **Capybara** for atomic task management and automatic error prevention.
 
 ## 📚 **Stack-Specific Guidelines**
 {LOAD_FROM: .github/stack-instructions.md}
@@ -11,7 +30,7 @@ This project uses the **FORGE Framework** for atomic task management and automat
 ## �️ **Environment-Specific Rules**
 {INJECT_ENVIRONMENT_RULES_HERE}
 
-**Configuration**: Environment rules loaded from `forgeConfig.environment`
+**Configuration**: Environment rules loaded from `capybaraConfig.environment`
 - **OS**: {environment.os}
 - **Shell**: {environment.shell}  
 - **Editor**: {environment.editor}
@@ -46,7 +65,7 @@ steps/STEP_0001_[TASK_NAME]/
 
 ### **Error Prevention System**
 - **Progressive Learning**: Each STEP inherits lessons from previous ones
-- **Volume Control**: Max {context.maxRules} rules (configured in forgeConfig.json)
+- **Volume Control**: Max {context.maxRules} rules (configured in capybaraConfig.json)
 - **Smart Prioritization**: Task-relevant errors get priority
 - **Pattern Recognition**: Group similar issues to reduce noise
 
@@ -57,7 +76,7 @@ steps/STEP_0001_[TASK_NAME]/
 - **Testable Criteria**: Concrete validation checkpoints
 
 ## 🧪 **Testing Integration**
-**Config**: See `tasks.requireUnitTests` in `src/forgeConfig.json`
+**Config**: See `tasks.requireUnitTests` in `src/capybaraConfig.json`
 
 When unit tests are required:
 - **Framework**: {tasks.testFramework} (from config)
@@ -68,7 +87,7 @@ When unit tests are required:
 ## 🚨 **Core Prevention Patterns**
 
 ### **Configuration Management**
-- **Always check**: `src/forgeConfig.json` for project-specific settings
+- **Always check**: `src/capybaraConfig.json` for project-specific settings
 - **Stack-specific rules**: Apply patterns from stack-instructions.md
 - **Version pinning**: Use exact versions, not ranges
 - **Feature flags**: Include required features for dependencies
@@ -115,7 +134,7 @@ User: "vamos iniciar o desenvolvimento da STEP_0042"
 ```
 User: "atualizar configuração de stack"
 → Show current stack configuration
-→ Update stack-instructions.md and forgeConfig.json
+→ Update stack-instructions.md and capybaraConfig.json
 → Regenerate relevant sections
 ```
 
@@ -125,7 +144,7 @@ User: "atualizar configuração de stack"
 - **Templates**: `resources/instructions/forge-templates.md`
 - **Questionnaire**: `resources/instructions/forge-questionnaire.md`
 - **Stack Setup**: `resources/instructions/forge-stack-setup.md`
-- **Configuration**: `src/models/forgeConfig.ts`
+- **Configuration**: `src/models/capybaraConfig.ts`
 
 ## 🎯 **Success Metrics**
 - **Reduced Debugging Time**: Prevention rules eliminate recurring issues

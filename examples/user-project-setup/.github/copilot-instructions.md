@@ -1,7 +1,7 @@
-# GitHub Copilot Instructions - FORGE Framework
+# GitHub Copilot Instructions - Capybara
 
 ## Primary Directive
-This project uses the FORGE Framework for atomic task management and automatic error prevention. 
+This project uses the Capybara for atomic task management and automatic error prevention. 
 
 **ALWAYS** follow the comprehensive methodology detailed in:
 - `.github/instructions/forge-methodology.md` - Complete FORGE workflow

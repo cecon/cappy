@@ -197,7 +197,7 @@ ${historyItems.map((item, index) =>
 - **Atividade mais antiga:** ${historyItems[historyItems.length - 1]?.displayName || 'N/A'}
 
 ---
-*Relatório gerado em ${new Date().toLocaleString('pt-BR')} pelo FORGE Framework*
+*Relatório gerado em ${new Date().toLocaleString('pt-BR')} pelo Capybara*
 `;
 
         return report;

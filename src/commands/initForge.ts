@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { FileManager } from '../utils/fileManager';
-import { ForgeConfig, DEFAULT_FORGE_CONFIG } from '../models/forgeConfig';
+import { CapybaraConfig, DEFAULT_CAPYBARA_CONFIG } from '../models/capybaraConfig';
 
 export class InitForgeCommand {
     constructor(
@@ -14,7 +14,7 @@ export class InitForgeCommand {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
                 const openFolder = await vscode.window.showInformationMessage(
-                    '� FORGE Framework precisa de uma pasta de projeto para ser inicializado.\n\nAbra uma pasta primeiro e depois execute "FORGE: Initialize" novamente.',
+                    '� Capybara precisa de uma pasta de projeto para ser inicializado.\n\nAbra uma pasta primeiro e depois execute "FORGE: Initialize" novamente.',
                     'Abrir Pasta', 'Cancelar'
                 );
                 
@@ -51,7 +51,7 @@ export class InitForgeCommand {
             // Mostrar progresso
             return await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
-                title: '🔨 Inicializando FORGE Framework',
+                title: '🔨 Inicializando Capybara',
                 cancellable: false
             }, async (progress) => {
                 
@@ -67,23 +67,23 @@ export class InitForgeCommand {
                 // 2. Coletar informações do projeto
                 const projectInfo = await this.collectProjectInfo(workspaceFolder.uri.fsPath);
 
-                progress.report({ increment: 40, message: 'Configurando FORGE...' });
+                progress.report({ increment: 40, message: 'Configurando Capybara...' });
 
                 // 3. Criar configuração
-                const config: ForgeConfig = {
-                    version: DEFAULT_FORGE_CONFIG.version || '1.0.0',
+                const config: CapybaraConfig = {
+                    version: DEFAULT_CAPYBARA_CONFIG.version || '1.0.0',
                     project: {
                         name: projectInfo.name,
                         language: projectInfo.languages || [projectInfo.language || 'unknown'],
                         framework: projectInfo.framework || [],
                         description: projectInfo.description
                     },
-                    stack: DEFAULT_FORGE_CONFIG.stack!,
-                    environment: DEFAULT_FORGE_CONFIG.environment!,
-                    context: DEFAULT_FORGE_CONFIG.context!,
-                    tasks: DEFAULT_FORGE_CONFIG.tasks!,
-                    ai: DEFAULT_FORGE_CONFIG.ai!,
-                    analytics: DEFAULT_FORGE_CONFIG.analytics!,
+                    stack: DEFAULT_CAPYBARA_CONFIG.stack!,
+                    environment: DEFAULT_CAPYBARA_CONFIG.environment!,
+                    context: DEFAULT_CAPYBARA_CONFIG.context!,
+                    tasks: DEFAULT_CAPYBARA_CONFIG.tasks!,
+                    ai: DEFAULT_CAPYBARA_CONFIG.ai!,
+                    analytics: DEFAULT_CAPYBARA_CONFIG.analytics!,
                     createdAt: new Date(),
                     lastUpdated: new Date()
                 };
@@ -91,7 +91,7 @@ export class InitForgeCommand {
                 progress.report({ increment: 60, message: 'Criando arquivos de configuração...' });
 
                 // 4. Salvar configuração
-                await this.fileManager.writeForgeConfig(config);
+                await this.fileManager.writeCapybaraConfig(config);
 
                 progress.report({ increment: 80, message: 'Criando instruções para Copilot...' });
 
@@ -107,7 +107,7 @@ export class InitForgeCommand {
                 progress.report({ increment: 100, message: 'Finalizado!' });
 
                 vscode.window.showInformationMessage(
-                    '🎉 FORGE Framework inicializado com sucesso! Use "FORGE: Start Activity" para começar.'
+                    '🎉 Capybara inicializado com sucesso! Use "FORGE: Start Activity" para começar.'
                 );
 
                 return true;
@@ -226,10 +226,10 @@ export class InitForgeCommand {
         return 'general';
     }
 
-    private async createCopilotInstructions(config: ForgeConfig, githubDir: string, projectInfo: any): Promise<void> {
+    private async createCopilotInstructions(config: CapybaraConfig, githubDir: string, projectInfo: any): Promise<void> {
         const instructionsPath = path.join(githubDir, 'copilot-instructions.md');
         
-        const instructions = `# 🔨 FORGE Framework - Instruções para GitHub Copilot
+        const instructions = `# 🔨 Capybara - Instruções para GitHub Copilot
 
 ## 📋 **CONTEXTO DO PROJETO**
 - **Projeto**: ${config.project.name}
@@ -304,7 +304,7 @@ Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) par
         const gitignorePath = path.join(workspacePath, '.gitignore');
         const forgeEntries = [
             '',
-            '# FORGE Framework - Private AI Instructions',
+            '# Capybara - Private AI Instructions',
             '.github/copilot-instructions.md',
             ''
         ].join('\n');

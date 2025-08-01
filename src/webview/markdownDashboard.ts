@@ -46,11 +46,11 @@ export class ForgeDashboard {
             console.log('🔨 FORGE Dashboard: FileManager initialized, checking FORGE config');
 
             // Check if FORGE is initialized
-            const config = await this.fileManager.readForgeConfig();
+            const config = await this.fileManager.readCapybaraConfig();
             if (!config) {
                 console.log('🔨 FORGE Dashboard: No FORGE config found');
                 vscode.window.showInformationMessage(
-                    "Please initialize FORGE in this workspace first by running 'FORGE: Initialize FORGE Framework'.",
+                    "Please initialize FORGE in this workspace first by running 'FORGE: Initialize Capybara'.",
                     'Initialize FORGE'
                 ).then(choice => {
                     if (choice === 'Initialize FORGE') {
@@ -120,7 +120,7 @@ export class ForgeDashboard {
         }
 
         const workspaceRoot = this.getWorkspaceRoot();
-        const config = await this.fileManager.readForgeConfig();
+        const config = await this.fileManager.readCapybaraConfig();
         const preventionRulesCount = await this.getPreventionRulesCount();
         const taskMetrics = await this.getTaskMetrics();
         const recentActivity = await this.getRecentActivity();
@@ -338,7 +338,7 @@ ${data.recentActivity.map((activity: any) =>
 
 ## 🎯 Available Commands
 
-- **[🔨 Initialize FORGE](command:forge.init)** - Set up FORGE in current workspace
+- **[🦫 Initialize Capybara](command:forge.init)** - Set up Capybara in current workspace
 - **[📝 Create Task](command:forge.createTask)** - Create a new atomic task
 - **[🚀 Start Activity](command:forge.startActivity)** - Begin working on an activity
 - **[✅ Complete Activity](command:forge.completeActivity)** - Mark activity as complete

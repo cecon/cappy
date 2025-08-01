@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as yaml from 'yaml';
-import { ForgeConfig } from '../models/forgeConfig';
+import { CapybaraConfig } from '../models/capybaraConfig';
 import { Task } from '../models/task';
 import { PreventionRule } from '../models/preventionRule';
 
@@ -36,18 +36,18 @@ export class FileManager {
         await fs.promises.mkdir(templatesPath, { recursive: true });
     }
 
-    async writeForgeConfig(config: ForgeConfig): Promise<void> {
-        const configPath = path.join(this.ensureWorkspace(), '.forge', 'config.yml');
+    async writeCapybaraConfig(config: CapybaraConfig): Promise<void> {
+        const configPath = path.join(this.ensureWorkspace(), '.capybara', 'config.yml');
         const yamlContent = yaml.stringify(config);
         await fs.promises.writeFile(configPath, yamlContent, 'utf8');
     }
 
-    async readForgeConfig(): Promise<ForgeConfig | null> {
-        const configPath = path.join(this.ensureWorkspace(), '.forge', 'config.yml');
+    async readCapybaraConfig(): Promise<CapybaraConfig | null> {
+        const configPath = path.join(this.ensureWorkspace(), '.capybara', 'config.yml');
         
         try {
             const yamlContent = await fs.promises.readFile(configPath, 'utf8');
-            return yaml.parse(yamlContent) as ForgeConfig;
+            return yaml.parse(yamlContent) as CapybaraConfig;
         } catch (error) {
             return null;
         }

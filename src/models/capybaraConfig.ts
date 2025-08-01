@@ -1,4 +1,4 @@
-export interface ForgeConfig {
+export interface CapybaraConfig {
     version: string;
     project: {
         name: string;
@@ -57,7 +57,7 @@ export interface ForgeConfig {
     lastUpdated: Date;
 }
 
-export const DEFAULT_FORGE_CONFIG: Partial<ForgeConfig> = {
+export const DEFAULT_CAPYBARA_CONFIG: Partial<CapybaraConfig> = {
     version: '1.0.0',
     stack: {
         primary: 'typescript',
