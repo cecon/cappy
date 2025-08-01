@@ -274,7 +274,7 @@ export class TaskItem extends vscode.TreeItem {
         // Make tasks clickable to open description.md
         if (contextValue === 'task' || contextValue === 'activeTask') {
             this.command = {
-                command: 'forge.openTask',
+                command: 'capybara.openTask',
                 title: 'Open Task',
                 arguments: [this]
             };

@@ -7,13 +7,13 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('🔨 Capybara: All commands activated!');
 
     // Register test command (known working)
-    const testCommand = vscode.commands.registerCommand('forge.test', async () => {
+    const testCommand = vscode.commands.registerCommand('capybara.test', async () => {
         vscode.window.showInformationMessage('🔨 Capybara: Test command still working! 🎉');
         console.log('🔨 Capybara: Test command executed at', new Date().toISOString());
     });
 
     // Register init command (safe version)
-    const initCommand = vscode.commands.registerCommand('forge.init', async () => {
+    const initCommand = vscode.commands.registerCommand('capybara.init', async () => {
         try {
             vscode.window.showInformationMessage('🔨 Capybara Init: Starting initialization...');
             
@@ -34,7 +34,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Register createTask command (placeholder)
-    const createTaskCommand = vscode.commands.registerCommand('forge.createTask', async () => {
+    const createTaskCommand = vscode.commands.registerCommand('capybara.createTask', async () => {
         try {
             vscode.window.showInformationMessage('🔨 FORGE: Create Task command called!');
             
@@ -52,7 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Register createSmartTask command (placeholder)
-    const createSmartTaskCommand = vscode.commands.registerCommand('forge.createSmartTask', async () => {
+    const createSmartTaskCommand = vscode.commands.registerCommand('capybara.createSmartTask', async () => {
         try {
             vscode.window.showInformationMessage('🔨 FORGE: Create Smart Task command called!');
             
@@ -70,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Register addPreventionRule command (placeholder)
-    const addPreventionRuleCommand = vscode.commands.registerCommand('forge.addPreventionRule', async () => {
+    const addPreventionRuleCommand = vscode.commands.registerCommand('capybara.addPreventionRule', async () => {
         try {
             vscode.window.showInformationMessage('🔨 FORGE: Add Prevention Rule command called!');
             
@@ -88,7 +88,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Register completeTask command (placeholder)
-    const completeTaskCommand = vscode.commands.registerCommand('forge.completeTask', async () => {
+    const completeTaskCommand = vscode.commands.registerCommand('capybara.completeTask', async () => {
         try {
             vscode.window.showInformationMessage('🔨 FORGE: Complete Task command called!');
             

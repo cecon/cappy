@@ -7,61 +7,61 @@
             "include": "text.html.markdown"
         },
         {
-            "name": "markup.bold.forge.prevention-rule",
+            "name": "markup.bold.capybara.prevention-rule",
             "match": "❌\\s*\\*\\*DON'T\\*\\*.*?→.*$",
             "captures": {
                 "0": {
-                    "name": "markup.bold.forge.prevention-rule"
+                    "name": "markup.bold.capybara.prevention-rule"
                 }
             }
         },
         {
-            "name": "markup.italic.forge.source",
+            "name": "markup.italic.capybara.source",
             "match": "\\*Source:.*?\\*",
             "captures": {
                 "0": {
-                    "name": "markup.italic.forge.source"
+                    "name": "markup.italic.capybara.source"
                 }
             }
         },
         {
-            "name": "entity.name.section.forge.task-header",
+            "name": "entity.name.section.capybara.task-header",
             "match": "^# Task: .*$"
         },
         {
-            "name": "entity.name.section.forge.completion-header", 
+            "name": "entity.name.section.capybara.completion-header", 
             "match": "^# Task Completion: .*$"
         },
         {
-            "name": "entity.name.section.forge.difficulty-header",
+            "name": "entity.name.section.capybara.difficulty-header",
             "match": "^# Difficulties & Prevention Rules: .*$"
         },
         {
-            "name": "markup.heading.forge.emoji-section",
+            "name": "markup.heading.capybara.emoji-section",
             "match": "^## [🎯📋🚫⏱️✅📊🔧📁🎓📈🚨].*$"
         },
         {
-            "name": "constant.character.forge.checkbox-checked",
+            "name": "constant.character.capybara.checkbox-checked",
             "match": "- \\[x\\].*$"
         },
         {
-            "name": "variable.other.forge.checkbox-unchecked",
+            "name": "variable.other.capybara.checkbox-unchecked",
             "match": "- \\[ \\].*$"
         },
         {
-            "name": "markup.italic.forge.metadata",
+            "name": "markup.italic.capybara.metadata",
             "match": "\\*\\*(Estimated|Actual|Variance|Atomicity):\\*\\*"
         },
         {
-            "name": "string.other.forge.time-estimate",
+            "name": "string.other.capybara.time-estimate",
             "match": "\\b\\d+(\\.\\d+)?\\s*h\\b"
         },
         {
-            "name": "markup.inserted.forge.atomic",
+            "name": "markup.inserted.capybara.atomic",
             "match": "✅\\s*Atomic"
         },
         {
-            "name": "markup.deleted.forge.non-atomic",
+            "name": "markup.deleted.capybara.non-atomic",
             "match": "❌\\s*Not\\s*Atomic"
         }
     ]

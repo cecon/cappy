@@ -11,12 +11,12 @@
 
 Para testar a extensão, use `Ctrl+Shift+P` e procure por:
 
-- **🦫 Test Capybara Extension** (`forge.test`)
-- **🦫 Initialize Capybara** (`forge.init`)
-- **📝 Create New Task** (`forge.createTask`)
-- **🚀 Create Smart Task (AI-Assisted)** (`forge.createSmartTask`)
-- **🛡️ Add Prevention Rule** (`forge.addPreventionRule`)
-- **✅ Complete Task** (`forge.completeTask`)
+- **🦫 Test Capybara Extension** (`capybara.test`)
+- **🦫 Initialize Capybara** (`capybara.init`)
+- **📝 Create New Task** (`capybara.createTask`)
+- **🚀 Create Smart Task (AI-Assisted)** (`capybara.createSmartTask`)
+- **🛡️ Add Prevention Rule** (`capybara.addPreventionRule`)
+- **✅ Complete Task** (`capybara.completeTask`)
 
 ## 🔄 **Mudanças Principais**
 
@@ -40,8 +40,8 @@ Para testar a extensão, use `Ctrl+Shift+P` e procure por:
 ## 📋 **Próximos Passos**
 
 1. Reiniciar VS Code se necessário
-2. Testar comando `forge.test`
-3. Inicializar Capybara em um projeto: `forge.init`
+2. Testar comando `capybara.test`
+3. Inicializar Capybara em um projeto: `capybara.init`
 4. Verificar se contexto do Copilot é atualizado
 
 ---

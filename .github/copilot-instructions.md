@@ -52,16 +52,16 @@ capybara/
 
 ## 🔄 **FLUXOS DE TRABALHO PRINCIPAIS**
 
-### **1. Inicialização (`forge.init`)**
+### **1. Inicialização (`capybara.init`)**
 ```typescript
 // Cria estrutura básica:
-.forge/
+.capy/
 ├── config.json           # Configurações do projeto
 ├── copilot-instructions.md # Instruções para Copilot
 └── prevention-rules.md   # Regras acumuladas
 ```
 
-### **2. Criação de Tarefas (`forge.createTask` ou `forge.createSmartTask`)**
+### **2. Criação de Tarefas (`capybara.createTask` ou `capybara.createSmartTask`)**
 ```
 steps/STEP_XXXX_[NOME]/
 ├── STEP_XXXX_DESCRIPTION.md      # Descrição detalhada
@@ -70,7 +70,7 @@ steps/STEP_XXXX_[NOME]/
 └── artifacts/                     # Arquivos relacionados
 ```
 
-### **3. Documentação de Erros (`forge.addPreventionRule`)**
+### **3. Documentação de Erros (`capybara.addPreventionRule`)**
 - Cada erro vira uma regra reutilizável
 - Integra automaticamente ao contexto do Copilot
 - Herança entre tarefas relacionadas
@@ -85,7 +85,7 @@ steps/STEP_XXXX_[NOME]/
 - Mantém memória de padrões do projeto
 
 ### **Fluxo de Contextualização:**
-1. **Lê** configurações do `.forge/config.json`
+1. **Lê** configurações do `.capy/config.json`
 2. **Carrega** prevention rules ativas
 3. **Injeta** no contexto do Copilot via VS Code API
 4. **Atualiza** automaticamente conforme novas regras
@@ -118,18 +118,18 @@ steps/STEP_XXXX_[NOME]/
 ### **Comandos da Extensão:**
 ```typescript
 // Inicialização
-forge.init                  // Setup básico
-forge.initComplete          // Setup completo com templates
+capybara.init                  // Setup básico
+capybara.initComplete          // Setup completo com templates
 
 // Gestão de Tarefas  
-forge.createTask            // Criar STEP manual
-forge.createSmartTask       // Criar STEP com AI
-forge.completeTask          // Marcar STEP como concluída
+capybara.createTask            // Criar STEP manual
+capybara.createSmartTask       // Criar STEP com AI
+capybara.completeTask          // Marcar STEP como concluída
 
 // Gestão de Conhecimento
-forge.addPreventionRule     // Adicionar regra de prevenção
-forge.updateCopilotContext  // Atualizar contexto do Copilot
-forge.exportRules           // Exportar regras
+capybara.addPreventionRule     // Adicionar regra de prevenção
+capybara.updateCopilotContext  // Atualizar contexto do Copilot
+capybara.exportRules           // Exportar regras
 ```
 
 ### **Estrutura de Comandos TypeScript:**
@@ -155,6 +155,7 @@ export class CommandClass {
 #### **🔨 "Criar Nova STEP"**
 Quando usuário diz: *"vamos desenvolver uma nova atividade"*
 1. **Questionário interativo** para coletar requisitos
+
 2. **Análise de atomicidade** com verificação de confiança da LLM
 3. **Auto-criação da estrutura** apenas quando confiante
 4. **Herança de erros** da STEP anterior (respeitando maxRules)
@@ -177,7 +178,7 @@ Autoavaliação da LLM:
 
 ## 🔧 **CONFIGURAÇÕES E CUSTOMIZAÇÃO**
 
-### **`.forge/config.json` - Estrutura:**
+### **`.capy/config.json` - Estrutura:**
 ```json
 {
   "version": "1.0.0",
@@ -210,7 +211,7 @@ Autoavaliação da LLM:
 
 ### **Para LLMs Trabalhando no Projeto:**
 
-1. **SEMPRE** verificar se `.forge/` existe antes de sugerir criação de tarefas
+1. **SEMPRE** verificar se `.capy/` existe antes de sugerir criação de tarefas
 2. **SEMPRE** ler prevention rules ativas antes de sugerir código
 3. **NUNCA** sugerir tarefas >3 horas - decompor primeiro
 4. **SEMPRE** documentar problemas encontrados
@@ -249,7 +250,7 @@ export class FeatureHandler {
 ## 📚 **RECURSOS DE REFERÊNCIA**
 
 ### **Arquivos de Documentação:**
-- `resources/instructions/forge-methodology.md` - Metodologia completa
+- `resources/instructions/capybara-methodology.md` - Metodologia completa
 - `docs/extension-structure.md` - Estrutura técnica detalhada
 - `examples/` - Exemplos práticos de uso
 - `README.md` - Visão geral e quick start
@@ -259,16 +260,16 @@ export class FeatureHandler {
 - `resources/templates/environment-rules-templates.md`
 
 ### **Sintaxe Highlighting:**
-- `syntaxes/forge-task.tmLanguage.json` - Para arquivos `.forge-task`
+- `syntaxes/capybara-task.tmLanguage.json` - Para arquivos `.capy-task`
 
 ---
 
 ## ⚡ **AÇÕES RÁPIDAS PARA LLM**
 
-### **Se usuário quer inicializar FORGE:**
+### **Se usuário quer inicializar Capybara:**
 ```typescript
-// Usar: forge.init ou forge.initComplete
-// Verificar: Se workspace tem .forge/
+// Usar: capybara.init ou capybara.initComplete
+// Verificar: Se workspace tem .capy/
 // Criar: Estrutura básica + templates
 ```
 
@@ -285,7 +286,7 @@ export class FeatureHandler {
 ```typescript
 // 1. Capturar contexto do erro
 // 2. Criar prevention rule
-// 3. Adicionar a .forge/prevention-rules.md
+// 3. Adicionar a .capy/prevention-rules.md
 // 4. Atualizar contexto do Copilot
 ```
 

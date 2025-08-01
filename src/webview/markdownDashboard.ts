@@ -54,7 +54,7 @@ export class ForgeDashboard {
                     'Initialize FORGE'
                 ).then(choice => {
                     if (choice === 'Initialize FORGE') {
-                        vscode.commands.executeCommand('forge.init');
+                        vscode.commands.executeCommand('capybara.init');
                     }
                 });
                 return;
@@ -291,7 +291,7 @@ export class ForgeDashboard {
 
         return `# 🔨 Capybara Dashboard: ${data.project.name}
 
-> **Quick Actions:** [Create New Task](command:forge.createTask) | [Add Prevention Rule](command:forge.addPreventionRule) | [Update Copilot Context](command:forge.updateCopilotContext) | [Refresh Dashboard](command:forge.openDashboard)
+> **Quick Actions:** [Create New Task](command:capybara.createTask) | [Add Prevention Rule](command:capybara.addPreventionRule) | [Update Copilot Context](command:capybara.updateCopilotContext) | [Refresh Dashboard](command:capybara.openDashboard)
 
 ---
 
@@ -317,7 +317,7 @@ export class ForgeDashboard {
 
 ${data.preventionRulesStats.totalRules > 0 ? 
 '*Prevention rules are active and protecting your workflow.*' : 
-'*No prevention rules found. [Add your first rule](command:forge.addPreventionRule)*'}
+'*No prevention rules found. [Add your first rule](command:capybara.addPreventionRule)*'}
 
 ## 🚀 Copilot Context
 
@@ -332,23 +332,23 @@ ${data.recentActivity.length > 0 ?
 ${data.recentActivity.map((activity: any) => 
   `| ${activity.title} | ${activity.status === 'Completed' ? '✅' : '⏳'} ${activity.status} | ${activity.date} |`
 ).join('\n')}` :
-'*No recent activity found. [Create your first task](command:forge.createTask)*'}
+'*No recent activity found. [Create your first task](command:capybara.createTask)*'}
 
 ---
 
 ## 🎯 Available Commands
 
-- **[🦫 Initialize Capybara](command:forge.init)** - Set up Capybara in current workspace
-- **[📝 Create Task](command:forge.createTask)** - Create a new atomic task
-- **[🚀 Start Activity](command:forge.startActivity)** - Begin working on an activity
-- **[✅ Complete Activity](command:forge.completeActivity)** - Mark activity as complete
-- **[🛡️ Add Prevention Rule](command:forge.addPreventionRule)** - Document a new prevention rule
-- **[📚 View History](command:forge.viewHistory)** - Browse task history
-- **[🔄 Update Context](command:forge.updateCopilotContext)** - Refresh Copilot knowledge
+- **[🦫 Initialize Capybara](command:capybara.init)** - Set up Capybara in current workspace
+- **[📝 Create Task](command:capybara.createTask)** - Create a new atomic task
+- **[🚀 Start Activity](command:capybara.startActivity)** - Begin working on an activity
+- **[✅ Complete Activity](command:capybara.completeActivity)** - Mark activity as complete
+- **[🛡️ Add Prevention Rule](command:capybara.addPreventionRule)** - Document a new prevention rule
+- **[📚 View History](command:capybara.viewHistory)** - Browse task history
+- **[🔄 Update Context](command:capybara.updateCopilotContext)** - Refresh Copilot knowledge
 
 ---
 
-*Dashboard generated on ${new Date().toLocaleString()} | [Refresh](command:forge.openDashboard)*
+*Dashboard generated on ${new Date().toLocaleString()} | [Refresh](command:capybara.openDashboard)*
 `;
     }
 }
