@@ -2,7 +2,7 @@
   "name": "capybara",
   "displayName": "Capybara",
   "description": "Your calm and wise AI coding companion that learns from your mistakes and prevents them automatically",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -103,6 +103,8 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
+    "test": "npm run compile && node ./out/test/runTest.js",
+    "test-watch": "npm run test -- --watch",
     "package": "vsce package --dependencies",
     "package-webpack": "webpack --mode production && vsce package",
     "publish": "vsce publish"
