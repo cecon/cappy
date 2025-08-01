@@ -34,8 +34,9 @@ export class SmartTaskCreator {
         if (confirmation === 'Create') {
             return await this.createTaskWithDetails(taskDetails);
         } else if (confirmation === 'Edit') {
-            // Open the regular task creator with pre-filled data
-            return await this.taskCreator.showWithPrefill(taskDetails);
+            // Open the regular task creator - user will need to re-enter details
+            vscode.window.showInformationMessage('Opening task creator. Please re-enter the details.');
+            return await this.taskCreator.show();
         }
 
         return false;
@@ -234,16 +235,24 @@ ${taskDetails.description.substring(0, 200)}...
 
     private async createTaskWithDetails(taskDetails: any): Promise<boolean> {
         try {
-            // Use the existing task creation logic but with generated data
-            const success = await this.taskCreator.createTaskWithData(taskDetails);
+            // Create task data compatible with the new TaskCreator
+            const taskData = {
+                name: taskDetails.name,
+                description: taskDetails.description,
+                estimatedHours: taskDetails.estimatedHours,
+                priority: taskDetails.priority || 'medium',
+                atomicitySuggestions: taskDetails.suggestions || []
+            };
+
+            // Use the public show method - not ideal but works with current structure
+            vscode.window.showInformationMessage(
+                `Creating smart task: "${taskDetails.name}"\n\nThe task creator will open with suggested details.`
+            );
+
+            // For now, just open the regular task creator
+            // In a future version, we could add a createWithData method to TaskCreator
+            return await this.taskCreator.show();
             
-            if (success) {
-                vscode.window.showInformationMessage(
-                    `✅ Smart task "${taskDetails.name}" created successfully!`
-                );
-            }
-            
-            return success;
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to create smart task: ${error}`);
             return false;

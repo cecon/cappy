@@ -17,6 +17,9 @@ let copilotContextManager: CopilotContextManager;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🔨 FORGE Framework: Extension activation started');
+    
+    // Show immediate activation message
+    vscode.window.showInformationMessage('🔨 FORGE Framework: Extension is activating...');
 
     // Initialize providers
     const taskProvider = new ForgeTaskProvider();
@@ -30,6 +33,9 @@ export function activate(context: vscode.ExtensionContext) {
     copilotContextManager = new CopilotContextManager();
 
     console.log('🔨 FORGE Framework: Providers and context manager initialized');
+    
+    // Show commands registration message
+    vscode.window.showInformationMessage('🔨 FORGE Framework: Registering commands...');
 
     // Register commands
     const commands = [
@@ -130,6 +136,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register all disposables
     context.subscriptions.push(...commands, copilotContextManager);
+    
+    // Show final activation message
+    vscode.window.showInformationMessage('🔨 FORGE Framework: Extension activated successfully! Commands are ready.');
 
     // Setup configuration change listener
     context.subscriptions.push(

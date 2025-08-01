@@ -2,10 +2,10 @@
   "name": "forge-framework",
   "displayName": "FORGE Framework",
   "description": "Transform your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically",
-  "version": "1.0.12",
+  "version": "1.0.21",
   "publisher": "eduardocecon",
   "engines": {
-    "vscode": "^1.74.0"
+    "vscode": "^1.75.0"
   },
   "categories": [
     "Other",
@@ -23,83 +23,20 @@
     "task-management"
   ],
   "activationEvents": [
-    "onCommand:forge.init",
-    "onCommand:forge.createTask",
-    "onCommand:forge.openDashboard",
-    "workspaceContains:.forge"
+    "*"
   ],
-  "main": "./out/extension.js",
+  "main": "./out/extension-simple.js",
   "contributes": {
     "commands": [
       {
-        "command": "forge.init",
-        "title": "Initialize FORGE Framework",
-        "category": "FORGE",
-        "icon": "$(rocket)"
-      },
-      {
-        "command": "forge.startActivity",
-        "title": "Start Activity",
-        "category": "FORGE",
-        "icon": "$(play)"
-      },
-      {
-        "command": "forge.completeActivity",
-        "title": "Complete Activity",
-        "category": "FORGE",
-        "icon": "$(check)"
-      },
-      {
-        "command": "forge.viewHistory",
-        "title": "View Activity History",
-        "category": "FORGE",
-        "icon": "$(history)"
-      },
-      {
-        "command": "forge.addPreventionRule",
-        "title": "Add Prevention Rule",
-        "category": "FORGE",
-        "icon": "$(shield)"
+        "command": "forge.test",
+        "title": "Test Command",
+        "category": "FORGE"
       },
       {
         "command": "forge.openDashboard",
         "title": "Open Dashboard",
-        "category": "FORGE",
-        "icon": "$(dashboard)"
-      },
-      {
-        "command": "forge.updateCopilotContext",
-        "title": "Update Copilot Context",
-        "category": "FORGE",
-        "icon": "$(sync)"
-      },
-      {
-        "command": "forge.exportRules",
-        "title": "Export Prevention Rules",
-        "category": "FORGE",
-        "icon": "$(export)"
-      },
-      {
-        "command": "forge.refreshTasks",
-        "title": "Refresh",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "forge.openTask",
-        "title": "Open Task",
-        "icon": "$(go-to-file)"
-      },
-      {
-        "command": "forge.createTask",
-        "title": "Create New Task",
-        "category": "FORGE",
-        "icon": "$(add)"
-      },
-      {
-        "command": "forge.completeTask",
-        "title": "Complete Task",
-        "category": "FORGE",
-        "icon": "$(check)"
+        "category": "FORGE"
       }
     ],
     "views": {

@@ -1,60 +1,19 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs-extra';
 import { FileManager } from '../utils/fileManager';
 import { Task, TaskStatus } from '../models/task';
 
 export class TaskCreator {
     private fileManager: FileManager;
-    private panel: vscode.WebviewPanel | undefined;
 
     constructor() {
         this.fileManager = new FileManager();
     }
 
     public async show(): Promise<boolean> {
-        return new Promise((resolve) => {
-            this.panel = vscode.window.createWebviewPanel(
-                'forgeTaskCreator',
-                'Create FORGE Task',
-                vscode.ViewColumn.One,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true,
-                    localResourceRoots: []
-                }
-            );
-
-            this.panel.webview.html = this.getWebviewContent();
-
-            this.panel.webview.onDidReceiveMessage(async (message) => {
-                switch (message.command) {
-                    case 'createTask':
-                        const success = await this.createTask(message.taskData);
-                        resolve(success);
-                        this.panel?.dispose();
-                        break;
-                    case 'analyzeAtomicity':
-                        const analysis = await this.analyzeAtomicity(message.description);
-                        this.panel?.webview.postMessage({
-                            command: 'atomicityResult',
-                            result: analysis
-                        });
-                        break;
-                    case 'cancel':
-                        resolve(false);
-                        this.panel?.dispose();
-                        break;
-                }
-            });
-
-            this.panel.onDidDispose(() => {
-                resolve(false);
-            });
-        });
-    }
-
-    private async createTask(taskData: any): Promise<boolean> {
         try {
+            // Check if workspace exists
             if (!vscode.workspace.workspaceFolders) {
                 const openFolder = await vscode.window.showInformationMessage(
                     '📁 FORGE precisa de uma pasta de projeto para criar tarefas.\n\nAbra uma pasta primeiro.',
@@ -65,13 +24,128 @@ export class TaskCreator {
                     try {
                         await vscode.commands.executeCommand('vscode.openFolder');
                     } catch (error) {
-                        // Silently handle error - user can open folder manually
                         vscode.window.showInformationMessage('Por favor, abra uma pasta manualmente via File > Open Folder');
                     }
                 }
                 return false;
             }
 
+            // Get task name
+            const taskName = await vscode.window.showInputBox({
+                prompt: 'Enter task name',
+                placeHolder: 'e.g., Implement user authentication',
+                validateInput: (value) => {
+                    if (!value || value.trim().length < 3) {
+                        return 'Task name must be at least 3 characters long';
+                    }
+                    if (value.length > 50) {
+                        return 'Task name must be less than 50 characters';
+                    }
+                    return null;
+                }
+            });
+
+            if (!taskName) {
+                return false;
+            }
+
+            // Get task description
+            const description = await vscode.window.showInputBox({
+                prompt: 'Enter detailed description of what needs to be done',
+                placeHolder: 'Describe the task goals, requirements, and expected outcomes...',
+                validateInput: (value) => {
+                    if (!value || value.trim().length < 10) {
+                        return 'Description must be at least 10 characters long';
+                    }
+                    return null;
+                }
+            });
+
+            if (!description) {
+                return false;
+            }
+
+            // Analyze atomicity
+            const atomicityAnalysis = this.analyzeAtomicity(description);
+            
+            // Get estimated hours with suggestion
+            const suggestedHours = atomicityAnalysis.estimatedHours;
+            const hoursInput = await vscode.window.showInputBox({
+                prompt: `Estimated hours for this task (suggested: ${suggestedHours}h)`,
+                placeHolder: suggestedHours.toString(),
+                value: suggestedHours.toString(),
+                validateInput: (value) => {
+                    const hours = parseFloat(value);
+                    if (isNaN(hours) || hours <= 0) {
+                        return 'Please enter a valid number greater than 0';
+                    }
+                    if (hours > 8) {
+                        return 'Tasks should be ≤8 hours. Consider breaking into smaller tasks.';
+                    }
+                    return null;
+                }
+            });
+
+            if (!hoursInput) {
+                return false;
+            }
+
+            const estimatedHours = parseFloat(hoursInput);
+
+            // Warn if task is not atomic
+            if (estimatedHours > 3) {
+                const proceed = await vscode.window.showWarningMessage(
+                    `⚠️ This task (${estimatedHours}h) may not be atomic.\n\nAtomic tasks (≤3h) are recommended for better tracking and completion.\n\nProceed anyway?`,
+                    'Yes, Create Task',
+                    'Let me revise'
+                );
+
+                if (proceed !== 'Yes, Create Task') {
+                    return false;
+                }
+            }
+
+            // Get priority
+            const priorities = [
+                { label: '🔴 High Priority', value: 'high' },
+                { label: '🟡 Medium Priority', value: 'medium' },
+                { label: '🟢 Low Priority', value: 'low' }
+            ];
+
+            const selectedPriority = await vscode.window.showQuickPick(
+                priorities.map(p => p.label),
+                {
+                    placeHolder: 'Select task priority',
+                    canPickMany: false
+                }
+            );
+
+            if (!selectedPriority) {
+                return false;
+            }
+
+            const priority = priorities.find(p => p.label === selectedPriority)?.value || 'medium';
+
+            // Create the task
+            const taskData = {
+                name: taskName.trim(),
+                description: description.trim(),
+                estimatedHours,
+                priority,
+                atomicitySuggestions: atomicityAnalysis.suggestions
+            };
+
+            return await this.createTask(taskData);
+
+        } catch (error) {
+            console.error('Error in TaskCreator:', error);
+            vscode.window.showErrorMessage('An error occurred while creating the task.');
+            return false;
+        }
+    }
+
+    private async createTask(taskData: any): Promise<boolean> {
+        try {
             // Generate task ID
             const taskId = await this.generateTaskId(taskData.name);
             
@@ -102,18 +176,18 @@ export class TaskCreator {
             await this.generateTaskFiles(taskPath, task, taskData);
 
             // Show success message and open description
-            vscode.window.showInformationMessage(
-                `Task "${task.name}" created successfully!`,
+            const choice = await vscode.window.showInformationMessage(
+                `✅ Task "${task.name}" created successfully!`,
                 'Open Description',
                 'Open Folder'
-            ).then(choice => {
-                if (choice === 'Open Description') {
-                    const descriptionPath = vscode.Uri.file(path.join(taskPath, 'description.md'));
-                    vscode.window.showTextDocument(descriptionPath);
-                } else if (choice === 'Open Folder') {
-                    vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(taskPath));
-                }
-            });
+            );
+
+            if (choice === 'Open Description') {
+                const descriptionPath = vscode.Uri.file(path.join(taskPath, 'description.md'));
+                await vscode.window.showTextDocument(descriptionPath);
+            } else if (choice === 'Open Folder') {
+                await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(taskPath));
+            }
 
             return true;
         } catch (error) {
@@ -148,94 +222,67 @@ export class TaskCreator {
     }
 
     private async generateTaskFiles(taskPath: string, task: Task, taskData: any): Promise<void> {
-        // Load templates
-        const workspaceRoot = vscode.workspace.workspaceFolders![0].uri.fsPath;
-        const templatesPath = path.join(workspaceRoot, '.forge', 'templates');
-        
-        const fs = require('fs');
-        
-        // Generate description.md
-        let descriptionTemplate = '';
-        const descriptionTemplatePath = path.join(templatesPath, 'description.md');
-        if (fs.existsSync(descriptionTemplatePath)) {
-            descriptionTemplate = fs.readFileSync(descriptionTemplatePath, 'utf8');
-        } else {
-            descriptionTemplate = this.getDefaultDescriptionTemplate();
-        }
+        const templates = {
+            description: this.getDescriptionTemplate(),
+            done: this.getDoneTemplate(),
+            difficulties: this.getDifficultiesTemplate()
+        };
 
-        const relevantRules = await this.getRelevantPreventionRules(taskData.description);
-        const rulesText = relevantRules.length > 0 
-            ? relevantRules.map(rule => `- ❌ DON'T ${rule.problem} → ${rule.solution}`).join('\n')
-            : '- No relevant prevention rules found yet';
+        const replacements: Record<string, string> = {};
+        replacements['TASK_ID'] = task.id;
+        replacements['TASK_NAME'] = task.name;
+        replacements['TASK_DESCRIPTION'] = task.description;
+        replacements['ESTIMATED_HOURS'] = task.estimatedHours.toString();
+        replacements['PRIORITY'] = taskData.priority;
+        replacements['CREATED_DATE'] = new Date().toLocaleDateString();
+        replacements['ATOMICITY_STATUS'] = task.atomicity?.isAtomic ? '✅ Atomic' : '⚠️ Non-atomic';
+        replacements['SUGGESTIONS'] = task.atomicity?.suggestions?.join('\n- ') || 'None';
 
-        const descriptionContent = this.replaceTemplateVariables(descriptionTemplate, {
-            TASK_NAME: task.name,
-            TASK_DESCRIPTION: taskData.description,
-            ESTIMATED_HOURS: task.estimatedHours.toString(),
-            ATOMICITY_STATUS: task.atomicity.isAtomic ? '✅ Atomic (≤3h)' : '❌ Not Atomic (>3h)',
-            PREVENTION_RULES: rulesText,
-            CREATED_DATE: new Date().toISOString().split('T')[0]
-        });
+        // Create description file
+        const descriptionContent = this.replaceTemplateVars(templates.description, replacements);
+        await fs.writeFile(path.join(taskPath, 'description.md'), descriptionContent, 'utf8');
 
-        await this.fileManager.writeTaskFile(taskPath, 'description.md', descriptionContent);
+        // Create done criteria file
+        const doneContent = this.replaceTemplateVars(templates.done, replacements);
+        await fs.writeFile(path.join(taskPath, 'done.md'), doneContent, 'utf8');
 
-        // Create empty completion.md
-        await this.fileManager.writeTaskFile(taskPath, 'completion.md', '');
-
-        // Generate difficulties.md template
-        let difficultiesTemplate = '';
-        const difficultiesTemplatePath = path.join(templatesPath, 'difficulties.md');
-        if (fs.existsSync(difficultiesTemplatePath)) {
-            difficultiesTemplate = fs.readFileSync(difficultiesTemplatePath, 'utf8');
-        } else {
-            difficultiesTemplate = this.getDefaultDifficultiesTemplate();
-        }
-
-        const difficultiesContent = this.replaceTemplateVariables(difficultiesTemplate, {
-            TASK_NAME: task.name
-        });
-
-        await this.fileManager.writeTaskFile(taskPath, 'difficulties.md', difficultiesContent);
+        // Create difficulties file
+        const difficultiesContent = this.replaceTemplateVars(templates.difficulties, replacements);
+        await fs.writeFile(path.join(taskPath, 'difficulties.md'), difficultiesContent, 'utf8');
     }
 
-    private async getRelevantPreventionRules(description: string): Promise<any[]> {
-        // Simple keyword matching for now
-        // In a more advanced version, this could use semantic similarity
-        const keywords = description.toLowerCase().split(/\s+/);
-        
-        // This would typically load from prevention rules provider
-        // For now, return empty array
-        return [];
-    }
-
-    private replaceTemplateVariables(template: string, variables: Record<string, string>): string {
+    private replaceTemplateVars(template: string, replacements: Record<string, string>): string {
         let result = template;
-        for (const [key, value] of Object.entries(variables)) {
-            const regex = new RegExp(`{{${key}}}`, 'g');
-            result = result.replace(regex, value);
+        for (const [key, value] of Object.entries(replacements)) {
+            result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
         }
         return result;
     }
 
-    private async analyzeAtomicity(description: string): Promise<any> {
-        // Simple heuristic for atomicity analysis
+    private analyzeAtomicity(description: string): { estimatedHours: number; isAtomic: boolean; confidence: number; suggestions: string[] } {
         const wordCount = description.split(/\s+/).length;
-        const complexity = this.estimateComplexity(description);
+        const complexity = this.calculateComplexity(description);
         
         let estimatedHours = 1;
         
-        // Heuristic based on description length and complexity
-        if (wordCount > 50) estimatedHours += 1;
-        if (wordCount > 100) estimatedHours += 1;
-        if (complexity > 3) estimatedHours += complexity - 3;
+        // Basic estimation based on description length and complexity
+        if (wordCount > 50) {
+            estimatedHours += 1;
+        }
+        if (wordCount > 100) {
+            estimatedHours += 1;
+        }
+        if (complexity > 3) {
+            estimatedHours += complexity - 3;
+        }
 
         const isAtomic = estimatedHours <= 3;
-        const suggestions = [];
+        const suggestions: string[] = [];
 
         if (!isAtomic) {
-            suggestions.push('Consider breaking this task into smaller parts');
-            suggestions.push('Each part should be implementable in ≤3 hours');
-            suggestions.push('Focus on one specific feature or component');
+            suggestions.push('Consider breaking this task into smaller subtasks');
+            suggestions.push('Focus on one specific aspect at a time');
+            suggestions.push('Define clear, measurable deliverables');
         }
 
         return {
@@ -246,320 +293,379 @@ export class TaskCreator {
         };
     }
 
-    private estimateComplexity(description: string): number {
+    private calculateComplexity(description: string): number {
         const complexityKeywords = [
-            'database', 'migration', 'authentication', 'authorization', 'security',
-            'performance', 'optimization', 'algorithm', 'integration', 'api',
-            'microservice', 'distributed', 'concurrent', 'parallel', 'async'
+            'integrate', 'implement', 'refactor', 'migrate', 'design',
+            'architecture', 'database', 'api', 'security', 'performance',
+            'test', 'deploy', 'configure', 'setup'
         ];
 
         let complexity = 1;
         const lowerDesc = description.toLowerCase();
-        
+
         for (const keyword of complexityKeywords) {
             if (lowerDesc.includes(keyword)) {
                 complexity += 0.5;
             }
         }
 
-        return Math.min(complexity, 5);
+        return Math.min(complexity, 5); // Cap at 5
     }
 
-    private getDefaultDescriptionTemplate(): string {
-        return `# Task: {{TASK_NAME}}
+    private getDescriptionTemplate(): string {
+        return `# {{TASK_ID}} - {{TASK_NAME}}
 
-## 🎯 Objective
+## 📋 Overview
 {{TASK_DESCRIPTION}}
 
-## 📋 Requirements
-- [ ] Requirement 1
-- [ ] Requirement 2
+## 🎯 Objectives
+- [ ] Define the primary objective
+- [ ] List specific deliverables
+- [ ] Identify success criteria
 
-## 🚫 Prevention Rules to Apply
-{{PREVENTION_RULES}}
+## 📝 Requirements
+### Functional Requirements
+- Define what the solution must do
 
-## ⏱️ Time Estimation
-**Estimated:** {{ESTIMATED_HOURS}} hours
-**Atomicity:** {{ATOMICITY_STATUS}}
+### Non-Functional Requirements
+- Define performance, security, usability requirements
 
-## ✅ Definition of Done
-- [ ] Code implemented and tested
-- [ ] Documentation updated
-- [ ] No linting errors
+## 🔧 Technical Approach
+### Implementation Strategy
+- Outline the approach
+- List key technologies/tools
+- Define architecture decisions
+
+### Key Components
+- Component 1: Description
+- Component 2: Description
+
+## 📊 Estimated Effort
+- **Hours:** {{ESTIMATED_HOURS}}
+- **Priority:** {{PRIORITY}}
+- **Atomicity:** {{ATOMICITY_STATUS}}
+
+## 🎭 Definition of Done
+See [done.md](./done.md) for completion criteria.
+
+## 🔗 Related Tasks
+- Previous: 
+- Next: 
+- Dependencies: 
+
+## 📎 Artifacts
+- [ ] Code files
+- [ ] Documentation
+- [ ] Tests
+- [ ] Configuration
 
 ---
 *Created: {{CREATED_DATE}}*
 `;
     }
 
-    private getDefaultDifficultiesTemplate(): string {
-        return `# Difficulties & Prevention Rules: {{TASK_NAME}}
+    private getDoneTemplate(): string {
+        return `# ✅ Definition of Done - {{TASK_ID}}
 
-## 🚨 Problems Encountered
+## 📋 Completion Criteria
 
-*Add problems here as they occur during development*
+### Code Quality
+- [ ] Code is implemented and functional
+- [ ] Code follows project conventions
+- [ ] Code is properly commented
+- [ ] No compiler errors or warnings
 
-### Example Problem
-**Issue:** Description of what went wrong
-**Impact:** Time lost, what broke
-**Root Cause:** Why this happened
+### Testing
+- [ ] Unit tests written and passing
+- [ ] Integration tests (if applicable)
+- [ ] Manual testing completed
+- [ ] Edge cases considered
 
-**Prevention Rule:**
-❌ DON'T [what not to do] → [what to do instead]
+### Documentation
+- [ ] Code documentation updated
+- [ ] README updated (if needed)
+- [ ] API documentation (if applicable)
+
+### Review & Integration
+- [ ] Code reviewed
+- [ ] Merged to main branch
+- [ ] Deployment considerations addressed
+
+### Validation
+- [ ] Requirements met
+- [ ] Stakeholder approval (if needed)
+- [ ] Performance criteria met
+
+## 🎯 Success Metrics
+- Functionality works as expected
+- No breaking changes introduced
+- {{ESTIMATED_HOURS}} hour estimate respected
+
+## 📝 Notes
+Add any specific completion notes here.
 
 ---
-
-*Note: Add prevention rules in the format "❌ DON'T [problem] → [solution]" for automatic Copilot integration*
+*Task: {{TASK_NAME}}*
+*Created: {{CREATED_DATE}}*
 `;
     }
 
-    private getWebviewContent(): string {
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create FORGE Task</title>
-    <style>
-        body {
-            font-family: var(--vscode-font-family);
-            padding: 20px;
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-editor-background);
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input, textarea {
-            width: 100%;
-            padding: 8px;
-            background-color: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 2px;
-        }
-        textarea {
-            height: 80px;
-            resize: vertical;
-        }
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        button {
-            padding: 8px 16px;
-            background-color: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            border-radius: 2px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: var(--vscode-button-hoverBackground);
-        }
-        .secondary {
-            background-color: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-        }
-        .secondary:hover {
-            background-color: var(--vscode-button-secondaryHoverBackground);
-        }
-        .atomicity-result {
-            margin-top: 10px;
-            padding: 10px;
-            border-radius: 4px;
-            border: 1px solid var(--vscode-input-border);
-        }
-        .atomic {
-            background-color: var(--vscode-terminal-ansiGreen);
-            color: var(--vscode-terminal-ansiBlack);
-        }
-        .non-atomic {
-            background-color: var(--vscode-terminal-ansiRed);
-            color: var(--vscode-terminal-ansiWhite);
-        }
-        ul {
-            margin: 5px 0;
-            padding-left: 20px;
-        }
-    </style>
-</head>
-<body>
-    <h1>🔨 Create New FORGE Task</h1>
-    
-    <form id="taskForm">
-        <div class="form-group">
-            <label for="taskName">Task Name *</label>
-            <input type="text" id="taskName" placeholder="e.g., Add user authentication" required>
-        </div>
-        
-        <div class="form-group">
-            <label for="taskDescription">Description *</label>
-            <textarea id="taskDescription" placeholder="Describe what needs to be implemented..." required></textarea>
-        </div>
-        
-        <div class="form-group">
-            <label for="estimatedHours">Estimated Hours</label>
-            <input type="number" id="estimatedHours" min="0.5" max="10" step="0.5" value="2">
-        </div>
-        
-        <button type="button" id="analyzeBtn" class="secondary">🔍 Analyze Atomicity</button>
-        
-        <div id="atomicityResult" style="display: none;"></div>
-        
-        <div class="button-group">
-            <button type="submit">Create Task</button>
-            <button type="button" id="cancelBtn" class="secondary">Cancel</button>
-        </div>
-    </form>
+    private getDifficultiesTemplate(): string {
+        return `# 🚧 Difficulties Faced - {{TASK_ID}}
 
-    <script>
-        const vscode = acquireVsCodeApi();
-        
-        document.getElementById('taskForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            
-            const taskData = {
-                name: document.getElementById('taskName').value,
-                description: document.getElementById('taskDescription').value,
-                estimatedHours: parseFloat(document.getElementById('estimatedHours').value)
-            };
-            
-            if (!taskData.name || !taskData.description) {
-                alert('Please fill in all required fields');
-                return;
-            }
-            
-            vscode.postMessage({
-                command: 'createTask',
-                taskData: taskData
-            });
-        });
-        
-        document.getElementById('cancelBtn').addEventListener('click', () => {
-            vscode.postMessage({ command: 'cancel' });
-        });
-        
-        document.getElementById('analyzeBtn').addEventListener('click', () => {
-            const description = document.getElementById('taskDescription').value;
-            if (!description) {
-                alert('Please enter a task description first');
-                return;
-            }
-            
-            vscode.postMessage({
-                command: 'analyzeAtomicity',
-                description: description
-            });
-        });
-        
-        window.addEventListener('message', event => {
-            const message = event.data;
-            
-            if (message.command === 'atomicityResult') {
-                const result = message.result;
-                const resultDiv = document.getElementById('atomicityResult');
-                
-                resultDiv.style.display = 'block';
-                resultDiv.className = 'atomicity-result ' + (result.isAtomic ? 'atomic' : 'non-atomic');
-                
-                let html = \`<strong>\${result.isAtomic ? '✅ Atomic' : '❌ Not Atomic'}</strong><br>\`;
-                html += \`Estimated: \${result.estimatedHours} hours<br>\`;
-                html += \`Confidence: \${Math.round(result.confidence * 100)}%\`;
-                
-                if (result.suggestions && result.suggestions.length > 0) {
-                    html += '<br><strong>Suggestions:</strong><ul>';
-                    result.suggestions.forEach(suggestion => {
-                        html += \`<li>\${suggestion}</li>\`;
-                    });
-                    html += '</ul>';
-                }
-                
-                resultDiv.innerHTML = html;
-                
-                // Update estimated hours
-                document.getElementById('estimatedHours').value = result.estimatedHours;
-            }
-        });
-    </script>
-</body>
-</html>`;
+## 📝 Problem Log
+
+### Template for Recording Issues
+
+#### Problem #1
+**Date:** 
+**Description:** 
+**Context:** 
+**Solution:** 
+**Time Impact:** 
+**Prevention Rule:** 
+
+---
+
+## 💡 Lessons Learned
+
+### What Went Well
+- 
+
+### What Could Be Improved
+- 
+
+### Knowledge Gained
+- 
+
+## 🛡️ Prevention Rules Generated
+Document any new prevention rules that should be added to avoid similar issues:
+
+1. **Rule Title:** 
+   - **Context:** 
+   - **Problem:** 
+   - **Solution:** 
+
+---
+*Task: {{TASK_NAME}}*
+*Estimated: {{ESTIMATED_HOURS}} hours*
+*Created: {{CREATED_DATE}}*
+`;
     }
 
-    // New methods for Smart Task Creation
-    public async showWithPrefill(taskDetails: any): Promise<boolean> {
-        return new Promise((resolve) => {
-            this.panel = vscode.window.createWebviewPanel(
-                'forgeTaskCreator',
-                'Create FORGE Task',
-                vscode.ViewColumn.One,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true,
-                    localResourceRoots: []
-                }
-            );
-
-            this.panel.webview.html = this.getWebviewContentWithPrefill(taskDetails);
-
-            this.panel.webview.onDidReceiveMessage(async (message) => {
-                switch (message.command) {
-                    case 'createTask':
-                        const success = await this.createTask(message.taskData);
-                        resolve(success);
-                        this.panel?.dispose();
-                        break;
-                    case 'analyzeAtomicity':
-                        const analysis = await this.analyzeAtomicity(message.description);
-                        this.panel?.webview.postMessage({
-                            command: 'atomicityResult',
-                            result: analysis
-                        });
-                        break;
-                    case 'cancel':
-                        resolve(false);
-                        this.panel?.dispose();
-                        break;
+    // Smart task creation with AI assistance
+    public async showSmartCreation(): Promise<boolean> {
+        try {
+            // Get basic task idea
+            const taskIdea = await vscode.window.showInputBox({
+                prompt: 'Describe what you want to accomplish (AI will help structure it)',
+                placeHolder: 'e.g., "I need to add user authentication to my web app"',
+                validateInput: (value) => {
+                    if (!value || value.trim().length < 10) {
+                        return 'Please provide at least 10 characters describing your task';
+                    }
+                    return null;
                 }
             });
 
-            this.panel.onDidDispose(() => {
-                resolve(false);
+            if (!taskIdea) {
+                return false;
+            }
+
+            // Show that AI is analyzing
+            vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'AI is analyzing your task...',
+                cancellable: false
+            }, async (progress) => {
+                progress.report({ increment: 0 });
+
+                // Simulate AI analysis (in real implementation, this would call an AI service)
+                const analysis = this.analyzeTaskWithAI(taskIdea);
+                
+                progress.report({ increment: 50 });
+                
+                // Present the analysis to user
+                const structuredTask = await this.presentAIAnalysis(analysis);
+                
+                progress.report({ increment: 100 });
+                
+                if (structuredTask) {
+                    return await this.createTask(structuredTask);
+                }
+                
+                return false;
             });
-        });
+
+            return true;
+        } catch (error) {
+            console.error('Error in smart task creation:', error);
+            vscode.window.showErrorMessage('An error occurred during smart task creation.');
+            return false;
+        }
     }
 
-    public async createTaskWithData(taskDetails: any): Promise<boolean> {
-        const taskData = {
-            name: taskDetails.name,
-            description: taskDetails.description,
-            estimatedHours: taskDetails.estimatedHours,
-            priority: taskDetails.priority,
-            category: taskDetails.category,
-            atomicitySuggestions: taskDetails.subtasks || []
+    private analyzeTaskWithAI(taskIdea: string): any {
+        // This is a simplified AI simulation
+        // In real implementation, this would call OpenAI/Claude/etc.
+        
+        const wordCount = taskIdea.split(/\s+/).length;
+        const hasComplexTerms = /authentication|database|api|integration|security|deployment/i.test(taskIdea);
+        
+        let estimatedHours = 2;
+        if (wordCount > 20) {
+            estimatedHours += 1;
+        }
+        if (hasComplexTerms) {
+            estimatedHours += 2;
+        }
+        
+        return {
+            originalIdea: taskIdea,
+            suggestedName: this.extractTaskName(taskIdea),
+            suggestedDescription: this.enhanceDescription(taskIdea),
+            estimatedHours,
+            priority: hasComplexTerms ? 'high' : 'medium',
+            suggestions: this.generateSuggestions(taskIdea),
+            breakdown: estimatedHours > 3 ? this.suggestBreakdown(taskIdea) : null
         };
-
-        return await this.createTask(taskData);
     }
 
-    private getWebviewContentWithPrefill(taskDetails: any): string {
-        const content = this.getWebviewContent();
-        
-        // Replace the empty values with prefilled data
-        return content
-            .replace('id="taskName" placeholder="e.g. Add user authentication"', 
-                    `id="taskName" placeholder="e.g. Add user authentication" value="${taskDetails.name}"`)
-            .replace('id="description" placeholder="Describe what needs to be implemented...">', 
-                    `id="description" placeholder="Describe what needs to be implemented...">${taskDetails.description}`)
-            .replace('id="estimatedHours" value="2"', 
-                    `id="estimatedHours" value="${taskDetails.estimatedHours}"`)
-            .replace('<option value="Medium" selected>Medium</option>', 
-                    `<option value="${taskDetails.priority}" selected>${taskDetails.priority}</option>`);
+    private extractTaskName(taskIdea: string): string {
+        // Simple extraction - would be more sophisticated with real AI
+        const words = taskIdea.split(/\s+/).slice(0, 6);
+        return words.join(' ').replace(/[^a-zA-Z0-9\s]/g, '').trim();
+    }
+
+    private enhanceDescription(taskIdea: string): string {
+        return `${taskIdea}\n\n**Auto-generated enhancement:**\n- Ensure proper error handling\n- Consider security implications\n- Plan for testing\n- Document the implementation`;
+    }
+
+    private generateSuggestions(taskIdea: string): string[] {
+        const suggestions = [
+            'Break down into smaller, testable components',
+            'Consider edge cases and error scenarios',
+            'Plan for proper documentation'
+        ];
+
+        if (/auth/i.test(taskIdea)) {
+            suggestions.push('Research security best practices');
+            suggestions.push('Consider multi-factor authentication');
+        }
+
+        if (/database|data/i.test(taskIdea)) {
+            suggestions.push('Plan database migrations');
+            suggestions.push('Consider data validation');
+        }
+
+        return suggestions;
+    }
+
+    private suggestBreakdown(taskIdea: string): string[] {
+        return [
+            'Research and planning phase',
+            'Core implementation',
+            'Testing and validation',
+            'Documentation and cleanup'
+        ];
+    }
+
+    private async presentAIAnalysis(analysis: any): Promise<any> {
+        const items = [
+            {
+                label: '✅ Accept AI Suggestion',
+                description: `"${analysis.suggestedName}" (${analysis.estimatedHours}h)`,
+                action: 'accept'
+            },
+            {
+                label: '✏️ Modify Suggestion',
+                description: 'Edit the AI-generated task details',
+                action: 'modify'
+            }
+        ];
+
+        if (analysis.breakdown) {
+            items.push({
+                label: '🔧 Break Down Task',
+                description: 'Split into smaller atomic tasks',
+                action: 'breakdown'
+            });
+        }
+
+        const choice = await vscode.window.showQuickPick(items, {
+            placeHolder: 'AI Analysis Complete - Choose how to proceed'
+        });
+
+        if (!choice) {
+            return null;
+        }
+
+        switch (choice.action) {
+            case 'accept':
+                return {
+                    name: analysis.suggestedName,
+                    description: analysis.suggestedDescription,
+                    estimatedHours: analysis.estimatedHours,
+                    priority: analysis.priority,
+                    atomicitySuggestions: analysis.suggestions
+                };
+
+            case 'modify':
+                return await this.modifyAISuggestion(analysis);
+
+            case 'breakdown':
+                vscode.window.showInformationMessage(
+                    'Task breakdown suggested:\n' + analysis.breakdown.join('\n- '),
+                    'Create First Task'
+                );
+                return await this.modifyAISuggestion(analysis);
+
+            default:
+                return null;
+        }
+    }
+
+    private async modifyAISuggestion(analysis: any): Promise<any> {
+        // Allow user to modify the AI suggestion
+        const name = await vscode.window.showInputBox({
+            prompt: 'Task name',
+            value: analysis.suggestedName,
+            validateInput: (value) => value?.trim().length < 3 ? 'Name too short' : null
+        });
+
+        if (!name) {
+            return null;
+        }
+
+        const description = await vscode.window.showInputBox({
+            prompt: 'Task description',
+            value: analysis.suggestedDescription,
+            validateInput: (value) => value?.trim().length < 10 ? 'Description too short' : null
+        });
+
+        if (!description) {
+            return null;
+        }
+
+        const hours = await vscode.window.showInputBox({
+            prompt: 'Estimated hours',
+            value: analysis.estimatedHours.toString(),
+            validateInput: (value) => {
+                const h = parseFloat(value);
+                return isNaN(h) || h <= 0 ? 'Invalid hours' : null;
+            }
+        });
+
+        if (!hours) {
+            return null;
+        }
+
+        return {
+            name,
+            description,
+            estimatedHours: parseFloat(hours),
+            priority: analysis.priority,
+            atomicitySuggestions: analysis.suggestions
+        };
     }
 }

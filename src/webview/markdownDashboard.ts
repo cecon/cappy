@@ -19,53 +19,70 @@ export class ForgeDashboard {
     }
 
     public async show(): Promise<void> {
-        // Check if workspace exists
-        if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-            vscode.window.showInformationMessage(
-                "Please open a workspace folder first.",
-                'Open Folder'
-            ).then(choice => {
-                if (choice === 'Open Folder') {
-                    vscode.commands.executeCommand('vscode.openFolder');
-                }
-            });
-            return;
-        }
-
-        // Initialize FileManager if not already done
-        if (!this.fileManager) {
-            this.fileManager = new FileManager();
-        }
-
-        // Check if FORGE is initialized
-        const config = await this.fileManager.readForgeConfig();
-        if (!config) {
-            vscode.window.showInformationMessage(
-                "Please initialize FORGE in this workspace first by running 'FORGE: Initialize FORGE Framework'.",
-                'Initialize FORGE'
-            ).then(choice => {
-                if (choice === 'Initialize FORGE') {
-                    vscode.commands.executeCommand('forge.init');
-                }
-            });
-            return;
-        }
-
         try {
+            console.log('🔨 FORGE Dashboard: Starting show() method');
+            
+            // Check if workspace exists
+            if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+                console.log('🔨 FORGE Dashboard: No workspace folders found');
+                vscode.window.showInformationMessage(
+                    "Please open a workspace folder first.",
+                    'Open Folder'
+                ).then(choice => {
+                    if (choice === 'Open Folder') {
+                        vscode.commands.executeCommand('vscode.openFolder');
+                    }
+                });
+                return;
+            }
+
+            console.log('🔨 FORGE Dashboard: Workspace found, checking FileManager');
+            
+            // Initialize FileManager if not already done
+            if (!this.fileManager) {
+                this.fileManager = new FileManager();
+            }
+
+            console.log('🔨 FORGE Dashboard: FileManager initialized, checking FORGE config');
+
+            // Check if FORGE is initialized
+            const config = await this.fileManager.readForgeConfig();
+            if (!config) {
+                console.log('🔨 FORGE Dashboard: No FORGE config found');
+                vscode.window.showInformationMessage(
+                    "Please initialize FORGE in this workspace first by running 'FORGE: Initialize FORGE Framework'.",
+                    'Initialize FORGE'
+                ).then(choice => {
+                    if (choice === 'Initialize FORGE') {
+                        vscode.commands.executeCommand('forge.init');
+                    }
+                });
+                return;
+            }
+
+            console.log('🔨 FORGE Dashboard: FORGE config found, generating dashboard data');
+            
             const dashboardData = await this.getDashboardData();
+            console.log('🔨 FORGE Dashboard: Dashboard data generated, creating markdown content');
+            
             const markdownContent = this.getMarkdownContent(dashboardData);
+            console.log('🔨 FORGE Dashboard: Markdown content created, opening document');
 
             const document = await vscode.workspace.openTextDocument({
                 content: markdownContent,
                 language: 'markdown'
             });
             
+            console.log('🔨 FORGE Dashboard: Document created, showing in editor');
+            
             await vscode.window.showTextDocument(document, {
                 viewColumn: vscode.ViewColumn.One,
                 preview: true
             });
+            
+            console.log('🔨 FORGE Dashboard: Dashboard displayed successfully');
         } catch (error) {
-            console.error('Error generating FORGE Dashboard:', error);
+            console.error('🔨 FORGE Dashboard: Error in show() method:', error);
             vscode.window.showErrorMessage(`Failed to generate FORGE Dashboard: ${error}`);
         }
     }
