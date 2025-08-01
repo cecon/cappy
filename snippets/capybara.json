@@ -1,14 +1,14 @@
 {
-    "FORGE Prevention Rule": {
-        "prefix": "forge-rule",
+    "Capybara Prevention Rule": {
+        "prefix": "capybara-rule",
         "body": [
             "❌ **DON'T** ${1:problem description} → ${2:solution description}",
             "   *Source: ${3:TASK_XX}, Time Lost: ${4:2}h, Confidence: ${5:4}/5*"
         ],
-        "description": "Add a new FORGE prevention rule"
+        "description": "Add a new Capybara prevention rule"
     },
-    "FORGE Task Structure": {
-        "prefix": "forge-task",
+    "Capybara Task Structure": {
+        "prefix": "capybara-task",
         "body": [
             "# Task: ${1:Task Name}",
             "",
@@ -35,10 +35,10 @@
             "---",
             "*Created: ${CURRENT_DATE}*"
         ],
-        "description": "Create a new FORGE task structure"
+        "description": "Create a new Capybara task structure"
     },
-    "FORGE Task Completion": {
-        "prefix": "forge-complete",
+    "Capybara Task Completion": {
+        "prefix": "capybara-complete",
         "body": [
             "# Task Completion: ${1:Task Name}",
             "",
@@ -67,10 +67,10 @@
             "---",
             "*Completed: ${CURRENT_DATE}*"
         ],
-        "description": "Complete a FORGE task"
+        "description": "Complete a Capybara task"
     },
-    "FORGE Difficulty Entry": {
-        "prefix": "forge-difficulty",
+    "Capybara Difficulty Entry": {
+        "prefix": "capybara-difficulty",
         "body": [
             "### ${1:Problem Title}",
             "**Issue:** ${2:Description of what went wrong}",

@@ -1,10 +1,10 @@
-# FORGE Stack Instructions Setup
+# Capybara Stack Instructions Setup
 
 ## 🚀 **Initial Setup Flow**
 
-### **Trigger**: First time FORGE initialization
+### **Trigger**: First time Capybara initialization
 
-When `initForge` command is executed, check for stack-specific instructions:
+When `initCapybara` command is executed, check for stack-specific instructions:
 
 1. **Check for existing stack-instructions.md**
 2. **If NOT found** → Start Stack Configuration Questionnaire
@@ -239,7 +239,7 @@ def process_data(data):
 
 ### **Step 1: Detect Stack Configuration**
 ```
-1. Check if forgeConfig.json exists
+1. Check if capybaraConfig.json exists
 2. Check if stack-instructions.md exists  
 3. If either missing → Start questionnaire
 4. If both present → Load configuration
@@ -251,7 +251,7 @@ def process_data(data):
 2. Select appropriate template
 3. Customize with project-specific details
 4. Create .github/stack-instructions.md
-5. Update forgeConfig.json with stack info
+5. Update capybaraConfig.json with stack info
 ```
 
 ### **Step 3: Update Copilot Instructions**
@@ -271,8 +271,8 @@ project/
 │   ├── copilot-instructions.md (references stack-instructions)
 │   └── stack-instructions.md (generated from questionnaire)
 ├── src/
-│   └── forgeConfig.json (includes stack configuration)
-└── steps/ (FORGE methodology folders)
+│   └── capybaraConfig.json (includes stack configuration)
+└── steps/ (Capybara methodology folders)
 ```
 
 ## 🔄 **Stack Configuration Updates**

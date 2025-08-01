@@ -36,7 +36,7 @@ This project uses the **Capybara** for atomic task management and automatic erro
 - **Editor**: {environment.editor}
 - **Package Manager**: {environment.packageManager}
 
-## �🔨 **FORGE Methodology**
+## �🔨 **Capybara Methodology**
 
 ### **Task Creation Workflows**
 
@@ -139,11 +139,11 @@ User: "atualizar configuração de stack"
 ```
 
 ## 📚 **Reference Files**
-- **Methodology**: `resources/instructions/forge-methodology.md`
-- **Patterns**: `resources/instructions/forge-patterns.md`  
-- **Templates**: `resources/instructions/forge-templates.md`
-- **Questionnaire**: `resources/instructions/forge-questionnaire.md`
-- **Stack Setup**: `resources/instructions/forge-stack-setup.md`
+- **Methodology**: `resources/instructions/capybara-methodology.md`
+- **Patterns**: `resources/instructions/capybara-patterns.md`  
+- **Templates**: `resources/instructions/capybara-templates.md`
+- **Questionnaire**: `resources/instructions/capybara-questionnaire.md`
+- **Stack Setup**: `resources/instructions/capybara-stack-setup.md`
 - **Configuration**: `src/models/capybaraConfig.ts`
 
 ## 🎯 **Success Metrics**
@@ -154,4 +154,4 @@ User: "atualizar configuração de stack"
 
 ---
 
-**Remember**: FORGE is about building momentum through small, validated steps while automatically learning from mistakes. Always prioritize atomicity and incremental progress over trying to solve everything at once.
+**Remember**: Capybara is about building momentum through small, validated steps while automatically learning from mistakes. Always prioritize atomicity and incremental progress over trying to solve everything at once.

@@ -1,4 +1,4 @@
-# FORGE Interactive Gap Analysis - New STEP Creation
+# Capybara Interactive Gap Analysis - New STEP Creation
 
 ## 🎯 **Trigger Phrases for Gap Analysis Mode**
 

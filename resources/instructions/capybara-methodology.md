@@ -55,7 +55,7 @@ LLM Self-Assessment:
 5. **Populate templates** with questionnaire data
 
 ### **Error Volume Control**
-- **Config location**: `src/models/forgeConfig.ts` → `context.maxRules` (default: 50)
+- **Config location**: `src/models/capybaraConfig.ts` → `context.maxRules` (default: 50)
 - **Smart prioritization**: Task-relevant errors first
 - **Summarization**: Group similar patterns
 - **Example**: Instead of 5 separate SQLx rules → 1 "SQLx Configuration" rule

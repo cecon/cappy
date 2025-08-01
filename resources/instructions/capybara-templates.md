@@ -1,6 +1,6 @@
-# FORGE Templates - STEP File Structures
+# Capybara Templates - STEP File Structures
 
-# FORGE Templates - STEP File Structures
+# Capybara Templates - STEP File Structures
 
 ## Template: `STEP_0XXX_DESCRIPTION.md`
 ```markdown
@@ -33,7 +33,7 @@
 [Generate 3-5 specific, testable criteria based on task type]
 
 ## 🧪 Unit Testing Requirements
-**Config**: `tasks.requireUnitTests` from `src/models/forgeConfig.ts`
+**Config**: `tasks.requireUnitTests` from `src/models/capybaraConfig.ts`
 
 [If requireUnitTests = true:]
 - **Framework**: {tasks.testFramework} (from config)
@@ -123,7 +123,7 @@ Total Rules Available: [X]
 ## 🎯 **Questionnaire Template for New STEP Creation**
 
 ```markdown
-## 📋 **FORGE STEP Creation Questionnaire**
+## 📋 **Capybara STEP Creation Questionnaire**
 
 **Trigger**: User says "vamos desenvolver uma nova atividade"
 

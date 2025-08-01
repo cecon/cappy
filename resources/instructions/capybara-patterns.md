@@ -1,4 +1,4 @@
-# FORGE Patterns - Context-Specific Guidelines
+# Capybara Patterns - Context-Specific Guidelines
 
 ## 🚨 **Known Patterns to AVOID**
 

@@ -1,8 +1,8 @@
-# FORGE Initialization Command - Complete Setup
+# Capybara Initialization Command - Complete Setup
 
 ## 🚀 **Comando de Inicialização**
 
-### **Trigger Command**: "vamos inicializar as configs do forge"
+### **Trigger Command**: "vamos inicializar as configs do capybara"
 
 ## 📋 **Fluxo de Inicialização Completa**
 
@@ -75,14 +75,14 @@
    d) Java
    e) C#
    f) Go
-   [Continue with full questionnaire from forge-stack-setup.md]
+   [Continue with full questionnaire from capybara-stack-setup.md]
 ```
 
-### **Phase 3: FORGE Configuration**
+### **Phase 3: Capybara Configuration**
 
-#### **Step 5: FORGE Preferences**
+#### **Step 5: Capybara Preferences**
 ```
-⚙️ **Configurações FORGE:**
+⚙️ **Configurações Capybara:**
 
 🔢 **Máximo de horas por STEP atômica:** [3] horas
 🧪 **Testes unitários obrigatórios:** [N/y]
@@ -95,11 +95,11 @@
 
 #### **Step 6: Generate Configuration Files**
 ```
-📁 **Criando estrutura FORGE:**
+📁 **Criando estrutura Capybara:**
 
-✅ src/forgeConfig.json (configuração completa)
+✅ src/capybaraConfig.json (configuração completa)
 ✅ .github/stack-instructions.md (regras da stack)
-✅ .github/copilot-instructions.md (FORGE + stack + environment)
+✅ .github/copilot-instructions.md (Capybara + stack + environment)
 ✅ steps/ (pasta para STEPs)
 ```
 
@@ -222,13 +222,13 @@ This project uses the **Capybara** for atomic task management and automatic erro
 ## 📚 **Stack-Specific Guidelines**
 {LOAD_FROM: .github/stack-instructions.md}
 
-## 🔨 **FORGE Methodology**
-[Standard FORGE methodology content...]
+## 🔨 **Capybara Methodology**
+[Standard Capybara methodology content...]
 
 ## 🖥️ **Environment-Specific Rules**
 {INJECT_ENVIRONMENT_RULES_HERE}
 
-[Environment rules injected based on forgeConfig.environment]
+[Environment rules injected based on capybaraConfig.environment]
 
 ## 🧪 **Testing Integration**
 [Testing configuration from stack + environment...]
@@ -241,7 +241,7 @@ This project uses the **Capybara** for atomic task management and automatic erro
 
 ### **Complete Initialization Response**
 ```
-🚀 **Inicializando configurações FORGE...**
+🚀 **Inicializando configurações Capybara...**
 
 🔍 **Fase 1: Detecção de Ambiente**
 ✅ Detectado: Windows + PowerShell + VS Code + npm
@@ -251,19 +251,19 @@ This project uses the **Capybara** for atomic task management and automatic erro
 ✅ Detectado: TypeScript + Express + Jest
 ✅ Stack configurada
 
-⚙️ **Fase 3: Preferências FORGE**
+⚙️ **Fase 3: Preferências Capybara**
 ✅ STEPs atômicas: 3h máximo
 ✅ Testes unitários: Opcional
 ✅ Framework: Jest
 ✅ Regras máximas: 50
 
 📁 **Fase 4: Gerando Arquivos**
-✅ src/forgeConfig.json criado
+✅ src/capybaraConfig.json criado
 ✅ .github/stack-instructions.md criado  
-✅ .github/copilot-instructions.md criado (FORGE + Stack + Windows PowerShell rules)
+✅ .github/copilot-instructions.md criado (Capybara + Stack + Windows PowerShell rules)
 ✅ steps/ pasta criada
 
-🎯 **FORGE configurado com sucesso!**
+🎯 **Capybara configurado com sucesso!**
 
 **Próximos comandos disponíveis:**
 - "vamos desenvolver uma nova atividade"

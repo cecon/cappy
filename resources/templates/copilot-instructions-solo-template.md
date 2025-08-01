@@ -87,4 +87,4 @@ Smart task decomposition + automatic error prevention for solo developers.
 
 ---
 
-**Remember**: FORGE Solo is about sustainable solo development velocity through smart learning and lightweight documentation. Focus on what actually helps you code better, skip the rest.
+**Remember**: Capybara is about sustainable solo development velocity through smart learning and lightweight documentation. Focus on what actually helps you code better, skip the rest.
