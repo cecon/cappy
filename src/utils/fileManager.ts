@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as yaml from 'yaml';
 import { CapybaraConfig } from '../models/capybaraConfig';
 import { Task } from '../models/task';
 import { PreventionRule } from '../models/preventionRule';
@@ -20,7 +19,7 @@ export class FileManager {
         if (!this.workspaceRoot) {
             throw new Error('No workspace folder found');
         }
-        return this.ensureWorkspace();
+        return this.workspaceRoot;
     }
 
     async ensureCapybaraStructure(): Promise<void> {
@@ -37,17 +36,22 @@ export class FileManager {
     }
 
     async writeCapybaraConfig(config: CapybaraConfig): Promise<void> {
-        const configPath = path.join(this.ensureWorkspace(), '.capybara', 'config.yml');
-        const yamlContent = yaml.stringify(config);
-        await fs.promises.writeFile(configPath, yamlContent, 'utf8');
+        const configPath = path.join(this.ensureWorkspace(), '.capy', 'config.json');
+        // Ensure .capy directory exists
+        const capyDir = path.dirname(configPath);
+        if (!fs.existsSync(capyDir)) {
+            await fs.promises.mkdir(capyDir, { recursive: true });
+        }
+        const jsonContent = JSON.stringify(config, null, 2);
+        await fs.promises.writeFile(configPath, jsonContent, 'utf8');
     }
 
     async readCapybaraConfig(): Promise<CapybaraConfig | null> {
-        const configPath = path.join(this.ensureWorkspace(), '.capybara', 'config.yml');
+        const configPath = path.join(this.ensureWorkspace(), '.capy', 'config.json');
         
         try {
-            const yamlContent = await fs.promises.readFile(configPath, 'utf8');
-            return yaml.parse(yamlContent) as CapybaraConfig;
+            const jsonContent = await fs.promises.readFile(configPath, 'utf8');
+            return JSON.parse(jsonContent) as CapybaraConfig;
         } catch (error) {
             return null;
         }

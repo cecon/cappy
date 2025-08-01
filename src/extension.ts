@@ -1,124 +1,151 @@
 import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('🔨 Capybara: Full activation started');
+    console.log('🦫 Capybara Memory: Starting activation...');
     
-    // Show immediate activation message
-    vscode.window.showInformationMessage('🔨 Capybara: All commands activated!');
+    try {
+        // Show immediate activation message
+        vscode.window.showInformationMessage('🦫 Capybara Memory: Activating...');
 
-    // Register test command (known working)
-    const testCommand = vscode.commands.registerCommand('capybara.test', async () => {
-        vscode.window.showInformationMessage('🔨 Capybara: Test command still working! 🎉');
-        console.log('🔨 Capybara: Test command executed at', new Date().toISOString());
-    });
+        // Register test command first (known working)
+        const testCommand = vscode.commands.registerCommand('capybara.test', async () => {
+            vscode.window.showInformationMessage('🦫 Capybara Memory: Test command working! 🎉');
+        });
 
-    // Register init command (safe version)
-    const initCommand = vscode.commands.registerCommand('capybara.init', async () => {
-        try {
-            vscode.window.showInformationMessage('🔨 Capybara Init: Starting initialization...');
-            
-            if (!vscode.workspace.workspaceFolders) {
-                vscode.window.showErrorMessage('FORGE: No workspace folder is open. Please open a folder first.');
-                return;
+        // Register init command (full implementation)
+        const initCommand = vscode.commands.registerCommand('capybara.init', async () => {
+            try {
+                vscode.window.showInformationMessage('🦫 Capybara Memory: Init command called!');
+                
+                // Load the full init implementation
+                try {
+                    const initModule = await import('./commands/initCapybara');
+                    const fileModule = await import('./utils/fileManager');
+                    
+                    const fileManager = new fileModule.FileManager();
+                    const initCommand = new initModule.InitCapybaraCommand(fileManager);
+                    
+                    const success = await initCommand.execute();
+                    if (success) {
+                        vscode.window.showInformationMessage('🦫 Capybara Memory: Initialization completed successfully!');
+                    } else {
+                        vscode.window.showWarningMessage('🦫 Capybara Memory: Initialization was cancelled or failed.');
+                    }
+                } catch (importError) {
+                    console.error('Error loading InitCapybaraCommand:', importError);
+                    vscode.window.showErrorMessage(`Capybara Memory: Init feature failed to load: ${importError}`);
+                }
+            } catch (error) {
+                console.error('Capybara Memory Init error:', error);
+                vscode.window.showErrorMessage(`Capybara Memory Init failed: ${error}`);
             }
-            
-            const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
-            console.log('🔨 Capybara Init: Workspace root:', workspaceRoot);
-            
-            // TODO: Add actual initialization logic here
-            vscode.window.showInformationMessage('🔨 FORGE: Basic initialization completed! (Full implementation coming soon)');
-        } catch (error) {
-            console.error('Capybara Init error:', error);
-            vscode.window.showErrorMessage(`Capybara Init failed: ${error}`);
-        }
-    });
+        });
 
-    // Register createTask command (placeholder)
-    const createTaskCommand = vscode.commands.registerCommand('capybara.createTask', async () => {
-        try {
-            vscode.window.showInformationMessage('🔨 FORGE: Create Task command called!');
-            
-            if (!vscode.workspace.workspaceFolders) {
-                vscode.window.showErrorMessage('FORGE: No workspace folder is open. Please open a folder first.');
-                return;
+        // Register createTask command (simplified)
+        const createTaskCommand = vscode.commands.registerCommand('capybara.createTask', async () => {
+            try {
+                vscode.window.showInformationMessage('🦫 Capybara Memory: Create Task command called!');
+                
+                if (!vscode.workspace.workspaceFolders) {
+                    vscode.window.showErrorMessage('Capybara Memory: No workspace folder is open. Please open a folder first.');
+                    return;
+                }
+                
+                // Try to load the task creator, but with error handling
+                try {
+                    const module = await import('./commands/createNewTask');
+                    const taskCreator = new module.NewTaskCreator();
+                    await taskCreator.show();
+                } catch (importError) {
+                    console.error('Error loading NewTaskCreator:', importError);
+                    vscode.window.showErrorMessage('Capybara Memory: Create Task feature temporarily unavailable. Using fallback.');
+                    
+                    // Fallback simple implementation
+                    const taskName = await vscode.window.showInputBox({
+                        prompt: 'Nome da nova task',
+                        placeHolder: 'ex: Implementar funcionalidade X'
+                    });
+                    
+                    if (taskName) {
+                        vscode.window.showInformationMessage(`🦫 Task "${taskName}" será implementada em breve!`);
+                    }
+                }
+            } catch (error) {
+                console.error('Capybara Memory CreateTask error:', error);
+                vscode.window.showErrorMessage(`Capybara Memory CreateTask failed: ${error}`);
             }
-            
-            // TODO: Add actual task creation logic here
-            vscode.window.showInformationMessage('🔨 FORGE: Task creation placeholder executed! (Full implementation coming soon)');
-        } catch (error) {
-            console.error('Capybara CreateTask error:', error);
-            vscode.window.showErrorMessage(`Capybara CreateTask failed: ${error}`);
-        }
-    });
+        });
 
-    // Register createSmartTask command (placeholder)
-    const createSmartTaskCommand = vscode.commands.registerCommand('capybara.createSmartTask', async () => {
-        try {
-            vscode.window.showInformationMessage('🔨 FORGE: Create Smart Task command called!');
-            
-            if (!vscode.workspace.workspaceFolders) {
-                vscode.window.showErrorMessage('FORGE: No workspace folder is open. Please open a folder first.');
-                return;
+        // Register currentTask command (simplified)
+        const currentTaskCommand = vscode.commands.registerCommand('capybara.currentTask', async () => {
+            try {
+                vscode.window.showInformationMessage('🦫 Capybara Memory: Current Task command called!');
+                
+                // Try to load the task manager, but with error handling
+                try {
+                    const module = await import('./commands/taskManager');
+                    const taskManager = new module.TaskManager();
+                    await taskManager.showCurrentTask();
+                } catch (importError) {
+                    console.error('Error loading TaskManager:', importError);
+                    vscode.window.showInformationMessage('🦫 Nenhuma task ativa no momento. Use "Create New Task" para começar!');
+                }
+            } catch (error) {
+                console.error('Capybara Memory CurrentTask error:', error);
+                vscode.window.showErrorMessage(`Capybara Memory CurrentTask failed: ${error}`);
             }
-            
-            // TODO: Add actual smart task creation logic here
-            vscode.window.showInformationMessage('🔨 FORGE: Smart task creation placeholder executed! (Full implementation coming soon)');
-        } catch (error) {
-            console.error('Capybara CreateSmartTask error:', error);
-            vscode.window.showErrorMessage(`Capybara CreateSmartTask failed: ${error}`);
-        }
-    });
+        });
 
-    // Register addPreventionRule command (placeholder)
-    const addPreventionRuleCommand = vscode.commands.registerCommand('capybara.addPreventionRule', async () => {
-        try {
-            vscode.window.showInformationMessage('🔨 FORGE: Add Prevention Rule command called!');
-            
-            if (!vscode.workspace.workspaceFolders) {
-                vscode.window.showErrorMessage('FORGE: No workspace folder is open. Please open a folder first.');
-                return;
-            }
-            
-            // TODO: Add actual prevention rule logic here
-            vscode.window.showInformationMessage('🔨 FORGE: Prevention rule placeholder executed! (Full implementation coming soon)');
-        } catch (error) {
-            console.error('Capybara AddPreventionRule error:', error);
-            vscode.window.showErrorMessage(`Capybara AddPreventionRule failed: ${error}`);
-        }
-    });
+        // Register other commands as simple placeholders for now
+        const allTasksCommand = vscode.commands.registerCommand('capybara.allTasks', async () => {
+            vscode.window.showInformationMessage('🦫 Capybara Memory: All Tasks command - Coming soon!');
+        });
 
-    // Register completeTask command (placeholder)
-    const completeTaskCommand = vscode.commands.registerCommand('capybara.completeTask', async () => {
-        try {
-            vscode.window.showInformationMessage('🔨 FORGE: Complete Task command called!');
-            
-            if (!vscode.workspace.workspaceFolders) {
-                vscode.window.showErrorMessage('FORGE: No workspace folder is open. Please open a folder first.');
-                return;
-            }
-            
-            // TODO: Add actual task completion logic here
-            vscode.window.showInformationMessage('🔨 FORGE: Task completion placeholder executed! (Full implementation coming soon)');
-        } catch (error) {
-            console.error('Capybara CompleteTask error:', error);
-            vscode.window.showErrorMessage(`Capybara CompleteTask failed: ${error}`);
-        }
-    });
+        const pauseTaskCommand = vscode.commands.registerCommand('capybara.pauseTask', async () => {
+            vscode.window.showInformationMessage('🦫 Capybara Memory: Pause Task command - Coming soon!');
+        });
 
-    // Register all commands
-    context.subscriptions.push(
-        testCommand, 
-        initCommand, 
-        createTaskCommand, 
-        createSmartTaskCommand, 
-        addPreventionRuleCommand, 
-        completeTaskCommand
-    );
-    
-    console.log('🔨 Capybara: All commands registered successfully');
-    vscode.window.showInformationMessage('🔨 Capybara: Ready! All 6 commands available.');
+        const completeTaskCommand = vscode.commands.registerCommand('capybara.completeTask', async () => {
+            vscode.window.showInformationMessage('🦫 Capybara Memory: Complete Task command - Coming soon!');
+        });
+
+        const historyCommand = vscode.commands.registerCommand('capybara.history', async () => {
+            vscode.window.showInformationMessage('🦫 Capybara Memory: History command - Coming soon!');
+        });
+
+        // Legacy commands
+        const createSmartTaskCommand = vscode.commands.registerCommand('capybara.createSmartTask', async () => {
+            vscode.window.showInformationMessage('🦫 Capybara Memory: createSmartTask is now integrated into createTask command!');
+            await vscode.commands.executeCommand('capybara.createTask');
+        });
+
+        const addPreventionRuleCommand = vscode.commands.registerCommand('capybara.addPreventionRule', async () => {
+            vscode.window.showInformationMessage('🦫 Capybara Memory: Prevention rules are now automatically inherited from completed tasks!');
+        });
+
+        // Register all commands
+        context.subscriptions.push(
+            testCommand, 
+            initCommand, 
+            createTaskCommand,
+            currentTaskCommand,
+            allTasksCommand,
+            pauseTaskCommand,
+            completeTaskCommand,
+            historyCommand,
+            createSmartTaskCommand, 
+            addPreventionRuleCommand
+        );
+        
+        console.log('🦫 Capybara Memory: All commands registered successfully');
+        vscode.window.showInformationMessage('🦫 Capybara Memory: Ready! All commands available.');
+        
+    } catch (error) {
+        console.error('🦫 Capybara Memory: Activation failed:', error);
+        vscode.window.showErrorMessage(`🦫 Capybara Memory activation failed: ${error}`);
+    }
 }
 
 export function deactivate() {
-    console.log('🔨 Capybara: Full deactivation');
+    console.log('🦫 Capybara Memory: Deactivation');
 }

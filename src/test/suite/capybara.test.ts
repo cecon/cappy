@@ -1,5 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { CapybaraConfig } from '../../models/capybaraConfig';
 
 suite('🦫 Capybara Extension Test Suite', () => {
@@ -83,6 +85,99 @@ suite('🦫 Capybara Extension Test Suite', () => {
             console.log(`📦 Name: ${pkg.name}`);
             console.log(`📦 Display Name: ${pkg.displayName}`);
             console.log(`📦 Version: ${pkg.version}`);
+        }
+    });
+
+    test('🚀 Init Command Simple Test', () => {
+        console.log('🧪 TESTE SIMPLES - Este log deve aparecer!');
+        
+        // Teste básico para verificar se conseguimos pelo menos executar
+        assert.ok(true, 'Este teste deve sempre passar');
+        console.log('✅ Teste simples passou');
+    });
+
+    test('🚀 Init Command Functionality', async function() {
+        console.log('🧪 Starting Init Command Functionality test...');
+        
+        // Test if init command creates necessary folders and files
+        if (!vscode.workspace.workspaceFolders) {
+            console.log('⚠️ No workspace folder - skipping init test');
+            return;
+        }
+
+        console.log('🧪 Workspace folder found, proceeding with test...');
+        const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        const capyDir = path.join(workspaceRoot, '.capy');
+        const githubDir = path.join(workspaceRoot, '.github');
+
+        console.log(`🧪 Workspace root: ${workspaceRoot}`);
+        console.log(`🧪 Capy dir: ${capyDir}`);
+
+        // Clean up any existing .capy folder
+        try {
+            await fs.promises.rmdir(capyDir, { recursive: true });
+            console.log('🧪 Existing .capy folder removed');
+        } catch (error) {
+            console.log('🧪 No existing .capy folder to remove');
+        }
+
+        // Execute init command
+        try {
+            console.log('🧪 Executing capybara.init command...');
+            await vscode.commands.executeCommand('capybara.init');
+            
+            console.log('🧪 Init command executed, waiting for completion...');
+            // Give more time for the command to complete
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            console.log('🧪 Checking if directories and files were created...');
+
+            // Check if .capy directory was created
+            const capyExists = await fs.promises.access(capyDir, fs.constants.F_OK)
+                .then(() => true)
+                .catch(() => false);
+
+            // Check if .github directory was created  
+            const githubExists = await fs.promises.access(githubDir, fs.constants.F_OK)
+                .then(() => true)
+                .catch(() => false);
+
+            // Check if config file was created
+            const configPath = path.join(capyDir, 'config.json');
+            const configExists = await fs.promises.access(configPath, fs.constants.F_OK)
+                .then(() => true)
+                .catch(() => false);
+
+            // Check if prevention rules file was created
+            const rulesPath = path.join(capyDir, 'prevention-rules.md');
+            const rulesExists = await fs.promises.access(rulesPath, fs.constants.F_OK)
+                .then(() => true)
+                .catch(() => false);
+
+            // Check if copilot instructions file was created
+            const instructionsPath = path.join(githubDir, 'copilot-instructions.md');
+            const instructionsExists = await fs.promises.access(instructionsPath, fs.constants.F_OK)
+                .then(() => true)
+                .catch(() => false);
+
+            console.log(`📁 .capy directory created: ${capyExists}`);
+            console.log(`📁 .github directory created: ${githubExists}`);
+            console.log(`📄 config.json created: ${configExists}`);
+            console.log(`📄 prevention-rules.md created: ${rulesExists}`);
+            console.log(`📄 copilot-instructions.md created: ${instructionsExists}`);
+
+            // Assertions
+            assert.ok(capyExists, '.capy directory should be created');
+            assert.ok(githubExists, '.github directory should be created');
+            assert.ok(configExists, 'config.json should be created');
+            assert.ok(rulesExists, 'prevention-rules.md should be created');
+            assert.ok(instructionsExists, 'copilot-instructions.md should be created');
+
+            console.log('✅ Init command functionality test passed');
+
+        } catch (error) {
+            console.error('❌ Init command test failed:', error);
+            throw error;
         }
     });
 });

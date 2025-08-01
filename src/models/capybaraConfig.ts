@@ -41,6 +41,9 @@ export interface CapybaraConfig {
         requireUnitTests: boolean;
         testFramework: string;
         testCoverage: number;
+        currentTask?: string; // Current active task (e.g., "task_0001")
+        nextTaskNumber: number; // Next sequential task number
+        workflowMode: 'single-focus' | 'multi-task'; // New workflow mode
     };
     ai: {
         provider: 'copilot' | 'claude' | 'chatgpt' | 'custom';
@@ -90,7 +93,9 @@ export const DEFAULT_CAPYBARA_CONFIG: Partial<CapybaraConfig> = {
         atomicityWarning: true,
         requireUnitTests: false,
         testFramework: 'jest',
-        testCoverage: 80
+        testCoverage: 80,
+        nextTaskNumber: 1, // Sequential task numbering
+        workflowMode: 'single-focus' // New focused workflow
     },
     ai: {
         provider: 'copilot',

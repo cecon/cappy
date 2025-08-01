@@ -1,30 +1,74 @@
-# Capybara Methodology - Complete Workflow
+# Capybara Methodology - Single-Focus Workflow
 
-## 🎯 **Capybara Core Rules**
+## 🎯 **Capybara Core Rules - NEW FOCUSED APPROACH**
+
+### **Single-Focus Workflow:**
+- **ONE ACTIVE TASK** at a time for maximum focus
+- Tasks stored in `.capy/task_XXXX/` while active/paused  
+- Completed tasks moved to `.capy/history/STEP_XXXX_[NAME]/`
+- Current task tracked in config and `copilot-instructions.md`
+
+### **Task States:**
+- **ACTIVE**: Currently being worked on (only one at a time)
+- **PAUSED**: Created but not currently active (can have multiple)
+- **COMPLETED**: Moved to history folder with STEP_XXXX naming
 
 ### **Two Distinct Workflows:**
 
-#### 🔨 **"Create New STEP" Workflow** 
+#### 🔨 **"Create New Task" Workflow** 
 When user says: *"vamos desenvolver uma nova atividade"*
-1. **Interactive Questionnaire** to gather requirements
-2. **Atomicity Analysis** with LLM confidence check
-3. **Auto-create structure** only when confident
-4. **Inherit errors** from previous STEP (respecting maxRules config)
+1. **Check Active Task** - pause current if needed
+2. **Interactive Questionnaire** to gather requirements
+3. **Atomicity Analysis** with confidence check
+4. **Auto-create structure** in `.capy/task_XXXX/`
+5. **Inherit rules** from last completed task in history
+6. **Set as ACTIVE** and update copilot context
 
 #### 🚀 **"Start Development" Workflow**
-When user says: *"vamos iniciar o desenvolvimento da STEP_XXXX"*
-1. **Follow step-by-step execution**
-2. **Read existing DESCRIPTION.md**
-3. **Execute implementation workflow**
+When user says: *"vamos iniciar o desenvolvimento"*
+1. **Check current active task** from config
+2. **Read DESCRIPTION.md** from active task folder  
+3. **Load inherited prevention rules**
+4. **Execute implementation workflow**
 
-## 📁 **Standard Structure (4-digit format):**
+## 📁 **NEW Structure:**
 ```
-steps/STEP_0001_[TASK_NAME]/
-├── STEP_0001_DESCRIPTION.md
-├── STEP_0001_DONE.md  
-├── STEP_0001_DIFFICULTIES_FACED.md
-└── artifacts/
+.capy/
+├── config.json                    # Includes currentTask: "task_0001"
+├── copilot-instructions.md         # Includes current-task: task_0001
+├── prevention-rules.md
+├── task_0001/                      # Active or paused tasks
+│   ├── DESCRIPTION.md
+│   ├── DONE.md  
+│   ├── DIFFICULTIES_FACED.md
+│   ├── task-metadata.json
+│   └── artifacts/
+├── task_0002/                      # Another task (paused)
+└── history/                        # Completed tasks
+    ├── STEP_0001_auth_middleware/
+    ├── STEP_0002_user_endpoints/
+    └── ...
 ```
+
+## 🔄 **Task Lifecycle:**
+
+### **Creation:**
+1. Generate `task_XXXX` with sequential numbering
+2. Inherit prevention rules from last `STEP_XXXX` in history
+3. Set as ACTIVE in config and copilot-instructions.md
+4. Generate DESCRIPTION, DONE, DIFFICULTIES templates
+
+### **Working:**
+- Only one task ACTIVE at a time
+- Can pause current and create/resume others
+- All prevention rules from history automatically available
+
+### **Completion:**
+1. Move from `.capy/task_XXXX/` to `.capy/history/STEP_XXXX_[NAME]/`
+2. Update task status to COMPLETED
+3. Clear currentTask from config
+4. Update copilot instructions
+5. Ready for next task with inherited knowledge
 
 ## 🤖 **Smart STEP Creation Process**
 

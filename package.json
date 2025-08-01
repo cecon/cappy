@@ -1,8 +1,9 @@
 {
-  "name": "capybara",
-  "displayName": "Capybara",
-  "description": "Your calm and wise AI coding companion that learns from your mistakes and prevents them automatically",
-  "version": "2.0.2",
+  "name": "capybara-memory",
+  "displayName": "Capybara Memory",
+  "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
+  "icon": "assets/icon.png",
+  "version": "2.1.4",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -35,27 +36,47 @@
       },
       {
         "command": "capybara.init",
-        "title": "Initialize Capybara",
+        "title": "🦫 Initialize Capybara",
         "category": "Capybara"
       },
       {
         "command": "capybara.createTask",
-        "title": "Create New Task",
+        "title": "➕ Create New Task",
         "category": "Capybara"
       },
       {
-        "command": "capybara.createSmartTask",
-        "title": "Create Smart Task (AI-Assisted)",
+        "command": "capybara.currentTask",
+        "title": "🎯 Current Task",
         "category": "Capybara"
       },
       {
-        "command": "capybara.addPreventionRule",
-        "title": "Add Prevention Rule",
+        "command": "capybara.allTasks",
+        "title": "📋 Manage All Tasks",
+        "category": "Capybara"
+      },
+      {
+        "command": "capybara.pauseTask",
+        "title": "⏸️ Pause Current Task",
         "category": "Capybara"
       },
       {
         "command": "capybara.completeTask",
-        "title": "Complete Task",
+        "title": "✅ Complete Current Task",
+        "category": "Capybara"
+      },
+      {
+        "command": "capybara.history",
+        "title": "📚 Task History",
+        "category": "Capybara"
+      },
+      {
+        "command": "capybara.createSmartTask",
+        "title": "🤖 Create Smart Task (Legacy)",
+        "category": "Capybara"
+      },
+      {
+        "command": "capybara.addPreventionRule",
+        "title": "🚨 Add Prevention Rule (Legacy)",
         "category": "Capybara"
       }
     ],
@@ -129,8 +150,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "date-fns": "^2.29.3",
-    "yaml": "^2.3.4"
+    "date-fns": "^2.29.3"
   },
   "repository": {
     "type": "git",

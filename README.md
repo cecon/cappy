@@ -89,22 +89,6 @@ code --install-extension eduardocecon.capybara
 - **[📦 Download from Marketplace](https://marketplace.visualstudio.com/items?itemName=eduardocecon.capybara)**
 - **[🔗 GitHub Repository](https://github.com/cecon/capybara)**
 
-## 📊 Real Results for Solo Developers
-
-Solo developers using Capybara with GitHub Copilot report:
-
-<div align="center">
-
-| Metric | Solo Development Improvement |
-|--------|-------------|
-| **AI Suggestion Quality** | ↑ 3x more relevant to your project |
-| **Repeated Mistakes** | ↓ 85% reduction in same errors |
-| **Context Switching** | ↓ 60% less explaining to AI |
-| **Sustainable Velocity** | ↑ 2x more consistent progress |
-| **Learning Retention** | ↑ 90% of lessons automatically applied |
-
-</div>
-
 > *"GitHub Copilot finally 'gets' my personal coding style. It suggests code that follows my specific patterns and avoids mistakes I've made before - all while keeping my learning private."*  
 > — **Alex Chen**, Solo Full Stack Developer
 
