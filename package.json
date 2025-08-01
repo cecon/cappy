@@ -2,7 +2,7 @@
   "name": "forge-framework",
   "displayName": "FORGE Framework",
   "description": "Transform your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically",
-  "version": "1.0.21",
+  "version": "1.0.23",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -23,98 +23,30 @@
     "task-management"
   ],
   "activationEvents": [
-    "*"
+    "workspaceContains:.forge"
   ],
-  "main": "./out/extension-simple.js",
+  "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "forge.test",
-        "title": "Test Command",
+        "command": "forge.init",
+        "title": "Initialize FORGE Framework",
         "category": "FORGE"
       },
       {
-        "command": "forge.openDashboard",
-        "title": "Open Dashboard",
-        "category": "FORGE"
-      }
-    ],
-    "views": {
-      "explorer": [
-        {
-          "id": "forgeExplorer",
-          "name": "FORGE Tasks",
-          "when": "workspaceContains:.forge"
-        },
-        {
-          "id": "forgePreventionRules",
-          "name": "Prevention Rules",
-          "when": "workspaceContains:.forge"
-        }
-      ]
-    },
-    "viewsWelcome": [
-      {
-        "view": "forgeExplorer",
-        "contents": "No FORGE tasks found.\n[Initialize FORGE](command:forge.init)\n[Create New Task](command:forge.createTask)"
-      }
-    ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "forge.createTask",
-          "when": "view == forgeExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "forge.refreshTasks",
-          "when": "view == forgeExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "forge.addPreventionRule",
-          "when": "view == forgePreventionRules",
-          "group": "navigation"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "forge.openTask",
-          "when": "view == forgeExplorer && viewItem == task",
-          "group": "navigation"
-        },
-        {
-          "command": "forge.completeTask",
-          "when": "view == forgeExplorer && viewItem == activeTask",
-          "group": "inline"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "forge.refreshTasks",
-          "when": "false"
-        },
-        {
-          "command": "forge.openTask",
-          "when": "false"
-        }
-      ]
-    },
-    "keybindings": [
-      {
         "command": "forge.createTask",
-        "key": "ctrl+shift+f ctrl+n",
-        "when": "workspaceContains:.forge"
+        "title": "Create New Task",
+        "category": "FORGE"
+      },
+      {
+        "command": "forge.addPreventionRule",
+        "title": "Add Prevention Rule",
+        "category": "FORGE"
       },
       {
         "command": "forge.completeTask",
-        "key": "ctrl+shift+f ctrl+c",
-        "when": "workspaceContains:.forge"
-      },
-      {
-        "command": "forge.openDashboard",
-        "key": "ctrl+shift+f ctrl+d",
-        "when": "workspaceContains:.forge"
+        "title": "Complete Task",
+        "category": "FORGE"
       }
     ],
     "configuration": {
@@ -160,10 +92,9 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js",
-    "package": "vsce package",
+    "package": "vsce package --dependencies",
+    "package-webpack": "webpack --mode production && vsce package",
     "publish": "vsce publish"
   },
   "devDependencies": {
@@ -181,7 +112,10 @@
     "glob": "^8.0.3",
     "mocha": "^10.1.0",
     "sinon": "^21.0.0",
-    "typescript": "^4.9.4"
+    "ts-loader": "^9.5.2",
+    "typescript": "^4.9.4",
+    "webpack": "^5.101.0",
+    "webpack-cli": "^6.0.1"
   },
   "dependencies": {
     "date-fns": "^2.29.3",
