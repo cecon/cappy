@@ -16,7 +16,7 @@ export class TaskCreator {
             // Check if workspace exists
             if (!vscode.workspace.workspaceFolders) {
                 const openFolder = await vscode.window.showInformationMessage(
-                    '📁 FORGE precisa de uma pasta de projeto para criar tarefas.\n\nAbra uma pasta primeiro.',
+                    '📁 Capybara precisa de uma pasta de projeto para criar tarefas.\n\nAbra uma pasta primeiro.',
                     'Abrir Pasta', 'Cancelar'
                 );
                 
@@ -459,7 +459,7 @@ Document any new prevention rules that should be added to avoid similar issues:
             // Check if workspace exists
             if (!vscode.workspace.workspaceFolders) {
                 const openFolder = await vscode.window.showInformationMessage(
-                    '📁 FORGE precisa de uma pasta de projeto para criar tarefas.\n\nAbra uma pasta primeiro.',
+                    '📁 Capybara precisa de uma pasta de projeto para criar tarefas.\n\nAbra uma pasta primeiro.',
                     'Abrir Pasta', 'Cancelar'
                 );
                 

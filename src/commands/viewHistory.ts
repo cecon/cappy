@@ -15,7 +15,7 @@ export class ViewHistoryCommand {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
                 const openFolder = await vscode.window.showInformationMessage(
-                    '📁 FORGE precisa de uma pasta de projeto para visualizar o histórico.\n\nAbra uma pasta primeiro.',
+                    '📁 Capybara precisa de uma pasta de projeto para visualizar o histórico.\n\nAbra uma pasta primeiro.',
                     'Abrir Pasta', 'Cancelar'
                 );
                 

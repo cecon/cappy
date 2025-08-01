@@ -20,11 +20,11 @@ export class ForgeDashboard {
 
     public async show(): Promise<void> {
         try {
-            console.log('🔨 FORGE Dashboard: Starting show() method');
+            console.log('🔨 Capybara Dashboard: Starting show() method');
             
             // Check if workspace exists
             if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-                console.log('🔨 FORGE Dashboard: No workspace folders found');
+                console.log('🔨 Capybara Dashboard: No workspace folders found');
                 vscode.window.showInformationMessage(
                     "Please open a workspace folder first.",
                     'Open Folder'
@@ -36,21 +36,21 @@ export class ForgeDashboard {
                 return;
             }
 
-            console.log('🔨 FORGE Dashboard: Workspace found, checking FileManager');
+            console.log('🔨 Capybara Dashboard: Workspace found, checking FileManager');
             
             // Initialize FileManager if not already done
             if (!this.fileManager) {
                 this.fileManager = new FileManager();
             }
 
-            console.log('🔨 FORGE Dashboard: FileManager initialized, checking FORGE config');
+            console.log('🔨 Capybara Dashboard: FileManager initialized, checking Capybara config');
 
-            // Check if FORGE is initialized
+            // Check if Capybara is initialized
             const config = await this.fileManager.readCapybaraConfig();
             if (!config) {
-                console.log('🔨 FORGE Dashboard: No FORGE config found');
+                console.log('🔨 Capybara Dashboard: No Capybara config found');
                 vscode.window.showInformationMessage(
-                    "Please initialize FORGE in this workspace first by running 'FORGE: Initialize Capybara'.",
+                    "Please initialize Capybara in this workspace first by running 'FORGE: Initialize Capybara'.",
                     'Initialize FORGE'
                 ).then(choice => {
                     if (choice === 'Initialize FORGE') {
@@ -60,30 +60,30 @@ export class ForgeDashboard {
                 return;
             }
 
-            console.log('🔨 FORGE Dashboard: FORGE config found, generating dashboard data');
+            console.log('🔨 Capybara Dashboard: Capybara config found, generating dashboard data');
             
             const dashboardData = await this.getDashboardData();
-            console.log('🔨 FORGE Dashboard: Dashboard data generated, creating markdown content');
+            console.log('🔨 Capybara Dashboard: Dashboard data generated, creating markdown content');
             
             const markdownContent = this.getMarkdownContent(dashboardData);
-            console.log('🔨 FORGE Dashboard: Markdown content created, opening document');
+            console.log('🔨 Capybara Dashboard: Markdown content created, opening document');
 
             const document = await vscode.workspace.openTextDocument({
                 content: markdownContent,
                 language: 'markdown'
             });
             
-            console.log('🔨 FORGE Dashboard: Document created, showing in editor');
+            console.log('🔨 Capybara Dashboard: Document created, showing in editor');
             
             await vscode.window.showTextDocument(document, {
                 viewColumn: vscode.ViewColumn.One,
                 preview: true
             });
             
-            console.log('🔨 FORGE Dashboard: Dashboard displayed successfully');
+            console.log('🔨 Capybara Dashboard: Dashboard displayed successfully');
         } catch (error) {
-            console.error('🔨 FORGE Dashboard: Error in show() method:', error);
-            vscode.window.showErrorMessage(`Failed to generate FORGE Dashboard: ${error}`);
+            console.error('🔨 Capybara Dashboard: Error in show() method:', error);
+            vscode.window.showErrorMessage(`Failed to generate Capybara Dashboard: ${error}`);
         }
     }
 
@@ -289,7 +289,7 @@ export class ForgeDashboard {
         const varianceIcon = parseFloat(data.taskMetrics.variance) > 0 ? '⚠️' : 
                            parseFloat(data.taskMetrics.variance) < 0 ? '✅' : '➖';
 
-        return `# 🔨 FORGE Dashboard: ${data.project.name}
+        return `# 🔨 Capybara Dashboard: ${data.project.name}
 
 > **Quick Actions:** [Create New Task](command:forge.createTask) | [Add Prevention Rule](command:forge.addPreventionRule) | [Update Copilot Context](command:forge.updateCopilotContext) | [Refresh Dashboard](command:forge.openDashboard)
 

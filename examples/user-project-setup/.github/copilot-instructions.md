@@ -4,7 +4,7 @@
 This project uses the Capybara for atomic task management and automatic error prevention. 
 
 **ALWAYS** follow the comprehensive methodology detailed in:
-- `.github/instructions/forge-methodology.md` - Complete FORGE workflow
+- `.github/instructions/forge-methodology.md` - Complete Capybara workflow
 - `.github/instructions/forge-templates.md` - STEP templates and structure  
 - `.github/instructions/forge-patterns.md` - Context-specific patterns and rules
 

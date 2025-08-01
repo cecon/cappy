@@ -8,7 +8,7 @@ export class CompleteActivityCommand {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
                 const openFolder = await vscode.window.showInformationMessage(
-                    '📁 FORGE precisa de uma pasta de projeto para completar atividades.\n\nAbra uma pasta primeiro.',
+                    '📁 Capybara precisa de uma pasta de projeto para completar atividades.\n\nAbra uma pasta primeiro.',
                     'Abrir Pasta', 'Cancelar'
                 );
                 

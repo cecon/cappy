@@ -1,4 +1,4 @@
-# FORGE Templates - STEP File Structures
+# Capybara Templates - STEP File Structures
 
 ## Template: `STEP_XX_DESCRIPTION.md`
 ```markdown
@@ -100,7 +100,7 @@ Recorded: [DATE]
 ### Initial Request Understanding
 ```
 User: "I need to implement user authentication"
-AI: "Great! Let me help you create a well-structured FORGE STEP. 
+AI: "Great! Let me help you create a well-structured Capybara STEP. 
      
      First, let me check if we have previous STEPs to learn from, then tell me more:
      - What type of authentication? (OAuth, JWT, session-based?)
@@ -134,5 +134,5 @@ AI: "Perfect! I'll create STEP_XX for [chosen scope].
      - Complexity: X/5
      - Status: ✅ ATOMIC
      
-     Creating FORGE structure with all templates and inherited prevention rules..."
+     Creating Capybara structure with all templates and inherited prevention rules..."
 ```

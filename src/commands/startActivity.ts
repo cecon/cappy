@@ -8,7 +8,7 @@ export class StartActivityCommand {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
                 const openFolder = await vscode.window.showInformationMessage(
-                    '📁 FORGE precisa de uma pasta de projeto para iniciar atividades.\n\nAbra uma pasta primeiro.',
+                    '📁 Capybara precisa de uma pasta de projeto para iniciar atividades.\n\nAbra uma pasta primeiro.',
                     'Abrir Pasta', 'Cancelar'
                 );
                 
@@ -128,7 +128,7 @@ export class StartActivityCommand {
         }
 
         // Mostrar análise no canal de output
-        const outputChannel = vscode.window.createOutputChannel('FORGE - Análise do Projeto');
+        const outputChannel = vscode.window.createOutputChannel('Capybara - Análise do Projeto');
         outputChannel.clear();
         outputChannel.appendLine('🔍 ANÁLISE DO CONTEXTO DO PROJETO\n');
         analysis.forEach(item => outputChannel.appendLine(item));

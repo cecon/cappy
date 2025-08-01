@@ -14,7 +14,7 @@
 **Resultado**:
 ```
 .github/
-├── copilot-instructions.md (template FORGE + referência ao stack)
+├── copilot-instructions.md (template Capybara + referência ao stack)
 └── stack-instructions.md (configurações específicas da stack)
 src/
 └── forgeConfig.json (configuração completa do FORGE)
@@ -31,11 +31,11 @@ src/
 }
 ```
 
-**LLM**: "Detectei TypeScript + Express. Configurar FORGE para esta stack? [Y/n]"
+**LLM**: "Detectei TypeScript + Express. Configurar Capybara para esta stack? [Y/n]"
 
 **Se confirmado**, gera:
 - `stack-instructions.md` com padrões TypeScript/Express
-- `copilot-instructions.md` com integração FORGE + referência ao stack
+- `copilot-instructions.md` com integração Capybara + referência ao stack
 - `forgeConfig.json` com stack configurada
 
 ## Cenário 2: Projeto com copilot-instructions.md Existente
@@ -61,9 +61,9 @@ src/
 ```
 🤖 **Detectei instruções existentes. Como integrar FORGE?**
 
-a) 📄 Manter instruções + Adicionar FORGE no final
+a) 📄 Manter instruções + Adicionar Capybara no final
 b) 🔗 Extrair stack para stack-instructions.md + Integrar FORGE
-c) 🔄 Substituir por template FORGE completo  
+c) 🔄 Substituir por template Capybara completo  
 d) ⏭️ Pular integração (configurar manualmente)
 ```
 
@@ -85,13 +85,13 @@ d) ⏭️ Pular integração (configurar manualmente)
 This project uses the Capybara for atomic task management.
 
 **Stack Configuration**: See `.github/stack-instructions.md`
-**FORGE Config**: See `src/forgeConfig.json`
+**Capybara Config**: See `src/forgeConfig.json`
 ...
 ```
 
 ### **Opção B: Extrair Stack + Integrar** (RECOMENDADA)
 1. **Extrai** regras de stack para `stack-instructions.md`
-2. **Integra** FORGE no copilot-instructions.md  
+2. **Integra** Capybara no copilot-instructions.md  
 3. **Referencia** stack-instructions.md
 
 **Resultado**:
@@ -117,7 +117,7 @@ This project uses the Capybara for atomic task management...
 - Write unit tests for all functions
 ```
 
-## Cenário 3: FORGE Já Instalado
+## Cenário 3: Capybara Já Instalado
 
 **Detecção**: Se encontrar qualquer um:
 - `forgeConfig.json` 
@@ -126,7 +126,7 @@ This project uses the Capybara for atomic task management...
 
 **Resultado**: 
 ```
-🤖 **FORGE já está configurado neste projeto!**
+🤖 **Capybara já está configurado neste projeto!**
 
 Configurações encontradas:
 - Stack: TypeScript + Express (em stack-instructions.md)

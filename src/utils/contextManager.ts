@@ -265,7 +265,7 @@ You are working with Capybara. Apply these accumulated learnings when generating
 - **Current Task**: ${context.currentTask}
 - **Architecture**: ${context.architecture || 'Standard architecture'}
 
-## Prevention Rules (Auto-Generated from FORGE Tasks)
+## Prevention Rules (Auto-Generated from Capybara Tasks)
 
 The following rules were learned from previous mistakes and difficulties. Apply them when generating code:
 
@@ -288,7 +288,7 @@ The following rules were learned from previous mistakes and difficulties. Apply 
             }
         }
 
-        instructions += `## When user says "Create FORGE task [NAME]":
+        instructions += `## When user says "Create Capybara task [NAME]":
 
 1. **Analyze Atomicity**: Check if the task is atomic (≤3 hours estimated)
 2. **Apply Prevention Rules**: Check all relevant rules from above categories
@@ -308,7 +308,7 @@ The following rules were learned from previous mistakes and difficulties. Apply 
 - Ensure security best practices
 
 ## Task Structure:
-When creating FORGE tasks, use this structure:
+When creating Capybara tasks, use this structure:
 \`\`\`
 tasks/
 ├── TASK_XX_TASK_NAME/

@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { FileManager } from '../utils/fileManager';
 import { CapybaraConfig, DEFAULT_CAPYBARA_CONFIG } from '../models/capybaraConfig';
 
-export class InitForgeCommand {
+export class InitCapybaraCommand {
     constructor(
         private fileManager: FileManager
     ) {}
@@ -14,7 +14,7 @@ export class InitForgeCommand {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
                 const openFolder = await vscode.window.showInformationMessage(
-                    '� Capybara precisa de uma pasta de projeto para ser inicializado.\n\nAbra uma pasta primeiro e depois execute "FORGE: Initialize" novamente.',
+                    '� Capybara precisa de uma pasta de projeto para ser inicializado.\n\nAbra uma pasta primeiro e depois execute "Capybara: Initialize" novamente.',
                     'Abrir Pasta', 'Cancelar'
                 );
                 
@@ -29,14 +29,14 @@ export class InitForgeCommand {
                 return false;
             }
 
-            const forgeDir = path.join(workspaceFolder.uri.fsPath, '.forge');
+            const capyDir = path.join(workspaceFolder.uri.fsPath, '.capy');
             const githubDir = path.join(workspaceFolder.uri.fsPath, '.github');
 
             // Verificar se já existe
             try {
-                await fs.promises.access(forgeDir, fs.constants.F_OK);
+                await fs.promises.access(capyDir, fs.constants.F_OK);
                 const overwrite = await vscode.window.showWarningMessage(
-                    '⚠️ FORGE já foi inicializado neste projeto. Sobrescrever?',
+                    '⚠️ Capybara já foi inicializado neste projeto. Sobrescrever?',
                     'Sim', 'Não'
                 );
                 if (overwrite !== 'Sim') {
@@ -58,9 +58,9 @@ export class InitForgeCommand {
                 progress.report({ increment: 0, message: 'Criando estrutura...' });
                 
                 // 1. Criar estrutura básica
-                await fs.promises.mkdir(forgeDir, { recursive: true });
+                await fs.promises.mkdir(capyDir, { recursive: true });
                 await fs.promises.mkdir(githubDir, { recursive: true });
-                await fs.promises.mkdir(path.join(forgeDir, 'history'), { recursive: true });
+                await fs.promises.mkdir(path.join(capyDir, 'history'), { recursive: true });
 
                 progress.report({ increment: 20, message: 'Coletando informações do projeto...' });
 
@@ -99,7 +99,7 @@ export class InitForgeCommand {
                 await this.createCopilotInstructions(config, githubDir, projectInfo);
 
                 // 6. Criar arquivo de prevention rules
-                await this.createInitialPreventionRules(forgeDir);
+                await this.createInitialPreventionRules(capyDir);
 
                 // 7. Adicionar ao .gitignore
                 await this.updateGitignore(workspaceFolder.uri.fsPath);
@@ -107,14 +107,14 @@ export class InitForgeCommand {
                 progress.report({ increment: 100, message: 'Finalizado!' });
 
                 vscode.window.showInformationMessage(
-                    '🎉 Capybara inicializado com sucesso! Use "FORGE: Start Activity" para começar.'
+                    '🎉 Capybara inicializado com sucesso! Use "Capybara: Start Activity" para começar.'
                 );
 
                 return true;
             });
 
         } catch (error) {
-            vscode.window.showErrorMessage(`Erro ao inicializar FORGE: ${error}`);
+            vscode.window.showErrorMessage(`Erro ao inicializar Capybara: ${error}`);
             return false;
         }
     }
@@ -130,7 +130,7 @@ export class InitForgeCommand {
 
         return {
             name: projectName,
-            description: `Projeto ${projectName} - Desenvolvimento solo com FORGE`,
+            description: `Projeto ${projectName} - Desenvolvimento solo com Capybara`,
             language: languages.length > 0 ? languages[0] : 'unknown',
             languages: languages,
             framework: frameworks,
@@ -237,8 +237,8 @@ export class InitForgeCommand {
 - **Linguagem Principal**: ${config.project.language}
 - **Frameworks**: ${config.project.framework?.join(', ') || 'Nenhum detectado'}
 
-## 🎯 **METODOLOGIA FORGE**
-Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) para desenvolvimento solo:
+## 🎯 **METODOLOGIA Capybara**
+Este projeto usa a metodologia Capybara (Focus, Organize, Record, Grow, Evolve) para desenvolvimento solo:
 
 ### **Princípios:**
 1. **Tarefas Atômicas**: Máximo 2-3 horas por STEP
@@ -247,7 +247,7 @@ Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) par
 4. **Documentação Mínima**: Só o essencial que economiza tempo
 
 ### **Prevention Rules Ativas:**
-*As regras serão carregadas automaticamente do arquivo .forge/prevention-rules.md*
+*As regras serão carregadas automaticamente do arquivo .capy/prevention-rules.md*
 
 ## 🛠️ **INSTRUÇÕES ESPECÍFICAS**
 
@@ -257,11 +257,11 @@ Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) par
 - Focar em soluções simples e diretas
 - Documentar problemas encontrados para criar novas rules
 
-### **Comandos FORGE disponíveis:**
-- \`FORGE: Start Activity\` - Iniciar nova tarefa
-- \`FORGE: Complete Activity\` - Finalizar tarefa atual
-- \`FORGE: Add Prevention Rule\` - Documentar erro/problema
-- \`FORGE: View History\` - Ver histórico de atividades
+### **Comandos Capybara disponíveis:**
+- \`Capybara: Start Activity\` - Iniciar nova tarefa
+- \`Capybara: Complete Activity\` - Finalizar tarefa atual
+- \`Capybara: Add Prevention Rule\` - Documentar erro/problema
+- \`Capybara: View History\` - Ver histórico de atividades
 
 ---
 *Este arquivo é privado e não deve ser commitado. Ele contém suas instruções personalizadas para o GitHub Copilot.*
@@ -270,8 +270,8 @@ Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) par
         await fs.promises.writeFile(instructionsPath, instructions, 'utf8');
     }
 
-    private async createInitialPreventionRules(forgeDir: string): Promise<void> {
-        const rulesPath = path.join(forgeDir, 'prevention-rules.md');
+    private async createInitialPreventionRules(capyDir: string): Promise<void> {
+        const rulesPath = path.join(capyDir, 'prevention-rules.md');
         
         const initialRules = `# 🛡️ Prevention Rules
 
@@ -279,18 +279,18 @@ Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) par
 
 ## 📝 **Como usar:**
 1. Quando encontrar um erro/problema, documente aqui
-2. Use o comando "FORGE: Add Prevention Rule" para facilitar
+2. Use o comando "Capybara: Add Prevention Rule" para facilitar
 3. As regras são automaticamente incluídas no contexto do Copilot
 
 ---
 
 ## 🏗️ **Regras Gerais**
 
-### [SETUP] Inicialização do FORGE
-**Context:** Ao inicializar FORGE pela primeira vez  
+### [SETUP] Inicialização do Capybara
+**Context:** Ao inicializar Capybara pela primeira vez  
 **Problem:** Usuário pode não entender os próximos passos  
 **Solution:** Sempre mostrar as opções disponíveis após inicialização  
-**Example:** Usar "FORGE: Start Activity" para começar primeira tarefa  
+**Example:** Usar "Capybara: Start Activity" para começar primeira tarefa  
 
 ---
 
@@ -302,7 +302,7 @@ Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) par
 
     private async updateGitignore(workspacePath: string): Promise<void> {
         const gitignorePath = path.join(workspacePath, '.gitignore');
-        const forgeEntries = [
+        const capybaraEntries = [
             '',
             '# Capybara - Private AI Instructions',
             '.github/copilot-instructions.md',
@@ -322,7 +322,7 @@ Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) par
 
             // Verificar se já tem as entradas
             if (!gitignoreContent.includes('.github/copilot-instructions.md')) {
-                gitignoreContent += forgeEntries;
+                gitignoreContent += capybaraEntries;
                 await fs.promises.writeFile(gitignorePath, gitignoreContent, 'utf8');
             }
         } catch (error) {

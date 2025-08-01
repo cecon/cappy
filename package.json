@@ -29,32 +29,32 @@
   "contributes": {
     "commands": [
       {
-        "command": "forge.test",
+        "command": "capybara.test",
         "title": "🧪 Test Capybara Extension",
         "category": "Capybara"
       },
       {
-        "command": "forge.init",
+        "command": "capybara.init",
         "title": "Initialize Capybara",
         "category": "Capybara"
       },
       {
-        "command": "forge.createTask",
+        "command": "capybara.createTask",
         "title": "Create New Task",
         "category": "Capybara"
       },
       {
-        "command": "forge.createSmartTask",
+        "command": "capybara.createSmartTask",
         "title": "Create Smart Task (AI-Assisted)",
         "category": "Capybara"
       },
       {
-        "command": "forge.addPreventionRule",
+        "command": "capybara.addPreventionRule",
         "title": "Add Prevention Rule",
         "category": "Capybara"
       },
       {
-        "command": "forge.completeTask",
+        "command": "capybara.completeTask",
         "title": "Complete Task",
         "category": "Capybara"
       }
@@ -62,22 +62,22 @@
     "configuration": {
       "title": "Capybara",
       "properties": {
-        "forge.autoUpdateCopilotContext": {
+        "capybara.autoUpdateCopilotContext": {
           "type": "boolean",
           "default": true,
           "description": "Automatically update Copilot context when prevention rules change"
         },
-        "forge.maxPreventionRules": {
+        "capybara.maxPreventionRules": {
           "type": "number",
           "default": 50,
           "description": "Maximum number of prevention rules to include in Copilot context"
         },
-        "forge.taskTimeEstimation": {
+        "capybara.taskTimeEstimation": {
           "type": "boolean",
           "default": true,
           "description": "Enable automatic task time estimation and atomicity analysis"
         },
-        "forge.showNotifications": {
+        "capybara.showNotifications": {
           "type": "boolean",
           "default": true,
           "description": "Show notifications for Capybara events"
@@ -87,14 +87,14 @@
     "snippets": [
       {
         "language": "markdown",
-        "path": "./snippets/forge.json"
+        "path": "./snippets/capybara.json"
       }
     ],
     "grammars": [
       {
         "language": "markdown",
-        "scopeName": "text.html.markdown.forge",
-        "path": "./syntaxes/forge-task.tmLanguage.json"
+        "scopeName": "text.html.markdown.capybara",
+        "path": "./syntaxes/capybara-task.tmLanguage.json"
       }
     ]
   },
@@ -132,12 +132,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cecon/forge-framework.git"
+    "url": "git+https://github.com/cecon/capybara-framework.git"
   },
   "bugs": {
-    "url": "https://github.com/cecon/forge-framework/issues"
+    "url": "https://github.com/cecon/capybara-framework/issues"
   },
-  "homepage": "https://github.com/cecon/forge-framework#readme",
+  "homepage": "https://github.com/cecon/capybara-framework#readme",
   "license": "MIT",
   "author": "",
   "type": "commonjs"

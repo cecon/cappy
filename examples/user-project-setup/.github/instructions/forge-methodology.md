@@ -1,8 +1,8 @@
-# FORGE Methodology - Complete Workflow
+# Capybara Methodology - Complete Workflow
 
-## 🎯 **FORGE Core Rules**
+## 🎯 **Capybara Core Rules**
 
-When asked to "create STEP_XX" or "set up FORGE structure":
+When asked to "create STEP_XX" or "set up Capybara structure":
 
 1. **Always create this folder structure:**
 ```

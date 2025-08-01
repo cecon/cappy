@@ -1,4 +1,4 @@
-# GitHub Copilot Instructions - FORGE Solo Development
+# GitHub Copilot Instructions - Capybara Solo Development
 
 ## 🎯 **Core Objective**
 Smart task decomposition + automatic error prevention for solo developers.

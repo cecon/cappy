@@ -2,7 +2,7 @@
 
 ## ✅ **Extensão Instalada com Sucesso!**
 
-- **Nome**: Capybara (anteriormente FORGE Framework)
+- **Nome**: Capybara (anteriormente Capybara Framework)
 - **Versão**: 2.0.0  
 - **Publisher**: eduardocecon.capybara
 - **Status**: ✅ Instalada e ativa
@@ -46,6 +46,6 @@ Para testar a extensão, use `Ctrl+Shift+P` e procure por:
 
 ---
 
-**🎉 Migração FORGE → Capybara concluída com sucesso!**
+**🎉 Migração Capybara → Capybara concluída com sucesso!**
 
 *Seu novo companheiro de programação está pronto para aprender com você.* 🦫
