@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { PreventionRule, PreventionRuleCategory } from '../models/preventionRule';
-import * as fs from 'fs-extra';
+import * as fs from 'fs';
 import * as path from 'path';
 
 export class PreventionRuleAdder {
@@ -94,9 +94,17 @@ export class PreventionRuleAdder {
     private async addPreventionRule(rule: PreventionRule): Promise<boolean> {
         try {
             const workspaceRoot = vscode.workspace.workspaceFolders![0].uri.fsPath;
-            const rulesPath = path.join(workspaceRoot, '.forge', 'prevention-rules.md');
+            const forgeDir = path.join(workspaceRoot, '.forge');
+            const rulesPath = path.join(forgeDir, 'prevention-rules.md');
 
-            await fs.ensureDir(path.join(workspaceRoot, '.forge'));
+            // Ensure .forge directory exists
+            try {
+                await fs.promises.mkdir(forgeDir, { recursive: true });
+            } catch (error: any) {
+                if (error.code !== 'EEXIST') {
+                    throw error;
+                }
+            }
 
             const ruleMarkdown = `
 ## Prevention Rule #${rule.id}
@@ -109,16 +117,22 @@ export class PreventionRuleAdder {
 ---
 `;
 
-            if (await fs.pathExists(rulesPath)) {
-                await fs.appendFile(rulesPath, ruleMarkdown);
-            } else {
-                const header = `# Prevention Rules
+            // Check if file exists and append or create
+            try {
+                await fs.promises.access(rulesPath, fs.constants.F_OK);
+                await fs.promises.appendFile(rulesPath, ruleMarkdown, 'utf8');
+            } catch (error: any) {
+                if (error.code === 'ENOENT') {
+                    const header = `# Prevention Rules
 
 This file contains prevention rules to help avoid common mistakes and improve code quality.
 
 ---
 `;
-                await fs.writeFile(rulesPath, header + ruleMarkdown);
+                    await fs.promises.writeFile(rulesPath, header + ruleMarkdown, 'utf8');
+                } else {
+                    throw error;
+                }
             }
 
             return true;
