@@ -2,7 +2,7 @@
   "name": "forge-framework",
   "displayName": "FORGE Framework",
   "description": "Transform your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically",
-  "version": "1.0.23",
+  "version": "1.0.25",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -23,29 +23,14 @@
     "task-management"
   ],
   "activationEvents": [
-    "workspaceContains:.forge"
+    "*"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "forge.init",
-        "title": "Initialize FORGE Framework",
-        "category": "FORGE"
-      },
-      {
-        "command": "forge.createTask",
-        "title": "Create New Task",
-        "category": "FORGE"
-      },
-      {
-        "command": "forge.addPreventionRule",
-        "title": "Add Prevention Rule",
-        "category": "FORGE"
-      },
-      {
-        "command": "forge.completeTask",
-        "title": "Complete Task",
+        "command": "forge.test",
+        "title": "🧪 Test FORGE Extension",
         "category": "FORGE"
       }
     ],
@@ -98,7 +83,6 @@
     "publish": "vsce publish"
   },
   "devDependencies": {
-    "@types/fs-extra": "^11.0.4",
     "@types/glob": "^8.0.0",
     "@types/mocha": "^10.0.0",
     "@types/node": "16.x",
@@ -119,7 +103,6 @@
   },
   "dependencies": {
     "date-fns": "^2.29.3",
-    "fs-extra": "^11.1.1",
     "yaml": "^2.3.4"
   },
   "repository": {
