@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import * as fs from 'fs';
 
 export class StartActivityCommand {
     async execute(): Promise<boolean> {
@@ -27,8 +27,9 @@ export class StartActivityCommand {
             const currentActivityPath = path.join(forgeDir, 'current-activity.md');
 
             // Verificar se já existe atividade em andamento
-            if (await fs.pathExists(currentActivityPath)) {
-                const content = await fs.readFile(currentActivityPath, 'utf8');
+            try {
+                await fs.promises.access(currentActivityPath, fs.constants.F_OK);
+                const content = await fs.promises.readFile(currentActivityPath, 'utf8');
                 if (content.trim() && !content.includes('# Atividade: [Vazio]')) {
                     const overwrite = await vscode.window.showWarningMessage(
                         'Já existe uma atividade em andamento. Deseja sobrescrever?',
@@ -37,6 +38,10 @@ export class StartActivityCommand {
                     if (overwrite !== 'Sim') {
                         return false;
                     }
+                }
+            } catch (error: any) {
+                if (error.code !== 'ENOENT') {
+                    throw error;
                 }
             }
 
@@ -82,8 +87,13 @@ export class StartActivityCommand {
         const mainDirs = ['src', 'app', 'lib', 'components', 'models', 'controllers', 'services'];
         for (const dir of mainDirs) {
             const dirPath = path.join(workspacePath, dir);
-            if (await fs.pathExists(dirPath)) {
+            try {
+                await fs.promises.access(dirPath, fs.constants.F_OK);
                 analysis.push(`📁 Pasta encontrada: ${dir}/`);
+            } catch (error: any) {
+                if (error.code !== 'ENOENT') {
+                    console.error(`Error checking directory ${dir}:`, error);
+                }
             }
         }
 
@@ -91,13 +101,14 @@ export class StartActivityCommand {
         const configFiles = ['package.json', 'requirements.txt', 'Cargo.toml', 'go.mod', 'pom.xml'];
         for (const file of configFiles) {
             const filePath = path.join(workspacePath, file);
-            if (await fs.pathExists(filePath)) {
+            try {
+                await fs.promises.access(filePath, fs.constants.F_OK);
                 analysis.push(`⚙️ Configuração: ${file}`);
                 
                 // Detectar tecnologias específicas
                 if (file === 'package.json') {
                     try {
-                        const content = await fs.readFile(filePath, 'utf8');
+                        const content = await fs.promises.readFile(filePath, 'utf8');
                         const pkg = JSON.parse(content);
                         if (pkg.dependencies?.typescript || pkg.devDependencies?.typescript) {
                             analysis.push('🔧 TypeScript project detected');
@@ -108,6 +119,10 @@ export class StartActivityCommand {
                     } catch (error) {
                         // Ignore parsing errors
                     }
+                }
+            } catch (error: any) {
+                if (error.code !== 'ENOENT') {
+                    console.error(`Error checking file ${file}:`, error);
                 }
             }
         }
@@ -223,8 +238,8 @@ export class StartActivityCommand {
 
         const content = this.createActivityTemplate(activityName, clarificationMap);
         
-        await fs.ensureDir(path.dirname(filePath));
-        await fs.writeFile(filePath, content);
+        await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.promises.writeFile(filePath, content, 'utf8');
     }
 
 }

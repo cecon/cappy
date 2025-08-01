@@ -60,7 +60,7 @@ export class ForgeTaskProvider implements vscode.TreeDataProvider<TaskItem> {
                 if (task) {
                     const taskItem = new TaskItem(
                         task.name,
-                        task.status === TaskStatus.ACTIVE ? 'activeTask' : 'task',
+                        task.status === TaskStatus.active ? 'activeTask' : 'task',
                         task,
                         taskPath,
                         vscode.TreeItemCollapsibleState.Collapsed
@@ -86,7 +86,9 @@ export class ForgeTaskProvider implements vscode.TreeDataProvider<TaskItem> {
         const details: TaskItem[] = [];
         const task = taskItem.task;
 
-        if (!task) return details;
+        if (!task) {
+            return details;
+        }
 
         // Add status
         details.push(new TaskItem(
@@ -158,14 +160,14 @@ export class ForgeTaskProvider implements vscode.TreeDataProvider<TaskItem> {
             const taskName = namePart.charAt(0).toUpperCase() + namePart.slice(1).toLowerCase();
 
             // Determine status based on completion.md existence and content
-            let status = TaskStatus.ACTIVE;
+            let status = TaskStatus.active;
             let completedAt: Date | undefined;
             let actualHours: number | undefined;
 
             if (fs.existsSync(completionPath)) {
                 const completionContent = fs.readFileSync(completionPath, 'utf8');
                 if (completionContent.trim().length > 0) {
-                    status = TaskStatus.COMPLETED;
+                    status = TaskStatus.completed;
                     const stats = fs.statSync(completionPath);
                     completedAt = stats.mtime;
                     
@@ -232,11 +234,11 @@ export class ForgeTaskProvider implements vscode.TreeDataProvider<TaskItem> {
 
     private getTaskIcon(status: TaskStatus): vscode.ThemeIcon {
         switch (status) {
-            case TaskStatus.ACTIVE:
+            case TaskStatus.active:
                 return new vscode.ThemeIcon('play-circle', new vscode.ThemeColor('charts.blue'));
-            case TaskStatus.COMPLETED:
+            case TaskStatus.completed:
                 return new vscode.ThemeIcon('check-circle', new vscode.ThemeColor('charts.green'));
-            case TaskStatus.PAUSED:
+            case TaskStatus.paused:
                 return new vscode.ThemeIcon('pause-circle', new vscode.ThemeColor('charts.orange'));
             default:
                 return new vscode.ThemeIcon('circle-outline');
@@ -264,7 +266,7 @@ export class TaskItem extends vscode.TreeItem {
         
         if (task) {
             this.description = `${task.estimatedHours}h`;
-            if (task.status === TaskStatus.COMPLETED && task.actualHours) {
+            if (task.status === TaskStatus.completed && task.actualHours) {
                 this.description += ` (${task.actualHours}h actual)`;
             }
         }

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import * as fs from 'fs';
 
 export class CompleteActivityCommand {
     async execute(): Promise<boolean> {
@@ -28,12 +28,17 @@ export class CompleteActivityCommand {
             const historyDir = path.join(forgeDir, 'history');
 
             // Verificar se existe atividade atual
-            if (!await fs.pathExists(currentActivityPath)) {
-                vscode.window.showWarningMessage('Nenhuma atividade em andamento encontrada.');
-                return false;
+            try {
+                await fs.promises.access(currentActivityPath, fs.constants.F_OK);
+            } catch (error: any) {
+                if (error.code === 'ENOENT') {
+                    vscode.window.showWarningMessage('Nenhuma atividade em andamento encontrada.');
+                    return false;
+                }
+                throw error;
             }
 
-            const content = await fs.readFile(currentActivityPath, 'utf8');
+            const content = await fs.promises.readFile(currentActivityPath, 'utf8');
             if (!content.trim() || content.includes('# Atividade: [Vazio]')) {
                 vscode.window.showWarningMessage('Não há atividade ativa para completar.');
                 return false;
@@ -152,10 +157,12 @@ export class CompleteActivityCommand {
         const preventionRulesPath = path.join(forgeDir, 'prevention-rules.md');
         
         let content = '';
-        if (await fs.pathExists(preventionRulesPath)) {
-            content = await fs.readFile(preventionRulesPath, 'utf8');
-        } else {
-            content = `# Prevention Rules - ${new Date().toLocaleDateString('pt-BR')}
+        try {
+            await fs.promises.access(preventionRulesPath, fs.constants.F_OK);
+            content = await fs.promises.readFile(preventionRulesPath, 'utf8');
+        } catch (error: any) {
+            if (error.code === 'ENOENT') {
+                content = `# Prevention Rules - ${new Date().toLocaleDateString('pt-BR')}
 
 ## 📚 Como usar
 Este arquivo acumula lições aprendidas. Máximo 15 regras para manter foco.
@@ -163,6 +170,9 @@ Este arquivo acumula lições aprendidas. Máximo 15 regras para manter foco.
 ## 🚨 Regras Ativas
 
 `;
+            } else {
+                throw error;
+            }
         }
 
         // Adicionar novas regras sem duplicatas
@@ -173,11 +183,18 @@ Este arquivo acumula lições aprendidas. Máximo 15 regras para manter foco.
 
         content += '\n' + newRulesSection;
 
-        await fs.writeFile(preventionRulesPath, content);
+        await fs.promises.writeFile(preventionRulesPath, content, 'utf8');
     }
 
     private async moveToHistory(currentActivityPath: string, historyDir: string, activityName: string): Promise<void> {
-        await fs.ensureDir(historyDir);
+        // Ensure history directory exists
+        try {
+            await fs.promises.mkdir(historyDir, { recursive: true });
+        } catch (error: any) {
+            if (error.code !== 'EEXIST') {
+                throw error;
+            }
+        }
         
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
         const slug = activityName.toLowerCase()
@@ -188,7 +205,10 @@ Este arquivo acumula lições aprendidas. Máximo 15 regras para manter foco.
         const historyFileName = `${timestamp}-${slug}.md`;
         const historyFilePath = path.join(historyDir, historyFileName);
 
-        await fs.move(currentActivityPath, historyFilePath);
+        // Move file by copying and then deleting original
+        const content = await fs.promises.readFile(currentActivityPath, 'utf8');
+        await fs.promises.writeFile(historyFilePath, content, 'utf8');
+        await fs.promises.unlink(currentActivityPath);
     }
 
     private async createEmptyActivityFile(filePath: string): Promise<void> {
@@ -201,6 +221,6 @@ Este arquivo acumula lições aprendidas. Máximo 15 regras para manter foco.
 *Aguardando nova atividade...*
 `;
 
-        await fs.writeFile(filePath, emptyContent);
+        await fs.promises.writeFile(filePath, emptyContent, 'utf8');
     }
 }

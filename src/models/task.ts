@@ -20,9 +20,9 @@ export interface Task {
 }
 
 export enum TaskStatus {
-    ACTIVE = 'active',
-    COMPLETED = 'completed',
-    PAUSED = 'paused'
+    active = 'active',
+    completed = 'completed',
+    paused = 'paused'
 }
 
 export interface TaskTemplate {

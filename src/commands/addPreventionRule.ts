@@ -58,7 +58,7 @@ export class PreventionRuleAdder {
                 return false;
             }
 
-            const category = categoryOptions.find(opt => opt.label === selectedCategory)?.value || PreventionRuleCategory.OTHER;
+            const category = categoryOptions.find(opt => opt.label === selectedCategory)?.value || PreventionRuleCategory.other;
 
             const rule: PreventionRule = {
                 id: `rule-${Date.now()}`,

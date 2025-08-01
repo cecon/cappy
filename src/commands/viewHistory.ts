@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import * as fs from 'fs';
 
 interface HistoryItem {
     fileName: string;
@@ -32,9 +32,14 @@ export class ViewHistoryCommand {
 
             const historyDir = path.join(workspaceFolder.uri.fsPath, '.forge', 'history');
 
-            if (!await fs.pathExists(historyDir)) {
-                vscode.window.showInformationMessage('Nenhum histórico de atividades encontrado.');
-                return false;
+            try {
+                await fs.promises.access(historyDir, fs.constants.F_OK);
+            } catch (error: any) {
+                if (error.code === 'ENOENT') {
+                    vscode.window.showInformationMessage('Nenhum histórico de atividades encontrado.');
+                    return false;
+                }
+                throw error;
             }
 
             const historyItems = await this.loadHistoryItems(historyDir);
@@ -62,13 +67,13 @@ export class ViewHistoryCommand {
     }
 
     private async loadHistoryItems(historyDir: string): Promise<HistoryItem[]> {
-        const files = await fs.readdir(historyDir);
+        const files = await fs.promises.readdir(historyDir);
         const historyItems: HistoryItem[] = [];
 
         for (const fileName of files) {
             if (fileName.endsWith('.md')) {
                 const filePath = path.join(historyDir, fileName);
-                const stats = await fs.stat(filePath);
+                const stats = await fs.promises.stat(filePath);
                 
                 // Extrair timestamp e nome do arquivo
                 const match = fileName.match(/^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})-(.+)\.md$/);
@@ -131,14 +136,25 @@ export class ViewHistoryCommand {
     async generateHistoryReport(): Promise<void> {
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-            if (!workspaceFolder) return;
+            if (!workspaceFolder) {
+                return;
+            }
 
             const historyDir = path.join(workspaceFolder.uri.fsPath, '.forge', 'history');
-            if (!await fs.pathExists(historyDir)) return;
+            try {
+                await fs.promises.access(historyDir, fs.constants.F_OK);
+            } catch (error: any) {
+                if (error.code === 'ENOENT') {
+                    return;
+                }
+                throw error;
+            }
 
             const historyItems = await this.loadHistoryItems(historyDir);
             
-            if (historyItems.length === 0) return;
+            if (historyItems.length === 0) {
+                return;
+            }
 
             // Gerar relatório
             const report = this.generateReport(historyItems);

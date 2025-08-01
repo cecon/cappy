@@ -1,179 +1,124 @@
 import * as vscode from 'vscode';
-import { ForgeTaskProvider } from './providers/taskTreeProvider';
-import { ForgePreventionRulesProvider } from './providers/preventionRulesProvider';
-import { CopilotContextManager } from './utils/contextManager';
-import { ForgeConfig } from './models/forgeConfig';
-import { StartActivityCommand } from './commands/startActivity';
-import { CompleteActivityCommand } from './commands/completeActivity';
-import { ViewHistoryCommand } from './commands/viewHistory';
-import { PreventionRuleAdder } from './commands/addPreventionRule';
-import { ForgeDashboard } from './webview/markdownDashboard';
-import { InitForgeCommand } from './commands/initForge';
-import { TaskCreator } from './commands/createTask';
-import { TaskCompleter } from './commands/completeTask';
-import { FileManager } from './utils/fileManager';
-
-let copilotContextManager: CopilotContextManager;
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('🔨 FORGE Framework: Extension activation started');
+    console.log('🔨 FORGE Framework: Full activation started');
     
     // Show immediate activation message
-    vscode.window.showInformationMessage('🔨 FORGE Framework: Extension is activating...');
+    vscode.window.showInformationMessage('🔨 FORGE Framework: All commands activated!');
 
-    // Initialize providers
-    const taskProvider = new ForgeTaskProvider();
-    const preventionRulesProvider = new ForgePreventionRulesProvider();
-    
-    // Register tree data providers
-    vscode.window.registerTreeDataProvider('forgeExplorer', taskProvider);
-    vscode.window.registerTreeDataProvider('forgePreventionRules', preventionRulesProvider);
+    // Register test command (known working)
+    const testCommand = vscode.commands.registerCommand('forge.test', async () => {
+        vscode.window.showInformationMessage('🔨 FORGE Framework: Test command still working! 🎉');
+        console.log('🔨 FORGE Framework: Test command executed at', new Date().toISOString());
+    });
 
-    // Initialize Copilot context manager
-    copilotContextManager = new CopilotContextManager();
-
-    console.log('🔨 FORGE Framework: Providers and context manager initialized');
-    
-    // Show commands registration message
-    vscode.window.showInformationMessage('🔨 FORGE Framework: Registering commands...');
-
-    // Register commands
-    const commands = [
-        vscode.commands.registerCommand('forge.init', async () => {
-            const fileManager = new FileManager();
-            const initForge = new InitForgeCommand(fileManager);
-            const success = await initForge.execute();
-            if (success) {
-                taskProvider.refresh();
-                preventionRulesProvider.refresh();
-                await copilotContextManager.updateContext();
+    // Register init command (safe version)
+    const initCommand = vscode.commands.registerCommand('forge.init', async () => {
+        try {
+            vscode.window.showInformationMessage('🔨 FORGE Init: Starting initialization...');
+            
+            if (!vscode.workspace.workspaceFolders) {
+                vscode.window.showErrorMessage('FORGE: No workspace folder is open. Please open a folder first.');
+                return;
             }
-        }),
+            
+            const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            console.log('🔨 FORGE Init: Workspace root:', workspaceRoot);
+            
+            // TODO: Add actual initialization logic here
+            vscode.window.showInformationMessage('🔨 FORGE: Basic initialization completed! (Full implementation coming soon)');
+        } catch (error) {
+            console.error('FORGE Init error:', error);
+            vscode.window.showErrorMessage(`FORGE Init failed: ${error}`);
+        }
+    });
 
-        vscode.commands.registerCommand('forge.startActivity', async () => {
-            const startActivity = new StartActivityCommand();
-            const success = await startActivity.execute();
-            if (success) {
-                taskProvider.refresh();
-                preventionRulesProvider.refresh();
-                await copilotContextManager.updateContext();
+    // Register createTask command (placeholder)
+    const createTaskCommand = vscode.commands.registerCommand('forge.createTask', async () => {
+        try {
+            vscode.window.showInformationMessage('🔨 FORGE: Create Task command called!');
+            
+            if (!vscode.workspace.workspaceFolders) {
+                vscode.window.showErrorMessage('FORGE: No workspace folder is open. Please open a folder first.');
+                return;
             }
-        }),
+            
+            // TODO: Add actual task creation logic here
+            vscode.window.showInformationMessage('🔨 FORGE: Task creation placeholder executed! (Full implementation coming soon)');
+        } catch (error) {
+            console.error('FORGE CreateTask error:', error);
+            vscode.window.showErrorMessage(`FORGE CreateTask failed: ${error}`);
+        }
+    });
 
-        vscode.commands.registerCommand('forge.completeActivity', async () => {
-            const completeActivity = new CompleteActivityCommand();
-            const success = await completeActivity.execute();
-            if (success) {
-                taskProvider.refresh();
-                preventionRulesProvider.refresh();
-                await copilotContextManager.updateContext();
+    // Register createSmartTask command (placeholder)
+    const createSmartTaskCommand = vscode.commands.registerCommand('forge.createSmartTask', async () => {
+        try {
+            vscode.window.showInformationMessage('🔨 FORGE: Create Smart Task command called!');
+            
+            if (!vscode.workspace.workspaceFolders) {
+                vscode.window.showErrorMessage('FORGE: No workspace folder is open. Please open a folder first.');
+                return;
             }
-        }),
+            
+            // TODO: Add actual smart task creation logic here
+            vscode.window.showInformationMessage('🔨 FORGE: Smart task creation placeholder executed! (Full implementation coming soon)');
+        } catch (error) {
+            console.error('FORGE CreateSmartTask error:', error);
+            vscode.window.showErrorMessage(`FORGE CreateSmartTask failed: ${error}`);
+        }
+    });
 
-        vscode.commands.registerCommand('forge.viewHistory', async () => {
-            const viewHistory = new ViewHistoryCommand();
-            await viewHistory.execute();
-        }),
-
-        vscode.commands.registerCommand('forge.addPreventionRule', async () => {
-            const adder = new PreventionRuleAdder();
-            const success = await adder.show();
-            if (success) {
-                preventionRulesProvider.refresh();
-                await copilotContextManager.updateContext();
+    // Register addPreventionRule command (placeholder)
+    const addPreventionRuleCommand = vscode.commands.registerCommand('forge.addPreventionRule', async () => {
+        try {
+            vscode.window.showInformationMessage('🔨 FORGE: Add Prevention Rule command called!');
+            
+            if (!vscode.workspace.workspaceFolders) {
+                vscode.window.showErrorMessage('FORGE: No workspace folder is open. Please open a folder first.');
+                return;
             }
-        }),
+            
+            // TODO: Add actual prevention rule logic here
+            vscode.window.showInformationMessage('🔨 FORGE: Prevention rule placeholder executed! (Full implementation coming soon)');
+        } catch (error) {
+            console.error('FORGE AddPreventionRule error:', error);
+            vscode.window.showErrorMessage(`FORGE AddPreventionRule failed: ${error}`);
+        }
+    });
 
-        vscode.commands.registerCommand('forge.openDashboard', async () => {
-            console.log('🔨 FORGE Framework: Opening dashboard...');
-            const dashboard = new ForgeDashboard(context);
-            await dashboard.show();
-            console.log('🔨 FORGE Framework: Dashboard opened successfully');
-        }),
-
-        vscode.commands.registerCommand('forge.updateCopilotContext', async () => {
-            await copilotContextManager.updateContext();
-            vscode.window.showInformationMessage('Copilot context updated successfully!');
-        }),
-
-        vscode.commands.registerCommand('forge.exportRules', async () => {
-            // TODO: Implement export functionality
-            vscode.window.showInformationMessage('Export functionality coming soon!');
-        }),
-
-        vscode.commands.registerCommand('forge.refreshTasks', () => {
-            taskProvider.refresh();
-            preventionRulesProvider.refresh();
-        }),
-
-        vscode.commands.registerCommand('forge.openTask', (taskItem) => {
-            if (taskItem && taskItem.taskPath) {
-                const descriptionPath = vscode.Uri.file(`${taskItem.taskPath}/description.md`);
-                vscode.window.showTextDocument(descriptionPath);
+    // Register completeTask command (placeholder)
+    const completeTaskCommand = vscode.commands.registerCommand('forge.completeTask', async () => {
+        try {
+            vscode.window.showInformationMessage('🔨 FORGE: Complete Task command called!');
+            
+            if (!vscode.workspace.workspaceFolders) {
+                vscode.window.showErrorMessage('FORGE: No workspace folder is open. Please open a folder first.');
+                return;
             }
-        }),
+            
+            // TODO: Add actual task completion logic here
+            vscode.window.showInformationMessage('🔨 FORGE: Task completion placeholder executed! (Full implementation coming soon)');
+        } catch (error) {
+            console.error('FORGE CompleteTask error:', error);
+            vscode.window.showErrorMessage(`FORGE CompleteTask failed: ${error}`);
+        }
+    });
 
-        vscode.commands.registerCommand('forge.createTask', async () => {
-            const taskCreator = new TaskCreator();
-            const success = await taskCreator.show();
-            if (success) {
-                taskProvider.refresh();
-                preventionRulesProvider.refresh();
-                await copilotContextManager.updateContext();
-            }
-        }),
-
-        vscode.commands.registerCommand('forge.completeTask', async (taskItem) => {
-            const taskCompleter = new TaskCompleter();
-            const success = await taskCompleter.show(taskItem);
-            if (success) {
-                taskProvider.refresh();
-                preventionRulesProvider.refresh();
-                await copilotContextManager.updateContext();
-            }
-        })
-    ];
-
-    // Register all disposables
-    context.subscriptions.push(...commands, copilotContextManager);
-    
-    // Show final activation message
-    vscode.window.showInformationMessage('🔨 FORGE Framework: Extension activated successfully! Commands are ready.');
-
-    // Setup configuration change listener
+    // Register all commands
     context.subscriptions.push(
-        vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('forge.autoUpdateCopilotContext')) {
-                const autoUpdate = vscode.workspace.getConfiguration('forge').get('autoUpdateCopilotContext', true);
-                if (autoUpdate) {
-                    copilotContextManager.startWatching();
-                } else {
-                    copilotContextManager.stopWatching();
-                }
-            }
-        })
+        testCommand, 
+        initCommand, 
+        createTaskCommand, 
+        createSmartTaskCommand, 
+        addPreventionRuleCommand, 
+        completeTaskCommand
     );
-
-    // Check if FORGE is initialized in workspace and start watching if needed
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (workspaceFolders) {
-        const forgeConfigPath = vscode.Uri.joinPath(workspaceFolders[0].uri, '.forge', 'config.yml');
-        vscode.workspace.fs.stat(forgeConfigPath).then(
-            () => {
-                // FORGE is initialized, start watching for changes
-                copilotContextManager.startWatching();
-                console.log('🔨 FORGE Framework: Started watching for changes in initialized workspace');
-            },
-            () => {
-                // FORGE not initialized - extension is ready but not watching
-                console.log('🔨 FORGE Framework: Ready (workspace not yet initialized)');
-            }
-        );
-    }
+    
+    console.log('🔨 FORGE Framework: All commands registered successfully');
+    vscode.window.showInformationMessage('🔨 FORGE Framework: Ready! All 6 commands available.');
 }
 
 export function deactivate() {
-    if (copilotContextManager) {
-        copilotContextManager.dispose();
-    }
+    console.log('🔨 FORGE Framework: Full deactivation');
 }

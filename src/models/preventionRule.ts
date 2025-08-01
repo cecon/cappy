@@ -15,16 +15,16 @@ export interface PreventionRule {
 }
 
 export enum PreventionRuleCategory {
-    DATABASE = 'database',
-    SECURITY = 'security',
-    PERFORMANCE = 'performance',
-    TESTING = 'testing',
-    DEPLOYMENT = 'deployment',
-    VALIDATION = 'validation',
-    ERROR_HANDLING = 'error-handling',
-    CONFIGURATION = 'configuration',
-    ARCHITECTURE = 'architecture',
-    OTHER = 'other'
+    database = 'database',
+    security = 'security',
+    performance = 'performance',
+    testing = 'testing',
+    deployment = 'deployment',
+    validation = 'validation',
+    errorHandling = 'error-handling',
+    configuration = 'configuration',
+    architecture = 'architecture',
+    other = 'other'
 }
 
 export interface PreventionRuleTemplate {

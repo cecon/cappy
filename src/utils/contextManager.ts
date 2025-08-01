@@ -275,7 +275,9 @@ The following rules were learned from previous mistakes and difficulties. Apply 
         const rulesByCategory = this.groupRulesByCategory(limitedRules);
 
         for (const [category, categoryRules] of rulesByCategory.entries()) {
-            if (categoryRules.length === 0) continue;
+            if (categoryRules.length === 0) {
+                continue;
+            }
 
             const categoryName = category.charAt(0).toUpperCase() + category.slice(1).replace('-', ' ');
             instructions += `### ${categoryName} Rules\n\n`;

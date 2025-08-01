@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileManager } from '../utils/fileManager';
-import * as fs from 'fs-extra';
+import * as fs from 'fs';
 
 /**
  * Generates and displays a Markdown-based dashboard.
@@ -97,13 +97,18 @@ export class ForgeDashboard {
     private async getPreventionRulesCount(): Promise<number> {
         try {
             const rulesPath = path.join(this.getWorkspaceRoot(), '.forge', 'prevention-rules.md');
-            if (await fs.pathExists(rulesPath)) {
-                const content = await fs.readFile(rulesPath, 'utf8');
+            try {
+                await fs.promises.access(rulesPath, fs.constants.F_OK);
+                const content = await fs.promises.readFile(rulesPath, 'utf8');
                 // Count ## headers as rules
                 const rules = content.match(/^## /gm) || [];
                 return rules.length;
+            } catch (error: any) {
+                if (error.code === 'ENOENT') {
+                    return 0;
+                }
+                throw error;
             }
-            return 0;
         } catch (error) {
             return 0;
         }
@@ -157,8 +162,18 @@ export class ForgeDashboard {
             const completionPath = path.join(taskPath, 'completion.md');
             const descriptionPath = path.join(taskPath, 'description.md');
 
-            const isCompleted = await fs.pathExists(completionPath) && 
-                               (await fs.readFile(completionPath, 'utf8')).trim().length > 0;
+            // Check if task is completed
+            let isCompleted = false;
+            try {
+                await fs.promises.access(completionPath, fs.constants.F_OK);
+                const completionContent = await fs.promises.readFile(completionPath, 'utf8');
+                isCompleted = completionContent.trim().length > 0;
+            } catch (error: any) {
+                if (error.code !== 'ENOENT') {
+                    console.error('Error reading completion file:', error);
+                }
+                isCompleted = false;
+            }
 
             if (isCompleted) {
                 completedTasks++;
@@ -167,8 +182,9 @@ export class ForgeDashboard {
             }
 
             // Extract estimated hours
-            if (await fs.pathExists(descriptionPath)) {
-                const descContent = await fs.readFile(descriptionPath, 'utf8');
+            try {
+                await fs.promises.access(descriptionPath, fs.constants.F_OK);
+                const descContent = await fs.promises.readFile(descriptionPath, 'utf8');
                 const hoursMatch = /estimated.*?(\d+(?:\.\d+)?)\s*h/i.exec(descContent);
                 if (hoursMatch) {
                     const estimated = parseFloat(hoursMatch[1]);
@@ -176,14 +192,25 @@ export class ForgeDashboard {
 
                     if (isCompleted) {
                         // Try to extract actual hours from completion
-                        const compContent = await fs.readFile(completionPath, 'utf8');
-                        const actualHoursMatch = /actual.*?(\d+(?:\.\d+)?)\s*h/i.exec(compContent);
-                        if (actualHoursMatch) {
-                            totalActual += parseFloat(actualHoursMatch[1]);
-                        } else {
-                            totalActual += estimated; // Assume actual equals estimated if not specified
+                        try {
+                            const compContent = await fs.promises.readFile(completionPath, 'utf8');
+                            const actualHoursMatch = /actual.*?(\d+(?:\.\d+)?)\s*h/i.exec(compContent);
+                            if (actualHoursMatch) {
+                                totalActual += parseFloat(actualHoursMatch[1]);
+                            } else {
+                                totalActual += estimated; // Assume actual equals estimated if not specified
+                            }
+                        } catch (error: any) {
+                            if (error.code !== 'ENOENT') {
+                                console.error('Error reading completion content for hours:', error);
+                            }
+                            totalActual += estimated;
                         }
                     }
+                }
+            } catch (error: any) {
+                if (error.code !== 'ENOENT') {
+                    console.error('Error reading description file:', error);
                 }
             }
         }
@@ -213,20 +240,36 @@ export class ForgeDashboard {
             const descriptionPath = path.join(taskPath, 'description.md');
             const completionPath = path.join(taskPath, 'completion.md');
 
-            if (await fs.pathExists(descriptionPath)) {
-                const descContent = await fs.readFile(descriptionPath, 'utf8');
+            try {
+                await fs.promises.access(descriptionPath, fs.constants.F_OK);
+                const descContent = await fs.promises.readFile(descriptionPath, 'utf8');
                 const titleMatch = descContent.match(/^#\s*(.*)/m);
                 const title = titleMatch ? titleMatch[1] : taskFolder;
-                const isCompleted = await fs.pathExists(completionPath) && 
-                                   (await fs.readFile(completionPath, 'utf8')).trim().length > 0;
                 
-                const stats = await fs.stat(descriptionPath);
+                // Check if task is completed
+                let isCompleted = false;
+                try {
+                    await fs.promises.access(completionPath, fs.constants.F_OK);
+                    const completionContent = await fs.promises.readFile(completionPath, 'utf8');
+                    isCompleted = completionContent.trim().length > 0;
+                } catch (error: any) {
+                    if (error.code !== 'ENOENT') {
+                        console.error('Error checking completion:', error);
+                    }
+                    isCompleted = false;
+                }
+                
+                const stats = await fs.promises.stat(descriptionPath);
                 activities.push({
                     id: taskFolder,
                     title,
                     status: isCompleted ? 'Completed' : 'Active',
                     date: stats.mtime.toLocaleDateString()
                 });
+            } catch (error: any) {
+                if (error.code !== 'ENOENT') {
+                    console.error('Error reading description file for activity:', error);
+                }
             }
         }
         return activities;
@@ -235,7 +278,7 @@ export class ForgeDashboard {
     private async getCopilotContextLastUpdated(): Promise<string> {
         try {
             const contextPath = path.join(this.getWorkspaceRoot(), '.forge', 'copilot-instructions.md');
-            const stats = await fs.stat(contextPath);
+            const stats = await fs.promises.stat(contextPath);
             return stats.mtime.toLocaleString();
         } catch (error) {
             return 'Never';

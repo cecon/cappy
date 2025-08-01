@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import * as fs from 'fs';
 import { FileManager } from '../utils/fileManager';
 import { Task, TaskStatus } from '../models/task';
 
@@ -105,10 +105,16 @@ export class TaskCompleter {
                     const taskPath = path.join(vscode.workspace.workspaceFolders![0].uri.fsPath, 'tasks', folder);
                     const configPath = path.join(taskPath, 'config.json');
                     
-                    if (await fs.pathExists(configPath)) {
-                        const config = await fs.readJson(configPath);
-                        if (config.status === TaskStatus.ACTIVE) {
+                    try {
+                        await fs.promises.access(configPath, fs.constants.F_OK);
+                        const configContent = await fs.promises.readFile(configPath, 'utf8');
+                        const config = JSON.parse(configContent);
+                        if (config.status === TaskStatus.active) {
                             activeTasks.push(config);
+                        }
+                    } catch (error: any) {
+                        if (error.code !== 'ENOENT') {
+                            console.error('Error reading task config:', error);
                         }
                     }
                 } catch (error) {
@@ -145,12 +151,12 @@ export class TaskCompleter {
 
     private async completeTask(task: Task, completionData: any): Promise<boolean> {
         try {
-            task.status = TaskStatus.COMPLETED;
+            task.status = TaskStatus.completed;
             task.actualHours = completionData.actualHours;
             task.completedAt = completionData.completedAt;
 
             const taskConfigPath = path.join(task.path, 'config.json');
-            await fs.writeFile(taskConfigPath, JSON.stringify(task, null, 2), 'utf8');
+            await fs.promises.writeFile(taskConfigPath, JSON.stringify(task, null, 2), 'utf8');
 
             await this.generateCompletionReport(task, completionData);
 
@@ -198,6 +204,6 @@ ${completionData.summary}
 `;
 
         const reportPath = path.join(task.path, 'completion-report.md');
-        await fs.writeFile(reportPath, report, 'utf8');
+        await fs.promises.writeFile(reportPath, report, 'utf8');
     }
 }

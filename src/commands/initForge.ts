@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import * as fs from 'fs';
 import { FileManager } from '../utils/fileManager';
 import { ForgeConfig, DEFAULT_FORGE_CONFIG } from '../models/forgeConfig';
 
@@ -33,13 +33,18 @@ export class InitForgeCommand {
             const githubDir = path.join(workspaceFolder.uri.fsPath, '.github');
 
             // Verificar se já existe
-            if (await fs.pathExists(forgeDir)) {
+            try {
+                await fs.promises.access(forgeDir, fs.constants.F_OK);
                 const overwrite = await vscode.window.showWarningMessage(
                     '⚠️ FORGE já foi inicializado neste projeto. Sobrescrever?',
                     'Sim', 'Não'
                 );
                 if (overwrite !== 'Sim') {
                     return false;
+                }
+            } catch (error: any) {
+                if (error.code !== 'ENOENT') {
+                    throw error;
                 }
             }
 
@@ -53,9 +58,9 @@ export class InitForgeCommand {
                 progress.report({ increment: 0, message: 'Criando estrutura...' });
                 
                 // 1. Criar estrutura básica
-                await fs.ensureDir(forgeDir);
-                await fs.ensureDir(githubDir);
-                await fs.ensureDir(path.join(forgeDir, 'history'));
+                await fs.promises.mkdir(forgeDir, { recursive: true });
+                await fs.promises.mkdir(githubDir, { recursive: true });
+                await fs.promises.mkdir(path.join(forgeDir, 'history'), { recursive: true });
 
                 progress.report({ increment: 20, message: 'Coletando informações do projeto...' });
 
@@ -137,13 +142,25 @@ export class InitForgeCommand {
         const languages: string[] = [];
         
         // Verificar arquivos comuns
-        if (await fs.pathExists(path.join(workspacePath, 'package.json'))) {
+        try {
+            await fs.promises.access(path.join(workspacePath, 'package.json'), fs.constants.F_OK);
             languages.push('javascript');
             
             // Verificar se é TypeScript
-            if (await fs.pathExists(path.join(workspacePath, 'tsconfig.json')) ||
-                await this.hasFilesWithExtension(workspacePath, '.ts')) {
+            try {
+                await fs.promises.access(path.join(workspacePath, 'tsconfig.json'), fs.constants.F_OK);
                 languages.push('typescript');
+            } catch (error: any) {
+                if (error.code === 'ENOENT') {
+                    // Check for .ts files
+                    if (await this.hasFilesWithExtension(workspacePath, '.ts')) {
+                        languages.push('typescript');
+                    }
+                }
+            }
+        } catch (error: any) {
+            if (error.code !== 'ENOENT') {
+                console.error('Error checking package.json:', error);
             }
         }
         
@@ -167,8 +184,10 @@ export class InitForgeCommand {
         
         try {
             const packageJsonPath = path.join(workspacePath, 'package.json');
-            if (await fs.pathExists(packageJsonPath)) {
-                const packageJson = await fs.readJson(packageJsonPath);
+            try {
+                await fs.promises.access(packageJsonPath, fs.constants.F_OK);
+                const packageJsonContent = await fs.promises.readFile(packageJsonPath, 'utf8');
+                const packageJson = JSON.parse(packageJsonContent);
                 const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
                 
                 if (deps['react']) { frameworks.push('react'); }
@@ -177,6 +196,10 @@ export class InitForgeCommand {
                 if (deps['@angular/core']) { frameworks.push('angular'); }
                 if (deps['express']) { frameworks.push('express'); }
                 if (deps['vscode']) { frameworks.push('vscode-extension'); }
+            } catch (error: any) {
+                if (error.code !== 'ENOENT') {
+                    console.error('Error reading package.json:', error);
+                }
             }
         } catch (error) {
             // Ignore errors
@@ -187,8 +210,8 @@ export class InitForgeCommand {
 
     private async hasFilesWithExtension(dirPath: string, extension: string): Promise<boolean> {
         try {
-            const files = await fs.readdir(dirPath);
-            return files.some(file => file.endsWith(extension));
+            const files = await fs.promises.readdir(dirPath);
+            return files.some((file: string) => file.endsWith(extension));
         } catch {
             return false;
         }
@@ -244,7 +267,7 @@ Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) par
 *Este arquivo é privado e não deve ser commitado. Ele contém suas instruções personalizadas para o GitHub Copilot.*
 `;
 
-        await fs.writeFile(instructionsPath, instructions, 'utf8');
+        await fs.promises.writeFile(instructionsPath, instructions, 'utf8');
     }
 
     private async createInitialPreventionRules(forgeDir: string): Promise<void> {
@@ -274,7 +297,7 @@ Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) par
 *⚡ Máximo de 15 regras para manter contexto enxuto e eficaz*
 `;
 
-        await fs.writeFile(rulesPath, initialRules, 'utf8');
+        await fs.promises.writeFile(rulesPath, initialRules, 'utf8');
     }
 
     private async updateGitignore(workspacePath: string): Promise<void> {
@@ -288,14 +311,19 @@ Este projeto usa a metodologia FORGE (Focus, Organize, Record, Grow, Evolve) par
 
         try {
             let gitignoreContent = '';
-            if (await fs.pathExists(gitignorePath)) {
-                gitignoreContent = await fs.readFile(gitignorePath, 'utf8');
+            try {
+                await fs.promises.access(gitignorePath, fs.constants.F_OK);
+                gitignoreContent = await fs.promises.readFile(gitignorePath, 'utf8');
+            } catch (error: any) {
+                if (error.code !== 'ENOENT') {
+                    throw error;
+                }
             }
 
             // Verificar se já tem as entradas
             if (!gitignoreContent.includes('.github/copilot-instructions.md')) {
                 gitignoreContent += forgeEntries;
-                await fs.writeFile(gitignorePath, gitignoreContent, 'utf8');
+                await fs.promises.writeFile(gitignorePath, gitignoreContent, 'utf8');
             }
         } catch (error) {
             // Ignorar erros do .gitignore

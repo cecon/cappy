@@ -189,34 +189,34 @@ export class ForgePreventionRulesProvider implements vscode.TreeDataProvider<Pre
         const problemLower = problem.toLowerCase();
         
         if (problemLower.includes('database') || problemLower.includes('sql') || problemLower.includes('migration')) {
-            return PreventionRuleCategory.DATABASE;
+            return PreventionRuleCategory.database;
         }
         if (problemLower.includes('security') || problemLower.includes('password') || problemLower.includes('auth')) {
-            return PreventionRuleCategory.SECURITY;
+            return PreventionRuleCategory.security;
         }
         if (problemLower.includes('performance') || problemLower.includes('slow') || problemLower.includes('memory')) {
-            return PreventionRuleCategory.PERFORMANCE;
+            return PreventionRuleCategory.performance;
         }
         if (problemLower.includes('test') || problemLower.includes('spec')) {
-            return PreventionRuleCategory.TESTING;
+            return PreventionRuleCategory.testing;
         }
         if (problemLower.includes('deploy') || problemLower.includes('build') || problemLower.includes('ci')) {
-            return PreventionRuleCategory.DEPLOYMENT;
+            return PreventionRuleCategory.deployment;
         }
         if (problemLower.includes('validation') || problemLower.includes('validate') || problemLower.includes('input')) {
-            return PreventionRuleCategory.VALIDATION;
+            return PreventionRuleCategory.validation;
         }
         if (problemLower.includes('error') || problemLower.includes('exception') || problemLower.includes('catch')) {
-            return PreventionRuleCategory.ERROR_HANDLING;
+            return PreventionRuleCategory.errorHandling;
         }
         if (problemLower.includes('config') || problemLower.includes('environment') || problemLower.includes('env')) {
-            return PreventionRuleCategory.CONFIGURATION;
+            return PreventionRuleCategory.configuration;
         }
         if (problemLower.includes('architecture') || problemLower.includes('design') || problemLower.includes('pattern')) {
-            return PreventionRuleCategory.ARCHITECTURE;
+            return PreventionRuleCategory.architecture;
         }
         
-        return PreventionRuleCategory.OTHER;
+        return PreventionRuleCategory.other;
     }
 
     private extractTags(problem: string, solution: string): string[] {
@@ -243,23 +243,23 @@ export class ForgePreventionRulesProvider implements vscode.TreeDataProvider<Pre
 
     private getCategoryIcon(category: PreventionRuleCategory): vscode.ThemeIcon {
         switch (category) {
-            case PreventionRuleCategory.DATABASE:
+            case PreventionRuleCategory.database:
                 return new vscode.ThemeIcon('database');
-            case PreventionRuleCategory.SECURITY:
+            case PreventionRuleCategory.security:
                 return new vscode.ThemeIcon('shield');
-            case PreventionRuleCategory.PERFORMANCE:
+            case PreventionRuleCategory.performance:
                 return new vscode.ThemeIcon('dashboard');
-            case PreventionRuleCategory.TESTING:
+            case PreventionRuleCategory.testing:
                 return new vscode.ThemeIcon('beaker');
-            case PreventionRuleCategory.DEPLOYMENT:
+            case PreventionRuleCategory.deployment:
                 return new vscode.ThemeIcon('rocket');
-            case PreventionRuleCategory.VALIDATION:
+            case PreventionRuleCategory.validation:
                 return new vscode.ThemeIcon('check');
-            case PreventionRuleCategory.ERROR_HANDLING:
+            case PreventionRuleCategory.errorHandling:
                 return new vscode.ThemeIcon('warning');
-            case PreventionRuleCategory.CONFIGURATION:
+            case PreventionRuleCategory.configuration:
                 return new vscode.ThemeIcon('settings-gear');
-            case PreventionRuleCategory.ARCHITECTURE:
+            case PreventionRuleCategory.architecture:
                 return new vscode.ThemeIcon('symbol-structure');
             default:
                 return new vscode.ThemeIcon('circle-outline');
