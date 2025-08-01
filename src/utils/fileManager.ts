@@ -23,7 +23,7 @@ export class FileManager {
         return this.ensureWorkspace();
     }
 
-    async ensureForgeStructure(): Promise<void> {
+    async ensureCapybaraStructure(): Promise<void> {
         const workspaceRoot = this.ensureWorkspace();
         const forgePath = path.join(workspaceRoot, '.forge');
         const tasksPath = path.join(workspaceRoot, 'tasks');

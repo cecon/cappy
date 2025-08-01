@@ -6,7 +6,7 @@ import { FileManager } from '../utils/fileManager';
 
 type PreventionRuleItemChangeEvent = PreventionRuleItem | undefined | null | void;
 
-export class ForgePreventionRulesProvider implements vscode.TreeDataProvider<PreventionRuleItem> {
+export class CapybaraPreventionRulesProvider implements vscode.TreeDataProvider<PreventionRuleItem> {
     private readonly _onDidChangeTreeData: vscode.EventEmitter<PreventionRuleItemChangeEvent> = new vscode.EventEmitter<PreventionRuleItemChangeEvent>();
     readonly onDidChangeTreeData: vscode.Event<PreventionRuleItemChangeEvent> = this._onDidChangeTreeData.event;
 

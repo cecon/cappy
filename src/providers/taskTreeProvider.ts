@@ -6,7 +6,7 @@ import { FileManager } from '../utils/fileManager';
 
 type TaskItemChangeEvent = TaskItem | undefined | null | void;
 
-export class ForgeTaskProvider implements vscode.TreeDataProvider<TaskItem> {
+export class CapybaraTaskProvider implements vscode.TreeDataProvider<TaskItem> {
     private readonly _onDidChangeTreeData: vscode.EventEmitter<TaskItemChangeEvent> = new vscode.EventEmitter<TaskItemChangeEvent>();
     readonly onDidChangeTreeData: vscode.Event<TaskItemChangeEvent> = this._onDidChangeTreeData.event;
 

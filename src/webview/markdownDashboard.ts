@@ -6,7 +6,7 @@ import * as fs from 'fs';
 /**
  * Generates and displays a Markdown-based dashboard.
  */
-export class ForgeDashboard {
+export class CapybaraDashboard {
     private fileManager: FileManager | undefined;
 
     constructor(private context: vscode.ExtensionContext) {
@@ -50,10 +50,10 @@ export class ForgeDashboard {
             if (!config) {
                 console.log('🔨 Capybara Dashboard: No Capybara config found');
                 vscode.window.showInformationMessage(
-                    "Please initialize Capybara in this workspace first by running 'FORGE: Initialize Capybara'.",
-                    'Initialize FORGE'
+                    "Please initialize Capybara in this workspace first by running 'Capybara: Initialize Capybara'.",
+                    'Initialize Capybara'
                 ).then(choice => {
-                    if (choice === 'Initialize FORGE') {
+                    if (choice === 'Initialize Capybara') {
                         vscode.commands.executeCommand('capybara.init');
                     }
                 });
@@ -96,7 +96,7 @@ export class ForgeDashboard {
 
     private async getPreventionRulesCount(): Promise<number> {
         try {
-            const rulesPath = path.join(this.getWorkspaceRoot(), '.forge', 'prevention-rules.md');
+            const rulesPath = path.join(this.getWorkspaceRoot(), '.capy', 'prevention-rules.md');
             try {
                 await fs.promises.access(rulesPath, fs.constants.F_OK);
                 const content = await fs.promises.readFile(rulesPath, 'utf8');
@@ -277,7 +277,7 @@ export class ForgeDashboard {
 
     private async getCopilotContextLastUpdated(): Promise<string> {
         try {
-            const contextPath = path.join(this.getWorkspaceRoot(), '.forge', 'copilot-instructions.md');
+            const contextPath = path.join(this.getWorkspaceRoot(), '.capy', 'copilot-instructions.md');
             const stats = await fs.promises.stat(contextPath);
             return stats.mtime.toLocaleString();
         } catch (error) {
