@@ -2,7 +2,7 @@
   "name": "capybara",
   "displayName": "Capybara",
   "description": "Your calm and wise AI coding companion that learns from your mistakes and prevents them automatically",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
