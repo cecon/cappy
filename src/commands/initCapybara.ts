@@ -268,17 +268,13 @@ This project uses Capybara methodology (Focus, Organize, Record, Grow, Evolve) f
 
 ### **⚠️ Current Extension State:**
 - **Initialization**: Fully functional
-- **Task Creation**: XML structured with steps, criteria and validation
-- **Progress Management**: Tracking completion by step
-- **Other commands**: Mostly placeholders (show "Coming soon!")
-- **Focus**: Incremental development with Capybara methodology
+- **Focus**: Minimal, focused extension with only essential initialization
 
 ### **🎯 Recommended Workflow:**
 1. Use \`Capybara: Initialize\` to configure new project
-2. Use \`Capybara: Create New Task\` to create structured XML tasks
-3. Edit task.xml to define project-specific steps
-4. Mark steps as complete by changing \`concluido="true"\`
-5. For other features, wait for implementation or contribute!
+2. Manually create and edit task.xml files in .capy folder
+3. Mark steps as complete by changing \`concluido="true"\`
+4. Use external tools or manual processes for task management
 
 ### **📄 XML Task Structure:**
 
@@ -322,27 +318,24 @@ This project uses Capybara methodology (Focus, Organize, Record, Grow, Evolve) f
 
 #### **✅ Functional Commands:**
 - \`Capybara: Initialize\` - Initialize Capybara in workspace
-- \`Capybara: Create New Task\` - Create new structured XML task
-- \`Capybara: Current Task\` - View current task (with validation)
 - \`Capybara: Test Capybara Extension\` - Test if extension is working
 
-#### **🚧 Commands in Development:**
-- \`Capybara: Manage All Tasks\` - Manage all tasks (coming soon)
-- \`Capybara: Pause Current Task\` - Pause current task (coming soon)
-- \`Capybara: Complete Task\` - Complete and move to history (coming soon)
-- \`Capybara: Update Step Progress\` - Mark steps as completed (coming soon)
-- \`Capybara: Complete Current Task\` - Complete current task (coming soon)
-- \`Capybara: Task History\` - View task history (coming soon)
-
-#### **🔄 Legacy Commands:**
-- \`Capybara: Create Smart Task (Legacy)\` - Redirects to Create New Task
-- \`Capybara: Add Prevention Rule (Legacy)\` - Functionality automatically integrated
+#### **� Manual File Management:**
+- Create task.xml files manually in .capy/tasks/
+- Edit prevention-rules.md manually
+- Manage project structure manually
+- Use standard VS Code features for file operations
 
 ### **📝 Current Development State:**
 - ✅ Initialization and configuration: **Complete**
-- ✅ Basic task creation: **Functional with validation**
-- 🚧 Task management: **In development**
-- 🚧 History and analytics: **Planned**
+- ✅ Project setup: **Functional**
+- � Task management: **Manual file-based**
+- � History and analytics: **Manual tracking**
+
+### **🎯 Philosophy:**
+This extension focuses on **initialization only** - providing the essential structure and 
+documentation for Capybara methodology. All task management is done manually through 
+file editing, keeping the extension lightweight and focused.
 
 ---
 *This file is private and should not be committed. It contains your personalized instructions for GitHub Copilot.*
