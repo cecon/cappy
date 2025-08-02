@@ -91,6 +91,76 @@ export class FileManager {
         await fs.promises.writeFile(instructionsPath, content, 'utf8');
     }
 
+    /**
+     * Update or inject Capybara instructions in copilot-instructions.md with version control
+     */
+    async updateCapybaraInstructions(capybaraContent: string, version: string): Promise<void> {
+        const instructionsPath = await this.getCopilotInstructionsPath();
+        const startMarker = `=====================START CAPYBARA MEMORY v${version}=====================`;
+        const endMarker = `======================END CAPYBARA MEMORY v${version}======================`;
+        
+        let existingContent = '';
+        if (fs.existsSync(instructionsPath)) {
+            existingContent = await fs.promises.readFile(instructionsPath, 'utf8');
+        }
+
+        // Remove any existing Capybara sections (any version)
+        const cleanedContent = this.removeExistingCapybaraSection(existingContent);
+        
+        // Add new Capybara section
+        const newContent = cleanedContent.trim() 
+            ? `${cleanedContent}\n\n${capybaraContent}`
+            : capybaraContent;
+
+        await fs.promises.writeFile(instructionsPath, newContent, 'utf8');
+    }
+
+    /**
+     * Remove existing Capybara section from content
+     */
+    private removeExistingCapybaraSection(content: string): string {
+        const startPattern = /=+START CAPYBARA MEMORY v[\d.]+={20,}/;
+        const endPattern = /=+END CAPYBARA MEMORY v[\d.]+={20,}/;
+        
+        const lines = content.split('\n');
+        const result: string[] = [];
+        let inCapybaraSection = false;
+        
+        for (const line of lines) {
+            if (startPattern.test(line)) {
+                inCapybaraSection = true;
+                continue;
+            }
+            
+            if (endPattern.test(line)) {
+                inCapybaraSection = false;
+                continue;
+            }
+            
+            if (!inCapybaraSection) {
+                result.push(line);
+            }
+        }
+        
+        return result.join('\n').trim();
+    }
+
+    /**
+     * Get current Capybara version from instructions file
+     */
+    async getCurrentCapybaraVersion(): Promise<string | null> {
+        const instructionsPath = await this.getCopilotInstructionsPath();
+        
+        if (!fs.existsSync(instructionsPath)) {
+            return null;
+        }
+        
+        const content = await fs.promises.readFile(instructionsPath, 'utf8');
+        const versionMatch = content.match(/START CAPYBARA MEMORY v([\d.]+)/);
+        
+        return versionMatch ? versionMatch[1] : null;
+    }
+
     async getTaskFolders(): Promise<string[]> {
         const tasksPath = path.join(this.ensureWorkspace(), 'tasks');
         

@@ -227,76 +227,127 @@ export class InitCapybaraCommand {
     }
 
     private async createCopilotInstructions(config: CapybaraConfig, githubDir: string, projectInfo: any): Promise<void> {
-        const instructionsPath = path.join(githubDir, 'copilot-instructions.md');
-        
-        const instructions = `# 🔨 Capybara - Instruções para GitHub Copilot
+        const capybaraVersion = "1.0.0";
+        const instructions = this.generateCapybaraInstructions(config, projectInfo, capybaraVersion);
 
-## 📋 **CONTEXTO DO PROJETO**
-- **Projeto**: ${config.project.name}
-- **Tipo**: ${projectInfo.type}
-- **Linguagem Principal**: ${config.project.language}
-- **Frameworks**: ${config.project.framework?.join(', ') || 'Nenhum detectado'}
+        // Use FileManager to handle version-controlled instructions
+        const fileManager = new FileManager();
+        await fileManager.updateCapybaraInstructions(instructions, capybaraVersion);
+    }
 
-## 🎯 **METODOLOGIA Capybara**
-Este projeto usa a metodologia Capybara (Focus, Organize, Record, Grow, Evolve) para desenvolvimento solo:
+    private generateCapybaraInstructions(config: CapybaraConfig, projectInfo: any, version: string): string {
+        return `=====================START CAPYBARA MEMORY v${version}=====================
+# 🔨 Capybara - GitHub Copilot Instructions
 
-### **Princípios:**
-1. **Tarefas Atômicas**: Máximo 2-3 horas por STEP
-2. **Aprendizado Contínuo**: Cada erro vira uma prevention rule
-3. **Contexto Preservado**: AI sempre informada do estado atual
-4. **Documentação Mínima**: Só o essencial que economiza tempo
+## 📋 **PROJECT CONTEXT**
+- **Project**: ${config.project.name}
+- **Type**: ${projectInfo.type}
+- **Main Language**: ${config.project.language.join(', ')}
+- **Frameworks**: ${config.project.framework?.join(', ') || 'None detected'}
 
-### **Prevention Rules Ativas:**
-*As regras serão carregadas automaticamente do arquivo .capy/prevention-rules.md*
+## 🎯 **CAPYBARA METHODOLOGY**
+This project uses Capybara methodology (Focus, Organize, Record, Grow, Evolve) for solo development:
 
-## 🛠️ **INSTRUÇÕES ESPECÍFICAS**
+### **Principles:**
+1. **Atomic Tasks**: Maximum 2-3 hours per STEP
+2. **XML Structure**: Tasks defined in single XML file
+3. **Continuous Learning**: Every error becomes a prevention rule
+4. **Preserved Context**: AI always informed of current state
+5. **Minimal Documentation**: Only what saves time
 
-### **Para este projeto:**
-- Sempre verificar prevention rules antes de sugerir código
-- Manter consistência com o padrão de arquivos existente  
-- Focar em soluções simples e diretas
-- Documentar problemas encontrados para criar novas rules
+### **Active Prevention Rules:**
+*Rules will be automatically loaded from .capy/prevention-rules.md file*
 
-### **⚠️ Estado Atual da Extensão:**
-- **Inicialização**: Totalmente funcional
-- **Criação de Tasks**: Básica, com validação de workspace
-- **Outros comandos**: Majoritariamente placeholders (mostram "Coming soon!")
-- **Foco**: Desenvolvimento incremental com metodologia Capybara
+## 🛠️ **SPECIFIC INSTRUCTIONS**
 
-### **🎯 Workflow Recomendado:**
-1. Use \`Capybara: Initialize\` para configurar novo projeto
-2. Use \`Capybara: Create New Task\` para tarefas atômicas (2-3h max)
-3. Para outras funcionalidades, aguarde implementação ou contribua!
+### **For this project:**
+- Always check prevention rules before suggesting code
+- Work with tasks in XML format (task.xml)
+- Focus on simple and direct solutions
+- Document problems found to create new rules
 
-### **Comandos Capybara disponíveis:**
+### **⚠️ Current Extension State:**
+- **Initialization**: Fully functional
+- **Task Creation**: XML structured with steps, criteria and validation
+- **Progress Management**: Tracking completion by step
+- **Other commands**: Mostly placeholders (show "Coming soon!")
+- **Focus**: Incremental development with Capybara methodology
 
-#### **✅ Comandos Funcionais:**
-- \`Capybara: Initialize\` - Inicializar Capybara no workspace
-- \`Capybara: Create New Task\` - Criar nova tarefa (com validação)
-- \`Capybara: Current Task\` - Ver tarefa atual (com validação)
-- \`Capybara: Test Capybara Extension\` - Testar se extensão está funcionando
+### **🎯 Recommended Workflow:**
+1. Use \`Capybara: Initialize\` to configure new project
+2. Use \`Capybara: Create New Task\` to create structured XML tasks
+3. Edit task.xml to define project-specific steps
+4. Mark steps as complete by changing \`concluido="true"\`
+5. For other features, wait for implementation or contribute!
 
-#### **🚧 Comandos em Desenvolvimento:**
-- \`Capybara: Manage All Tasks\` - Gerenciar todas as tarefas (em breve)
-- \`Capybara: Pause Current Task\` - Pausar tarefa atual (em breve)
-- \`Capybara: Complete Current Task\` - Completar tarefa atual (em breve)
-- \`Capybara: Task History\` - Ver histórico de tarefas (em breve)
+### **📄 XML Task Structure:**
 
-#### **🔄 Comandos Legacy:**
-- \`Capybara: Create Smart Task (Legacy)\` - Redireciona para Create New Task
-- \`Capybara: Add Prevention Rule (Legacy)\` - Funcionalidade integrada automaticamente
+\`\`\`xml
+<task id="task-id" versao="1.0">
+    <metadados>
+        <titulo>Task Title</titulo>
+        <descricao>Detailed description</descricao>
+        <status>em-andamento|pausada|concluida</status>
+        <progresso>0/3</progresso>
+    </metadados>
+    
+    <contexto>
+        <tecnologia principal="React" versao="18+"/>
+        <dependencias>
+            <lib>example-library</lib>
+        </dependencias>
+    </contexto>
+    
+    <steps>
+        <step id="step001" ordem="1" concluido="false" obrigatorio="true">
+            <titulo>Step Name</titulo>
+            <descricao>What to do in this step</descricao>
+            <criterios>
+                <criterio>Criteria 1</criterio>
+                <criterio>Criteria 2</criterio>
+            </criterios>
+            <entrega>File.jsx</entrega>
+        </step>
+    </steps>
+    
+    <validacao>
+        <checklist>
+            <item>All mandatory steps completed</item>
+        </checklist>
+    </validacao>
+</task>
+\`\`\`
 
-### **📝 Estado Atual do Desenvolvimento:**
-- ✅ Inicialização e configuração: **Completa**
-- ✅ Criação básica de tarefas: **Funcional com validação**
-- 🚧 Gerenciamento de tarefas: **Em desenvolvimento**
-- 🚧 Histórico e analytics: **Planejado**
+### **Available Capybara Commands:**
+
+#### **✅ Functional Commands:**
+- \`Capybara: Initialize\` - Initialize Capybara in workspace
+- \`Capybara: Create New Task\` - Create new structured XML task
+- \`Capybara: Current Task\` - View current task (with validation)
+- \`Capybara: Test Capybara Extension\` - Test if extension is working
+
+#### **🚧 Commands in Development:**
+- \`Capybara: Manage All Tasks\` - Manage all tasks (coming soon)
+- \`Capybara: Pause Current Task\` - Pause current task (coming soon)
+- \`Capybara: Complete Task\` - Complete and move to history (coming soon)
+- \`Capybara: Update Step Progress\` - Mark steps as completed (coming soon)
+- \`Capybara: Complete Current Task\` - Complete current task (coming soon)
+- \`Capybara: Task History\` - View task history (coming soon)
+
+#### **🔄 Legacy Commands:**
+- \`Capybara: Create Smart Task (Legacy)\` - Redirects to Create New Task
+- \`Capybara: Add Prevention Rule (Legacy)\` - Functionality automatically integrated
+
+### **📝 Current Development State:**
+- ✅ Initialization and configuration: **Complete**
+- ✅ Basic task creation: **Functional with validation**
+- 🚧 Task management: **In development**
+- 🚧 History and analytics: **Planned**
 
 ---
-*Este arquivo é privado e não deve ser commitado. Ele contém suas instruções personalizadas para o GitHub Copilot.*
+*This file is private and should not be committed. It contains your personalized instructions for GitHub Copilot.*
+======================END CAPYBARA MEMORY v${version}======================
 `;
-
-        await fs.promises.writeFile(instructionsPath, instructions, 'utf8');
     }
 
     private async createInitialPreventionRules(capyDir: string): Promise<void> {

@@ -38,46 +38,6 @@
         "command": "capybara.init",
         "title": "🦫 Initialize Capybara",
         "category": "Capybara"
-      },
-      {
-        "command": "capybara.createTask",
-        "title": "➕ Create New Task",
-        "category": "Capybara"
-      },
-      {
-        "command": "capybara.currentTask",
-        "title": "🎯 Current Task",
-        "category": "Capybara"
-      },
-      {
-        "command": "capybara.allTasks",
-        "title": "📋 Manage All Tasks",
-        "category": "Capybara"
-      },
-      {
-        "command": "capybara.pauseTask",
-        "title": "⏸️ Pause Current Task",
-        "category": "Capybara"
-      },
-      {
-        "command": "capybara.completeTask",
-        "title": "✅ Complete Current Task",
-        "category": "Capybara"
-      },
-      {
-        "command": "capybara.history",
-        "title": "📚 Task History",
-        "category": "Capybara"
-      },
-      {
-        "command": "capybara.createSmartTask",
-        "title": "🤖 Create Smart Task (Legacy)",
-        "category": "Capybara"
-      },
-      {
-        "command": "capybara.addPreventionRule",
-        "title": "🚨 Add Prevention Rule (Legacy)",
-        "category": "Capybara"
       }
     ],
     "configuration": {
