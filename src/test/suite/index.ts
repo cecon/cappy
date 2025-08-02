@@ -15,10 +15,20 @@ export function run(): Promise<void> {
 
     return new Promise((resolve, reject) => {
         try {
-            // Add the test file directly
-            const testFile = path.resolve(testsRoot, 'capybara.test.js');
-            console.log(`Adding test file: ${testFile}`);
-            mochaInstance.addFile(testFile);
+            // Add the main test file
+            const mainTestFile = path.resolve(testsRoot, 'capybara.test.js');
+            console.log(`Adding main test file: ${mainTestFile}`);
+            mochaInstance.addFile(mainTestFile);
+            
+            // Add the InitCapybara test file
+            const initTestFile = path.resolve(testsRoot, 'initCapybara.test.js');
+            console.log(`Adding InitCapybara test file: ${initTestFile}`);
+            mochaInstance.addFile(initTestFile);
+            
+            // Add the CreateTask test file
+            const createTaskTestFile = path.resolve(testsRoot, 'createTask.test.js');
+            console.log(`Adding CreateTask test file: ${createTaskTestFile}`);
+            mochaInstance.addFile(createTaskTestFile);
 
             // Run the mocha test
             mochaInstance.run((failures: number) => {

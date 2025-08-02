@@ -26,11 +26,40 @@ Este projeto usa a metodologia Capybara (Focus, Organize, Record, Grow, Evolve) 
 - Focar em soluções simples e diretas
 - Documentar problemas encontrados para criar novas rules
 
+### **⚠️ Estado Atual da Extensão:**
+- **Inicialização**: Totalmente funcional
+- **Criação de Tasks**: Básica, com validação de workspace
+- **Outros comandos**: Majoritariamente placeholders (mostram "Coming soon!")
+- **Foco**: Desenvolvimento incremental com metodologia Capybara
+
+### **🎯 Workflow Recomendado:**
+1. Use `Capybara: Initialize` para configurar novo projeto
+2. Use `Capybara: Create New Task` para tarefas atômicas (2-3h max)
+3. Para outras funcionalidades, aguarde implementação ou contribua!
+
 ### **Comandos Capybara disponíveis:**
-- `Capybara: Start Activity` - Iniciar nova tarefa
-- `Capybara: Complete Activity` - Finalizar tarefa atual
-- `Capybara: Add Prevention Rule` - Documentar erro/problema
-- `Capybara: View History` - Ver histórico de atividades
+
+#### **✅ Comandos Funcionais:**
+- `Capybara: Initialize` - Inicializar Capybara no workspace
+- `Capybara: Create New Task` - Criar nova tarefa (com validação)
+- `Capybara: Current Task` - Ver tarefa atual (com validação)
+- `Capybara: Test Capybara Extension` - Testar se extensão está funcionando
+
+#### **🚧 Comandos em Desenvolvimento:**
+- `Capybara: Manage All Tasks` - Gerenciar todas as tarefas (em breve)
+- `Capybara: Pause Current Task` - Pausar tarefa atual (em breve)
+- `Capybara: Complete Current Task` - Completar tarefa atual (em breve)
+- `Capybara: Task History` - Ver histórico de tarefas (em breve)
+
+#### **🔄 Comandos Legacy:**
+- `Capybara: Create Smart Task (Legacy)` - Redireciona para Create New Task
+- `Capybara: Add Prevention Rule (Legacy)` - Funcionalidade integrada automaticamente
+
+### **📝 Estado Atual do Desenvolvimento:**
+- ✅ Inicialização e configuração: **Completa**
+- ✅ Criação básica de tarefas: **Funcional com validação**
+- 🚧 Gerenciamento de tarefas: **Em desenvolvimento**
+- 🚧 Histórico e analytics: **Planejado**
 
 ---
 *Este arquivo é privado e não deve ser commitado. Ele contém suas instruções personalizadas para o GitHub Copilot.*
