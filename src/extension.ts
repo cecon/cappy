@@ -45,10 +45,13 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Register createTask command (with initialization check)
         const createTaskCommand = vscode.commands.registerCommand('capybara.createTask', async () => {
+            console.log('🦫 Capybara Memory: Create Task command triggered');
+            
             try {
                 vscode.window.showInformationMessage('🦫 Capybara Memory: Create Task command called!');
                 console.log('🦫 Capybara Memory: Create Task command started');
                 
+                console.log('🦫 Capybara Memory: Checking workspace folders...');
                 if (!vscode.workspace.workspaceFolders) {
                     console.log('🦫 Capybara Memory: No workspace folders found');
                     vscode.window.showErrorMessage('Capybara Memory: No workspace folder is open. Please open a folder first.');
@@ -63,22 +66,32 @@ export function activate(context: vscode.ExtensionContext) {
                 console.log('🦫 Capybara Memory: Checking config path:', capyConfigPath);
                 
                 try {
+                    console.log('🦫 Capybara Memory: Attempting to access config file...');
                     await fs.promises.access(capyConfigPath, fs.constants.F_OK);
                     console.log('🦫 Capybara Memory: Config file exists, proceeding with task creation');
-                } catch (error) {
+                } catch (configError) {
                     console.log('🦫 Capybara Memory: Config file not found, asking user to initialize');
-                    const initFirst = await vscode.window.showWarningMessage(
-                        '⚠️ Capybara não foi inicializado neste workspace.\n\nDeseja inicializar agora?',
-                        'Sim, inicializar', 'Cancelar'
-                    );
+                    console.log('🦫 Capybara Memory: Config error details:', configError);
                     
-                    if (initFirst === 'Sim, inicializar') {
-                        console.log('🦫 Capybara Memory: User chose to initialize first');
-                        await vscode.commands.executeCommand('capybara.init');
-                        // After init, try to run create task again
-                        setTimeout(() => vscode.commands.executeCommand('capybara.createTask'), 1000);
-                    } else {
-                        console.log('🦫 Capybara Memory: User cancelled initialization');
+                    try {
+                        const initFirst = await vscode.window.showWarningMessage(
+                            '⚠️ Capybara não foi inicializado neste workspace.\n\nDeseja inicializar agora?',
+                            'Sim, inicializar', 'Cancelar'
+                        );
+                        
+                        console.log('🦫 Capybara Memory: User choice:', initFirst);
+                        
+                        if (initFirst === 'Sim, inicializar') {
+                            console.log('🦫 Capybara Memory: User chose to initialize first');
+                            await vscode.commands.executeCommand('capybara.init');
+                            // After init, try to run create task again
+                            setTimeout(() => vscode.commands.executeCommand('capybara.createTask'), 1000);
+                        } else {
+                            console.log('🦫 Capybara Memory: User cancelled initialization');
+                        }
+                    } catch (dialogError) {
+                        console.error('🦫 Capybara Memory: Error showing dialog:', dialogError);
+                        vscode.window.showErrorMessage(`Error showing initialization dialog: ${dialogError}`);
                     }
                     return;
                 }
@@ -142,9 +155,22 @@ export function activate(context: vscode.ExtensionContext) {
                 
                 // Try to load the task manager, but with error handling
                 try {
-                    const taskModule = await import('./commands/taskManager');
-                    const taskManager = new taskModule.TaskManager();
-                    await taskManager.showCurrentTask();
+                    // const taskModule = await import('./commands/taskManager');
+                    // const taskManager = new taskModule.TaskManager();
+                    // await taskManager.showCurrentTask();
+                    
+                    // For now, show current task using workflow manager
+                    const workflowModule = await import('./utils/taskWorkflowManager');
+                    const workflowManager = new workflowModule.TaskWorkflowManager();
+                    const currentTask = await workflowManager.getCurrentTask();
+                    
+                    if (currentTask) {
+                        vscode.window.showInformationMessage(
+                            `🎯 Task Ativa: ${currentTask.title}\nProgresso: ${currentTask.progress.completed}/${currentTask.progress.total} steps`
+                        );
+                    } else {
+                        vscode.window.showInformationMessage('📋 Nenhuma task ativa. Use "Capybara: Create New Task" para começar.');
+                    }
                 } catch (importError) {
                     console.error('Error loading TaskManager:', importError);
                     vscode.window.showErrorMessage(`Capybara Memory: Current Task feature failed: ${importError}`);

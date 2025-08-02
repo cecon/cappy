@@ -3,7 +3,7 @@
   "displayName": "Capybara Memory",
   "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
   "icon": "assets/icon.png",
-  "version": "2.1.9",
+  "version": "2.2.0",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -111,11 +111,24 @@
         "path": "./snippets/capybara.json"
       }
     ],
+    "languages": [
+      {
+        "id": "capybara-task-xml",
+        "aliases": ["Capybara Task XML", "capybara-task"],
+        "extensions": [".task.xml"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
     "grammars": [
       {
         "language": "markdown",
         "scopeName": "text.html.markdown.capybara",
-        "path": "./syntaxes/capybara-task.tmLanguage.json"
+        "path": "./syntaxes/forge-task.tmLanguage.json"
+      },
+      {
+        "language": "capybara-task-xml",
+        "scopeName": "text.xml.capybara.task",
+        "path": "./syntaxes/capybara-task-xml.tmLanguage.json"
       }
     ]
   },
@@ -125,7 +138,9 @@
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
     "test": "npm run compile && node ./out/test/runTest.js",
+    "test-simple": "npm run compile && echo 'Simple tests compiled successfully - check VS Code test output'",
     "test-watch": "npm run test -- --watch",
+    "test-folder-structure": "npm run compile && echo 'Teste de estrutura de pastas compilado com sucesso'",
     "package": "vsce package --dependencies",
     "package-webpack": "webpack --mode production && vsce package",
     "publish": "vsce publish"

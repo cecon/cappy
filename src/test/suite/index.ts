@@ -30,6 +30,16 @@ export function run(): Promise<void> {
             console.log(`Adding CreateTask test file: ${createTaskTestFile}`);
             mochaInstance.addFile(createTaskTestFile);
 
+            // Add the CreateTaskFolderStructure test file
+            const createTaskFolderTestFile = path.resolve(testsRoot, 'createTaskFolderStructure.test.js');
+            console.log(`Adding CreateTaskFolderStructure test file: ${createTaskFolderTestFile}`);
+            mochaInstance.addFile(createTaskFolderTestFile);
+
+            // Add the LanguageDetectionFix test file
+            const languageDetectionTestFile = path.resolve(testsRoot, 'languageDetectionFix.test.js');
+            console.log(`Adding LanguageDetectionFix test file: ${languageDetectionTestFile}`);
+            mochaInstance.addFile(languageDetectionTestFile);
+
             // Run the mocha test
             mochaInstance.run((failures: number) => {
                 if (failures > 0) {

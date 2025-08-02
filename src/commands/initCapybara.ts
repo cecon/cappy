@@ -74,7 +74,7 @@ export class InitCapybaraCommand {
                     version: DEFAULT_CAPYBARA_CONFIG.version || '1.0.0',
                     project: {
                         name: projectInfo.name,
-                        language: projectInfo.languages || [projectInfo.language || 'unknown'],
+                        language: projectInfo.languages && projectInfo.languages.length > 0 ? projectInfo.languages : ['unknown'],
                         framework: projectInfo.framework || [],
                         description: projectInfo.description
                     },

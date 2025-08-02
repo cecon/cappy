@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { Task, TaskStatus } from '../models/task';
 import { CapybaraConfig } from '../models/capybaraConfig';
 import { FileManager } from './fileManager';
+import { TaskXmlManager } from './taskXmlManager';
 
 export class TaskWorkflowManager {
     private fileManager: FileManager;
@@ -50,14 +51,9 @@ export class TaskWorkflowManager {
             if (!config) {
                 return false;
             }
-            
-            // Update current task in config
+
             config.tasks.currentTask = taskId;
             await this.fileManager.writeCapybaraConfig(config);
-
-            // Update copilot instructions
-            await this.updateCopilotInstructions(taskId);
-
             return true;
         } catch (error) {
             console.error('Error setting current task:', error);
@@ -66,7 +62,7 @@ export class TaskWorkflowManager {
     }
 
     /**
-     * Clear current task (when pausing or completing)
+     * Clear the current active task
      */
     public async clearCurrentTask(): Promise<boolean> {
         try {
@@ -74,13 +70,9 @@ export class TaskWorkflowManager {
             if (!config) {
                 return false;
             }
-            
-            delete config.tasks.currentTask;
+
+            config.tasks.currentTask = undefined;
             await this.fileManager.writeCapybaraConfig(config);
-
-            // Update copilot instructions
-            await this.updateCopilotInstructions(null);
-
             return true;
         } catch (error) {
             console.error('Error clearing current task:', error);
@@ -89,37 +81,52 @@ export class TaskWorkflowManager {
     }
 
     /**
-     * Get next available task number
+     * Load task from path using XML
      */
-    public async getNextTaskNumber(): Promise<number> {
+    private async loadTaskFromPath(taskPath: string): Promise<Task | null> {
         try {
-            const config = await this.fileManager.readCapybaraConfig();
-            return config?.tasks.nextTaskNumber || 1;
-        } catch (error) {
-            console.error('Error getting next task number:', error);
-            return 1;
-        }
-    }
-
-    /**
-     * Increment task counter
-     */
-    public async incrementTaskNumber(): Promise<void> {
-        try {
-            const config = await this.fileManager.readCapybaraConfig();
-            if (!config) {
-                return;
+            // First try to load from XML
+            const xmlPath = path.join(taskPath, 'task.xml');
+            if (fs.existsSync(xmlPath)) {
+                return TaskXmlManager.loadTaskXml(taskPath);
             }
-            
-            config.tasks.nextTaskNumber = (config.tasks.nextTaskNumber || 1) + 1;
-            await this.fileManager.writeCapybaraConfig(config);
+
+            // Fallback to legacy JSON format for compatibility
+            const metadataPath = path.join(taskPath, 'task-metadata.json');
+            if (fs.existsSync(metadataPath)) {
+                const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+                // Convert legacy format to new format
+                const legacyTask: Task = {
+                    ...metadata,
+                    path: taskPath,
+                    // Map legacy properties to new format
+                    title: metadata.name || metadata.title,
+                    version: '1.0',
+                    progress: {
+                        completed: 0,
+                        total: 1
+                    },
+                    context: {
+                        mainTechnology: 'Unknown',
+                        dependencies: []
+                    },
+                    steps: [],
+                    validation: {
+                        checklist: []
+                    }
+                };
+                return legacyTask;
+            }
+
+            return null;
         } catch (error) {
-            console.error('Error incrementing task number:', error);
+            console.error('Error loading task from path:', error);
+            return null;
         }
     }
 
     /**
-     * List all tasks (active and paused)
+     * List all active tasks (not completed or paused)
      */
     public async listActiveTasks(): Promise<Task[]> {
         try {
@@ -132,20 +139,20 @@ export class TaskWorkflowManager {
                 return [];
             }
 
-            const entries = fs.readdirSync(capyPath, { withFileTypes: true });
             const tasks: Task[] = [];
+            const entries = fs.readdirSync(capyPath, { withFileTypes: true });
 
             for (const entry of entries) {
-                if (entry.isDirectory() && entry.name.startsWith('task_')) {
+                if (entry.isDirectory() && !entry.name.startsWith('history')) {
                     const taskPath = path.join(capyPath, entry.name);
                     const task = await this.loadTaskFromPath(taskPath);
-                    if (task && task.status !== TaskStatus.completed) {
+                    if (task && task.status !== TaskStatus.concluida) {
                         tasks.push(task);
                     }
                 }
             }
 
-            return tasks.sort((a, b) => a.id.localeCompare(b.id));
+            return tasks;
         } catch (error) {
             console.error('Error listing active tasks:', error);
             return [];
@@ -153,7 +160,7 @@ export class TaskWorkflowManager {
     }
 
     /**
-     * List completed tasks from history
+     * List all completed tasks from history
      */
     public async listCompletedTasks(): Promise<Task[]> {
         try {
@@ -167,11 +174,11 @@ export class TaskWorkflowManager {
                 return [];
             }
 
-            const entries = fs.readdirSync(historyPath, { withFileTypes: true });
             const tasks: Task[] = [];
+            const entries = fs.readdirSync(historyPath, { withFileTypes: true });
 
             for (const entry of entries) {
-                if (entry.isDirectory() && entry.name.startsWith('STEP_')) {
+                if (entry.isDirectory()) {
                     const taskPath = path.join(historyPath, entry.name);
                     const task = await this.loadTaskFromPath(taskPath);
                     if (task) {
@@ -180,7 +187,9 @@ export class TaskWorkflowManager {
                 }
             }
 
-            return tasks.sort((a, b) => a.id.localeCompare(b.id));
+            return tasks.sort((a, b) => 
+                (b.completedAt?.getTime() || 0) - (a.completedAt?.getTime() || 0)
+            );
         } catch (error) {
             console.error('Error listing completed tasks:', error);
             return [];
@@ -188,7 +197,7 @@ export class TaskWorkflowManager {
     }
 
     /**
-     * Pause current task
+     * Pause the current task
      */
     public async pauseCurrentTask(): Promise<boolean> {
         try {
@@ -197,14 +206,11 @@ export class TaskWorkflowManager {
                 return false;
             }
 
-            // Update task status
-            currentTask.status = TaskStatus.paused;
+            currentTask.status = TaskStatus.pausada;
             currentTask.pausedAt = new Date();
-            await this.saveTask(currentTask);
+            TaskXmlManager.saveTaskXml(currentTask, currentTask.path);
 
-            // Clear current task reference
             await this.clearCurrentTask();
-
             return true;
         } catch (error) {
             console.error('Error pausing current task:', error);
@@ -217,23 +223,21 @@ export class TaskWorkflowManager {
      */
     public async resumeTask(taskId: string): Promise<boolean> {
         try {
-            // Check if there's already an active task
             const currentTask = await this.getCurrentTask();
             if (currentTask) {
-                const confirm = await vscode.window.showWarningMessage(
-                    `Task "${currentTask.name}" is currently active. Pause it to resume "${taskId}"?`,
-                    'Yes, Pause Current',
-                    'Cancel'
+                const choice = await vscode.window.showWarningMessage(
+                    `Task "${currentTask.title}" está ativa. Pausar para retomar "${taskId}"?`,
+                    'Sim, Pausar',
+                    'Cancelar'
                 );
 
-                if (confirm !== 'Yes, Pause Current') {
+                if (choice !== 'Sim, Pausar') {
                     return false;
                 }
 
                 await this.pauseCurrentTask();
             }
 
-            // Load and resume the target task
             const taskPath = path.join(
                 vscode.workspace.workspaceFolders![0].uri.fsPath,
                 '.capy',
@@ -245,14 +249,11 @@ export class TaskWorkflowManager {
                 return false;
             }
 
-            task.status = TaskStatus.active;
+            task.status = TaskStatus.emAndamento;
             task.pausedAt = undefined;
-            await this.saveTask(task);
+            TaskXmlManager.saveTaskXml(task, task.path);
 
-            // Set as current task
-            await this.setCurrentTask(taskId);
-
-            return true;
+            return await this.setCurrentTask(taskId);
         } catch (error) {
             console.error('Error resuming task:', error);
             return false;
@@ -260,69 +261,71 @@ export class TaskWorkflowManager {
     }
 
     /**
-     * Complete current task and move to history
+     * Complete the current task and move it to history
      */
     public async completeCurrentTask(): Promise<boolean> {
         try {
             const currentTask = await this.getCurrentTask();
             if (!currentTask) {
-                vscode.window.showWarningMessage('No active task to complete.');
+                vscode.window.showErrorMessage('Nenhuma task ativa para completar.');
                 return false;
             }
 
-            // Generate STEP number for history
-            const stepNumber = await this.getNextHistoryStepNumber();
+            // Create STEP folder in history
+            const stepNumber = await this.getNextStepNumber();
             const stepId = `STEP_${stepNumber.toString().padStart(4, '0')}`;
-
-            // Create history folder if it doesn't exist
+            const taskName = currentTask.title.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const historyFolderName = `${stepId}_${taskName}`;
+            
             const historyPath = path.join(
                 vscode.workspace.workspaceFolders![0].uri.fsPath,
                 '.capy',
-                'history'
+                'history',
+                historyFolderName
             );
 
+            // Update task metadata
+            currentTask.status = TaskStatus.concluida;
+            currentTask.completedAt = new Date();
+            currentTask.stepId = stepId;
+
+            // Create history folder
             if (!fs.existsSync(historyPath)) {
                 fs.mkdirSync(historyPath, { recursive: true });
             }
 
-            // Move task to history with STEP naming
-            const taskName = currentTask.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-            const newPath = path.join(historyPath, `${stepId}_${taskName}`);
-            
-            // Copy current task folder to history
-            await this.copyDirectory(currentTask.path, newPath);
+            // Move task folder to history
+            const originalPath = currentTask.path;
+            currentTask.path = historyPath;
 
-            // Update task metadata
-            currentTask.status = TaskStatus.completed;
-            currentTask.completedAt = new Date();
-            currentTask.stepId = stepId;
-            currentTask.path = newPath;
+            // Copy files to history
+            this.copyFolderSync(originalPath, historyPath);
 
-            // Save updated task in history location
-            await this.saveTask(currentTask);
+            // Save updated task XML in history
+            TaskXmlManager.saveTaskXml(currentTask, historyPath);
 
             // Remove original task folder
-            fs.rmSync(currentTask.path, { recursive: true, force: true });
+            fs.rmSync(originalPath, { recursive: true, force: true });
 
-            // Clear current task reference
+            // Clear current task
             await this.clearCurrentTask();
 
             vscode.window.showInformationMessage(
-                `✅ Task completed and moved to history as ${stepId}`
+                `✅ Task "${currentTask.title}" completada e movida para histórico como ${stepId}!`
             );
 
             return true;
         } catch (error) {
             console.error('Error completing task:', error);
-            vscode.window.showErrorMessage('Failed to complete task.');
+            vscode.window.showErrorMessage(`Erro ao completar task: ${error}`);
             return false;
         }
     }
 
     /**
-     * Get next STEP number for history
+     * Get next step number for completed tasks
      */
-    private async getNextHistoryStepNumber(): Promise<number> {
+    private async getNextStepNumber(): Promise<number> {
         try {
             const historyPath = path.join(
                 vscode.workspace.workspaceFolders![0].uri.fsPath,
@@ -334,124 +337,58 @@ export class TaskWorkflowManager {
                 return 1;
             }
 
-            const entries = fs.readdirSync(historyPath, { withFileTypes: true });
-            let maxStep = 0;
+            const entries = fs.readdirSync(historyPath);
+            const stepNumbers = entries
+                .map(name => {
+                    const match = name.match(/^STEP_(\d{4})/);
+                    return match ? parseInt(match[1]) : 0;
+                })
+                .filter(num => num > 0);
 
-            for (const entry of entries) {
-                if (entry.isDirectory() && entry.name.startsWith('STEP_')) {
-                    const match = entry.name.match(/^STEP_(\d+)/);
-                    if (match) {
-                        const stepNum = parseInt(match[1], 10);
-                        maxStep = Math.max(maxStep, stepNum);
-                    }
-                }
-            }
-
-            return maxStep + 1;
+            return stepNumbers.length > 0 ? Math.max(...stepNumbers) + 1 : 1;
         } catch (error) {
-            console.error('Error getting next STEP number:', error);
+            console.error('Error getting next step number:', error);
             return 1;
         }
     }
 
     /**
-     * Update copilot instructions with current task
+     * Copy folder recursively
      */
-    private async updateCopilotInstructions(taskId: string | null): Promise<void> {
-        try {
-            const instructionsPath = path.join(
-                vscode.workspace.workspaceFolders![0].uri.fsPath,
-                '.capy',
-                'copilot-instructions.md'
-            );
-
-            if (!fs.existsSync(instructionsPath)) {
-                return;
-            }
-
-            let content = fs.readFileSync(instructionsPath, 'utf8');
-
-            // Update or add current-task line
-            const currentTaskRegex = /^current-task:\s*.*/m;
-            const newLine = taskId ? `current-task: ${taskId}` : '';
-
-            if (currentTaskRegex.test(content)) {
-                if (newLine) {
-                    content = content.replace(currentTaskRegex, newLine);
-                } else {
-                    content = content.replace(currentTaskRegex, '');
-                }
-            } else if (newLine) {
-                // Add at the beginning of the file
-                content = `${newLine}\n\n${content}`;
-            }
-
-            fs.writeFileSync(instructionsPath, content);
-        } catch (error) {
-            console.error('Error updating copilot instructions:', error);
-        }
-    }
-
-    /**
-     * Load task from directory path
-     */
-    private async loadTaskFromPath(taskPath: string): Promise<Task | null> {
-        try {
-            const metadataPath = path.join(taskPath, 'task-metadata.json');
-            if (!fs.existsSync(metadataPath)) {
-                return null;
-            }
-
-            const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
-            return {
-                ...metadata,
-                path: taskPath,
-                createdAt: new Date(metadata.createdAt),
-                completedAt: metadata.completedAt ? new Date(metadata.completedAt) : undefined,
-                pausedAt: metadata.pausedAt ? new Date(metadata.pausedAt) : undefined
-            };
-        } catch (error) {
-            console.error('Error loading task from path:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Save task metadata
-     */
-    private async saveTask(task: Task): Promise<void> {
-        try {
-            const metadataPath = path.join(task.path, 'task-metadata.json');
-            const metadata = {
-                ...task,
-                path: undefined // Don't save path in metadata
-            };
-            fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
-        } catch (error) {
-            console.error('Error saving task metadata:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Copy directory recursively
-     */
-    private async copyDirectory(source: string, destination: string): Promise<void> {
-        if (!fs.existsSync(destination)) {
-            fs.mkdirSync(destination, { recursive: true });
+    private copyFolderSync(src: string, dest: string): void {
+        if (!fs.existsSync(dest)) {
+            fs.mkdirSync(dest, { recursive: true });
         }
 
-        const entries = fs.readdirSync(source, { withFileTypes: true });
+        const entries = fs.readdirSync(src, { withFileTypes: true });
 
         for (const entry of entries) {
-            const srcPath = path.join(source, entry.name);
-            const destPath = path.join(destination, entry.name);
+            const srcPath = path.join(src, entry.name);
+            const destPath = path.join(dest, entry.name);
 
             if (entry.isDirectory()) {
-                await this.copyDirectory(srcPath, destPath);
+                this.copyFolderSync(srcPath, destPath);
             } else {
                 fs.copyFileSync(srcPath, destPath);
             }
+        }
+    }
+
+    /**
+     * Update step completion status
+     */
+    public async updateStepCompletion(stepId: string, completed: boolean): Promise<boolean> {
+        try {
+            const currentTask = await this.getCurrentTask();
+            if (!currentTask) {
+                return false;
+            }
+
+            TaskXmlManager.updateStepCompletion(currentTask.path, stepId, completed);
+            return true;
+        } catch (error) {
+            console.error('Error updating step completion:', error);
+            return false;
         }
     }
 }

@@ -151,44 +151,79 @@ Capybara automatically creates **private instructions** that stay on your machin
 ### 3. Create Your First Task
 ```bash
 # Command Palette
-Ctrl+Shift+P → "Capybara: Create Task with AI"
+Ctrl+Shift+P → "Capybara: Create New Task"
 
 # Or ask GitHub Copilot
-"Vamos desenvolver uma nova atividade: Add user login system"
+"Vamos criar uma nova task para implementar sistema de login"
 ```
 
 **What gets created:**
 ```
 .capy/
-├── config.json                    # Optimized settings  
-├── prevention-rules.md             # Max 15 rules that matter
-└── steps/STEP_0001_USER_LOGIN/
-    ├── STEP_0001_DESCRIPTION.md    # Clear objectives (≤2h scope)
-    ├── STEP_0001_DONE.md           # Completion tracking
-    ├── STEP_0001_DIFFICULTIES_FACED.md  # Problems → prevention rules
-    └── artifacts/                  # Code, configs, docs
+├── config.json                         # Capybara configuration  
+├── prevention-rules.md                 # Max 15 rules that matter
+└── cadastro-cliente-react/             # Task folder (XML-based)
+    ├── task.xml                        # Complete task definition
+    └── artifacts/                      # Generated files/outputs
 
 .github/
-└── copilot-instructions.md         # Private AI context (in .gitignore)
+└── copilot-instructions.md             # Private AI context (in .gitignore)
+```
+
+**Example task.xml structure:**
+```xml
+<task id="cadastro-cliente-react" versao="1.0">
+    <metadados>
+        <titulo>Criar página de cadastro de clientes</titulo>
+        <descricao>Desenvolver componente React para cadastro de novos clientes</descricao>
+        <status>em-andamento</status>
+        <progresso>0/7</progresso>
+    </metadados>
+    
+    <contexto>
+        <tecnologia principal="React" versao="18+"/>
+        <dependencias>
+            <lib>react-hook-form</lib>
+            <lib>yup</lib>
+        </dependencias>
+    </contexto>
+    
+    <steps>
+        <step id="step001" ordem="1" concluido="false" obrigatorio="true">
+            <titulo>Configurar estrutura do componente</titulo>
+            <descricao>Criar arquivo ClienteForm.jsx com estrutura básica</descricao>
+            <criterios>
+                <criterio>Componente funcional criado</criterio>
+                <criterio>Imports necessários adicionados</criterio>
+            </criterios>
+            <entrega>ClienteForm.jsx</entrega>
+        </step>
+        <!-- More steps... -->
+    </steps>
+    
+    <validacao>
+        <checklist>
+            <item>Todos os steps obrigatórios concluídos</item>
+            <item>Critérios de cada step atendidos</item>
+        </checklist>
+    </validacao>
+</task>
 ```
 
 ### 4. Development Workflow
-- **Focus**: Keep STEPs ≤2 hours (sustainable velocity)
-- **Connect macro**: Each STEP links to project goals  
-- **Document smart**: Only problems that save future time
-- **Ask Copilot**: "Vamos iniciar o desenvolvimento da STEP_0001"
+- **Single XML file**: Complete task definition in one structured file
+- **Step-by-step progress**: Track completion with `concluido="true/false"`
+- **Clear dependencies**: Steps can depend on each other (`dependeDe` attribute)
+- **Deliverables tracking**: Each step can specify expected outputs
+- **Validation criteria**: Built-in checklist for task completion
+- **Ask Copilot**: "Vamos trabalhar no step001 da task atual"
 
 ### 5. Complete and Learn
 ```bash
 Ctrl+Shift+P → "Capybara: Complete Task"
 ```
 
-**Capybara extracts prevention rules for your context:**
-```markdown
-❌ DON'T use bcrypt without salt rounds → always specify rounds (12+)
-   Context: Authentication tasks
-   Source: STEP_0001 (weak passwords, security audit failed)
-```
+When you complete a task, it moves to the history folder as STEP_XXXX and all progress is preserved in the XML format.
 
 ### 6. Watch Your AI Get Smarter
 Next time you create any authentication task, Copilot will automatically:

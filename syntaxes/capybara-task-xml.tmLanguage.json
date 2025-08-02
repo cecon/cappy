@@ -1,0 +1,154 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Capybara Task XML",
+    "scopeName": "text.xml.capybara.task",
+    "patterns": [
+        {
+            "include": "text.xml"
+        },
+        {
+            "name": "entity.name.tag.capybara.task-root",
+            "match": "</?task\\b",
+            "captures": {
+                "0": {
+                    "name": "entity.name.tag.capybara.task-root"
+                }
+            }
+        },
+        {
+            "name": "entity.name.tag.capybara.metadata",
+            "match": "</?metadados\\b",
+            "captures": {
+                "0": {
+                    "name": "entity.name.tag.capybara.metadata"
+                }
+            }
+        },
+        {
+            "name": "entity.name.tag.capybara.context",
+            "match": "</?contexto\\b",
+            "captures": {
+                "0": {
+                    "name": "entity.name.tag.capybara.context"
+                }
+            }
+        },
+        {
+            "name": "entity.name.tag.capybara.steps",
+            "match": "</?steps\\b",
+            "captures": {
+                "0": {
+                    "name": "entity.name.tag.capybara.steps"
+                }
+            }
+        },
+        {
+            "name": "entity.name.tag.capybara.step",
+            "match": "</?step\\b",
+            "captures": {
+                "0": {
+                    "name": "entity.name.tag.capybara.step"
+                }
+            }
+        },
+        {
+            "name": "entity.name.tag.capybara.validation",
+            "match": "</?validacao\\b",
+            "captures": {
+                "0": {
+                    "name": "entity.name.tag.capybara.validation"
+                }
+            }
+        },
+        {
+            "name": "entity.other.attribute-name.capybara.task-id",
+            "match": "\\bid\\s*=",
+            "captures": {
+                "0": {
+                    "name": "entity.other.attribute-name.capybara.task-id"
+                }
+            }
+        },
+        {
+            "name": "entity.other.attribute-name.capybara.completed",
+            "match": "\\bconcluido\\s*=",
+            "captures": {
+                "0": {
+                    "name": "entity.other.attribute-name.capybara.completed"
+                }
+            }
+        },
+        {
+            "name": "entity.other.attribute-name.capybara.required",
+            "match": "\\bobrigatorio\\s*=",
+            "captures": {
+                "0": {
+                    "name": "entity.other.attribute-name.capybara.required"
+                }
+            }
+        },
+        {
+            "name": "entity.other.attribute-name.capybara.depends-on",
+            "match": "\\bdependeDe\\s*=",
+            "captures": {
+                "0": {
+                    "name": "entity.other.attribute-name.capybara.depends-on"
+                }
+            }
+        },
+        {
+            "name": "string.quoted.double.capybara.status-active",
+            "match": "\"em-andamento\"",
+            "captures": {
+                "0": {
+                    "name": "string.quoted.double.capybara.status-active"
+                }
+            }
+        },
+        {
+            "name": "string.quoted.double.capybara.status-paused",
+            "match": "\"pausada\"",
+            "captures": {
+                "0": {
+                    "name": "string.quoted.double.capybara.status-paused"
+                }
+            }
+        },
+        {
+            "name": "string.quoted.double.capybara.status-completed",
+            "match": "\"concluida\"",
+            "captures": {
+                "0": {
+                    "name": "string.quoted.double.capybara.status-completed"
+                }
+            }
+        },
+        {
+            "name": "string.quoted.double.capybara.boolean-true",
+            "match": "\"true\"",
+            "captures": {
+                "0": {
+                    "name": "string.quoted.double.capybara.boolean-true"
+                }
+            }
+        },
+        {
+            "name": "string.quoted.double.capybara.boolean-false",
+            "match": "\"false\"",
+            "captures": {
+                "0": {
+                    "name": "string.quoted.double.capybara.boolean-false"
+                }
+            }
+        },
+        {
+            "name": "support.type.capybara.progress",
+            "match": "\\d+/\\d+",
+            "captures": {
+                "0": {
+                    "name": "support.type.capybara.progress"
+                }
+            }
+        }
+    ]
+}
