@@ -1,184 +1,58 @@
-// Integration test for TaskXmlManager
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 
-// Load compiled TypeScript modules
-let TaskXmlManager;
-try {
-    TaskXmlManager = require('./out/utils/taskXmlManager').TaskXmlManager;
-} catch (error) {
-    console.log('⚠️  Compiled TaskXmlManager not found, testing with XML structure only');
-    TaskXmlManager = null;
-}
-
-function testTaskXmlManagerIntegration() {
-    console.log('🧪 Testing TaskXmlManager Integration...');
-    
-    // Test data matching user requirements
-    const testTask = {
-        id: 'integration-test-001',
-        version: '1.0',
-        title: 'Test TaskXmlManager Integration',
-        description: 'Verificar se TaskXmlManager gera XML conforme especificação',
-        status: 'em-andamento',
-        progress: '0/4',
-        context: {
-            mainTechnology: 'TypeScript',
-            techVersion: '5.0+',
-            dependencies: ['jest', 'xml2js', 'vscode']
-        },
-        steps: [
-            {
-                id: 'step001',
-                order: 1,
-                completed: false,
-                required: true,
-                title: 'Setup inicial',
-                description: 'Configurar ambiente e dependências',
-                criteria: ['Ambiente configurado', 'Dependências instaladas'],
-                deliverable: 'package.json'
-            },
-            {
-                id: 'step002',
-                order: 2,
-                completed: false,
-                required: true,
-                dependsOn: 'step001',
-                title: 'Implementar core',
-                description: 'Desenvolver funcionalidade principal',
-                criteria: ['Classes implementadas', 'Testes unitários'],
-                deliverable: 'src/core.ts'
-            },
-            {
-                id: 'step003',
-                order: 3,
-                completed: false,
-                required: true,
-                dependsOn: 'step002',
-                title: 'Integrar sistema',
-                description: 'Integrar com sistema existente',
-                criteria: ['Integração funcionando', 'Testes de integração']
-            },
-            {
-                id: 'step004',
-                order: 4,
-                completed: false,
-                required: false,
-                dependsOn: 'step003',
-                title: 'Documentar projeto',
-                description: 'Criar documentação completa',
-                criteria: ['README completo', 'API documentada'],
-                deliverable: 'docs/README.md'
-            }
-        ],
-        validation: {
-            checklist: [
-                'Todos os steps obrigatórios concluídos',
-                'Critérios de aceitação atendidos',
-                'Entregas validadas',
-                'Testes passando'
-            ]
-        }
-    };
-    
-    // Generate expected XML
-    const expectedXml = `<?xml version="1.0" encoding="UTF-8"?>
-<task id="${testTask.id}" versao="${testTask.version}">
-    <metadados>
-        <titulo>${testTask.title}</titulo>
-        <descricao>${testTask.description}</descricao>
-        <status>${testTask.status}</status>
-        <progresso>${testTask.progress}</progresso>
-    </metadados>
-    
-    <contexto>
-        <tecnologia principal="${testTask.context.mainTechnology}" versao="${testTask.context.techVersion}"/>
-        <dependencias>
-${testTask.context.dependencies.map(dep => `            <lib>${dep}</lib>`).join('\n')}
-        </dependencias>
-    </contexto>
-    
-    <steps>
-${testTask.steps.map(step => `        <step id="${step.id}" ordem="${step.order}" concluido="${step.completed}" obrigatorio="${step.required}"${step.dependsOn ? ` dependeDe="${step.dependsOn}"` : ''}>
-            <titulo>${step.title}</titulo>
-            <descricao>${step.description}</descricao>
-            <criterios>
-${step.criteria.map(criterio => `                <criterio>${criterio}</criterio>`).join('\n')}
-            </criterios>
-${step.deliverable ? `            <entrega>${step.deliverable}</entrega>` : ''}
-        </step>`).join('\n        \n')}
-    </steps>
-    
-    <validacao>
-        <checklist>
-${testTask.validation.checklist.map(item => `            <item>${item}</item>`).join('\n')}
-        </checklist>
-    </validacao>
-</task>`;
-
-    // Save expected XML
-    const testDir = path.join(__dirname, 'test-output');
-    if (!fs.existsSync(testDir)) {
-        fs.mkdirSync(testDir);
-    }
-    
-    const expectedPath = path.join(testDir, 'expected-task.xml');
-    fs.writeFileSync(expectedPath, expectedXml, 'utf8');
-    
-    console.log('✅ Expected XML generated at:', expectedPath);
-    
-    // Test if TaskXmlManager can be used
-    if (TaskXmlManager) {
+async function testCopilotInstructionsGeneration() {
+    try {
+        const workspacePath = process.cwd();
+        
+        // Simulate reading activity instructions
+        const activityPath = path.join(workspacePath, '.capy', 'actions', 'start_activity.md');
+        let activityInstructions = '';
+        
         try {
-            console.log('🔄 Testing TaskXmlManager...');
-            
-            // This would be the actual integration test
-            const manager = new TaskXmlManager();
-            console.log('✅ TaskXmlManager instantiated successfully');
-            
-            // Additional tests would go here...
-            
+            await fs.access(activityPath);
+            const rawInstructions = await fs.readFile(activityPath, 'utf8');
+            activityInstructions = '\n\n##  ACTIVITY INSTRUCTIONS\n' + rawInstructions + '\n\n';
+            console.log(' Activity instructions loaded successfully');
         } catch (error) {
-            console.log('❌ TaskXmlManager test failed:', error.message);
+            console.log(' No activity instructions found, continuing without them');
         }
-    }
-    
-    // Validate XML structure
-    const structureTests = [
-        { name: 'Task declaration', pattern: /<task id="[^"]+" versao="[^"]+"/ },
-        { name: 'Metadados section', pattern: /<metadados>[\s\S]*<\/metadados>/ },
-        { name: 'Contexto section', pattern: /<contexto>[\s\S]*<\/contexto>/ },
-        { name: 'Steps section', pattern: /<steps>[\s\S]*<\/steps>/ },
-        { name: 'Validacao section', pattern: /<validacao>[\s\S]*<\/validacao>/ },
-        { name: 'Step with dependencies', pattern: /dependeDe="[^"]+"/ },
-        { name: 'Required steps', pattern: /obrigatorio="true"/ },
-        { name: 'Optional steps', pattern: /obrigatorio="false"/ },
-        { name: 'Criteria elements', pattern: /<criterio>[^<]+<\/criterio>/ },
-        { name: 'Deliverable elements', pattern: /<entrega>[^<]+<\/entrega>/ }
-    ];
-    
-    console.log('\n🔍 Structure validation:');
-    let passedTests = 0;
-    
-    structureTests.forEach(test => {
-        const matches = test.pattern.test(expectedXml);
-        console.log(`  ${matches ? '✅' : '❌'} ${test.name}`);
-        if (matches) passedTests++;
-    });
-    
-    console.log(`\n📊 Structure Tests: ${passedTests}/${structureTests.length} passed`);
-    
-    if (passedTests === structureTests.length) {
-        console.log('🎉 XML Integration Test PASSED!');
-        console.log('📁 Files available in test-output/');
+        
+        // Simulate generating Copilot instructions
+        const version = '1.0.0';
+        const projectName = 'Test Project';
+        
+        const copilotInstructions = '=====================START CAPYBARA MEMORY v' + version + '=====================\n' +
+            '#  Capybara - GitHub Copilot Instructions\n\n' +
+            '##  **PROJECT CONTEXT**\n' +
+            '- **Project**: ' + projectName + '\n' +
+            '- **Type**: test-project\n\n' +
+            '##  **CAPYBARA METHODOLOGY**\n' +
+            'This project uses Capybara methodology for solo development.\n\n' +
+            '### **Available Capybara Commands:**\n' +
+            '- \Capybara: Initialize\ - Initialize Capybara in workspace\n\n' +
+            '---\n' +
+            '*This file contains personalized instructions for GitHub Copilot.*\n' +
+            activityInstructions +
+            '======================END CAPYBARA MEMORY v' + version + '======================\n';
+
+        console.log(' Copilot instructions generated successfully');
+        console.log(' Total length:', copilotInstructions.length, 'characters');
+        console.log(' Contains activity instructions:', copilotInstructions.includes('ACTIVITY INSTRUCTIONS'));
+        
+        // Show a preview of where activity instructions would appear
+        const activityIndex = copilotInstructions.indexOf('##  ACTIVITY INSTRUCTIONS');
+        if (activityIndex > -1) {
+            console.log(' Activity instructions properly integrated at position:', activityIndex);
+            const preview = copilotInstructions.substring(activityIndex, activityIndex + 200);
+            console.log(' Preview of integration:', preview + '...');
+        }
+        
         return true;
-    } else {
-        console.log('❌ XML Integration Test FAILED');
+    } catch (error) {
+        console.error(' Error:', error.message);
         return false;
     }
 }
 
-// Run integration test
-console.log('🔬 Starting TaskXmlManager Integration Test\n');
-const success = testTaskXmlManagerIntegration();
-console.log(`\n${success ? '🎯 Integration Test PASSED' : '💥 Integration Test FAILED'}`);
+testCopilotInstructionsGeneration();

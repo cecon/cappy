@@ -1,7 +1,7 @@
 {
   "name": "capybara-memory",
-  "displayName": "Capybara - Minimal Setup",
-  "description": "Lightweight VS Code extension that sets up the Capybara methodology for solo developers - initialization only",
+  "displayName": "Capybara Memory",
+  "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
   "icon": "assets/icon.png",
   "version": "2.2.0",
   "publisher": "eduardocecon",
@@ -15,14 +15,12 @@
     "Machine Learning"
   ],
   "keywords": [
-    "capybara",
-    "methodology",
-    "setup",
-    "initialization",
-    "solo-developer",
-    "minimal",
+    "ai",
     "copilot",
-    "xml",
+    "learning",
+    "productivity",
+    "automation",
+    "prevention",
     "task-management"
   ],
   "activationEvents": [
