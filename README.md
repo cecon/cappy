@@ -19,7 +19,7 @@
 
 ### 🏗️ **What it Creates**
 - **Project Structure**: `.capy/` folder with configuration
-- **Copilot Instructions**: Private GitHub Copilot instructions (gitignored)
+- **Copilot Instructions**: Private GitHub Copilot instructions with version control (gitignored)
 - **Prevention Rules**: Template for documenting project-specific rules
 - **XML Task Structure**: Documentation and examples for manual task management
 
@@ -27,7 +27,7 @@
 
 This extension follows the **initialization-only** approach:
 - ✅ **Setup**: Creates folder structure and documentation
-- ✅ **Configuration**: Generates personalized Copilot instructions
+- ✅ **Configuration**: Generates personalized Copilot instructions with version control
 - 📁 **Task Management**: Manual file editing (no UI complexity)
 - 📁 **Progress Tracking**: Manual XML editing
 - 📁 **History**: Manual file organization
@@ -49,55 +49,87 @@ code --install-extension eduardocecon.capybara
 4. Follow the prompts
 
 ### Step 3: Start Working
-After initialization, you'll have:
-- `.capy/config.json` - Project configuration
-- `.capy/prevention-rules.md` - Document your project-specific rules
-- `.github/copilot-instructions.md` - Private Copilot instructions (gitignored)
+- Edit `.capy/prevention-rules.md` to add project-specific rules
+- Create task XML files manually in `.capy/` folder
+- Use GitHub Copilot with the generated instructions
 
 ---
 
-## 📁 Manual Usage
+## 📋 Available Commands
 
-### Creating Tasks
-Create XML files manually in `.capy/` folder:
+| Command | Description |
+|---------|-------------|
+| `Capybara: Initialize` | Set up Capybara structure and configuration |
+| `Capybara: Test Capybara Extension` | Test if extension is working |
+
+---
+
+## 📁 File Structure Created
+
+```
+your-project/
+├── .capy/
+│   ├── config.json                    # Capybara configuration
+│   ├── prevention-rules.md            # Project-specific rules
+│   └── history/                       # Manual task history
+├── .github/
+│   └── copilot-instructions.md        # Private Copilot instructions (gitignored)
+└── .gitignore                         # Updated with Capybara entries
+```
+
+---
+
+## 🛠️ Manual Task Management
+
+### Creating a Task
+Create a new XML file in `.capy/` folder:
 
 ```xml
-<!-- .capy/my-task.xml -->
 <task id="implement-auth" versao="1.0">
     <metadados>
         <titulo>Implement User Authentication</titulo>
-        <descricao>Add login/logout functionality with JWT</descricao>
+        <descricao>Add login/logout functionality</descricao>
         <status>em-andamento</status>
         <progresso>0/3</progresso>
     </metadados>
     
     <contexto>
-        <tecnologia principal="Node.js" versao="18+"/>
+        <tecnologia principal="React" versao="18+"/>
         <dependencias>
-            <lib>jsonwebtoken</lib>
+            <lib>jwt</lib>
             <lib>bcryptjs</lib>
         </dependencias>
     </contexto>
     
     <steps>
         <step id="step001" ordem="1" concluido="false" obrigatorio="true">
-            <titulo>Create User Model</titulo>
-            <descricao>Define user schema with email/password</descricao>
+            <titulo>Create Login Component</titulo>
+            <descricao>Build React component for login form</descricao>
             <criterios>
-                <criterio>Email validation</criterio>
-                <criterio>Password hashing</criterio>
+                <criterio>Form validation</criterio>
+                <criterio>Error handling</criterio>
             </criterios>
-            <entrega>models/User.js</entrega>
+            <entrega>src/components/Login.jsx</entrega>
         </step>
         
         <step id="step002" ordem="2" concluido="false" obrigatorio="true">
-            <titulo>Implement Login Route</titulo>
-            <descricao>Create POST /login endpoint</descricao>
+            <titulo>API Integration</titulo>
+            <descricao>Connect to authentication API</descricao>
             <criterios>
-                <criterio>JWT token generation</criterio>
-                <criterio>Error handling</criterio>
+                <criterio>JWT token storage</criterio>
+                <criterio>Auto-logout on expire</criterio>
             </criterios>
-            <entrega>routes/auth.js</entrega>
+            <entrega>src/services/auth.js</entrega>
+        </step>
+        
+        <step id="step003" ordem="3" concluido="false" obrigatorio="true">
+            <titulo>Protected Routes</titulo>
+            <descricao>Implement route protection</descricao>
+            <criterios>
+                <criterio>Redirect to login</criterio>
+                <criterio>Preserve intended route</criterio>
+            </criterios>
+            <entrega>src/components/ProtectedRoute.jsx</entrega>
         </step>
     </steps>
     
@@ -105,133 +137,127 @@ Create XML files manually in `.capy/` folder:
         <checklist>
             <item>All mandatory steps completed</item>
             <item>Tests passing</item>
-            <item>Documentation updated</item>
+            <item>Code reviewed</item>
         </checklist>
     </validacao>
 </task>
 ```
 
-### Managing Progress
-Edit XML files to mark steps as complete:
+### Updating Progress
+Mark steps as complete by changing `concluido="true"`:
+
 ```xml
 <step id="step001" ordem="1" concluido="true" obrigatorio="true">
 ```
 
-### Adding Prevention Rules
-Document project-specific patterns in `.capy/prevention-rules.md`:
+### Managing History
+Move completed tasks to `.capy/history/` folder manually.
+
+---
+
+## 🛡️ Prevention Rules
+
+Add project-specific rules to `.capy/prevention-rules.md`:
 
 ```markdown
 # 🛡️ Prevention Rules
 
-## [AUTH] JWT Token Handling
-**Context:** When implementing authentication
-**Problem:** Forgetting to set token expiration
-**Solution:** Always set reasonable expiration (24h for access, 7d for refresh)
-**Example:** `jwt.sign(payload, secret, { expiresIn: '24h' })`
+## [AUTH] Authentication Flow
+**Problem:** JWT tokens stored in localStorage vulnerable to XSS
+**Solution:** Use httpOnly cookies for token storage
+**Example:** `Set-Cookie: token=...; HttpOnly; Secure; SameSite=Strict`
 
-## [DATABASE] Connection Error Handling
-**Context:** Database operations
-**Problem:** Not handling connection failures gracefully
-**Solution:** Always wrap DB calls in try-catch with proper error messages
+## [REACT] Component Structure
+**Problem:** Mixing business logic with UI components
+**Solution:** Separate concerns using custom hooks
+**Example:** Use `useAuth()` hook instead of auth logic in components
 ```
-
----
-
-## 🔧 Available Commands
-
-- **`Capybara: Initialize`** - Set up Capybara structure in your project
-- **`Capybara: Test`** - Verify the extension is working
-
-That's it! The extension is intentionally minimal.
-
----
-
-## 🎯 Capybara Methodology
-
-The Capybara methodology (Focus, Organize, Record, Grow, Evolve) emphasizes:
-
-### **1. Focus** 🎯
-- Work on one atomic task at a time (2-3 hours max)
-- Clear start and end criteria
-
-### **2. Organize** 📋
-- Structure tasks with XML for clarity
-- Define context and dependencies upfront
-
-### **3. Record** 📝
-- Document mistakes as prevention rules
-- Keep private instructions for your AI assistant
-
-### **4. Grow** 🌱
-- Learn from each completed task
-- Build up project-specific knowledge
-
-### **5. Evolve** 🔄
-- Continuously improve your process
-- Adapt patterns as projects grow
 
 ---
 
 ## 🤖 GitHub Copilot Integration
 
-After initialization, your `.github/copilot-instructions.md` will contain:
-- Project context and tech stack
-- Capybara methodology guidelines
-- Your prevention rules (automatically loaded)
-- XML task structure documentation
+The extension automatically creates versioned instructions for GitHub Copilot:
 
-This file is private (gitignored) and makes your AI assistant smarter with every project.
+```markdown
+=====================START CAPYBARA MEMORY v1.0.0=====================
+# 🔨 Capybara - GitHub Copilot Instructions
 
----
+## 📋 **PROJECT CONTEXT**
+- **Project**: your-project-name
+- **Main Language**: javascript, typescript
+- **Frameworks**: React
 
-## 🛠️ File Structure
-
-After initialization:
-```
-your-project/
-├── .capy/
-│   ├── config.json           # Project configuration
-│   ├── prevention-rules.md   # Your documented rules
-│   └── history/              # Completed tasks (manual)
-├── .github/
-│   └── copilot-instructions.md # Private AI instructions
-└── .gitignore               # Updated with Capybara entries
+## 🎯 **CAPYBARA METHODOLOGY**
+This project uses Capybara methodology for solo development...
+======================END CAPYBARA MEMORY v1.0.0======================
 ```
 
----
-
-## 📖 Why Manual Management?
-
-This extension intentionally avoids complex UI and automation because:
-
-1. **Simplicity**: No learning curve for task management interfaces
-2. **Flexibility**: Edit XML and markdown with full VS Code power
-3. **Transparency**: See exactly what's happening with your files
-4. **Performance**: No overhead from complex task tracking
-5. **Focus**: Spend time coding, not configuring task management
+These instructions are:
+- **Private**: Added to `.gitignore` automatically
+- **Versioned**: Easy to update and track changes
+- **Preserved**: Other content in the file is maintained
 
 ---
 
-## 📄 License
+## 🔧 Configuration
 
-MIT License - see [LICENSE](LICENSE) file for details.
+The `.capy/config.json` file contains project configuration:
+
+```json
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "your-project",
+    "language": ["javascript", "typescript"],
+    "framework": ["react"],
+    "description": "Project description"
+  },
+  "createdAt": "2025-01-01T00:00:00.000Z",
+  "lastUpdated": "2025-01-01T00:00:00.000Z"
+}
+```
+
+---
+
+## 🎯 Capybara Methodology Principles
+
+1. **Atomic Tasks**: Maximum 2-3 hours per task
+2. **XML Structure**: Tasks defined in structured XML files
+3. **Continuous Learning**: Every error becomes a prevention rule
+4. **Preserved Context**: AI always informed of current state
+5. **Minimal Documentation**: Only what saves time
+
+---
+
+## 📖 Why "Initialization Only"?
+
+- **Lightweight**: No complex UI or background processes
+- **Flexible**: Manual file editing allows full customization
+- **Reliable**: Simple structure, less prone to bugs
+- **Transparent**: You control all files and their content
+- **Focused**: Does one thing well - project setup
 
 ---
 
 ## 🤝 Contributing
 
-This is a minimal extension by design. Contributions should focus on:
-- Bug fixes in initialization
-- Improvements to generated templates
-- Better language/framework detection
-- Documentation improvements
-
-Complex task management features should be separate extensions.
+Since this is a minimal extension, contributions focus on:
+- Improving initialization process
+- Better documentation templates
+- Enhanced project detection
+- Bug fixes and stability
 
 ---
 
-<div align="center">
+## 📄 License
 
-**🦫 Keep it simple. Keep it focused. Keep coding.**
+MIT License - feel free to use in your projects!
 
-</div>
+---
+
+## 🦫 About Capybara
+
+Capybara methodology is designed for solo developers who want structure without complexity. Like the animal, it's calm, methodical, and gets things done efficiently.
+
+**Happy coding!** 🚀
