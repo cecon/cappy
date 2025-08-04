@@ -6,7 +6,8 @@ import { CapybaraConfig, DEFAULT_CAPYBARA_CONFIG } from '../models/capybaraConfi
 
 export class InitCapybaraCommand {
     constructor(
-        private fileManager: FileManager
+        private fileManager: FileManager,
+        private extensionContext?: vscode.ExtensionContext
     ) {}
 
     async execute(): Promise<boolean> {
@@ -388,9 +389,17 @@ file editing, keeping the extension lightweight and focused.
     }
 
     private async createOrUpdateCopilotInstructions(config: CapybaraConfig, githubDir: string, projectInfo: any): Promise<void> {
-        const extensionPath = vscode.extensions.getExtension('eduardocecon.capybara-memory')?.extensionPath;
-        if (!extensionPath) {
-            throw new Error('Extensão Capybara não encontrada');
+        let extensionPath: string;
+        
+        if (this.extensionContext) {
+            extensionPath = this.extensionContext.extensionPath;
+        } else {
+            // Fallback: tentar encontrar a extensão
+            const extension = vscode.extensions.getExtension('eduardocecon.capybara-memory');
+            if (!extension) {
+                throw new Error('Extensão Capybara não encontrada e contexto não foi fornecido');
+            }
+            extensionPath = extension.extensionPath;
         }
 
         const templatePath = path.join(extensionPath, 'resources', 'templates', 'copilot-instructions-capybara.md');
@@ -508,9 +517,18 @@ file editing, keeping the extension lightweight and focused.
     }
 
     private async injectTaskInstructionsFile(capyDir: string): Promise<void> {
-        const extensionPath = vscode.extensions.getExtension('eduardocecon.capybara-memory')?.extensionPath;
-        if (!extensionPath) {
-            throw new Error('Extensão Capybara não encontrada');
+        let extensionPath: string;
+        
+        if (this.extensionContext) {
+            extensionPath = this.extensionContext.extensionPath;
+        } else {
+            // Fallback: tentar encontrar a extensão
+            const extension = vscode.extensions.getExtension('eduardocecon.capybara-memory');
+            if (!extension) {
+                console.error('Extensão Capybara não encontrada e contexto não foi fornecido');
+                return; // Não falhar a inicialização por causa disso
+            }
+            extensionPath = extension.extensionPath;
         }
 
         const sourceFile = path.join(extensionPath, 'resources', 'instructions', 'capybara-task-file-structure-info.md');

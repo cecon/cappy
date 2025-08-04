@@ -23,7 +23,7 @@ export function activate(context: vscode.ExtensionContext) {
                     const fileModule = await import('./utils/fileManager');
                     
                     const fileManager = new fileModule.FileManager();
-                    const initCommand = new initModule.InitCapybaraCommand(fileManager);
+                    const initCommand = new initModule.InitCapybaraCommand(fileManager, context);
                     
                     const success = await initCommand.execute();
                     if (success) {
