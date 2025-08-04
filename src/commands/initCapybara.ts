@@ -389,25 +389,11 @@ file editing, keeping the extension lightweight and focused.
     }
 
     private async createOrUpdateCopilotInstructions(config: CapybaraConfig, githubDir: string, projectInfo: any): Promise<void> {
-        let extensionPath: string;
-        
-        if (this.extensionContext) {
-            extensionPath = this.extensionContext.extensionPath;
-        } else {
-            // Fallback: tentar encontrar a extensão
-            const extension = vscode.extensions.getExtension('eduardocecon.capybara-memory');
-            if (!extension) {
-                throw new Error('Extensão Capybara não encontrada e contexto não foi fornecido');
-            }
-            extensionPath = extension.extensionPath;
-        }
-
-        const templatePath = path.join(extensionPath, 'resources', 'templates', 'copilot-instructions-capybara.md');
-        const targetPath = path.join(githubDir, 'copilot-instructions.md');
-
         try {
-            // Ler template
-            let content = await fs.promises.readFile(templatePath, 'utf8');
+            const targetPath = path.join(githubDir, 'copilot-instructions.md');
+            
+            // Usar template embeddado ao invés de ler de arquivos
+            let content = this.getEmbeddedCopilotTemplate();
             
             // Substituir placeholders
             content = content
@@ -448,6 +434,157 @@ file editing, keeping the extension lightweight and focused.
             // Fallback para o método antigo
             await this.createCopilotInstructions(config, githubDir, projectInfo);
         }
+    }
+
+    private getEmbeddedCopilotTemplate(): string {
+        return `# 🔨 Capybara - Instruções para GitHub Copilot
+
+## 📋 **CONTEXTO DO PROJETO**
+- **Projeto**: {PROJECT_NAME}
+- **Tipo**: {PROJECT_TYPE}
+- **Linguagem Principal**: {MAIN_LANGUAGE}
+- **Frameworks**: {FRAMEWORKS}
+
+## 🎯 **METODOLOGIA Capybara**
+Este projeto usa a metodologia Capybara (Focus, Organize, Record, Grow, Evolve) para desenvolvimento solo:
+
+### **Princípios:**
+1. **Tarefas Atômicas**: Máximo 2-3 horas por STEP
+2. **XML estruturado**: Tasks definidas em arquivo XML único
+3. **Aprendizado Contínuo**: Cada erro vira uma prevention rule
+4. **Contexto Preservado**: AI sempre informada do estado atual
+5. **Documentação Mínima**: Só o essencial que economiza tempo
+
+### **Prevention Rules Ativas:**
+*As regras serão carregadas automaticamente do arquivo .capy/prevention-rules.md*
+
+## 🤖 **COMANDOS DE DETECÇÃO LLM**
+
+### **Detecção de Criação de Tarefas:**
+Quando o usuário disser algo como:
+- "vamos adicionar a auth do supabase nesse projeto"
+- "preciso implementar um sistema de login"
+- "criar um dashboard administrativo"
+- "adicionar integração com API X"
+
+**VOCÊ DEVE:**
+
+1. **Verificar Tarefas Ativas** primeiro:
+   - Procurar por arquivos task.xml existentes em .capy/tasks/
+   - Se alguma task tem status="em-andamento" ou status="pausada", perguntar ao usuário:
+     "⚠️ Existe uma tarefa ativa: [TASK_TITLE]. Deseja pausar esta tarefa para iniciar uma nova? (Digite 'sim' para pausar ou 'não' para continuar a tarefa atual)"
+
+2. **Se usuário confirmar criação da task:**
+   - Ler as instruções completas de \`.capy/instructions/capybara-task-file-structure-info.md\`
+   - Seguir essas instruções exatamente para gerar uma estrutura XML adequada
+   - Criar o arquivo XML em .capy/tasks/ com ID único
+   - Informar o usuário: "✅ Nova tarefa criada: [TASK_TITLE]. Use 'Capybara: Current Task' para ver detalhes."
+
+3. **Se usuário quiser continuar tarefa existente:**
+   - Mostrar o status da tarefa atual e próximos steps
+   - Perguntar em que step específico quer trabalhar
+
+### **Gerenciamento de Status de Tarefas:**
+- Sempre verificar .capy/tasks/ para tarefas atuais antes de sugerir novo trabalho
+- Ao mostrar informações de task, exibir progresso e próximos steps claramente
+- Lembrar usuários de marcar steps como concluídos alterando \`concluido="true"\`
+
+### **Regras de Geração XML:**
+- **SEMPRE** ler \`.capy/instructions/capybara-task-file-structure-info.md\` antes de gerar XML
+- Seguir a estrutura exata e requisitos especificados lá
+- Incluir todas as seções obrigatórias: metadata, context, steps, validation
+- Garantir que steps sejam lógicos, sequenciais e testáveis
+- Adicionar critérios específicos para cada step
+- Incluir listagens adequadas de arquivos e dependências
+
+## 🛠️ **INSTRUÇÕES ESPECÍFICAS**
+
+### **Para este projeto:**
+- Sempre verificar prevention rules antes de sugerir código
+- Trabalhar com tasks em formato XML (task.xml)
+- Focar em soluções simples e diretas
+- Documentar problemas encontrados para criar novas rules
+
+### **⚠️ Estado Atual da Extensão:**
+- **Inicialização**: Totalmente funcional
+- **Criação de Tasks**: XML estruturado com steps, critérios e validação
+- **Gestão de Progress**: Tracking de conclusão por step
+- **Outros comandos**: Majoritariamente placeholders (mostram "Coming soon!")
+- **Foco**: Desenvolvimento incremental com metodologia Capybara
+
+### **🎯 Workflow Recomendado:**
+1. Use \`Capybara: Initialize\` para configurar novo projeto
+2. Use \`Capybara: Create New Task\` para criar tasks estruturadas em XML
+3. Edite o task.xml para definir steps específicos do projeto
+4. Marque steps como concluídos alterando \`concluido="true"\`
+5. Para outras funcionalidades, aguarde implementação ou contribua!
+
+### **📄 Estrutura XML das Tasks:**
+
+\`\`\`xml
+<task id="task-id" versao="1.0">
+    <metadados>
+        <titulo>Título da Task</titulo>
+        <descricao>Descrição detalhada</descricao>
+        <status>em-andamento|pausada|concluida</status>
+        <progresso>0/3</progresso>
+    </metadados>
+    
+    <contexto>
+        <tecnologia principal="React" versao="18+"/>
+        <dependencias>
+            <lib>biblioteca-exemplo</lib>
+        </dependencias>
+    </contexto>
+    
+    <steps>
+        <step id="step001" ordem="1" concluido="false" obrigatorio="true">
+            <titulo>Nome do Step</titulo>
+            <descricao>O que fazer neste step</descricao>
+            <criterios>
+                <criterio>Critério 1</criterio>
+                <criterio>Critério 2</criterio>
+            </criterios>
+            <entrega>Arquivo.jsx</entrega>
+        </step>
+    </steps>
+    
+    <validacao>
+        <checklist>
+            <item>Todos os steps obrigatórios concluídos</item>
+        </checklist>
+    </validacao>
+</task>
+\`\`\`
+
+### **Comandos Capybara disponíveis:**
+
+#### **✅ Comandos Funcionais:**
+- \`Capybara: Initialize\` - Inicializar Capybara no workspace
+- \`Capybara: Create New Task\` - Criar nova tarefa em XML estruturado
+- \`Capybara: Current Task\` - Ver tarefa atual (com validação)
+- \`Capybara: Test Capybara Extension\` - Testar se extensão está funcionando
+
+#### **🚧 Comandos em Desenvolvimento:**
+- \`Capybara: Manage All Tasks\` - Gerenciar todas as tarefas (em breve)
+- \`Capybara: Pause Current Task\` - Pausar tarefa atual (em breve)
+- \`Capybara: Complete Task\` - Completar e mover para histórico (em breve)
+- \`Capybara: Update Step Progress\` - Marcar steps como concluídos (em breve)
+- \`Capybara: Complete Current Task\` - Completar tarefa atual (em breve)
+- \`Capybara: Task History\` - Ver histórico de tarefas (em breve)
+
+#### **🔄 Comandos Legacy:**
+- \`Capybara: Create Smart Task (Legacy)\` - Redireciona para Create New Task
+- \`Capybara: Add Prevention Rule (Legacy)\` - Funcionalidade integrada automaticamente
+
+### **📝 Estado Atual do Desenvolvimento:**
+- ✅ Inicialização e configuração: **Completa**
+- ✅ Criação básica de tarefas: **Funcional com validação**
+- 🚧 Gerenciamento de tarefas: **Em desenvolvimento**
+- 🚧 Histórico e analytics: **Planejado**
+
+---
+*Este arquivo é privado e não deve ser commitado. Ele contém suas instruções personalizadas para o GitHub Copilot.*`;
     }
 
     private async createInitialPreventionRules(capyDir: string): Promise<void> {
@@ -517,29 +654,247 @@ file editing, keeping the extension lightweight and focused.
     }
 
     private async injectTaskInstructionsFile(capyDir: string): Promise<void> {
-        let extensionPath: string;
-        
-        if (this.extensionContext) {
-            extensionPath = this.extensionContext.extensionPath;
-        } else {
-            // Fallback: tentar encontrar a extensão
-            const extension = vscode.extensions.getExtension('eduardocecon.capybara-memory');
-            if (!extension) {
-                console.error('Extensão Capybara não encontrada e contexto não foi fornecido');
-                return; // Não falhar a inicialização por causa disso
-            }
-            extensionPath = extension.extensionPath;
-        }
-
-        const sourceFile = path.join(extensionPath, 'resources', 'instructions', 'capybara-task-file-structure-info.md');
-        const targetFile = path.join(capyDir, 'instructions', 'capybara-task-file-structure-info.md');
-
         try {
-            const content = await fs.promises.readFile(sourceFile, 'utf8');
+            const targetFile = path.join(capyDir, 'instructions', 'capybara-task-file-structure-info.md');
+            
+            // Usar conteúdo embeddado ao invés de ler de arquivos
+            const content = this.getEmbeddedTaskInstructionsTemplate();
+            
             await fs.promises.writeFile(targetFile, content, 'utf8');
         } catch (error) {
-            console.error('Erro ao copiar arquivo de instruções XML:', error);
+            console.error('Erro ao criar arquivo de instruções XML:', error);
             // Não falhar a inicialização por causa disso
         }
+    }
+
+    private getEmbeddedTaskInstructionsTemplate(): string {
+        return `# LLM Instructions: XML Task Generation for Capybara Methodology
+
+## Overview
+
+You are responsible for creating XML task structures that follow the Capybara methodology. These XML files define atomic, step-by-step instructions for development tasks that can be completed in 1-3 hours with measurable outcomes.
+
+## Your Role - CRITICAL REQUIREMENTS
+
+When a user expresses a development need, you must:
+
+1. **FIRST**: Check for active tasks in \`.capy/tasks/\` directory
+2. **ATOMICITY ANALYSIS**: Ensure task can be completed in 1-3 hours  
+3. **BREAK DOWN**: Decompose non-atomic tasks into smaller units
+4. **GENERATE**: Create structured XML following exact specifications
+5. **VALIDATE**: Ensure all criteria are measurable and testable
+
+## File Naming Convention
+
+### **Task File Names: \`STEP_[UNIX_TIMESTAMP]_[title].xml\`**
+
+Task files should be named using Unix timestamps for chronological ordering:
+
+\`\`\`
+Examples:
+STEP_1722873600_setup-supabase-auth.xml
+STEP_1722874200_create-login-form.xml
+STEP_1722874800_implement-dashboard.xml
+\`\`\`
+
+**Benefits:**
+- **Chronological ordering**: Files automatically sort by creation time
+- **Unique names**: No conflicts between different tasks
+- **Descriptive**: Title immediately shows what the task does
+- **Compact**: Unix timestamp is shorter than full date strings
+
+### **Internal Step IDs: Simple Sequential**
+
+Within each task XML, use simple sequential step IDs:
+
+\`\`\`xml
+<step id="step001" order="1" completed="false" required="true">
+<step id="step002" order="2" completed="false" required="true" depends-on="step001">
+<step id="step003" order="3" completed="false" required="true" depends-on="step002">
+\`\`\`
+
+**Why this approach:**
+- **File level**: Unix timestamps ensure global chronological order
+- **Step level**: Simple sequences make internal navigation easy
+- **Best of both**: Global ordering + local simplicity
+
+## Pre-Generation Checklist
+
+### **Step 1: Active Task Check**
+- Look for XML files in \`.capy/tasks/\` with status="em-andamento" or status="pausada"
+- If found, ask: "⚠️ Existe uma tarefa ativa: [TASK_TITLE]. Deseja pausar esta tarefa para iniciar uma nova?"
+- Only proceed with user confirmation
+
+### **Step 2: Atomicity Analysis** 
+- **ATOMIC**: Single objective, 1-3 hours, clear deliverable
+- **NON-ATOMIC**: Multiple objectives, >3 hours, complex scope
+
+\`\`\`
+✅ ATOMIC EXAMPLES:
+- "Setup Supabase client configuration"  
+- "Create user registration form component"
+- "Implement JWT token validation middleware"
+
+❌ NON-ATOMIC (decompose first):
+- "Implement complete authentication system"
+- "Build admin dashboard" 
+- "Setup entire backend API"
+\`\`\`
+
+### **Step 3: Task Decomposition (if needed)**
+If task is non-atomic, break it down using these patterns:
+- **Authentication**: config → middleware → endpoints → integration → testing
+- **Frontend**: layout → components → styling → state → integration  
+- **Backend**: schema → validation → endpoints → testing
+- **Database**: schema → migrations → repositories → testing
+
+## XML Structure Requirements
+
+### Basic Template - STRICT FORMAT
+
+Every XML task must follow this exact structure:
+
+\`\`\`xml
+<task id="[unique-kebab-case-id]" version="1.0">
+    <metadata>
+        <title>[Clear, actionable title]</title>
+        <description>[Detailed description focusing on the specific outcome]</description>
+        <status>em-andamento</status>
+        <progress>0/[total-steps]</progress>
+    </metadata>
+    
+    <context>
+        <area>[frontend/backend/mobile/devops/fullstack]</area>
+        <technology main="[main-tech]" version="[min-version]"/>
+        <dependencies>
+            <lib>[library-name]</lib>
+            <!-- Add ALL dependencies needed -->
+        </dependencies>
+        <files>
+            <file type="creation" required="true">[absolute-file-path]</file>
+            <file type="modification" required="false">[absolute-file-path]</file>
+            <!-- List EVERY file that will be touched -->
+        </files>
+    </context>
+    
+    <steps>
+        <!-- 3-7 atomic steps maximum with simple sequential IDs -->
+    </steps>
+    
+    <validation>
+        <checklist>
+            <item>All required steps completed</item>
+            <item>All required files created</item>
+            <item>Code compiles without errors</item>
+            <item>No linting warnings</item>
+            <item>[Add specific validation criteria]</item>
+        </checklist>
+    </validation>
+</task>
+\`\`\`
+
+### Key Requirements:
+- **Task File Name**: \`STEP_[UNIX_TIMESTAMP]_[KEBAB-CASE-TITLE].xml\`  
+  Example: \`STEP_1722873600_setup-supabase-auth.xml\`
+- **Internal Steps**: Simple sequential IDs (\`step001\`, \`step002\`, etc.)
+- **ID**: Use kebab-case, descriptive, unique (e.g., "setup-supabase-auth", "create-login-form")  
+- **Status**: Always start with "em-andamento" for new tasks
+- **Area**: Choose ONE primary area where most work will happen
+- **Dependencies**: Include ALL libraries, not just the main ones
+- **Files**: List EVERY file that will be created or modified with full paths
+
+## Step Creation Guidelines - SIMPLE SEQUENTIAL FORMAT
+
+### Step Structure with Simple Sequential IDs
+
+Each step must follow this exact pattern with simple sequential IDs:
+
+\`\`\`xml
+<step id="step[XXX]" order="[N]" completed="false" required="[true/false]" depends-on="[previous-step-id]">
+    <title>[What will be accomplished]</title>
+    <description>[Detailed explanation of the work to be done]</description>
+    <criteria>
+        <criterion>[Specific, measurable requirement]</criterion>
+        <criterion>[Another specific requirement]</criterion>
+        <!-- List ALL criteria that must be met -->
+    </criteria>
+    <files>
+        <file type="[creation/modification]" required="[true/false]">[specific-file-path]</file>
+    </files>
+    <!-- Optional sections -->
+    <dependencies>
+        <lib>[step-specific-library]</lib>
+    </dependencies>
+    <validation>
+        <command>[test-command]</command>
+        <metric>[specific-metric >= target]</metric>
+    </validation>
+</step>
+\`\`\`
+
+### **STEP ID Format: Simple Sequential**
+- **Format**: \`step001\`, \`step002\`, \`step003\`, etc.
+- **Internal to task**: Steps are numbered sequentially within each task file
+- **Benefits**: 
+  - Simple and readable
+  - Easy to reference within the task
+  - No complexity for internal steps
+  - Clear dependency chain
+
+### **Task File Naming with Unix Timestamp:**
+- **Format**: \`STEP_[UNIX_TIMESTAMP]_[KEBAB-CASE-TITLE].xml\`
+- **Timestamp**: Unix timestamp when task is created
+- **Example**: \`STEP_1722873600_setup-supabase-auth.xml\`
+- **Benefits**: 
+  - Automatic chronological ordering of tasks
+  - Unique task file names guaranteed 
+  - Clear task identification
+  - Easy to sort by creation time
+
+### **LLM CRITICAL INSTRUCTION:**
+**Task Files**: Use \`STEP_[timestamp]_[title].xml\` format for file names
+**Internal Steps**: Use simple \`step001\`, \`step002\`, \`step003\` format for step IDs
+- Generate Unix timestamp for task file name only
+- Use sequential numbering for internal steps
+- This provides chronological ordering at task level with simplicity at step level
+
+## Output Requirements
+
+Your XML output must:
+
+- Be valid XML syntax
+- Follow the exact structure defined above
+- Include ALL required elements
+- Have logical step dependencies
+- Contain specific, measurable criteria
+- List all files that will be created/modified
+- Include appropriate testing requirements
+- Have a comprehensive validation checklist
+
+## Response Format
+
+Always respond with:
+
+1. Brief analysis of the request
+2. The complete XML task structure
+3. Any assumptions or clarifications made
+
+Example:
+
+\`\`\`
+## Analysis
+Creating a React customer registration form requires form handling, validation, styling, and testing. This will be a frontend-focused task with 7 sequential steps.
+
+## XML Task Structure
+[Complete XML here]
+
+## Assumptions
+- Using React 18+
+- Implementing with react-hook-form for performance
+- Including comprehensive validation with Yup
+- Responsive design required
+- 80% test coverage target
+\`\`\`
+`;
     }
 }
