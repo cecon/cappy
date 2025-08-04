@@ -2,8 +2,6 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { CapybaraConfig } from '../models/capybaraConfig';
-import { Task } from '../models/task';
-import { PreventionRule } from '../models/preventionRule';
 
 export class FileManager {
     private workspaceRoot: string | null = null;
