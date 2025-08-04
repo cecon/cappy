@@ -1,30 +1,95 @@
-# LLM Instructions: XML Task Generation
+# LLM Instructions: XML Task Generation for Capybara Methodology
 
 ## Overview
 
-You are tasked with creating XML task structures for development projects. These XML files define step-by-step instructions that can be followed by AI development assistants to complete programming tasks systematically.
+You are responsible for creating XML task structures that follow the Capybara methodology. These XML files define atomic, step-by-step instructions for development tasks that can be completed in 1-3 hours with measurable outcomes.
 
-## Your Role
+## Your Role - CRITICAL REQUIREMENTS
 
-When given a development request, you must:
+When a user expresses a development need, you must:
 
-1. **Analyze** the request to understand the full scope
-1. **Break down** the work into logical, sequential steps
-1. **Generate** a complete XML task structure
-1. **Validate** that all requirements are covered
+1. **FIRST**: Check for active tasks in `.capy/tasks/` directory
+2. **ATOMICITY ANALYSIS**: Ensure task can be completed in 1-3 hours  
+3. **BREAK DOWN**: Decompose non-atomic tasks into smaller units
+4. **GENERATE**: Create structured XML following exact specifications
+5. **VALIDATE**: Ensure all criteria are measurable and testable
+
+## File Naming Convention
+
+### **Task File Names: `STEP_[UNIX_TIMESTAMP]_[title].xml`**
+
+Task files should be named using Unix timestamps for chronological ordering:
+
+```
+Examples:
+STEP_1722873600_setup-supabase-auth.xml
+STEP_1722874200_create-login-form.xml
+STEP_1722874800_implement-dashboard.xml
+```
+
+**Benefits:**
+- **Chronological ordering**: Files automatically sort by creation time
+- **Unique names**: No conflicts between different tasks
+- **Descriptive**: Title immediately shows what the task does
+- **Compact**: Unix timestamp is shorter than full date strings
+
+### **Internal Step IDs: Simple Sequential**
+
+Within each task XML, use simple sequential step IDs:
+
+```xml
+<step id="step001" order="1" completed="false" required="true">
+<step id="step002" order="2" completed="false" required="true" depends-on="step001">
+<step id="step003" order="3" completed="false" required="true" depends-on="step002">
+```
+
+**Why this approach:**
+- **File level**: Unix timestamps ensure global chronological order
+- **Step level**: Simple sequences make internal navigation easy
+- **Best of both**: Global ordering + local simplicity
+
+## Pre-Generation Checklist
+
+### **Step 1: Active Task Check**
+- Look for XML files in `.capy/tasks/` with status="em-andamento" or status="pausada"
+- If found, ask: "⚠️ Existe uma tarefa ativa: [TASK_TITLE]. Deseja pausar esta tarefa para iniciar uma nova?"
+- Only proceed with user confirmation
+
+### **Step 2: Atomicity Analysis** 
+- **ATOMIC**: Single objective, 1-3 hours, clear deliverable
+- **NON-ATOMIC**: Multiple objectives, >3 hours, complex scope
+
+```
+✅ ATOMIC EXAMPLES:
+- "Setup Supabase client configuration"  
+- "Create user registration form component"
+- "Implement JWT token validation middleware"
+
+❌ NON-ATOMIC (decompose first):
+- "Implement complete authentication system"
+- "Build admin dashboard" 
+- "Setup entire backend API"
+```
+
+### **Step 3: Task Decomposition (if needed)**
+If task is non-atomic, break it down using these patterns:
+- **Authentication**: config → middleware → endpoints → integration → testing
+- **Frontend**: layout → components → styling → state → integration  
+- **Backend**: schema → validation → endpoints → testing
+- **Database**: schema → migrations → repositories → testing
 
 ## XML Structure Requirements
 
-### Basic Template
+### Basic Template - STRICT FORMAT
 
-Always use this structure as your foundation:
+Every XML task must follow this exact structure:
 
 ```xml
-<task id="[project-name-kebab-case]" version="1.0">
+<task id="[unique-kebab-case-id]" version="1.0">
     <metadata>
-        <title>[Clear, descriptive title]</title>
-        <description>[Detailed description of what will be built]</description>
-        <status>not-started</status>
+        <title>[Clear, actionable title]</title>
+        <description>[Detailed description focusing on the specific outcome]</description>
+        <status>em-andamento</status>
         <progress>0/[total-steps]</progress>
     </metadata>
     
@@ -33,21 +98,40 @@ Always use this structure as your foundation:
         <technology main="[main-tech]" version="[min-version]"/>
         <dependencies>
             <lib>[library-name]</lib>
-            <!-- Add more as needed -->
+            <!-- Add ALL dependencies needed -->
         </dependencies>
         <files>
-            <file type="creation" required="true">[file-path]</file>
-            <!-- List ALL files that will be created/modified -->
+            <file type="creation" required="true">[absolute-file-path]</file>
+            <file type="modification" required="false">[absolute-file-path]</file>
+            <!-- List EVERY file that will be touched -->
         </files>
     </context>
     
     <steps>
-        <!-- Define steps here -->
+        <!-- 3-7 atomic steps maximum with simple sequential IDs -->
     </steps>
     
     <validation>
         <checklist>
             <item>All required steps completed</item>
+            <item>All required files created</item>
+            <item>Code compiles without errors</item>
+            <item>No linting warnings</item>
+            <item>[Add specific validation criteria]</item>
+        </checklist>
+    </validation>
+</task>
+```
+
+### Key Requirements:
+- **Task File Name**: `STEP_[UNIX_TIMESTAMP]_[KEBAB-CASE-TITLE].xml`  
+  Example: `STEP_1722873600_setup-supabase-auth.xml`
+- **Internal Steps**: Simple sequential IDs (`step001`, `step002`, etc.)
+- **ID**: Use kebab-case, descriptive, unique (e.g., "setup-supabase-auth", "create-login-form")  
+- **Status**: Always start with "em-andamento" for new tasks
+- **Area**: Choose ONE primary area where most work will happen
+- **Dependencies**: Include ALL libraries, not just the main ones
+- **Files**: List EVERY file that will be created or modified with full paths
             <item>All required files created</item>
             <item>Code compiles without errors</item>
             <item>No linting warnings</item>
@@ -57,11 +141,11 @@ Always use this structure as your foundation:
 </task>
 ```
 
-## Step Creation Guidelines
+## Step Creation Guidelines - SIMPLE SEQUENTIAL FORMAT
 
-### Step Structure
+### Step Structure with Simple Sequential IDs
 
-Each step must follow this pattern:
+Each step must follow this exact pattern with simple sequential IDs:
 
 ```xml
 <step id="step[XXX]" order="[N]" completed="false" required="[true/false]" depends-on="[previous-step-id]">
@@ -86,14 +170,40 @@ Each step must follow this pattern:
 </step>
 ```
 
+### **STEP ID Format: Simple Sequential**
+- **Format**: `step001`, `step002`, `step003`, etc.
+- **Internal to task**: Steps are numbered sequentially within each task file
+- **Benefits**: 
+  - Simple and readable
+  - Easy to reference within the task
+  - No complexity for internal steps
+  - Clear dependency chain
+
+### **Task File Naming with Unix Timestamp:**
+- **Format**: `STEP_[UNIX_TIMESTAMP]_[KEBAB-CASE-TITLE].xml`
+- **Timestamp**: Unix timestamp when task is created
+- **Example**: `STEP_1722873600_setup-supabase-auth.xml`
+- **Benefits**: 
+  - Automatic chronological ordering of tasks
+  - Unique task file names guaranteed 
+  - Clear task identification
+  - Easy to sort by creation time
+
+### **LLM CRITICAL INSTRUCTION:**
+**Task Files**: Use `STEP_[timestamp]_[title].xml` format for file names
+**Internal Steps**: Use simple `step001`, `step002`, `step003` format for step IDs
+- Generate Unix timestamp for task file name only
+- Use sequential numbering for internal steps
+- This provides chronological ordering at task level with simplicity at step level
+
 ### Step Sequencing Rules
 
-1. **Dependencies**: Each step should logically depend on the previous one
-1. **Granularity**: Steps should be neither too broad nor too narrow
-1. **Testability**: Each step should have clear, verifiable criteria
-1. **File Organization**: Group related file operations in the same step when logical
+1. **Dependencies**: Each step should logically depend on the previous one using sequential ID
+2. **Granularity**: Steps should be neither too broad nor too narrow (1-3 hours max)
+3. **Testability**: Each step should have clear, verifiable criteria
+4. **File Organization**: Group related file operations in the same step when logical
 
-### Common Step Patterns
+### Common Step Patterns with Sequential IDs
 
 #### 1. Project Setup
 
@@ -146,7 +256,7 @@ Each step must follow this pattern:
 #### 4. Testing (Always Include)
 
 ```xml
-<step id="step00X" order="X" completed="false" required="true" depends-on="step00Y">
+<step id="step004" order="4" completed="false" required="true" depends-on="step003">
     <title>Implement unit tests</title>
     <description>Create comprehensive test suite for the component</description>
     <criteria>

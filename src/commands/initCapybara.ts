@@ -61,6 +61,8 @@ export class InitCapybaraCommand {
                 await fs.promises.mkdir(capyDir, { recursive: true });
                 await fs.promises.mkdir(githubDir, { recursive: true });
                 await fs.promises.mkdir(path.join(capyDir, 'history'), { recursive: true });
+                await fs.promises.mkdir(path.join(capyDir, 'instructions'), { recursive: true });
+                await fs.promises.mkdir(path.join(capyDir, 'tasks'), { recursive: true });
 
                 progress.report({ increment: 20, message: 'Coletando informações do projeto...' });
 
@@ -98,10 +100,13 @@ export class InitCapybaraCommand {
                 // 5. Criar instruções personalizadas para Copilot
                 await this.createCopilotInstructions(config, githubDir, projectInfo);
 
-                // 6. Criar arquivo de prevention rules
+                // 6. Injetar arquivo de instruções XML para LLM
+                await this.injectTaskInstructionsFile(capyDir);
+
+                // 7. Criar arquivo de prevention rules
                 await this.createInitialPreventionRules(capyDir);
 
-                // 7. Adicionar ao .gitignore
+                // 8. Adicionar ao .gitignore
                 await this.updateGitignore(workspaceFolder.uri.fsPath);
 
                 progress.report({ increment: 100, message: 'Finalizado!' });
@@ -258,6 +263,45 @@ This project uses Capybara methodology (Focus, Organize, Record, Grow, Evolve) f
 ### **Active Prevention Rules:**
 *Rules will be automatically loaded from .capy/prevention-rules.md file*
 
+## 🤖 **LLM TASK MANAGEMENT COMMANDS**
+
+### **Task Creation Detection:**
+When the user says something like:
+- "vamos adicionar a auth do supabase nesse projeto"
+- "preciso implementar um sistema de login"
+- "criar um dashboard administrativo"
+- "adicionar integração com API X"
+
+**You MUST:**
+
+1. **Check for Active Tasks** first:
+   - Look for existing task.xml files in .capy/tasks/ directory
+   - If any task has status="em-andamento" or status="pausada", ask the user:
+     "⚠️ Existe uma tarefa ativa: [TASK_TITLE]. Deseja pausar esta tarefa para iniciar uma nova? (Digite 'sim' para pausar ou 'não' para continuar a tarefa atual)"
+
+2. **If user confirms task creation:**
+   - Read the complete instructions from \`.capy/instructions/capybara-task-file-structure-info.md\`
+   - Follow those instructions exactly to generate a proper XML task structure
+   - Create the XML file in .capy/tasks/ with a unique ID
+   - Inform the user: "✅ Nova tarefa criada: [TASK_TITLE]. Use 'Capybara: Current Task' para ver detalhes."
+
+3. **If user wants to continue existing task:**
+   - Show the current task status and next steps
+   - Ask what specific step they want to work on
+
+### **Task Status Management:**
+- Always check .capy/tasks/ for current tasks before suggesting new work
+- When showing task information, display progress and next steps clearly
+- Remind users to mark steps as completed by changing \`concluido="true"\`
+
+### **XML Generation Rules:**
+- **ALWAYS** read \`.capy/instructions/capybara-task-file-structure-info.md\` before generating XML
+- Follow the exact structure and requirements specified there
+- Include all required sections: metadata, context, steps, validation
+- Ensure steps are logical, sequential, and testable
+- Add specific criteria for each step
+- Include proper file listings and dependencies
+
 ## 🛠️ **SPECIFIC INSTRUCTIONS**
 
 ### **For this project:**
@@ -406,6 +450,24 @@ file editing, keeping the extension lightweight and focused.
             }
         } catch (error) {
             // Ignorar erros do .gitignore
+        }
+    }
+
+    private async injectTaskInstructionsFile(capyDir: string): Promise<void> {
+        const extensionPath = vscode.extensions.getExtension('cecon.capybara')?.extensionPath;
+        if (!extensionPath) {
+            throw new Error('Extensão Capybara não encontrada');
+        }
+
+        const sourceFile = path.join(extensionPath, 'resources', 'instructions', 'capybara-task-file-structure-info.md');
+        const targetFile = path.join(capyDir, 'instructions', 'capybara-task-file-structure-info.md');
+
+        try {
+            const content = await fs.promises.readFile(sourceFile, 'utf8');
+            await fs.promises.writeFile(targetFile, content, 'utf8');
+        } catch (error) {
+            console.error('Erro ao copiar arquivo de instruções XML:', error);
+            // Não falhar a inicialização por causa disso
         }
     }
 }

@@ -1,210 +1,258 @@
-# Capybara Methodology - Single-Focus Workflow
+# Capybara Methodology - Focused Development Workflow
 
-## 🎯 **Capybara Core Rules - NEW FOCUSED APPROACH**
+## 🎯 **Capybara Core Principles - REVISED**
 
 ### **Single-Focus Workflow:**
-- **ONE ACTIVE TASK** at a time for maximum focus
-- Tasks stored in `.capy/task_XXXX/` while active/paused  
-- Completed tasks moved to `.capy/history/STEP_XXXX_[NAME]/`
-- Current task tracked in config and `copilot-instructions.md`
+- **ONE ACTIVE TASK** at a time for maximum f🔄 **Próximo Step:**
+- 📋 STEP_1722873720: Configure Supabase client initialization
+  - Critérios: Client properly initialized, connection tested
+  - Arquivos: src/lib/supabase.ts
 
-### **Task States:**
-- **ACTIVE**: Currently being worked on (only one at a time)
-- **PAUSED**: Created but not currently active (can have multiple)
-- **COMPLETED**: Moved to history folder with STEP_XXXX naming
+🎯 **Para continuar**: Começar implementação do STEP_1722873720 ou marcar step como concluído alterando `completed="true"` no XML.nd productivity
+- Tasks defined in structured XML format for consistency and automation
+- Automatic task detection from natural language requests
+- Progressive accumulation of prevention rules to avoid repeated mistakes
+- Atomic task decomposition to ensure manageable work units
 
-### **Two Distinct Workflows:**
+### **Task States & Storage:**
+- **em-andamento**: Currently being worked on (only one at a time)
+- **pausada**: Created but temporarily paused (can have multiple)
+- **concluida**: Completed and moved to history for knowledge preservation
 
-#### 🔨 **"Create New Task" Workflow** 
-When user says: *"vamos desenvolver uma nova atividade"*
-1. **Check Active Task** - pause current if needed
-2. **Interactive Questionnaire** to gather requirements
-3. **Atomicity Analysis** with confidence check
-4. **Auto-create structure** in `.capy/task_XXXX/`
-5. **Inherit rules** from last completed task in history
-6. **Set as ACTIVE** and update copilot context
-
-#### 🚀 **"Start Development" Workflow**
-When user says: *"vamos iniciar o desenvolvimento"*
-1. **Check current active task** from config
-2. **Read DESCRIPTION.md** from active task folder  
-3. **Load inherited prevention rules**
-4. **Execute implementation workflow**
-
-## 📁 **NEW Structure:**
+### **File Structure:**
 ```
 .capy/
-├── config.json                    # Includes currentTask: "task_0001"
-├── copilot-instructions.md         # Includes current-task: task_0001
-├── prevention-rules.md
-├── task_0001/                      # Active or paused tasks
-│   ├── DESCRIPTION.md
-│   ├── DONE.md  
-│   ├── DIFFICULTIES_FACED.md
-│   ├── task-metadata.json
-│   └── artifacts/
-├── task_0002/                      # Another task (paused)
-└── history/                        # Completed tasks
-    ├── STEP_0001_auth_middleware/
-    ├── STEP_0002_user_endpoints/
+├── config.json                    # Project configuration
+├── prevention-rules.md            # Accumulated prevention rules
+├── instructions/                   # LLM instruction files
+│   └── capybara-task-file-structure-info.md
+├── tasks/                          # Active and paused tasks (XML format)
+│   ├── task-auth-supabase.xml
+│   ├── task-dashboard-admin.xml
+│   └── ...
+└── history/                        # Completed tasks archive
+    ├── completed-task-001.xml
+    ├── completed-task-002.xml
     └── ...
 ```
 
-## 🔄 **Task Lifecycle:**
+## � **Two Main Workflows:**
 
-### **Creation:**
-1. Generate `task_XXXX` with sequential numbering
-2. Inherit prevention rules from last `STEP_XXXX` in history
-3. Set as ACTIVE in config and copilot-instructions.md
-4. Generate DESCRIPTION, DONE, DIFFICULTIES templates
+### **A) Natural Language Task Creation**
+When user says expressions like:
+- "vamos adicionar a auth do supabase nesse projeto"
+- "preciso implementar um dashboard administrativo" 
+- "criar um sistema de login"
 
-### **Working:**
-- Only one task ACTIVE at a time
-- Can pause current and create/resume others
-- All prevention rules from history automatically available
+**LLM automatically:**
+1. **Detects task creation intent** from natural language
+2. **Checks for active tasks** in `.capy/tasks/` directory
+3. **Asks for confirmation** if there's an active task to pause
+4. **Reads XML generation instructions** from `.capy/instructions/`
+5. **Creates structured XML task** with proper steps and validation
+6. **Saves to `.capy/tasks/`** with unique identifier
 
-### **Completion:**
-1. Move from `.capy/task_XXXX/` to `.capy/history/STEP_XXXX_[NAME]/`
-2. Update task status to COMPLETED
-3. Clear currentTask from config
-4. Update copilot instructions
-5. Ready for next task with inherited knowledge
+### **B) Task Execution & Management**  
+When user wants to work on a task:
+1. **Shows current task status** and progress
+2. **Guides through next steps** based on XML structure
+3. **Updates completion status** as steps are finished
+4. **Accumulates prevention rules** from any issues encountered
+5. **Moves to history** when task is completed
 
-## 🤖 **Smart STEP Creation Process**
+## 📋 **XML Task Structure (Enforced by LLM)**
 
-### **Phase 1: Interactive Requirements Gathering**
-When user requests new activity → Start questionnaire:
-1. **Task Objective**: What exactly needs to be accomplished?
-2. **Context Analysis**: What's the current state? Dependencies?
-3. **Success Criteria**: How will we know it's complete?
-4. **Technical Scope**: Specific technologies/approaches involved?
-5. **Time Estimation**: Initial complexity assessment
-
-### **Phase 2: LLM Confidence & Atomicity Analysis**
-```
-LLM Self-Assessment:
-- Confidence Level: [1-10] (create only if ≥8)
-- Atomicity Score: [ATOMIC/NEEDS_DECOMPOSITION] 
-- Missing Information: [List gaps if confidence <8]
-```
-
-**If Confidence ≥8 → Proceed to Phase 3**
-**If Confidence <8 → Request clarification on missing points**
-
-### **Phase 3: Auto-Creation with Error Inheritance**
-1. **Find latest STEP**: `STEP_XXXX_DIFFICULTIES_FACED.md`
-2. **Extract rules** respecting `context.maxRules` from config
-3. **Prioritize errors** by relevance to new task context
-4. **Create new STEP_YYYY** with inherited prevention rules
-5. **Populate templates** with questionnaire data
-
-### **Error Volume Control**
-- **Config location**: `src/models/capybaraConfig.ts` → `context.maxRules` (default: 50)
-- **Smart prioritization**: Task-relevant errors first
-- **Summarization**: Group similar patterns
-- **Example**: Instead of 5 separate SQLx rules → 1 "SQLx Configuration" rule
-
-## ⚛️ **Atomicity Analysis - ALWAYS First**
-
-Before implementing ANY task:
-- **Atomic Task**: Can be completed in 1-3 hours with single, clear objective
-- **Non-Atomic**: Needs decomposition into smaller sub-tasks
-
-```
-❌ BAD: "Implement complete authentication system"
-✅ GOOD: "Create JWT middleware for token validation"
-```
-
-**If task is NOT atomic → STOP and decompose first**
-
-## 🔄 **Task Decomposition Patterns**
-
-**Authentication**: middleware → endpoints → database_integration → testing
-**API Development**: schema_design → endpoints → validation → testing  
-**Database**: schema → migrations → repositories → testing
-**Setup**: dependencies → configuration → environment → validation
-
-## 🤖 **Agent Response Patterns**
-
-#### **Pattern A: Create New STEP** 
-User: *"vamos desenvolver uma nova atividade"*
-
-```
-🎯 Iniciando criação de nova STEP...
-
-📋 **Questionário de Requisitos:**
-1. **Objetivo da tarefa**: [Aguardando resposta...]
-2. **Estado atual**: [Aguardando resposta...]  
-3. **Critérios de sucesso**: [Aguardando resposta...]
-4. **Escopo técnico**: [Aguardando resposta...]
-5. **Estimativa inicial**: [Aguardando resposta...]
-
-⏳ Após suas respostas, farei análise de atomicidade e criarei a STEP automaticamente.
+Every task follows this strict structure with Unix timestamp-based step IDs:
+```xml
+<task id="unique-task-id" version="1.0">
+    <metadata>
+        <title>Clear, descriptive title</title>
+        <description>Detailed description of what will be built</description>
+        <status>em-andamento|pausada|concluida</status>
+        <progress>0/N</progress>
+    </metadata>
+    
+    <context>
+        <area>frontend|backend|fullstack|devops</area>
+        <technology main="main-tech" version="min-version"/>
+        <dependencies>
+            <lib>library-name</lib>
+        </dependencies>
+        <files>
+            <file type="creation|modification" required="true">path/to/file</file>
+        </files>
+    </context>
+    
+    <steps>
+        <step id="STEP_[UNIX_TIMESTAMP]" order="1" completed="false" required="true">
+            <title>What will be accomplished</title>
+            <description>Detailed work description</description>
+            <criteria>
+                <criterion>Specific, measurable requirement</criterion>
+            </criteria>
+            <files>
+                <file type="creation" required="true">specific-file-path</file>
+            </files>
+        </step>
+    </steps>
+    
+    <validation>
+        <checklist>
+            <item>All required steps completed</item>
+            <item>All required files created</item>
+            <item>Code compiles without errors</item>
+            <item>No linting warnings</item>
+        </checklist>
+    </validation>
+</task>
 ```
 
-#### **Pattern B: Start Development**
-User: *"vamos iniciar o desenvolvimento da STEP_0042"*
+### **Hybrid Naming Convention**
+**Task Files**: `STEP_[UNIX_TIMESTAMP]_[title].xml` - for chronological ordering of tasks
+**Internal Step IDs**: `step001`, `step002`, `step003` - for simplicity within each task
+
+- **File level**: Unix timestamps provide automatic chronological ordering
+- **Step level**: Sequential numbers provide readability and simplicity
+- **Best of both**: Global ordering + local simplicity
+
+## ⚛️ **Atomicity Principle - Always Applied**
+
+**Every task MUST be atomic** - completable in 1-3 hours with a single, clear objective.
+
+### **Automatic Atomicity Analysis:**
+The LLM performs this analysis when creating any task:
 
 ```
-🚀 Iniciando desenvolvimento da STEP_0042...
+✅ ATOMIC EXAMPLES:
+- "Create JWT middleware for token validation"
+- "Implement user registration endpoint" 
+- "Setup Supabase authentication configuration"
+- "Create responsive login form component"
 
-📖 Lendo STEP_0041_DIFFICULTIES_FACED.md → Regras acumuladas...
-🚨 Encontrados 15 regras (limitado a 50 por config):
-  - DON'T use open SQLx versions
-  - DON'T forget Windows .exe suffix
-  - [...]
-
-📊 Análise de Atomicidade da STEP_0042:
-- Tarefa: "Setup database connection and migrations"  
-- Estimativa: 2.5 horas (+30min para problemas conhecidos)
-- Complexidade: 3/5
-- Status: ✅ ATOMIC (prosseguindo)
-
-🎯 Iniciando implementação...
+❌ NON-ATOMIC EXAMPLES (need decomposition):
+- "Implement complete authentication system" 
+  → Break into: middleware + endpoints + database + testing
+- "Build admin dashboard"
+  → Break into: layout + components + data_fetching + permissions
 ```
 
-## 🔄 **STEP Execution Flow**
+### **Decomposition Patterns:**
+- **Authentication**: config → middleware → endpoints → integration → testing
+- **API Development**: schema → validation → endpoints → error_handling → testing  
+- **Database**: schema → migrations → repositories → queries → testing
+- **Frontend**: layout → components → styling → state → integration
+
+**If task is NOT atomic → LLM MUST decompose before creating XML**
+
+## 🤖 **LLM Response Patterns**
+
+### **Pattern A: Task Creation Detection** 
+User: *"vamos adicionar auth do supabase nesse projeto"*
 
 ```
-1. Read previous STEP_XX_DIFFICULTIES_FACED.md → "Accumulated DON'Ts" section
-2. Copy accumulated rules to new DESCRIPTION.md 
-3. Read task description
-4. ⚛️ Analyze atomicity (≤3h?)
-5. If non-atomic → Decompose into sub-tasks
-6. Check pre-flight checklist + accumulated prevention rules
-7. Implement incrementally
-8. Test after each change
-9. Document completion in DONE.md
-10. 🔄 CRITICAL: Update DIFFICULTIES_FACED.md with:
-    - Copy all accumulated rules from DESCRIPTION.md
-    - Add any NEW problems from this STEP
-    - Create final "Accumulated DON'Ts for Next STEP" section
+🔍 Detectando criação de tarefa...
+
+⚠️ Verificando tarefas ativas...
+[Se encontrar task ativa]: Existe uma tarefa ativa: "Setup Dashboard Components". 
+Deseja pausar esta tarefa para iniciar uma nova? (Digite 'sim' para pausar ou 'não' para continuar a tarefa atual)
+
+[Se não houver task ativa ou usuário confirmar]:
+📋 Analisando atomicidade da tarefa "Adicionar auth do Supabase"...
+
+⚛️ ANÁLISE DE ATOMICIDADE:
+- Tarefa: "Setup Supabase authentication configuration"
+- Estimativa: 2 horas  
+- Escopo: Configuração inicial + provider setup
+- Status: ✅ ATÔMICA (prosseguindo)
+
+📖 Lendo instruções de estrutura XML...
+✅ Gerando tarefa estruturada...
+
+🎯 Nova tarefa criada: "Setup Supabase Authentication"
+📁 Arquivo: .capy/tasks/task-auth-supabase.xml
+💡 Use 'Capybara: Current Task' para ver detalhes e próximos passos.
 ```
 
-## 🚨 **Progressive Error Accumulation**
+### **Pattern B: Task Progress Check**
+User: *"qual o status da tarefa atual?"*
 
-**STEP_01**: No previous errors → 1 new error → 1 total rule for STEP_02  
-**STEP_02**: 1 inherited + 2 new = 3 total rules for STEP_03  
-**STEP_03**: 3 inherited + 1 new = 4 total rules for STEP_04  
+```
+� STATUS DA TAREFA ATUAL:
 
-**Each STEP gets progressively smarter with minimal manual work**
+🎯 **Tarefa**: Setup Supabase Authentication
+📈 **Progresso**: 2/5 steps concluídos (40%)
+⏱️ **Estimativa restante**: 1.2 horas
 
-## 🔄 **STEP Completion Propagation (CRITICAL)**
+✅ **Steps Concluídos:**
+- ✅ STEP_1722873600: Install Supabase dependencies
+- ✅ STEP_1722873660: Create environment configuration
 
-**When finishing ANY STEP, you MUST:**
+� **Próximo Step:**
+- 📋 step003: Configure Supabase client initialization
+  - Critérios: Client properly initialized, connection tested
+  - Arquivos: src/lib/supabase.ts
 
-1. **Copy** accumulated rules from `STEP_XX_DESCRIPTION.md` 
-2. **Add** any NEW "DON'T DO" rules from current STEP problems
-3. **Update** `STEP_XX_DIFFICULTIES_FACED.md` → "Accumulated DON'Ts for Next STEP" section
-4. **Result**: Next STEP will inherit ALL previous lessons in one place
+🎯 **Para continuar**: Começar implementação do step003 ou marcar step como concluído alterando `concluido="true"` no XML.
+```
 
-## 🚨 **CRITICAL: If You Encounter Problems**
+## 🔄 **Task Execution Workflow**
 
-1. **STOP** - Don't push through errors
-2. **DOCUMENT** - Record the exact problem in DIFFICULTIES_FACED.md
-3. **PATTERN** - Identify if it's a known issue type
-4. **SOLVE** - Fix methodically, not randomly
-5. **PREVENT** - Create simple "DON'T DO" rule
-6. **🔄 PROPAGATE** - At STEP completion: inherit + add new rules
+### **Step-by-Step Execution:**
+1. **Read current task XML** from `.capy/tasks/`
+2. **Show task overview** and current progress
+3. **Guide through next step** with specific criteria
+4. **Implement incrementally** following the defined steps
+5. **Test after each step** to ensure quality
+6. **Update step completion** in XML file
+7. **Accumulate prevention rules** if issues are encountered
+8. **Move to history** when all steps completed
 
-**🎯 Key Benefit**: Next STEP inherits complete knowledge with zero manual effort!
+### **Prevention Rules Accumulation:**
+- **During task execution**: Document any problems in `.capy/prevention-rules.md`
+- **Pattern recognition**: Group similar issues into prevention rules
+- **Context-aware**: Apply relevant rules to new tasks automatically
+- **Progressive improvement**: Each task benefits from all previous learnings
+
+### **Task Completion Process:**
+1. **Verify all steps completed** (`concluido="true"` for all required steps)
+2. **Run final validation checklist** from XML
+3. **Update task status** to `concluida`
+4. **Move XML file** from `.capy/tasks/` to `.capy/history/`
+5. **Update prevention rules** with any new patterns discovered
+6. **Clear active task context** - ready for next task
+
+## 🚨 **Error Handling & Learning**
+
+### **When Problems Occur:**
+1. **STOP** - Don't push through errors blindly
+2. **ANALYZE** - Understand the root cause
+3. **DOCUMENT** - Add specific prevention rule
+4. **SOLVE** - Fix methodically with proper testing
+5. **PREVENT** - Ensure rule prevents future occurrences
+
+### **Prevention Rule Examples:**
+```markdown
+### [SUPABASE] Environment Configuration
+**Context:** Setting up Supabase authentication  
+**Problem:** Forgetting to add SUPABASE_URL to environment variables  
+**Solution:** Always verify all required env vars before proceeding  
+**Prevention:** Check .env.example vs .env.local for missing variables
+
+### [REACT] Component State Management  
+**Context:** Creating form components with validation  
+**Problem:** Using useState for complex form state leads to sync issues  
+**Solution:** Use useReducer or form libraries for complex forms  
+**Prevention:** If form has >3 fields or complex validation, use react-hook-form
+```
+
+## 🎯 **Key Benefits of This Methodology:**
+
+1. **🎯 Focus**: One atomic task at a time prevents context switching
+2. **📋 Structure**: XML format ensures consistent task definition
+3. **🤖 Automation**: Natural language detection makes task creation seamless
+4. **📚 Learning**: Prevention rules accumulate knowledge automatically
+5. **🔄 Iteration**: Each task builds on previous learnings
+6. **⚛️ Atomicity**: Small, manageable tasks reduce overwhelm and errors
+7. **📈 Progress**: Clear step tracking shows measurable advancement
+
+**Result: Faster development with fewer repeated mistakes!** 🚀
