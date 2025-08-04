@@ -98,7 +98,7 @@ export class InitCapybaraCommand {
                 progress.report({ increment: 80, message: 'Criando instruções para Copilot...' });
 
                 // 5. Criar instruções personalizadas para Copilot
-                await this.createCopilotInstructions(config, githubDir, projectInfo);
+                await this.createOrUpdateCopilotInstructions(config, githubDir, projectInfo);
 
                 // 6. Injetar arquivo de instruções XML para LLM
                 await this.injectTaskInstructionsFile(capyDir);
@@ -387,6 +387,60 @@ file editing, keeping the extension lightweight and focused.
 `;
     }
 
+    private async createOrUpdateCopilotInstructions(config: CapybaraConfig, githubDir: string, projectInfo: any): Promise<void> {
+        const extensionPath = vscode.extensions.getExtension('eduardocecon.capybara-memory')?.extensionPath;
+        if (!extensionPath) {
+            throw new Error('Extensão Capybara não encontrada');
+        }
+
+        const templatePath = path.join(extensionPath, 'resources', 'templates', 'copilot-instructions-capybara.md');
+        const targetPath = path.join(githubDir, 'copilot-instructions.md');
+
+        try {
+            // Ler template
+            let content = await fs.promises.readFile(templatePath, 'utf8');
+            
+            // Substituir placeholders
+            content = content
+                .replace(/{PROJECT_NAME}/g, config.project.name)
+                .replace(/{PROJECT_TYPE}/g, projectInfo.type)
+                .replace(/{MAIN_LANGUAGE}/g, config.project.language.join(', '))
+                .replace(/{FRAMEWORKS}/g, config.project.framework?.join(', ') || 'Nenhum detectado');
+
+            // Verificar se arquivo já existe
+            let shouldUpdate = true;
+            try {
+                const existingContent = await fs.promises.readFile(targetPath, 'utf8');
+                
+                // Se já existe e contém instruções Capybara, perguntar se quer atualizar
+                if (existingContent.includes('🔨 Capybara') || existingContent.includes('METODOLOGIA Capybara')) {
+                    const overwrite = await vscode.window.showWarningMessage(
+                        '⚠️ Já existe um arquivo copilot-instructions.md com instruções Capybara. Atualizar com a versão mais recente?',
+                        'Sim, atualizar', 'Não, manter existente'
+                    );
+                    shouldUpdate = overwrite === 'Sim, atualizar';
+                } else {
+                    // Se não contém Capybara, adicionar as instruções no final
+                    content = existingContent + '\n\n' + content;
+                }
+            } catch (error: any) {
+                if (error.code !== 'ENOENT') {
+                    console.error('Erro ao ler arquivo existente:', error);
+                }
+                // Arquivo não existe, pode criar
+            }
+
+            if (shouldUpdate) {
+                await fs.promises.writeFile(targetPath, content, 'utf8');
+            }
+
+        } catch (error) {
+            console.error('Erro ao criar/atualizar copilot-instructions.md:', error);
+            // Fallback para o método antigo
+            await this.createCopilotInstructions(config, githubDir, projectInfo);
+        }
+    }
+
     private async createInitialPreventionRules(capyDir: string): Promise<void> {
         const rulesPath = path.join(capyDir, 'prevention-rules.md');
         
@@ -454,7 +508,7 @@ file editing, keeping the extension lightweight and focused.
     }
 
     private async injectTaskInstructionsFile(capyDir: string): Promise<void> {
-        const extensionPath = vscode.extensions.getExtension('cecon.capybara')?.extensionPath;
+        const extensionPath = vscode.extensions.getExtension('eduardocecon.capybara-memory')?.extensionPath;
         if (!extensionPath) {
             throw new Error('Extensão Capybara não encontrada');
         }
