@@ -3,7 +3,7 @@
   "displayName": "Capybara Memory",
   "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
   "icon": "assets/icon.png",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -74,8 +74,13 @@
     "languages": [
       {
         "id": "capybara-task-xml",
-        "aliases": ["Capybara Task XML", "capybara-task"],
-        "extensions": [".task.xml"],
+        "aliases": [
+          "Capybara Task XML",
+          "capybara-task"
+        ],
+        "extensions": [
+          ".task.xml"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
