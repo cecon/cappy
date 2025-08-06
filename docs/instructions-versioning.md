@@ -18,7 +18,6 @@ Extension:
 ├── resources/instructions/          ← FONTE DE VERDADE
 │   ├── capybara-methodology.md     ← Princípios Capybara
 │   ├── capybara-patterns.md        ← Padrões de decomposição  
-│   ├── capybara-task-file-structure-info.md ← Estrutura XML
 │   ├── script-criar-task.md        ← Script: Criar task
 │   ├── script-ver-task-atual.md    ← Script: Ver progresso
 │   ├── script-marcar-step-concluido.md ← Script: Completar step

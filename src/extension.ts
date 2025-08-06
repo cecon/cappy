@@ -20,10 +20,8 @@ export function activate(context: vscode.ExtensionContext) {
                 // Load the full init implementation
                 try {
                     const initModule = await import('./commands/initCapybara');
-                    const fileModule = await import('./utils/fileManager');
                     
-                    const fileManager = new fileModule.FileManager();
-                    const initCommand = new initModule.InitCapybaraCommand(fileManager, context);
+                    const initCommand = new initModule.InitCapybaraCommand(context);
                     
                     const success = await initCommand.execute();
                     if (success) {

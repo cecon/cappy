@@ -20,7 +20,7 @@ suite('🔨 InitCapybara Command Test Suite', () => {
         
         // Initialize dependencies
         fileManager = new FileManager();
-        initCommand = new InitCapybaraCommand(fileManager);
+        initCommand = new InitCapybaraCommand();
         
         console.log(`✅ Test workspace created at: ${testWorkspaceDir}`);
     });
