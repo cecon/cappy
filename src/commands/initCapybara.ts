@@ -466,23 +466,76 @@ Quando o usuário disser algo como:
 - "preciso implementar um sistema de login"
 - "criar um dashboard administrativo"
 - "adicionar integração com API X"
+- "vamos trabalhar no [feature]"
+
+**VOCÊ DEVE SEGUIR ESTE FLUXO EXATO:**
+
+#### **ETAPA 1: Verificação de Tarefas Ativas**
+- Procurar por arquivos task.xml existentes em .capy/tasks/
+- Se alguma task tem status="em-andamento" ou status="pausada", perguntar:
+  "⚠️ Existe uma tarefa ativa: [TASK_TITLE]. Deseja pausar esta tarefa para iniciar uma nova? (Digite 'sim' para pausar ou 'não' para continuar a tarefa atual)"
+
+#### **ETAPA 2: Leitura de Instruções e Context**
+- **OBRIGATÓRIO**: Ler \`.capy/instructions/capybara-task-file-structure-info.md\`
+- **OBRIGATÓRIO**: Verificar se existe \`.capy/prevention-rules.md\` e lê-lo
+- Analisar se a tarefa é ATÔMICA (1-3h) ou precisa ser decomposta
+
+#### **ETAPA 3: Questionário de Clarificação**
+Se houver subjetividades, fazer perguntas específicas sobre:
+- **Escopo técnico**: Quais funcionalidades exatas?
+- **Integrações**: Que APIs/serviços serão usados?
+- **UI/UX**: Há requisitos específicos de interface?
+- **Validações**: Que tipo de validação é necessária?
+- **Testes**: Que nível de cobertura de testes?
+
+#### **ETAPA 4: Apresentação do Escopo**
+Mostrar ao usuário:
+\`\`\`
+## 🎯 Escopo Entendido:
+**Tarefa**: [TÍTULO]
+**Área**: [frontend/backend/fullstack]
+**Tecnologias**: [lista]
+**Arquivos que serão criados/modificados**: [lista]
+**Steps planejados**: [resumo dos steps]
+**Tempo estimado**: [X horas]
+
+## 📋 Prevention Rules Aplicadas:
+[Lista das regras que serão seguidas baseadas no histórico]
+
+✅ Este escopo está correto? (Digite 'sim' para confirmar ou sugira ajustes)
+\`\`\`
+
+#### **ETAPA 5: Criação da Task XML**
+Após confirmação:
+- Gerar XML seguindo as instruções exatamente
+- Criar arquivo em .capy/tasks/ com timestamp
+- Informar: "✅ Tarefa criada! Digite 'vamos iniciar' ou 'vamos trabalhar' para começar."
+
+### **Detecção de Início de Trabalho:**
+Quando o usuário disser algo como:
+- "vamos iniciar a tarefa"
+- "vamos trabalhar"
+- "vamos começar"
+- "sim" (após você perguntar se pode iniciar)
 
 **VOCÊ DEVE:**
 
-1. **Verificar Tarefas Ativas** primeiro:
-   - Procurar por arquivos task.xml existentes em .capy/tasks/
-   - Se alguma task tem status="em-andamento" ou status="pausada", perguntar ao usuário:
-     "⚠️ Existe uma tarefa ativa: [TASK_TITLE]. Deseja pausar esta tarefa para iniciar uma nova? (Digite 'sim' para pausar ou 'não' para continuar a tarefa atual)"
-
-2. **Se usuário confirmar criação da task:**
-   - Ler as instruções completas de \`.capy/instructions/capybara-task-file-structure-info.md\`
-   - Seguir essas instruções exatamente para gerar uma estrutura XML adequada
-   - Criar o arquivo XML em .capy/tasks/ com ID único
-   - Informar o usuário: "✅ Nova tarefa criada: [TASK_TITLE]. Use 'Capybara: Current Task' para ver detalhes."
-
-3. **Se usuário quiser continuar tarefa existente:**
-   - Mostrar o status da tarefa atual e próximos steps
-   - Perguntar em que step específico quer trabalhar
+1. **Verificar Task Ativa**: Localizar a task com status="em-andamento" em .capy/tasks/
+2. **Mostrar Primeiro Step**: Exibir detalhes do primeiro step não concluído
+3. **Orientar Execução**: 
+   \`\`\`
+   🚀 Iniciando: [TASK_TITLE]
+   
+   📍 Próximo Step: [STEP_TITLE]
+   🎯 Objetivo: [STEP_DESCRIPTION]
+   
+   ✅ Critérios para conclusão:
+   - [criterio 1]
+   - [criterio 2]
+   
+   Vou começar implementando...
+   \`\`\`
+4. **Executar Step**: Seguir exatamente os critérios definidos no XML
 
 ### **Gerenciamento de Status de Tarefas:**
 - Sempre verificar .capy/tasks/ para tarefas atuais antes de sugerir novo trabalho
@@ -496,6 +549,12 @@ Quando o usuário disser algo como:
 - Garantir que steps sejam lógicos, sequenciais e testáveis
 - Adicionar critérios específicos para cada step
 - Incluir listagens adequadas de arquivos e dependências
+
+### **Integração de Prevention Rules:**
+- **SEMPRE** verificar se existe \`.capy/prevention-rules.md\` antes de criar tasks
+- Incluir regras aplicáveis na seção de validação da task
+- Mencionar regras específicas na apresentação do escopo
+- Adicionar novos aprendizados ao arquivo ao final de cada step
 
 ## 🛠️ **INSTRUÇÕES ESPECÍFICAS**
 
