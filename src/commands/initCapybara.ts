@@ -616,31 +616,47 @@ Quando o usuário disser algo como:
 </task>
 \`\`\`
 
-### **Comandos Capybara disponíveis:**
+### **🤖 Comandos Virtuais Disponíveis:**
 
-#### **✅ Comandos Funcionais:**
-- \`Capybara: Initialize\` - Inicializar Capybara no workspace
-- \`Capybara: Create New Task\` - Criar nova tarefa em XML estruturado
-- \`Capybara: Current Task\` - Ver tarefa atual (com validação)
-- \`Capybara: Test Capybara Extension\` - Testar se extensão está funcionando
+#### **✅ Extensão VS Code (Real):**
+- \`Capybara: Initialize\` - Inicializar estrutura Capybara no workspace
 
-#### **🚧 Comandos em Desenvolvimento:**
-- \`Capybara: Manage All Tasks\` - Gerenciar todas as tarefas (em breve)
-- \`Capybara: Pause Current Task\` - Pausar tarefa atual (em breve)
-- \`Capybara: Complete Task\` - Completar e mover para histórico (em breve)
-- \`Capybara: Update Step Progress\` - Marcar steps como concluídos (em breve)
-- \`Capybara: Complete Current Task\` - Completar tarefa atual (em breve)
-- \`Capybara: Task History\` - Ver histórico de tarefas (em breve)
+#### **🧠 Scripts LLM (Instruções):**
+Quando o usuário solicitar essas funcionalidades, execute os scripts correspondentes:
 
-#### **🔄 Comandos Legacy:**
-- \`Capybara: Create Smart Task (Legacy)\` - Redireciona para Create New Task
-- \`Capybara: Add Prevention Rule (Legacy)\` - Funcionalidade integrada automaticamente
+- **"criar nova task"** → Executar \`.capy/instructions/script-criar-task.md\`
+- **"ver task atual"** → Executar \`.capy/instructions/script-ver-task-atual.md\`  
+- **"marcar step como concluído"** → Executar \`.capy/instructions/script-marcar-step-concluido.md\`
+- **"completar task"** → Executar \`.capy/instructions/script-completar-task.md\`
+- **"pausar task"** → Alterar status para "pausada" no XML atual
+- **"ver histórico"** → Listar e analisar XMLs em \`.capy/history/\`
+- **"gerenciar todas as tasks"** → Analisar todos XMLs em \`.capy/tasks/\` e apresentar status
+- **"adicionar prevention rule"** → Adicionar nova regra em \`.capy/prevention-rules.md\`
 
-### **📝 Estado Atual do Desenvolvimento:**
-- ✅ Inicialização e configuração: **Completa**
-- ✅ Criação básica de tarefas: **Funcional com validação**
-- 🚧 Gerenciamento de tarefas: **Em desenvolvimento**
-- 🚧 Histórico e analytics: **Planejado**
+#### **📋 Como Executar Scripts:**
+1. **Usuário solicita**: "quero ver minha task atual"
+2. **LLM detecta**: Comando virtual "ver task atual"  
+3. **LLM lê**: Arquivo \`.capy/instructions/script-ver-task-atual.md\`
+4. **LLM executa**: Fluxo definido no script usando arquivos do sistema
+5. **LLM responde**: Resultado formatado conforme template do script
+
+#### **� Vantagens dos Scripts:**
+- **Padronização**: Comportamento consistente independente do contexto
+- **Evolução**: Scripts podem ser atualizados sem alterar código da extensão  
+- **Transparência**: Usuário pode ver e customizar lógica dos "comandos"
+- **Flexibilidade**: LLM adapta execução conforme necessidades específicas
+
+### **📝 Arquitetura da Solução:**
+- ✅ **Inicialização**: Extensão VS Code cria estrutura básica
+- ✅ **Scripts LLM**: Instruções estruturadas executam funcionalidades
+- ✅ **File Management**: Manipulação direta de XMLs e arquivos de configuração
+- ✅ **Context Preservation**: Prevention rules e histórico mantêm conhecimento
+
+### **🎯 Benefícios da Abordagem:**
+- **Simplicidade**: Extensão leve, apenas inicialização
+- **Flexibilidade**: LLM pode adaptar e evoluir "comandos" sem code changes
+- **Transparência**: Todos os dados em arquivos legíveis pelo usuário
+- **Portabilidade**: Estrutura funciona independente da extensão
 
 ---
 *Este arquivo é privado e não deve ser commitado. Ele contém suas instruções personalizadas para o GitHub Copilot.*`;
