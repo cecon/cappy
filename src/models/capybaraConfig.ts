@@ -1,5 +1,6 @@
 export interface CapybaraConfig {
     version: string;
+    instructionsVersion: string; // Versão dos arquivos de instruções
     project: {
         name: string;
         language: string[];
@@ -62,6 +63,7 @@ export interface CapybaraConfig {
 
 export const DEFAULT_CAPYBARA_CONFIG: Partial<CapybaraConfig> = {
     version: '1.0.0',
+    instructionsVersion: '2.0.0', // Nova versão com scripts LLM
     stack: {
         primary: 'typescript',
         secondary: ['node', 'express'],

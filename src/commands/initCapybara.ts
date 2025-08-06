@@ -75,6 +75,7 @@ export class InitCapybaraCommand {
                 // 3. Criar configuração
                 const config: CapybaraConfig = {
                     version: DEFAULT_CAPYBARA_CONFIG.version || '1.0.0',
+                    instructionsVersion: DEFAULT_CAPYBARA_CONFIG.instructionsVersion || '1.0.0',
                     project: {
                         name: projectInfo.name,
                         language: projectInfo.languages && projectInfo.languages.length > 0 ? projectInfo.languages : ['unknown'],
@@ -96,13 +97,13 @@ export class InitCapybaraCommand {
                 // 4. Salvar configuração
                 await this.fileManager.writeCapybaraConfig(config);
 
-                progress.report({ increment: 80, message: 'Criando instruções para Copilot...' });
+                progress.report({ increment: 80, message: 'Atualizando instruções e criando Copilot instructions...' });
 
                 // 5. Criar instruções personalizadas para Copilot
                 await this.createOrUpdateCopilotInstructions(config, githubDir, projectInfo);
 
-                // 6. Injetar arquivo de instruções XML para LLM
-                await this.injectTaskInstructionsFile(capyDir);
+                // 6. Copiar/Atualizar arquivos de instruções da extensão
+                await this.updateInstructionsFiles(capyDir, config);
 
                 // 7. Criar arquivo de prevention rules
                 await this.createInitialPreventionRules(capyDir);
@@ -728,17 +729,89 @@ Quando o usuário solicitar essas funcionalidades, execute os scripts correspond
         }
     }
 
-    private async injectTaskInstructionsFile(capyDir: string): Promise<void> {
+    private async updateInstructionsFiles(capyDir: string, config: CapybaraConfig): Promise<void> {
         try {
-            const targetFile = path.join(capyDir, 'instructions', 'capybara-task-file-structure-info.md');
+            const instructionsDir = path.join(capyDir, 'instructions');
+            const sourceInstructionsDir = path.join(this.extensionContext?.extensionPath || '', 'resources', 'instructions');
             
-            // Usar conteúdo embeddado ao invés de ler de arquivos
+            // Verificar se precisa atualizar baseado na versão
+            const needsUpdate = await this.checkIfInstructionsNeedUpdate(capyDir, config.instructionsVersion);
+            
+            if (needsUpdate) {
+                // Remover pasta instructions antiga se existir
+                try {
+                    await fs.promises.rmdir(instructionsDir, { recursive: true });
+                } catch (error: any) {
+                    if (error.code !== 'ENOENT') {
+                        console.warn('Aviso ao remover pasta instructions antiga:', error);
+                    }
+                }
+                
+                // Criar nova pasta instructions
+                await fs.promises.mkdir(instructionsDir, { recursive: true });
+                
+                // Copiar todos os arquivos de resources/instructions
+                await this.copyDirectory(sourceInstructionsDir, instructionsDir);
+                
+                console.log(`✅ Instruções atualizadas para versão ${config.instructionsVersion}`);
+            } else {
+                console.log('📋 Instruções já estão na versão mais recente');
+            }
+            
+        } catch (error) {
+            console.error('Erro ao atualizar arquivos de instruções:', error);
+            // Fallback: tentar criar pelo menos o arquivo principal
+            await this.createFallbackInstructions(capyDir);
+        }
+    }
+    
+    private async checkIfInstructionsNeedUpdate(capyDir: string, currentVersion: string): Promise<boolean> {
+        try {
+            const configPath = path.join(capyDir, 'config.json');
+            const configContent = await fs.promises.readFile(configPath, 'utf8');
+            const existingConfig = JSON.parse(configContent);
+            
+            // Se não tem versão de instruções ou é diferente da atual
+            return !existingConfig.instructionsVersion || existingConfig.instructionsVersion !== currentVersion;
+        } catch (error) {
+            // Se não conseguir ler config, assume que precisa atualizar
+            return true;
+        }
+    }
+    
+    private async copyDirectory(source: string, destination: string): Promise<void> {
+        try {
+            const entries = await fs.promises.readdir(source, { withFileTypes: true });
+            
+            for (const entry of entries) {
+                const sourcePath = path.join(source, entry.name);
+                const destPath = path.join(destination, entry.name);
+                
+                if (entry.isDirectory()) {
+                    await fs.promises.mkdir(destPath, { recursive: true });
+                    await this.copyDirectory(sourcePath, destPath);
+                } else {
+                    await fs.promises.copyFile(sourcePath, destPath);
+                }
+            }
+        } catch (error) {
+            console.error('Erro ao copiar diretório:', error);
+            throw error;
+        }
+    }
+    
+    private async createFallbackInstructions(capyDir: string): Promise<void> {
+        try {
+            const instructionsDir = path.join(capyDir, 'instructions');
+            await fs.promises.mkdir(instructionsDir, { recursive: true });
+            
+            const targetFile = path.join(instructionsDir, 'capybara-task-file-structure-info.md');
             const content = this.getEmbeddedTaskInstructionsTemplate();
             
             await fs.promises.writeFile(targetFile, content, 'utf8');
+            console.log('📋 Arquivo de instruções básico criado como fallback');
         } catch (error) {
-            console.error('Erro ao criar arquivo de instruções XML:', error);
-            // Não falhar a inicialização por causa disso
+            console.error('Erro ao criar fallback das instruções:', error);
         }
     }
 
