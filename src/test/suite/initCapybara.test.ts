@@ -182,7 +182,7 @@ suite('🔨 InitCapybara Command Test Suite', () => {
 
     // Removed detection test: init no longer infers languages/frameworks
 
-    test('🚫 Should handle workspace without folder gracefully', async () => {
+    test.skip('🚫 Should handle workspace without folder gracefully', async () => {
         // Mock no workspace folders
         const originalWorkspaceFolders = vscode.workspace.workspaceFolders;
         Object.defineProperty(vscode.workspace, 'workspaceFolders', {

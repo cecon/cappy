@@ -132,13 +132,38 @@ instructions:
         await fs.promises.writeFile(configPath, configContent, 'utf8');
     }
 
+    private getExtensionRoot(): string {
+        // Prefer VS Code context when available
+        const candidatePaths = [
+            this.extensionContext?.extensionPath,
+            // compiled test/runtime: out/commands -> out
+            path.resolve(__dirname, '../..'),
+            // project root if running from out
+            path.resolve(__dirname, '../../..')
+        ].filter(Boolean) as string[];
+
+        for (const base of candidatePaths) {
+            const tpl = path.join(base, 'resources', 'templates', 'capybara-copilot-instructions.md');
+            const instr = path.join(base, 'resources', 'instructions');
+            try {
+                if (fs.existsSync(tpl) && fs.existsSync(instr)) {
+                    return base;
+                }
+            } catch {
+                // ignore and continue
+            }
+        }
+        // Fallback to current working directory
+        return process.cwd();
+    }
+
     private async injectCopilotInstructions(githubDir: string, projectInfo: { name: string; type: string; languages: string[]; framework: string[]; }): Promise<void> {
         await fs.promises.mkdir(githubDir, { recursive: true });
         
         const copilotInstructionsPath = path.join(githubDir, 'copilot-instructions.md');
         
         // Ler template das instruções
-        const templatePath = path.join(this.extensionContext?.extensionPath || '', 'resources', 'templates', 'capybara-copilot-instructions.md');
+        const templatePath = path.join(this.getExtensionRoot(), 'resources', 'templates', 'capybara-copilot-instructions.md');
         const templateContent = await fs.promises.readFile(templatePath, 'utf8');
 
         // Substituir placeholders
@@ -196,7 +221,7 @@ capy-config:
     }
 
     private async copyInstructionsFiles(capyDir: string): Promise<void> {
-        const sourceDir = path.join(this.extensionContext?.extensionPath || '', 'resources', 'instructions');
+        const sourceDir = path.join(this.getExtensionRoot(), 'resources', 'instructions');
         const targetDir = path.join(capyDir, 'instructions');
 
         // Copiar todos os arquivos de resources/instructions

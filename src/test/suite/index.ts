@@ -25,20 +25,31 @@ export function run(): Promise<void> {
             console.log(`Adding InitCapybara test file: ${initTestFile}`);
             mochaInstance.addFile(initTestFile);
             
-            // Add the CreateTask test file
-            const createTaskTestFile = path.resolve(testsRoot, 'createTask.test.js');
-            console.log(`Adding CreateTask test file: ${createTaskTestFile}`);
-            mochaInstance.addFile(createTaskTestFile);
+            // Optionally add other test files ONLY if their TypeScript sources exist.
+            // This prevents running stale compiled tests from older builds.
+            const fs = require('fs');
+            const optionalTests: Array<{ compiled: string; source: string }> = [
+                { compiled: 'createTask.test.js', source: 'createTask.test.ts' },
+                { compiled: 'createTaskFolderStructure.test.js', source: 'createTaskFolderStructure.test.ts' },
+                { compiled: 'languageDetectionFix.test.js', source: 'languageDetectionFix.test.ts' }
+            ];
 
-            // Add the CreateTaskFolderStructure test file
-            const createTaskFolderTestFile = path.resolve(testsRoot, 'createTaskFolderStructure.test.js');
-            console.log(`Adding CreateTaskFolderStructure test file: ${createTaskFolderTestFile}`);
-            mochaInstance.addFile(createTaskFolderTestFile);
-
-            // Add the LanguageDetectionFix test file
-            const languageDetectionTestFile = path.resolve(testsRoot, 'languageDetectionFix.test.js');
-            console.log(`Adding LanguageDetectionFix test file: ${languageDetectionTestFile}`);
-            mochaInstance.addFile(languageDetectionTestFile);
+            const srcSuiteRoot = path.resolve(__dirname, '../../../src/test/suite');
+            for (const entry of optionalTests) {
+                const sourcePath = path.resolve(srcSuiteRoot, entry.source);
+                if (fs.existsSync(sourcePath)) {
+                    const compiledPath = path.resolve(testsRoot, entry.compiled);
+                    try {
+                        fs.accessSync(compiledPath);
+                        console.log(`Adding optional test file: ${compiledPath} (source found at ${sourcePath})`);
+                        mochaInstance.addFile(compiledPath);
+                    } catch {
+                        console.log(`Optional compiled test not found, skipping: ${compiledPath}`);
+                    }
+                } else {
+                    console.log(`Skipping optional test (source missing): ${sourcePath}`);
+                }
+            }
 
             // Run the mocha test
             mochaInstance.run((failures: number) => {
