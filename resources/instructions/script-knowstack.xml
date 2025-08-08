@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capy:script name="knowstack" version="1">
+  <step id="1.analyze">
+    <goal>Elicit and resolve stack questions one-by-one until no material doubts remain.</goal>
+    <rules>
+      <rule>Ask one question per turn; wait for user reply.</rule>
+      <rule>After each answer, refine understanding and list remaining doubts.</rule>
+      <rule>Stop when unanswered_doubts == 0.</rule>
+    </rules>
+    <output>internal_context.stack_understanding</output>
+  </step>
+
+  <step id="2.write_stack_md">
+    <goal>Write .github/instructions/copilot.stack.md in English as the single source of truth for the project stack.</goal>
+    <fields>
+      <field>LanguagesFrameworks</field>
+      <field>ProjectStructure</field>
+      <field>DependenciesVersions</field>
+      <field>CodingStandards</field>
+      <field>BuildTestCICD</field>
+      <field>RuntimeDeployEnvs</field>
+      <field>ObservabilityTooling</field>
+      <field>ConstraintsNonGoals</field>
+    </fields>
+    <validate>Ask user for approval before proceeding.</validate>
+  </step>
+
+  <step id="3.update_capy_config">
+    <goal>Insert or update Capy Config section inside copilot-instructions.md.</goal>
+    <markers>
+      <begin><!-- CAPY:CONFIG:BEGIN --></begin>
+      <end><!-- CAPY:CONFIG:END --></end>
+    </markers>
+    <yaml>
+      capy-config:
+        version: 1
+        templates:
+          stack-instruction: true
+        stack:
+          source: ".github/instructions/copilot.stack.md"
+          last-validated-at: "{{ now_utc_iso }}"
+          validated-by: "user-confirmation"
+        notes:
+          - "Stack reviewed and approved; use as single source of truth."
+    </yaml>
+    <rules>
+      <rule>If markers exist, replace content between them.</rule>
+      <rule>If not, append section near the end of the file.</rule>
+      <rule>Preserve all other content verbatim.</rule>
+    </rules>
+  </step>
+
+  <step id="4.commit">
+    <goal>Commit changes with clear messages.</goal>
+    <commands>
+      <cmd>git add .github/instructions/copilot.stack.md .github/instructions/copilot-instructions.md</cmd>
+      <cmd>git commit -m "docs(stack): add/update copilot.stack.md"</cmd>
+      <cmd>git commit -m "docs(capy): update capy-config in copilot-instructions.md"</cmd>
+    </commands>
+  </step>
+
+  <step id="5.next_flow">
+    <goal>Proceed with Capybara flows using the approved stack as ground truth.</goal>
+  </step>
+</capy:script>

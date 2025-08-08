@@ -7,14 +7,58 @@ export function activate(context: vscode.ExtensionContext) {
         // Show immediate activation message
         vscode.window.showInformationMessage('🦫 Capybara Memory: Activating...');
 
-        // Register test command first (known working)
-        const testCommand = vscode.commands.registerCommand('capybara.test', async () => {
-            vscode.window.showInformationMessage('🦫 Capybara Memory: Test command working! 🎉');
-        });
+    // (removed) test command
+
+        // Helper: gating check - ensure stack is known/validated
+            const uriExists = async (uri: vscode.Uri): Promise<boolean> => {
+                try {
+                    await vscode.workspace.fs.stat(uri);
+                    return true;
+                } catch {
+                    return false;
+                }
+            };
+
+            const ensureStackKnown = async (): Promise<boolean> => {
+                try {
+                    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                    if (!workspaceFolder) {
+                        return false;
+                    }
+                    const stackPath = vscode.Uri.joinPath(workspaceFolder.uri, '.github', 'instructions', 'copilot.stack.md');
+                    const copilotInstructionsPath = vscode.Uri.joinPath(workspaceFolder.uri, '.github', 'copilot-instructions.md');
+                    // Check files exist
+                    const stackExists = await uriExists(stackPath);
+                    const instructionsExists = await uriExists(copilotInstructionsPath);
+                    if (!stackExists || !instructionsExists) {
+                        return false;
+                    }
+                    // Read and look for CAPY:CONFIG markers and minimal yaml flags
+                    const contentBytes = await vscode.workspace.fs.readFile(copilotInstructionsPath);
+                    const content = Buffer.from(contentBytes).toString('utf8');
+                    const hasMarkers = /<!--\s*CAPY:CONFIG:BEGIN\s*-->[\s\S]*?<!--\s*CAPY:CONFIG:END\s*-->/m.test(content);
+                    if (!hasMarkers) {
+                        return false;
+                    }
+                    const hasStackRef = /capy-config:[\s\S]*?stack:[\s\S]*?source:\s*"?\.github\/instructions\/copilot\.stack\.md"?/m.test(content);
+                    const hasValidatedAt = /last-validated-at:\s*"?[0-9T:\-.Z]+"?/m.test(content);
+                    return hasStackRef && hasValidatedAt;
+                } catch {
+                    return false;
+                }
+            };
 
         // Register init command (full implementation)
         const initCommand = vscode.commands.registerCommand('capybara.init', async () => {
             try {
+                const ok = await ensureStackKnown();
+                if (!ok) {
+                    const action = await vscode.window.showWarningMessage('Capybara: please run "Capy: KnowStack" before other commands.', 'Run KnowStack');
+                    if (action === 'Run KnowStack') {
+                        vscode.commands.executeCommand('capybara.knowstack');
+                    }
+                    return;
+                }
                 vscode.window.showInformationMessage('🦫 Capybara Memory: Init command called!');
                 
                 // Load the full init implementation
@@ -39,10 +83,21 @@ export function activate(context: vscode.ExtensionContext) {
             }
         });
 
+        // Register knowstack command
+        const knowStackCommand = vscode.commands.registerCommand('capybara.knowstack', async () => {
+            try {
+                const mod = await import('./commands/knowStack');
+                await mod.runKnowStack();
+            } catch (error) {
+                console.error('Capybara KnowStack error:', error);
+                vscode.window.showErrorMessage(`Capybara KnowStack failed: ${error}`);
+            }
+        });
+
         // Register all commands
         context.subscriptions.push(
-            testCommand, 
-            initCommand
+            initCommand,
+            knowStackCommand
         );
         
         console.log('🦫 Capybara Memory: All commands registered successfully');

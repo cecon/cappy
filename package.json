@@ -30,13 +30,13 @@
   "contributes": {
     "commands": [
       {
-        "command": "capybara.test",
-        "title": "🧪 Test Capybara Extension",
+        "command": "capybara.init",
+        "title": "🦫 Initialize Capybara",
         "category": "Capybara"
       },
       {
-        "command": "capybara.init",
-        "title": "🦫 Initialize Capybara",
+        "command": "capybara.knowstack",
+        "title": "🧠 Capy: KnowStack",
         "category": "Capybara"
       }
     ],
