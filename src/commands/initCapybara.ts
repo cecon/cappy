@@ -41,25 +41,31 @@ export class InitCapybaraCommand {
                 // 1. Verificar/Criar pasta .capy
                 await this.setupCapyDirectory(capyDir);
 
-                progress.report({ increment: 30, message: 'Coletando informações do projeto...' });
+                progress.report({ increment: 40, message: 'Criando config.yaml...' });
 
-                // 2. Coletar informações do projeto
-                const projectInfo = await this.collectProjectInfo(workspaceFolder.uri.fsPath);
+                // 2. Criar config.yaml com versão da extensão
+                const ext = vscode.extensions.getExtension('eduardocecon.capybara-memory');
+                const extVersion = ext?.packageJSON?.version || '0.0.0';
+                await this.createConfigYaml(capyDir, extVersion);
 
-                progress.report({ increment: 50, message: 'Criando config.yaml...' });
+                progress.report({ increment: 65, message: 'Injetando instruções no Copilot...' });
 
-                // 3. Criar config.yaml
-                await this.createConfigYaml(capyDir, projectInfo);
+                // 3. Injetar instruções no .github/copilot-instructions.md com CAPY:CONFIG
+                const projectName = path.basename(workspaceFolder.uri.fsPath);
+                await this.injectCopilotInstructions(githubDir, {
+                    name: projectName,
+                    type: 'general',
+                    languages: ['unknown'],
+                    framework: []
+                });
 
-                progress.report({ increment: 70, message: 'Injetando instruções no Copilot...' });
+                progress.report({ increment: 85, message: 'Copiando instruções...' });
 
-                // 4. Injetar instruções no .github/copilot-instructions.md
-                await this.injectCopilotInstructions(githubDir, projectInfo);
-
-                progress.report({ increment: 90, message: 'Copiando instruções...' });
-
-                // 5. Copiar resources/instructions para .capy/instructions
+                // 4. Copiar resources/instructions para .capy/instructions
                 await this.copyInstructionsFiles(capyDir);
+
+                // 5. Atualizar .gitignore para manter instruções privadas
+                await this.updateGitignore(workspaceFolder.uri.fsPath);
 
                 progress.report({ increment: 100, message: 'Finalizado!' });
 
@@ -89,8 +95,8 @@ export class InitCapybaraCommand {
                 return;
             } catch (error: any) {
                 if (error.code === 'ENOENT') {
-                    // Não tem config.yaml, remover pasta toda e recriar
-                    await fs.promises.rmdir(capyDir, { recursive: true });
+                    // Não tem config.yaml, remover pasta toda e recriar (API moderna)
+                    await fs.promises.rm(capyDir, { recursive: true, force: true });
                 }
             }
         } catch (error: any) {
@@ -106,17 +112,9 @@ export class InitCapybaraCommand {
         await fs.promises.mkdir(path.join(capyDir, 'instructions'), { recursive: true });
     }
 
-    private async createConfigYaml(capyDir: string, projectInfo: any): Promise<void> {
+    private async createConfigYaml(capyDir: string, extensionVersion: string): Promise<void> {
         const configContent = `# Capybara Configuration
-version: "1.0.0"
-project:
-  name: "${projectInfo.name}"
-  type: "${projectInfo.type}"
-  languages: 
-    - ${projectInfo.languages.map((lang: string) => `"${lang}"`).join('\n    - ')}
-  frameworks:
-    - ${projectInfo.framework.map((fw: string) => `"${fw}"`).join('\n    - ')}
-  description: "${projectInfo.description}"
+version: "${extensionVersion}"
 
 capybara:
   initialized_at: "${new Date().toISOString()}"
@@ -134,7 +132,7 @@ instructions:
         await fs.promises.writeFile(configPath, configContent, 'utf8');
     }
 
-    private async injectCopilotInstructions(githubDir: string, projectInfo: any): Promise<void> {
+    private async injectCopilotInstructions(githubDir: string, projectInfo: { name: string; type: string; languages: string[]; framework: string[]; }): Promise<void> {
         await fs.promises.mkdir(githubDir, { recursive: true });
         
         const copilotInstructionsPath = path.join(githubDir, 'copilot-instructions.md');
@@ -156,25 +154,42 @@ ${instructions}
 -- CAPYBARA MEMORY INSTRUCTIONS END --
 `;
 
+        // Bloco CAPY:CONFIG com valores padrão
+        const capyConfigBlock = `<!-- CAPY:CONFIG:BEGIN -->
+capy-config:
+  stack:
+    source: ".github/instructions/copilot.stack.md"
+    validated: false
+    last-validated-at:
+<!-- CAPY:CONFIG:END -->`;
+
         let finalContent = capybaraInstructions;
 
         // Verificar se arquivo já existe
         try {
             const existingContent = await fs.promises.readFile(copilotInstructionsPath, 'utf8');
             
-            // Remover instruções antigas se existirem
-            const cleanContent = existingContent.replace(
+            // Remover instruções antigas (blocos Capybara e CAPY:CONFIG) se existirem
+            const removedCapySections = existingContent.replace(
                 /-- CAPYBARA MEMORY INSTRUCTIONS INIT --[\s\S]*?-- CAPYBARA MEMORY INSTRUCTIONS END --/g,
+                ''
+            );
+            const cleanContent = removedCapySections.replace(
+                /<!--\s*CAPY:CONFIG:BEGIN\s*-->[\s\S]*?<!--\s*CAPY:CONFIG:END\s*-->/g,
                 ''
             ).trim();
 
-            // Adicionar novas instruções
-            finalContent = cleanContent ? `${cleanContent}\n\n${capybaraInstructions}` : capybaraInstructions;
+            // Adicionar novas instruções + bloco CAPY:CONFIG no topo
+            finalContent = cleanContent 
+                ? `${capyConfigBlock}\n\n${cleanContent}\n\n${capybaraInstructions}`
+                : `${capyConfigBlock}\n\n${capybaraInstructions}`;
             
         } catch (error: any) {
             if (error.code !== 'ENOENT') {
                 console.error('Erro ao ler arquivo existente:', error);
             }
+            // Se não existir, criar com bloco CAPY:CONFIG + instruções
+            finalContent = `${capyConfigBlock}\n\n${capybaraInstructions}`;
         }
 
         await fs.promises.writeFile(copilotInstructionsPath, finalContent, 'utf8');
@@ -188,111 +203,32 @@ ${instructions}
         await this.copyDirectory(sourceDir, targetDir);
     }
 
-    private async collectProjectInfo(workspacePath: string): Promise<any> {
-        const projectName = path.basename(workspacePath);
-        
-        // Detectar linguagens
-        const languages = await this.detectLanguages(workspacePath);
-        
-        // Detectar frameworks
-        const frameworks = await this.detectFrameworks(workspacePath);
-
-        return {
-            name: projectName,
-            description: `Projeto ${projectName} - Desenvolvimento solo com Capybara`,
-            language: languages.length > 0 ? languages[0] : 'unknown',
-            languages: languages,
-            framework: frameworks,
-            type: this.inferProjectType(languages, frameworks)
-        };
-    }
-
-    private async detectLanguages(workspacePath: string): Promise<string[]> {
-        const languages: string[] = [];
-        
-        // Verificar arquivos comuns
+    private async updateGitignore(workspaceRoot: string): Promise<void> {
+        const gitignorePath = path.join(workspaceRoot, '.gitignore');
+        let content = '';
         try {
-            await fs.promises.access(path.join(workspacePath, 'package.json'), fs.constants.F_OK);
-            languages.push('javascript');
-            
-            // Verificar se é TypeScript
-            try {
-                await fs.promises.access(path.join(workspacePath, 'tsconfig.json'), fs.constants.F_OK);
-                languages.push('typescript');
-            } catch (error: any) {
-                if (error.code === 'ENOENT') {
-                    // Check for .ts files
-                    if (await this.hasFilesWithExtension(workspacePath, '.ts')) {
-                        languages.push('typescript');
-                    }
-                }
-            }
+            content = await fs.promises.readFile(gitignorePath, 'utf8');
         } catch (error: any) {
             if (error.code !== 'ENOENT') {
-                console.error('Error checking package.json:', error);
+                throw error;
             }
         }
-        
-        if (await this.hasFilesWithExtension(workspacePath, '.py')) {
-            languages.push('python');
-        }
-        
-        if (await this.hasFilesWithExtension(workspacePath, '.cs')) {
-            languages.push('csharp');
-        }
-        
-        if (await this.hasFilesWithExtension(workspacePath, '.java')) {
-            languages.push('java');
-        }
-        
-        return languages;
-    }
 
-    private async detectFrameworks(workspacePath: string): Promise<string[]> {
-        const frameworks: string[] = [];
-        
-        try {
-            const packageJsonPath = path.join(workspacePath, 'package.json');
-            try {
-                await fs.promises.access(packageJsonPath, fs.constants.F_OK);
-                const packageJsonContent = await fs.promises.readFile(packageJsonPath, 'utf8');
-                const packageJson = JSON.parse(packageJsonContent);
-                const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-                
-                if (deps['react']) { frameworks.push('react'); }
-                if (deps['next']) { frameworks.push('nextjs'); }
-                if (deps['vue']) { frameworks.push('vue'); }
-                if (deps['@angular/core']) { frameworks.push('angular'); }
-                if (deps['express']) { frameworks.push('express'); }
-                if (deps['vscode']) { frameworks.push('vscode-extension'); }
-            } catch (error: any) {
-                if (error.code !== 'ENOENT') {
-                    console.error('Error reading package.json:', error);
-                }
-            }
-        } catch (error) {
-            // Ignore errors
-        }
-        
-        return frameworks;
-    }
+        const header = '# Capybara - Private AI Instructions';
+        const entry = '.github/copilot-instructions.md';
 
-    private async hasFilesWithExtension(dirPath: string, extension: string): Promise<boolean> {
-        try {
-            const files = await fs.promises.readdir(dirPath);
-            return files.some((file: string) => file.endsWith(extension));
-        } catch {
-            return false;
+        let changed = false;
+        if (!content.includes(header)) {
+            content = content ? `${content}\n\n${header}\n${entry}\n` : `${header}\n${entry}\n`;
+            changed = true;
+        } else if (!content.includes(entry)) {
+            content = `${content.trim()}\n${entry}\n`;
+            changed = true;
         }
-    }
 
-    private inferProjectType(languages: string[], frameworks: string[]): string {
-        if (frameworks.includes('vscode-extension')) { return 'vscode-extension'; }
-        if (frameworks.includes('nextjs')) { return 'web-app'; }
-        if (frameworks.includes('react')) { return 'web-app'; }
-        if (languages.includes('python')) { return 'python-app'; }
-        if (languages.includes('typescript') || languages.includes('javascript')) { return 'node-app'; }
-        return 'general';
+        if (changed) {
+            await fs.promises.writeFile(gitignorePath, content, 'utf8');
+        }
     }
 
     private async copyDirectory(source: string, destination: string): Promise<void> {

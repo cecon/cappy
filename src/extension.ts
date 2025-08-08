@@ -48,25 +48,17 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             };
 
-        // Register init command (full implementation)
+        // Register init command (always run init; KnowStack must not block it)
         const initCommand = vscode.commands.registerCommand('capybara.init', async () => {
             try {
-                const ok = await ensureStackKnown();
-                if (!ok) {
-                    const action = await vscode.window.showWarningMessage('Capybara: please run "Capy: KnowStack" before other commands.', 'Run KnowStack');
-                    if (action === 'Run KnowStack') {
-                        vscode.commands.executeCommand('capybara.knowstack');
-                    }
-                    return;
-                }
                 vscode.window.showInformationMessage('🦫 Capybara Memory: Init command called!');
-                
+
                 // Load the full init implementation
                 try {
                     const initModule = await import('./commands/initCapybara');
-                    
+
                     const initCommand = new initModule.InitCapybaraCommand(context);
-                    
+
                     const success = await initCommand.execute();
                     if (success) {
                         vscode.window.showInformationMessage('🦫 Capybara Memory: Initialization completed successfully!');

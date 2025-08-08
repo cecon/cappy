@@ -1,9 +1,9 @@
 {
-  "name": "capybara-memory",
-  "displayName": "Capybara Memory",
+  "name": "cappy",
+  "displayName": "Cappy",
   "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
   "icon": "assets/icon.png",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -31,17 +31,17 @@
     "commands": [
       {
         "command": "capybara.init",
-        "title": "🦫 Initialize Capybara",
-        "category": "Capybara"
+        "title": "🦫 Initialize Cappy",
+        "category": "Cappy"
       },
       {
         "command": "capybara.knowstack",
-        "title": "🧠 Capy: KnowStack",
-        "category": "Capybara"
+        "title": "🧠 Cappy: KnowStack",
+        "category": "Cappy"
       }
     ],
     "configuration": {
-      "title": "Capybara",
+      "title": "Cappy",
       "properties": {
         "capybara.autoUpdateCopilotContext": {
           "type": "boolean",

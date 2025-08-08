@@ -87,3 +87,6 @@ coverage/
 .github/stack-instructions.md
 *.capy.lock
 .capy-context/
+
+# Capybara - Private AI Instructions
+.github/copilot-instructions.md

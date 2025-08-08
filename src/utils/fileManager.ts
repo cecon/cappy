@@ -21,22 +21,41 @@ export class FileManager {
     }
 
     async writeCapybaraConfig(config: CapybaraConfig): Promise<void> {
-        const configPath = path.join(this.ensureWorkspace(), '.capy', 'config.json');
+        const configPath = path.join(this.ensureWorkspace(), '.capy', 'config.yaml');
         // Ensure .capy directory exists
         const capyDir = path.dirname(configPath);
         if (!fs.existsSync(capyDir)) {
             await fs.promises.mkdir(capyDir, { recursive: true });
         }
-        const jsonContent = JSON.stringify(config, null, 2);
-        await fs.promises.writeFile(configPath, jsonContent, 'utf8');
+        // NOTE: For now, we store minimal YAML. Full mapping can be added when needed.
+        const yaml = `version: "${config.version}"
+createdAt: "${(config as any).createdAt || ''}"
+lastUpdated: "${(config as any).lastUpdated || ''}"
+`;
+        await fs.promises.writeFile(configPath, yaml, 'utf8');
     }
 
     async readCapybaraConfig(): Promise<CapybaraConfig | null> {
-        const configPath = path.join(this.ensureWorkspace(), '.capy', 'config.json');
+        const configPath = path.join(this.ensureWorkspace(), '.capy', 'config.yaml');
         
         try {
-            const jsonContent = await fs.promises.readFile(configPath, 'utf8');
-            return JSON.parse(jsonContent) as CapybaraConfig;
+            const content = await fs.promises.readFile(configPath, 'utf8');
+            // Minimal parse: extract version if present
+            const m = content.match(/version:\s*"?([\d.]+)"?/);
+            const version = m ? m[1] : '0.0.0';
+            return {
+                version,
+                instructionsVersion: '',
+                project: { name: '', language: [], framework: [] },
+                stack: { primary: 'typescript', secondary: [], patterns: [], conventions: { codeStyle: [], testing: [], architecture: [] } },
+                environment: { os: 'windows', shell: 'powershell', editor: 'vscode', packageManager: 'npm', containerization: 'docker' },
+                context: { maxRules: 0, autoPrioritize: false, languageSpecific: false, projectPatterns: false, autoUpdateCopilot: false },
+                tasks: { maxAtomicHours: 0, defaultTemplate: '', autoTimeEstimation: false, atomicityWarning: false, requireUnitTests: false, testFramework: '', testCoverage: 0, nextTaskNumber: 1, workflowMode: 'single-focus' },
+                ai: { provider: 'copilot', copilotIntegration: true, contextFile: '.github/copilot-instructions.md', maxContextSize: 4000 },
+                analytics: { enabled: false, trackTime: false, trackEffectiveness: false },
+                createdAt: new Date(),
+                lastUpdated: new Date(),
+            } as CapybaraConfig;
         } catch (error) {
             return null;
         }

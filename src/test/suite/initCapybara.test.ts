@@ -111,20 +111,16 @@ suite('🔨 InitCapybara Command Test Suite', () => {
         const projectDir = path.join(testWorkspaceDir, 'test-project-config');
         await fs.promises.mkdir(projectDir, { recursive: true });
         
-        // Create a TypeScript project with React
+        // Minimal project
         const packageJson = {
             name: 'test-project-config',
-            version: '1.0.0',
-            dependencies: {
-                'react': '^18.0.0',
-                'typescript': '^4.0.0'
-            }
+            version: '1.0.0'
         };
         await fs.promises.writeFile(
             path.join(projectDir, 'package.json'), 
             JSON.stringify(packageJson, null, 2)
         );
-        await fs.promises.writeFile(path.join(projectDir, 'tsconfig.json'), '{}');
+        // no tsconfig needed
 
         // Mock workspace folders
         const mockWorkspaceFolder = {
@@ -142,20 +138,15 @@ suite('🔨 InitCapybara Command Test Suite', () => {
         try {
             await initCommand.execute();
 
-            // Verify config.json was created with correct content
-            const configPath = path.join(projectDir, '.capy', 'config.json');
+            // Verify config.yaml was created with correct content
+            const configPath = path.join(projectDir, '.capy', 'config.yaml');
             const configExists = await fs.promises.access(configPath, fs.constants.F_OK)
                 .then(() => true)
                 .catch(() => false);
-            assert.strictEqual(configExists, true, 'config.json should be created');
+            assert.strictEqual(configExists, true, 'config.yaml should be created');
 
             const configContent = await fs.promises.readFile(configPath, 'utf8');
-            const config = JSON.parse(configContent);
-            
-            assert.strictEqual(config.project.name, 'test-project-config', 'Project name should match directory name');
-            assert.ok(config.project.language.includes('typescript'), 'Should detect TypeScript');
-            assert.ok(config.project.framework.includes('react'), 'Should detect React framework');
-            assert.strictEqual(config.version, '1.0.0', 'Should have correct version');
+            assert.ok(/version:\s*"?\d+\.\d+\.\d+"?/m.test(configContent), 'config.yaml should contain version');
 
             // Verify copilot-instructions.md was created
             const instructionsPath = path.join(projectDir, '.github', 'copilot-instructions.md');
@@ -165,20 +156,20 @@ suite('🔨 InitCapybara Command Test Suite', () => {
             assert.strictEqual(instructionsExists, true, 'copilot-instructions.md should be created');
 
             const instructionsContent = await fs.promises.readFile(instructionsPath, 'utf8');
-            assert.ok(instructionsContent.includes('test-project-config'), 'Instructions should contain project name');
-            assert.ok(instructionsContent.includes('typescript'), 'Instructions should contain detected language');
-            assert.ok(instructionsContent.includes('react'), 'Instructions should contain detected framework');
+            assert.ok(/<!--\s*CAPY:CONFIG:BEGIN\s*-->[\s\S]*?<!--\s*CAPY:CONFIG:END\s*-->/m.test(instructionsContent), 'Should contain CAPY:CONFIG block');
+            assert.ok(/validated:\s*false/m.test(instructionsContent), 'CAPY:CONFIG should set validated to false');
+            // last-validated-at should be empty (no value)
+            assert.ok(/last-validated-at:\s*$/m.test(instructionsContent) || /last-validated-at:\s*\n/m.test(instructionsContent), 'CAPY:CONFIG should have empty last-validated-at');
 
-            // Verify prevention-rules.md was created
-            const rulesPath = path.join(projectDir, '.capy', 'prevention-rules.md');
-            const rulesExists = await fs.promises.access(rulesPath, fs.constants.F_OK)
+            // .gitignore should be created/updated
+            const giPath = path.join(projectDir, '.gitignore');
+            const giExists = await fs.promises.access(giPath, fs.constants.F_OK)
                 .then(() => true)
                 .catch(() => false);
-            assert.strictEqual(rulesExists, true, 'prevention-rules.md should be created');
-
-            const rulesContent = await fs.promises.readFile(rulesPath, 'utf8');
-            assert.ok(rulesContent.includes('Prevention Rules'), 'Rules file should have correct header');
-            assert.ok(rulesContent.includes('[SETUP]'), 'Rules file should have initial setup rule');
+            assert.strictEqual(giExists, true, '.gitignore should exist');
+            const giContent = await fs.promises.readFile(giPath, 'utf8');
+            assert.ok(giContent.includes('# Capybara - Private AI Instructions'), 'gitignore should include header');
+            assert.ok(giContent.includes('.github/copilot-instructions.md'), 'gitignore should ignore copilot instructions');
 
             console.log('✅ Configuration files test passed');
         } finally {
@@ -189,71 +180,7 @@ suite('🔨 InitCapybara Command Test Suite', () => {
         }
     });
 
-    test('🔍 Should correctly detect project languages and frameworks', async () => {
-        const projectDir = path.join(testWorkspaceDir, 'test-project-detection');
-        await fs.promises.mkdir(projectDir, { recursive: true });
-        
-        // Create a complex project with multiple languages
-        const packageJson: any = {
-            name: 'test-project-detection',
-            version: '1.0.0',
-            dependencies: {
-                'express': '^4.18.0',
-                'vue': '^3.0.0'
-            },
-            devDependencies: {}
-        };
-        
-        // Add Angular dependency to avoid linting issues with @ symbol
-        packageJson.devDependencies['@angular/core'] = '^15.0.0';
-        await fs.promises.writeFile(
-            path.join(projectDir, 'package.json'), 
-            JSON.stringify(packageJson, null, 2)
-        );
-        
-        // Create language-specific files
-        await fs.promises.writeFile(path.join(projectDir, 'main.py'), '# Python file');
-        await fs.promises.writeFile(path.join(projectDir, 'App.java'), '// Java file');
-        await fs.promises.writeFile(path.join(projectDir, 'Program.cs'), '// C# file');
-
-        const mockWorkspaceFolder = {
-            uri: vscode.Uri.file(projectDir),
-            name: 'test-project-detection',
-            index: 0
-        };
-        
-        const originalWorkspaceFolders = vscode.workspace.workspaceFolders;
-        Object.defineProperty(vscode.workspace, 'workspaceFolders', {
-            value: [mockWorkspaceFolder],
-            configurable: true
-        });
-
-        try {
-            await initCommand.execute();
-
-            const configPath = path.join(projectDir, '.capy', 'config.json');
-            const configContent = await fs.promises.readFile(configPath, 'utf8');
-            const config = JSON.parse(configContent);
-            
-            // Verify multiple languages were detected
-            assert.ok(config.project.language.includes('javascript'), 'Should detect JavaScript from package.json');
-            assert.ok(config.project.language.includes('python'), 'Should detect Python from .py files');
-            assert.ok(config.project.language.includes('java'), 'Should detect Java from .java files');
-            assert.ok(config.project.language.includes('csharp'), 'Should detect C# from .cs files');
-
-            // Verify multiple frameworks were detected
-            assert.ok(config.project.framework.includes('express'), 'Should detect Express framework');
-            assert.ok(config.project.framework.includes('vue'), 'Should detect Vue framework');
-            assert.ok(config.project.framework.includes('angular'), 'Should detect Angular framework');
-
-            console.log('✅ Language and framework detection test passed');
-        } finally {
-            Object.defineProperty(vscode.workspace, 'workspaceFolders', {
-                value: originalWorkspaceFolders,
-                configurable: true
-            });
-        }
-    });
+    // Removed detection test: init no longer infers languages/frameworks
 
     test('🚫 Should handle workspace without folder gracefully', async () => {
         // Mock no workspace folders
@@ -300,23 +227,15 @@ suite('🔨 InitCapybara Command Test Suite', () => {
         });
 
         try {
-            // Mock the user choosing "Não" to overwrite
-            const originalShowWarningMessage = vscode.window.showWarningMessage;
-            vscode.window.showWarningMessage = async () => 'Não' as any;
-
             const result = await initCommand.execute();
-            
-            // Should return false when user chooses not to overwrite
-            assert.strictEqual(result, false, 'Should return false when user cancels overwrite');
-            
-            // Verify original file still exists
-            const configContent = await fs.promises.readFile(path.join(capyDir, 'config.json'), 'utf8');
-            const config = JSON.parse(configContent);
-            assert.strictEqual(config.existing, true, 'Original config should be preserved');
 
-            // Restore original method
-            vscode.window.showWarningMessage = originalShowWarningMessage;
-            
+            // Should return true and produce config.yaml
+            assert.strictEqual(result, true, 'Init should complete successfully');
+            const yamlExists = await fs.promises.access(path.join(capyDir, 'config.yaml'), fs.constants.F_OK)
+                .then(() => true)
+                .catch(() => false);
+            assert.strictEqual(yamlExists, true, 'config.yaml should exist after init');
+
             console.log('✅ Existing installation handling test passed');
         } finally {
             Object.defineProperty(vscode.workspace, 'workspaceFolders', {
@@ -367,90 +286,5 @@ dist/`;
         }
     });
 
-    test('🎯 Should infer correct project types', async () => {
-        const testCases = [
-            {
-                name: 'vscode-extension-project',
-                packageJson: { dependencies: { 'vscode': '^1.75.0' } },
-                expectedType: 'vscode-extension'
-            },
-            {
-                name: 'nextjs-project', 
-                packageJson: { dependencies: { 'next': '^13.0.0' } },
-                expectedType: 'web-app'
-            },
-            {
-                name: 'react-project',
-                packageJson: { dependencies: { 'react': '^18.0.0' } },
-                expectedType: 'web-app'
-            },
-            {
-                name: 'python-project',
-                files: ['main.py'],
-                expectedType: 'python-app'
-            },
-            {
-                name: 'node-project',
-                packageJson: { dependencies: { 'express': '^4.0.0' } },
-                expectedType: 'node-app'
-            }
-        ];
-
-        for (const testCase of testCases) {
-            const projectDir = path.join(testWorkspaceDir, testCase.name);
-            await fs.promises.mkdir(projectDir, { recursive: true });
-            
-            if (testCase.packageJson) {
-                const packageJson = {
-                    name: testCase.name,
-                    version: '1.0.0',
-                    ...testCase.packageJson
-                };
-                await fs.promises.writeFile(
-                    path.join(projectDir, 'package.json'), 
-                    JSON.stringify(packageJson, null, 2)
-                );
-            }
-
-            if (testCase.files) {
-                for (const file of testCase.files) {
-                    await fs.promises.writeFile(path.join(projectDir, file), '// test file');
-                }
-            }
-
-            const mockWorkspaceFolder = {
-                uri: vscode.Uri.file(projectDir),
-                name: testCase.name,
-                index: 0
-            };
-            
-            const originalWorkspaceFolders = vscode.workspace.workspaceFolders;
-            Object.defineProperty(vscode.workspace, 'workspaceFolders', {
-                value: [mockWorkspaceFolder],
-                configurable: true
-            });
-
-            try {
-                await initCommand.execute();
-
-                const configPath = path.join(projectDir, '.capy', 'config.json');
-                const configContent = await fs.promises.readFile(configPath, 'utf8');
-                const config = JSON.parse(configContent);
-                
-                assert.ok(config.project.description.includes(testCase.expectedType) || 
-                         testCase.expectedType === 'vscode-extension' || 
-                         testCase.expectedType === 'web-app' || 
-                         testCase.expectedType === 'python-app' || 
-                         testCase.expectedType === 'node-app', 
-                         `Project type should be correctly inferred for ${testCase.name}`);
-
-                console.log(`✅ Project type inference test passed for ${testCase.name}`);
-            } finally {
-                Object.defineProperty(vscode.workspace, 'workspaceFolders', {
-                    value: originalWorkspaceFolders,
-                    configurable: true
-                });
-            }
-        }
-    });
+    // Removed project type inference test: init no longer infers project type
 });

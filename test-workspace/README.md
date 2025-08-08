@@ -10,7 +10,6 @@ Este é um workspace de teste para verificar se o comando `capybara.init` funcio
 
 ## Arquivos que devem ser criados:
 
-- `.capy/config.json`
-- `.capy/prevention-rules.md`
+- `.capy/config.yaml`
 - `.capy/history/` (pasta)
 - `.github/copilot-instructions.md`
