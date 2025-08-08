@@ -1,4 +1,4 @@
-# 🦫 Capybara - Minimal Setup
+# 🦫 Capybara - Minimal Setup + KnowStack
 
 > A lightweight VS Code extension that sets up the Capybara methodology for solo developers
 
@@ -15,11 +15,13 @@
 
 ## 🎯 What is Capybara?
 
-**Capybara** is a **minimal VS Code extension** that sets up the Capybara methodology structure for solo developers. It focuses on **initialization only** - providing the essential files and documentation for the Capybara workflow.
+**Capybara** is a **minimal VS Code extension** that sets up the Capybara methodology structure for solo developers. It now includes a first-class, guided command to establish the project stack as ground truth before you run anything else.
 
 ### 🏗️ **What it Creates**
-- **Project Structure**: `.capy/` folder with configuration
+- **Project Structure**: `.capy/` folder with configuration (`config.yaml`)
 - **Copilot Instructions**: Private GitHub Copilot instructions with version control (gitignored)
+- **Stack Doc**: `.github/instructions/copilot.stack.md` as the single source of truth for your stack
+- **Capy Config Markers**: A parseable section inside `.github/copilot-instructions.md` linking to the stack doc
 - **Prevention Rules**: Template for documenting project-specific rules
 - **XML Task Structure**: Documentation and examples for manual task management
 
@@ -48,10 +50,19 @@ code --install-extension eduardocecon.capybara
 3. Type `Capybara: Initialize`
 4. Follow the prompts
 
-### Step 3: Start Working
+### Step 3: Know your Stack (Required)
+1. Press `Ctrl+Shift+P`
+2. Run `Capy: KnowStack`
+3. Answer questions one-by-one; we’ll draft `.github/instructions/copilot.stack.md` in English
+4. Approve the final stack; we’ll update the Capy Config markers in `.github/copilot-instructions.md`
+
+Notes:
+- Until the stack is approved, other commands will prompt you to run “Capy: KnowStack”.
+
+### Step 4: Start Working
 - Edit `.capy/prevention-rules.md` to add project-specific rules
 - Create task XML files manually in `.capy/` folder
-- Use GitHub Copilot with the generated instructions
+- Use GitHub Copilot with the generated instructions and the approved stack doc
 
 ---
 
@@ -60,7 +71,7 @@ code --install-extension eduardocecon.capybara
 | Command | Description |
 |---------|-------------|
 | `Capybara: Initialize` | Set up Capybara structure and configuration |
-| `Capybara: Test Capybara Extension` | Test if extension is working |
+| `🧠 Capy: KnowStack` | Guided flow to create/validate the project stack. Creates `.github/instructions/copilot.stack.md` and updates Capy Config markers inside `.github/copilot-instructions.md`. Required before other commands. |
 
 ---
 
@@ -69,11 +80,13 @@ code --install-extension eduardocecon.capybara
 ```
 your-project/
 ├── .capy/
-│   ├── config.json                    # Capybara configuration
+│   ├── config.yaml                    # Capybara configuration (YAML)
 │   ├── prevention-rules.md            # Project-specific rules
 │   └── history/                       # Manual task history
 ├── .github/
-│   └── copilot-instructions.md        # Private Copilot instructions (gitignored)
+│   ├── copilot-instructions.md        # Private Copilot instructions (gitignored)
+│   └── instructions/
+│       └── copilot.stack.md           # Project stack (single source of truth)
 └── .gitignore                         # Updated with Capybara entries
 ```
 
@@ -175,9 +188,9 @@ Add project-specific rules to `.capy/prevention-rules.md`:
 
 ---
 
-## 🤖 GitHub Copilot Integration
+## 🤖 GitHub Copilot Integration & Capy Config
 
-The extension automatically creates versioned instructions for GitHub Copilot:
+The extension creates versioned instructions for GitHub Copilot and manages a Capy Config block used by the LLM:
 
 ```markdown
 =====================START CAPYBARA MEMORY v1.0.0=====================
@@ -193,30 +206,95 @@ This project uses Capybara methodology for solo development...
 ======================END CAPYBARA MEMORY v1.0.0======================
 ```
 
-These instructions are:
+These are:
 - **Private**: Added to `.gitignore` automatically
 - **Versioned**: Easy to update and track changes
 - **Preserved**: Other content in the file is maintained
+
+Additionally, we insert/update a Capy Config section inside `.github/copilot-instructions.md` (between idempotent markers):
+
+```
+<!-- CAPY:CONFIG:BEGIN -->
+### Capy Config
+
+```yaml
+capy-config:
+    version: 1
+    templates:
+        stack-instruction: true
+    stack:
+        source: ".github/instructions/copilot.stack.md"
+        last-validated-at: "2025-08-08T00:00:00Z"
+        validated-by: "user-confirmation"
+    notes:
+        - "Stack reviewed and approved; use as single source of truth."
+```
+<!-- CAPY:CONFIG:END -->
+```
+
+Rules:
+- If markers exist, we replace only the content between them
+- If not, we append the section near the end of the file
+- We preserve all other content verbatim
 
 ---
 
 ## 🔧 Configuration
 
-The `.capy/config.json` file contains project configuration:
+The `.capy/config.yaml` file contains project configuration:
 
-```json
-{
-  "version": "1.0.0",
-  "project": {
-    "name": "your-project",
-    "language": ["javascript", "typescript"],
-    "framework": ["react"],
-    "description": "Project description"
-  },
-  "createdAt": "2025-01-01T00:00:00.000Z",
-  "lastUpdated": "2025-01-01T00:00:00.000Z"
-}
+```yaml
+# Capybara Configuration
+version: "1.0.0"
+project:
+    name: "your-project"
+    type: "node-app"
+    languages:
+        - "javascript"
+        - "typescript"
+    frameworks:
+        - "vscode-extension"
+    description: "Project description"
+
+capybara:
+    initialized_at: "2025-01-01T00:00:00.000Z"
+    last_updated: "2025-01-01T00:00:00.000Z"
+
+tasks:
+    directory: "tasks"
+    history_directory: "history"
+
+instructions:
+    directory: "instructions"
 ```
+## 🧠 KnowStack Flow (Guided)
+
+1) Analysis
+- Ask one question per turn; wait for user reply
+- After each answer, refine understanding and list remaining doubts
+- Stop when no material doubts remain
+
+2) Write the Stack Doc (English)
+- Create/update `.github/instructions/copilot.stack.md`
+- Cover: Languages & frameworks, Project structure & modules, Key dependencies & versions, Coding standards & conventions, Build/Test/CI/CD & deployment, Env/config & secrets handling (never expose secrets), Observability & tooling, Known constraints & non-goals
+
+3) Validate with user
+- Ask: “Anything missing or inaccurate?”
+- Only proceed after approval
+
+4) Update Capy Config markers
+- Insert or update the YAML block between `CAPY:CONFIG:BEGIN/END` in `.github/copilot-instructions.md`
+- Set `last-validated-at` to the current UTC ISO timestamp
+
+5) Versioning
+- Suggested commits:
+    - `docs(stack): add or update copilot.stack.md`
+    - `docs(capy): update capy-config in copilot-instructions.md`
+
+6) Gating
+- All commands rely on the approved stack
+- If the stack changes later: update `.stack.md` → validate → update Capy Config
+
 
 ---
 
