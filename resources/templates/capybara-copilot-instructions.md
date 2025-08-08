@@ -20,7 +20,7 @@ Este projeto usa a metodologia Capybara (Focus, Organize, Record, Grow, Evolve) 
 
 ### **Criação de Tarefas:**
 - **Trigger**: Usuário solicita nova funcionalidade/tarefa
-- **Script**: Consulte `.capy/instructions/script-criar-task.md`
+- **Script**: Consulte `.capy/instructions/script-new-task.xml`
 - **Saída**: Arquivo XML em `.capy/tasks/`
 
 ### **Visualização de Tarefa Atual:**
@@ -49,10 +49,11 @@ Este projeto usa comandos de chat para ativar fluxos padronizados. Sempre que o 
 	- Mensagens curtas; relate ações e próximos passos, sem repetir instruções longas.
 	- Tratamento de erros: se um arquivo esperado não existir, informe brevemente e use o fallback recomendado no script.
 
+
 - Mapeamento de comandos
-	- `capy:newtask`
+	- `cappy:newtask`
 		- Ação: criar uma nova tarefa atômica em XML.
-		- Script: ler e seguir `.capy/instructions/script-criar-task.md` do início ao fim.
+		- Script: ler e seguir `.capy/instructions/script-new-task.xml` do início ao fim.
 		- Saída: arquivo criado em `.capy/tasks/STEP_<timestamp>_<kebab>.xml` com status `em-andamento`.
 	- `capy:task:status`
 		- Ação: exibir o status detalhado da tarefa atual/ativa.
@@ -70,7 +71,7 @@ Este projeto usa comandos de chat para ativar fluxos padronizados. Sempre que o 
 		- Ação: listar os comandos disponíveis e um resumo do que cada um faz.
 
 - Sintaxe de argumentos (opcional)
-	- Comandos podem receber argumentos em linha: `capy:newtask title="Implementar auth" area=backend`.
+	- Comandos podem receber argumentos em linha: `cappy:newtask title="Implementar auth" area=backend`.
 	- Quando suportado pelo script, aplique os argumentos diretamente (ex: título no `<title>` do XML, área em `<context><area>`).
 	- Se um argumento desconhecido for passado, ignore silenciosamente e siga o padrão do script.
 

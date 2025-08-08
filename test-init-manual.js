@@ -203,8 +203,8 @@ ${instructions}
         console.log(`  .capy/instructions/: ${instructionsExists ? '✅' : '❌'}`);
 
         // Verificar alguns arquivos de instruções
-        const scriptExists = await this.fileExists(path.join(capyDir, 'instructions', 'script-criar-task.md'));
-        console.log(`  .capy/instructions/script-criar-task.md: ${scriptExists ? '✅' : '❌'}`);
+    const scriptExists = await this.fileExists(path.join(capyDir, 'instructions', 'script-new-task.xml'));
+    console.log(`  .capy/instructions/script-new-task.xml: ${scriptExists ? '✅' : '❌'}`);
 
         // Verificar copilot instructions
         const copilotExists = await this.fileExists(path.join(githubDir, 'copilot-instructions.md'));

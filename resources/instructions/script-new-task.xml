@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capy:script name="new-task" version="1.1">
+  <about>
+    <summary>Create and prepare a new atomic task. Do not execute it.</summary>
+    <command>cappy:newtask</command>
+    <notes>
+      <note>Keep scope atomic (2-3 hours max).</note>
+      <note>Only prepare the task; execution is triggered later via cappy:run exe:</note>
+    </notes>
+  </about>
+
+  <steps>
+    <step id="1.check_active">
+      <goal>Check for active or paused tasks and ask to pause before creating a new one.</goal>
+      <logic>
+        <![CDATA[
+        tasks = list_files(".capy/tasks/*.xml")
+        for (t in tasks) {
+          x = read_xml(t)
+          if (x.metadata.status in ["in-progress", "preparing", "paused"]) {
+            ask_user("There is an active task: '" + x.metadata.title + "'. Pause it to create a new one? (yes/no)")
+            if (user_answer == "no") return
+          }
+        }
+        ]]>
+      </logic>
+    </step>
+
+    <step id="2.context_read">
+      <goal>Read minimal context required to prepare the task.</goal>
+      <logic>
+        <![CDATA[
+        prevention_rules = optional_read(".capy/prevention-rules.md")
+        project_config   = optional_read(".capy/config.yaml|.capy/config.json")
+        patterns         = optional_read(".capy/instructions/capybara-patterns.md")
+        // Try to locate project stack file from CAPY config markers; fallback to default
+        capy_cfg_md = optional_read(".github/copilot-instructions.md")
+        stack_path  = extract_yaml_value(capy_cfg_md, "capy-config.stack.source") || ".github/instructions/copilot.stack.md"
+        stack_md    = optional_read(stack_path)
+        ]]>
+      </logic>
+    </step>
+
+    <step id="3.atomicity_gate">
+      <goal>Ensure the requested task is atomic; suggest decomposition otherwise.</goal>
+      <logic>
+        <![CDATA[
+        if (estimated_effort_hours > 3) {
+          suggest_decomposition_using(patterns)
+          stop_with_message("Task not created: scope is not atomic. Split into smaller steps.")
+        }
+        ]]>
+      </logic>
+    </step>
+
+    <step id="4.collect_min_fields">
+      <goal>Ask the user about the task and collect core fields.</goal>
+      <inputs>
+        <arg name="title" required="true" example="Setup Supabase auth config" />
+        <arg name="area"  required="true" values="frontend,backend,fullstack,mobile,devops" />
+        <arg name="tech"  required="false" example="nodejs" />
+        <arg name="description" required="false" />
+      </inputs>
+      <logic>
+        <![CDATA[
+        ensure_args(["title","area"]) // ask one-by-one if missing
+        ask_series([
+          "Briefly describe the scope and the expected outcome.",
+          "What acceptance criteria define 'done' for this task?",
+          "Which folders/files are likely involved?",
+          "Any dependencies (libs/services) we must consider?",
+          "How will we validate it (tests, command, URL)?"
+        ])
+        ]]>
+      </logic>
+    </step>
+
+    <step id="5.derive_workspace_context">
+      <goal>From the stack, infer projects, entry points, and required pre-commands (cd/build/run).</goal>
+      <logic>
+        <![CDATA[
+        workspace = { projects: [], runContexts: [] }
+        if (stack_md) {
+          workspace.projects = parse_projects_from_stack(stack_md) // e.g., [{name, path, type, language}]
+          for (p in workspace.projects) {
+            rc = recommend_run_context(p) // e.g., {cd: p.path, env: [], build: [], test: [], run: []}
+            workspace.runContexts.push(rc)
+          }
+        }
+        // If multiple projects (e.g., web and api), keep both contexts and document navigation commands
+        ]]>
+      </logic>
+      <output>internal.workspace</output>
+    </step>
+
+    <step id="6.generate_filename">
+      <goal>Generate file name using timestamp and kebab-case title.</goal>
+      <logic>
+        <![CDATA[
+        ts = unix_timestamp()
+        kebab = kebab_case(args.title)
+        filename = `STEP_${ts}_${kebab}.xml`
+        outpath = `.capy/tasks/${filename}`
+        ]]>
+      </logic>
+    </step>
+
+    <step id="7.write_task_xml">
+      <goal>Write the task XML with required structure and defaults (status=preparing).</goal>
+      <template>
+        <![CDATA[
+<task id="{{ kebab }}" version="1.0">
+  <metadata>
+    <title>{{ args.title }}</title>
+    <description>{{ args.description || ("Atomic task: " + args.title) }}</description>
+    <status>preparing</status>
+    <progress>0/1</progress>
+  </metadata>
+  <context>
+    <area>{{ args.area }}</area>
+    <technology main="{{ args.tech || 'unknown' }}" version=""/>
+    <dependencies>
+      <!-- List required libraries if known; may be empty at creation time -->
+    </dependencies>
+    <files>
+      <!-- Enumerate files once known during execution; empty on creation is acceptable -->
+    </files>
+  </context>
+  <steps>
+    <step id="step001" order="1" completed="false" required="true">
+      <title>Describe the concrete outcome</title>
+      <description>Define the first concrete implementation step for this task.</description>
+      <criteria>
+        <criterion>Build succeeds</criterion>
+        <criterion>Unit test(s) for this step pass</criterion>
+      </criteria>
+      <files>
+        <!-- Add file paths touched by this step when known -->
+      </files>
+      <dependencies>
+        <!-- Optional per-step dependencies -->
+      </dependencies>
+      <validation>
+        <command>npm run test</command>
+        <metric>tests_passed >= 1</metric>
+      </validation>
+    </step>
+  </steps>
+  <validation>
+    <checklist>
+      <item>All required steps completed</item>
+      <item>All required files created</item>
+      <item>Code compiles without errors</item>
+      <item>No linting warnings</item>
+    </checklist>
+  </validation>
+</task>
+        ]]>
+      </template>
+      <logic>
+        <![CDATA[
+        xml = render_template(template, { args, kebab })
+        write_file(outpath, xml)
+        ]]>
+      </logic>
+    </step>
+
+    <step id="8.embed_preparation_notes">
+      <goal>Append a preparation section into the task XML with scope Q&A and workspace run contexts.</goal>
+      <logic>
+        <![CDATA[
+        xml = read_text(outpath)
+        prep = `\n  <!-- preparation -->\n  <preparation>\n    <scope>\n      <summary>${last_answers[0]||''}</summary>\n      <acceptance>${last_answers[1]||''}</acceptance>\n      <paths>${last_answers[2]||''}</paths>\n      <dependencies>${last_answers[3]||''}</dependencies>\n      <validation>${last_answers[4]||''}</validation>\n    </scope>\n    <workspace>\n      ${JSON.stringify(internal.workspace || {}, null, 2)}\n    </workspace>\n  </preparation>`
+        xml = xml.replace(/<validation>[\s\S]*?<\/validation>[\r\n]*<\/task>/, (m)=> m.replace('</task>', prep + "\n</task>"))
+        write_file(outpath, xml)
+        ]]>
+      </logic>
+    </step>
+
+    <step id="9.mark_prepared">
+      <goal>Mark the task as prepared and save pointer as current task.</goal>
+      <logic>
+        <![CDATA[
+        // Update status to prepared
+        xml = read_text(outpath)
+        xml = xml.replace('<status>preparing</status>', '<status>prepared</status>')
+        write_file(outpath, xml)
+
+        // Save current task pointer
+        ensure_dir('.capy/state')
+        state = { currentTaskFile: outpath, status: 'prepared', updatedAt: now_iso() }
+        write_file('.capy/state/current-task.json', JSON.stringify(state, null, 2))
+        ]]>
+      </logic>
+    </step>
+
+    <step id="10.confirm">
+      <goal>Confirm creation and preparation. Wait for next command.</goal>
+      <logic>
+        <![CDATA[
+        say(`Task prepared: ${filename}\nLocation: ${outpath}\nNext: use 'cappy:run exe:' with the appropriate run context.`)
+        ]]>
+      </logic>
+    </step>
+  </steps>
+</capy:script>
