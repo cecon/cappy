@@ -48,16 +48,10 @@ export class InitCapybaraCommand {
                 const extVersion = ext?.packageJSON?.version || '0.0.0';
                 await this.createConfigYaml(capyDir, extVersion);
 
-                progress.report({ increment: 65, message: 'Injetando instruções no Copilot...' });
+                progress.report({ increment: 65, message: 'Criando instruções locais do Capybara...' });
 
-                // 3. Injetar instruções no .github/copilot-instructions.md com CAPY:CONFIG
-                const projectName = path.basename(workspaceFolder.uri.fsPath);
-                await this.injectCopilotInstructions(githubDir, {
-                    name: projectName,
-                    type: 'general',
-                    languages: ['unknown'],
-                    framework: []
-                });
+                // 3. (Alterado) Não injeta mais CAPY:CONFIG no copilot-instructions.md
+                // Mantemos apenas as instruções locais em .capy/instructions
 
                 progress.report({ increment: 85, message: 'Copiando instruções...' });
 
@@ -113,19 +107,24 @@ export class InitCapybaraCommand {
     }
 
     private async createConfigYaml(capyDir: string, extensionVersion: string): Promise<void> {
-        const configContent = `# Capybara Configuration
+                const configContent = `# Capybara Configuration
 version: "${extensionVersion}"
 
 capybara:
-  initialized_at: "${new Date().toISOString()}"
-  last_updated: "${new Date().toISOString()}"
-  
+    initialized_at: "${new Date().toISOString()}"
+    last_updated: "${new Date().toISOString()}"
+
+stack:
+    source: ".capy/stack.md"
+    validated: false
+    validated_at:
+
 tasks:
-  directory: "tasks"
-  history_directory: "history"
-  
+    directory: "tasks"
+    history_directory: "history"
+
 instructions:
-  directory: "instructions"
+    directory: "instructions"
 `;
 
         const configPath = path.join(capyDir, 'config.yaml');
@@ -157,68 +156,7 @@ instructions:
         return process.cwd();
     }
 
-    private async injectCopilotInstructions(githubDir: string, projectInfo: { name: string; type: string; languages: string[]; framework: string[]; }): Promise<void> {
-        await fs.promises.mkdir(githubDir, { recursive: true });
-        
-        const copilotInstructionsPath = path.join(githubDir, 'copilot-instructions.md');
-        
-        // Ler template das instruções
-        const templatePath = path.join(this.getExtensionRoot(), 'resources', 'templates', 'capybara-copilot-instructions.md');
-        const templateContent = await fs.promises.readFile(templatePath, 'utf8');
-
-        // Substituir placeholders
-        const instructions = templateContent
-            .replace(/{PROJECT_NAME}/g, projectInfo.name)
-            .replace(/{PROJECT_TYPE}/g, projectInfo.type)
-            .replace(/{MAIN_LANGUAGE}/g, projectInfo.languages.join(', '))
-            .replace(/{FRAMEWORKS}/g, projectInfo.framework?.join(', ') || 'Nenhum detectado');
-
-        const capybaraInstructions = `
--- CAPYBARA MEMORY INSTRUCTIONS INIT --
-${instructions}
--- CAPYBARA MEMORY INSTRUCTIONS END --
-`;
-
-        // Bloco CAPY:CONFIG com valores padrão
-        const capyConfigBlock = `<!-- CAPY:CONFIG:BEGIN -->
-capy-config:
-  stack:
-    source: ".github/instructions/copilot.stack.md"
-    validated: false
-    last-validated-at:
-<!-- CAPY:CONFIG:END -->`;
-
-        let finalContent = capybaraInstructions;
-
-        // Verificar se arquivo já existe
-        try {
-            const existingContent = await fs.promises.readFile(copilotInstructionsPath, 'utf8');
-            
-            // Remover instruções antigas (blocos Capybara e CAPY:CONFIG) se existirem
-            const removedCapySections = existingContent.replace(
-                /-- CAPYBARA MEMORY INSTRUCTIONS INIT --[\s\S]*?-- CAPYBARA MEMORY INSTRUCTIONS END --/g,
-                ''
-            );
-            const cleanContent = removedCapySections.replace(
-                /<!--\s*CAPY:CONFIG:BEGIN\s*-->[\s\S]*?<!--\s*CAPY:CONFIG:END\s*-->/g,
-                ''
-            ).trim();
-
-            // Adicionar novas instruções + bloco CAPY:CONFIG no topo
-            finalContent = cleanContent 
-                ? `${capyConfigBlock}\n\n${cleanContent}\n\n${capybaraInstructions}`
-                : `${capyConfigBlock}\n\n${capybaraInstructions}`;
-            
-        } catch (error: any) {
-            if (error.code !== 'ENOENT') {
-                console.error('Erro ao ler arquivo existente:', error);
-            }
-            // Se não existir, criar com bloco CAPY:CONFIG + instruções
-            finalContent = `${capyConfigBlock}\n\n${capybaraInstructions}`;
-        }
-
-        await fs.promises.writeFile(copilotInstructionsPath, finalContent, 'utf8');
-    }
+    // Removed: injectCopilotInstructions. Copilot instructions no longer carry CAPY config.
 
     private async copyInstructionsFiles(capyDir: string): Promise<void> {
         const sourceDir = path.join(this.getExtensionRoot(), 'resources', 'instructions');

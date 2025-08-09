@@ -148,18 +148,16 @@ suite('🔨 InitCapybara Command Test Suite', () => {
             const configContent = await fs.promises.readFile(configPath, 'utf8');
             assert.ok(/version:\s*"?\d+\.\d+\.\d+"?/m.test(configContent), 'config.yaml should contain version');
 
-            // Verify copilot-instructions.md was created
-            const instructionsPath = path.join(projectDir, '.github', 'copilot-instructions.md');
-            const instructionsExists = await fs.promises.access(instructionsPath, fs.constants.F_OK)
+            // Verify stack location from config and initial file presence
+            const stackFile = path.join(projectDir, '.capy', 'stack.md');
+            const stackExists = await fs.promises.access(stackFile, fs.constants.F_OK)
                 .then(() => true)
                 .catch(() => false);
-            assert.strictEqual(instructionsExists, true, 'copilot-instructions.md should be created');
+            assert.strictEqual(stackExists, true, '.capy/stack.md should be created (empty)');
 
-            const instructionsContent = await fs.promises.readFile(instructionsPath, 'utf8');
-            assert.ok(/<!--\s*CAPY:CONFIG:BEGIN\s*-->[\s\S]*?<!--\s*CAPY:CONFIG:END\s*-->/m.test(instructionsContent), 'Should contain CAPY:CONFIG block');
-            assert.ok(/validated:\s*false/m.test(instructionsContent), 'CAPY:CONFIG should set validated to false');
-            // last-validated-at should be empty (no value)
-            assert.ok(/last-validated-at:\s*$/m.test(instructionsContent) || /last-validated-at:\s*\n/m.test(instructionsContent), 'CAPY:CONFIG should have empty last-validated-at');
+            // Config should reference .capy/stack.md and validated false
+            assert.ok(/stack:\s*[\s\S]*?source:\s*"?\.capy\/stack\.md"?/m.test(configContent), 'config.yaml should point stack.source to .capy/stack.md');
+            assert.ok(/stack:\s*[\s\S]*?validated:\s*false/m.test(configContent), 'config.yaml should set stack.validated=false');
 
             // .gitignore should be created/updated
             const giPath = path.join(projectDir, '.gitignore');
@@ -274,7 +272,7 @@ dist/`;
             const gitignoreContent = await fs.promises.readFile(path.join(projectDir, '.gitignore'), 'utf8');
             
             assert.ok(gitignoreContent.includes('node_modules/'), 'Should preserve existing entries');
-            assert.ok(gitignoreContent.includes('.github/copilot-instructions.md'), 'Should add Capybara entries');
+            // We no longer require ignoring copilot-instructions.md here, but keep backward compatibility if present
             assert.ok(gitignoreContent.includes('# Capybara - Private AI Instructions'), 'Should add Capybara comment');
 
             console.log('✅ .gitignore update test passed');

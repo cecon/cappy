@@ -25,7 +25,7 @@ Este projeto usa a metodologia Capybara (Focus, Organize, Record, Grow, Evolve) 
 
 ### **Visualização de Tarefa Atual:**
 - **Trigger**: Usuário quer ver status da tarefa
-- **Script**: Consulte `.capy/instructions/script-ver-task-atual.md`
+- **Script**: Consulte `.capy/instructions/script-view-current-task.xml`
 - **Saída**: Status detalhado com próximos steps
 
 ### **Marcar Step como Concluído:**
@@ -57,7 +57,7 @@ Este projeto usa comandos de chat para ativar fluxos padronizados. Sempre que o 
 		- Saída: arquivo criado em `.capy/tasks/STEP_<timestamp>_<kebab>.xml` com status `em-andamento`.
 	- `capy:task:status`
 		- Ação: exibir o status detalhado da tarefa atual/ativa.
-		- Script: `.capy/instructions/script-ver-task-atual.md`.
+		- Script: `.capy/instructions/script-view-current-task.xml`.
 		- Saída: resumo claro dos próximos steps e progresso.
 	- `capy:step:done`
 		- Ação: marcar o step atual como concluído e validar critérios.

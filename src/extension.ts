@@ -22,27 +22,28 @@ export function activate(context: vscode.ExtensionContext) {
             const ensureStackKnown = async (): Promise<boolean> => {
                 try {
                     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-                    if (!workspaceFolder) {
-                        return false;
-                    }
-                    const stackPath = vscode.Uri.joinPath(workspaceFolder.uri, '.github', 'instructions', 'copilot.stack.md');
-                    const copilotInstructionsPath = vscode.Uri.joinPath(workspaceFolder.uri, '.github', 'copilot-instructions.md');
-                    // Check files exist
-                    const stackExists = await uriExists(stackPath);
-                    const instructionsExists = await uriExists(copilotInstructionsPath);
-                    if (!stackExists || !instructionsExists) {
-                        return false;
-                    }
-                    // Read and look for CAPY:CONFIG markers and minimal yaml flags
-                    const contentBytes = await vscode.workspace.fs.readFile(copilotInstructionsPath);
-                    const content = Buffer.from(contentBytes).toString('utf8');
-                    const hasMarkers = /<!--\s*CAPY:CONFIG:BEGIN\s*-->[\s\S]*?<!--\s*CAPY:CONFIG:END\s*-->/m.test(content);
-                    if (!hasMarkers) {
-                        return false;
-                    }
-                    const hasStackRef = /capy-config:[\s\S]*?stack:[\s\S]*?source:\s*"?\.github\/instructions\/copilot\.stack\.md"?/m.test(content);
-                    const hasValidatedAt = /last-validated-at:\s*"?[0-9T:\-.Z]+"?/m.test(content);
-                    return hasStackRef && hasValidatedAt;
+                    if (!workspaceFolder) return false;
+
+                    const cfgPath = vscode.Uri.joinPath(workspaceFolder.uri, '.capy', 'config.yaml');
+                    if (!(await uriExists(cfgPath))) return false;
+
+                    const cfgBytes = await vscode.workspace.fs.readFile(cfgPath);
+                    const cfg = Buffer.from(cfgBytes).toString('utf8');
+
+                    // Find the LAST stack block occurrence for source/validated
+                    const stackBlocks = Array.from(cfg.matchAll(/stack:\s*([\s\S]*?)(?=\n[^\s]|$)/g));
+                    const lastBlock = stackBlocks.length ? stackBlocks[stackBlocks.length - 1][1] : '';
+                    const sourceMatch = /source:\s*"?(.+?)"?/m.exec(lastBlock);
+                    const validatedMatch = /validated:\s*true/m.exec(lastBlock);
+                    const source = sourceMatch ? sourceMatch[1] : '.capy/stack.md';
+
+                    // Resolve source path
+                    const stackUri = source.startsWith('.') 
+                        ? vscode.Uri.joinPath(workspaceFolder.uri, source.replace(/^\.[/\\]/, ''))
+                        : vscode.Uri.file(source);
+
+                    const stackExists = await uriExists(stackUri);
+                    return !!validatedMatch && stackExists;
                 } catch {
                     return false;
                 }

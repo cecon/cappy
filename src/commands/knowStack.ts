@@ -12,10 +12,10 @@ export async function runKnowStack(): Promise<void> {
         title: '🧠 Capy: KnowStack',
         cancellable: false,
     }, async (progress) => {
-        const instructionsDir = vscode.Uri.joinPath(workspaceFolder.uri, '.github', 'instructions');
-        await vscode.workspace.fs.createDirectory(instructionsDir);
+        const capyDir = vscode.Uri.joinPath(workspaceFolder.uri, '.capy');
+        await vscode.workspace.fs.createDirectory(capyDir);
 
-        const stackFile = vscode.Uri.joinPath(instructionsDir, 'copilot.stack.md');
+        const stackFile = vscode.Uri.joinPath(capyDir, 'stack.md');
         try {
             await vscode.workspace.fs.stat(stackFile);
         } catch {
@@ -23,6 +23,6 @@ export async function runKnowStack(): Promise<void> {
         }
 
         await vscode.window.showTextDocument(stackFile, { preview: false });
-        vscode.window.showInformationMessage('🧠 Capy: KnowStack started. Please answer questions one by one so we can build the stack file.');
+    vscode.window.showInformationMessage('🧠 Capy: KnowStack started. Answer one-by-one to build .capy/stack.md and then mark it validated in .capy/config.yaml.');
     });
 }

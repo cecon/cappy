@@ -19,7 +19,7 @@ Extension:
 │   ├── capybara-methodology.md     ← Princípios Capybara
 │   ├── capybara-patterns.md        ← Padrões de decomposição  
 │   ├── script-new-task.xml         ← Script: New task (create and prepare)
-│   ├── script-ver-task-atual.md    ← Script: Ver progresso
+│   ├── script-view-current-task.xml    ← Script: Ver progresso
 │   ├── script-marcar-step-concluido.md ← Script: Completar step
 │   └── script-completar-task.md    ← Script: Finalizar task
 

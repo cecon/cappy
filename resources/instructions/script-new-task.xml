@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<capy:script name="new-task" version="1.1">
+<capy:script name="new-task" version="1.2">
   <about>
-    <summary>Create and prepare a new atomic task. Do not execute it.</summary>
+    <summary>Preparar (não executar) uma nova task atômica via fluxo "scope-first".</summary>
     <command>cappy:newtask</command>
     <notes>
-      <note>Keep scope atomic (2-3 hours max).</note>
-      <note>Only prepare the task; execution is triggered later via cappy:run exe:</note>
+      <note>Fluxo em pt-BR. Não implemente código; apenas crie o arquivo da task.</note>
+      <note>Escopo atômico: 2-3 horas no máximo.</note>
+      <note>Exige KnowStack validado em .capy/config.* antes de qualquer pergunta de escopo.</note>
     </notes>
   </about>
 
@@ -18,7 +19,7 @@
         for (t in tasks) {
           x = read_xml(t)
           if (x.metadata.status in ["in-progress", "preparing", "paused"]) {
-            ask_user("There is an active task: '" + x.metadata.title + "'. Pause it to create a new one? (yes/no)")
+            ask_user("Há uma task ativa: '" + x.metadata.title + "'. Pausar para criar uma nova? (sim/não)")
             if (user_answer == "no") return
           }
         }
@@ -27,16 +28,24 @@
     </step>
 
     <step id="2.context_read">
-      <goal>Read minimal context required to prepare the task.</goal>
+      <goal>Carregar contexto mínimo a partir de .capy/config.* e validar KnowStack.</goal>
       <logic>
         <![CDATA[
         prevention_rules = optional_read(".capy/prevention-rules.md")
-        project_config   = optional_read(".capy/config.yaml|.capy/config.json")
+        project_config   = required_read(".capy/config.yaml|.capy/config.json")
         patterns         = optional_read(".capy/instructions/capybara-patterns.md")
-        // Try to locate project stack file from CAPY config markers; fallback to default
-        capy_cfg_md = optional_read(".github/copilot-instructions.md")
-        stack_path  = extract_yaml_value(capy_cfg_md, "capy-config.stack.source") || ".github/instructions/copilot.stack.md"
-        stack_md    = optional_read(stack_path)
+
+        // Fonte da stack e validação devem vir do .capy/config.*
+        stack_path      = extract_yaml_value(project_config, "stack.source") || ".capy/stack.md"
+        stack_validated = extract_yaml_value(project_config, "stack.validated") == true
+        stack_md        = optional_read(stack_path)
+
+        if (!stack_validated || !stack_md) {
+          stop_with_message("KnowStack não finalizado. Execute 'cappy:knowstack' para criar/validar .capy/stack.md e .capy/config.yaml.")
+        }
+
+        // Preferência de idioma (default pt-BR)
+        lang = extract_yaml_value(project_config, "language") || "pt-BR"
         ]]>
       </logic>
     </step>
@@ -47,36 +56,58 @@
         <![CDATA[
         if (estimated_effort_hours > 3) {
           suggest_decomposition_using(patterns)
-          stop_with_message("Task not created: scope is not atomic. Split into smaller steps.")
+          stop_with_message("Task não criada: escopo não é atômico. Divida em steps menores.")
         }
         ]]>
       </logic>
     </step>
 
     <step id="4.collect_min_fields">
-      <goal>Ask the user about the task and collect core fields.</goal>
+      <goal>Coletar informações mínimas pelo fluxo "scope-first" (sem exigir título).</goal>
       <inputs>
-        <arg name="title" required="true" example="Setup Supabase auth config" />
-        <arg name="area"  required="true" values="frontend,backend,fullstack,mobile,devops" />
+        <arg name="title" required="false" example="Configurar autenticação Supabase" />
+        <arg name="scope" required="false" example="Criar endpoint de login com validação JWT e testes" />
+        <arg name="area"  required="false" values="frontend,backend,fullstack,mobile,devops" />
         <arg name="tech"  required="false" example="nodejs" />
         <arg name="description" required="false" />
       </inputs>
       <logic>
         <![CDATA[
-        ensure_args(["title","area"]) // ask one-by-one if missing
-        ask_series([
-          "Briefly describe the scope and the expected outcome.",
-          "What acceptance criteria define 'done' for this task?",
-          "Which folders/files are likely involved?",
-          "Any dependencies (libs/services) we must consider?",
-          "How will we validate it (tests, command, URL)?"
-        ])
+        // Se não houver título, conduzir perguntas de escopo em pt-BR
+        if (!args.title) {
+          q = [
+            "Qual é o escopo da nova task? Resuma em 1-2 linhas.",
+            "Quais são os critérios de aceitação (o que define 'pronto')?",
+            "Quais áreas serão afetadas? (frontend/backend/fullstack/mobile/devops)",
+            "Há dependências externas (libs/serviços) relevantes?",
+            "Como será validado (tests, comando, URL)?"
+          ]
+          answers = ask_series(q)
+          args.scope = args.scope || answers[0]
+          args.description = args.description || ("Escopo: " + (answers[0]||""))
+          args.area = args.area || normalize_area(answers[2]) || "fullstack"
+
+          // Gerar título curto em modo imperativo a partir do escopo
+          args.title = generate_title_from_scope(args.scope, lang)
+        } else {
+          // Se o título foi fornecido, ainda coletar critérios mínimos
+          answers = ask_series([
+            "Descreva brevemente o escopo e o resultado esperado (1-2 linhas).",
+            "Critérios de aceitação?",
+            "Arquivos/pastas prováveis a tocar?",
+            "Dependências (libs/serviços)?",
+            "Forma de validação (tests/comandos/URL)?"
+          ])
+          args.scope = args.scope || answers[0]
+          args.description = args.description || ("Escopo: " + (answers[0]||""))
+          args.area = args.area || "fullstack"
+        }
         ]]>
       </logic>
     </step>
 
     <step id="5.derive_workspace_context">
-      <goal>From the stack, infer projects, entry points, and required pre-commands (cd/build/run).</goal>
+      <goal>Inferir projetos/entrypoints/contexts a partir da Stack (.capy/stack.md).</goal>
       <logic>
         <![CDATA[
         workspace = { projects: [], runContexts: [] }
@@ -94,7 +125,7 @@
     </step>
 
     <step id="6.generate_filename">
-      <goal>Generate file name using timestamp and kebab-case title.</goal>
+      <goal>Gerar nome do arquivo usando timestamp e título em kebab-case.</goal>
       <logic>
         <![CDATA[
         ts = unix_timestamp()
@@ -119,8 +150,8 @@
   <context>
     <area>{{ args.area }}</area>
     <technology main="{{ args.tech || 'unknown' }}" version=""/>
-    <dependencies>
-      <!-- List required libraries if known; may be empty at creation time -->
+    <step id="7.write_task_xml">
+      <goal>Escrever o XML da task com defaults (status=preparing) sem executar nada.</goal>
     </dependencies>
     <files>
       <!-- Enumerate files once known during execution; empty on creation is acceptable -->
@@ -166,11 +197,11 @@
     </step>
 
     <step id="8.embed_preparation_notes">
-      <goal>Append a preparation section into the task XML with scope Q&A and workspace run contexts.</goal>
+      <goal>Acrescentar seção de preparação com Q&A do escopo e contexts de execução.</goal>
       <logic>
         <![CDATA[
         xml = read_text(outpath)
-        prep = `\n  <!-- preparation -->\n  <preparation>\n    <scope>\n      <summary>${last_answers[0]||''}</summary>\n      <acceptance>${last_answers[1]||''}</acceptance>\n      <paths>${last_answers[2]||''}</paths>\n      <dependencies>${last_answers[3]||''}</dependencies>\n      <validation>${last_answers[4]||''}</validation>\n    </scope>\n    <workspace>\n      ${JSON.stringify(internal.workspace || {}, null, 2)}\n    </workspace>\n  </preparation>`
+        prep = `\n  <!-- preparation -->\n  <preparation>\n    <scope>\n      <summary>${last_answers[0]||''}</summary>\n      <acceptance>${last_answers[1]||''}</acceptance>\n      <areas>${args.area||''}</areas>\n      <paths>${last_answers[2]||''}</paths>\n      <dependencies>${last_answers[3]||''}</dependencies>\n      <validation>${last_answers[4]||''}</validation>\n    </scope>\n    <workspace>\n      ${JSON.stringify(internal.workspace || {}, null, 2)}\n    </workspace>\n  </preparation>`
         xml = xml.replace(/<validation>[\s\S]*?<\/validation>[\r\n]*<\/task>/, (m)=> m.replace('</task>', prep + "\n</task>"))
         write_file(outpath, xml)
         ]]>
@@ -178,7 +209,7 @@
     </step>
 
     <step id="9.mark_prepared">
-      <goal>Mark the task as prepared and save pointer as current task.</goal>
+      <goal>Marcar como preparada e salvar ponteiro de task atual.</goal>
       <logic>
         <![CDATA[
         // Update status to prepared
@@ -195,10 +226,10 @@
     </step>
 
     <step id="10.confirm">
-      <goal>Confirm creation and preparation. Wait for next command.</goal>
+      <goal>Confirmar criação e preparação. Aguardar próximo comando.</goal>
       <logic>
         <![CDATA[
-        say(`Task prepared: ${filename}\nLocation: ${outpath}\nNext: use 'cappy:run exe:' with the appropriate run context.`)
+        say(`Task preparada: ${filename}\nLocal: ${outpath}\nPróximo: use 'cappy:run exe:' com o run context adequado.`)
         ]]>
       </logic>
     </step>
