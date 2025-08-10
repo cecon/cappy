@@ -38,6 +38,11 @@
         "command": "capybara.knowstack",
         "title": "🧠 Cappy: KnowStack",
         "category": "Cappy"
+      },
+      {
+        "command": "capybara.viewTelemetryTerms",
+        "title": "📄 Cappy: Ver Termos de Telemetria",
+        "category": "Cappy"
       }
     ],
     "configuration": {

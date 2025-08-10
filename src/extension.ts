@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { ensureTelemetryConsent, showConsentWebview } from './commands/telemetryConsent';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🦫 Capybara Memory: Starting activation...');
@@ -6,6 +7,15 @@ export function activate(context: vscode.ExtensionContext) {
     try {
         // Show immediate activation message
         vscode.window.showInformationMessage('🦫 Capybara Memory: Activating...');
+
+        // Telemetry consent gating (one-time and on updates)
+        ensureTelemetryConsent(context).then((accepted) => {
+            if (!accepted) {
+                console.log('Telemetry consent declined. Telemetry will remain disabled.');
+            }
+        }).catch(err => {
+            console.warn('Failed to ensure telemetry consent:', err);
+        });
 
     // (removed) test command
 
@@ -22,10 +32,14 @@ export function activate(context: vscode.ExtensionContext) {
             const ensureStackKnown = async (): Promise<boolean> => {
                 try {
                     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-                    if (!workspaceFolder) return false;
+                    if (!workspaceFolder) {
+                        return false;
+                    }
 
                     const cfgPath = vscode.Uri.joinPath(workspaceFolder.uri, '.capy', 'config.yaml');
-                    if (!(await uriExists(cfgPath))) return false;
+                    if (!(await uriExists(cfgPath))) {
+                        return false;
+                    }
 
                     const cfgBytes = await vscode.workspace.fs.readFile(cfgPath);
                     const cfg = Buffer.from(cfgBytes).toString('utf8');
@@ -87,10 +101,20 @@ export function activate(context: vscode.ExtensionContext) {
             }
         });
 
+        // Register manual consent view command
+        const consentCommand = vscode.commands.registerCommand('capybara.viewTelemetryTerms', async () => {
+            try {
+                await showConsentWebview(context);
+            } catch (err) {
+                vscode.window.showErrorMessage(`Falha ao abrir termos: ${err}`);
+            }
+        });
+
         // Register all commands
         context.subscriptions.push(
             initCommand,
-            knowStackCommand
+            knowStackCommand,
+            consentCommand
         );
         
         console.log('🦫 Capybara Memory: All commands registered successfully');
