@@ -1,20 +1,10 @@
-<!-- CAPY:CONFIG:BEGIN -->
-capy-config:
-  stack:
-    source: ".github/instructions/copilot.stack.md"
-    validated: false
-    last-validated-at:
-<!-- CAPY:CONFIG:END -->
-
-
--- CAPYBARA MEMORY INSTRUCTIONS INIT --
 # 🔨 Capybara - Instruções para GitHub Copilot
 
 ## 📋 **CONTEXTO DO PROJETO**
-- **Projeto**: forge-framework
-- **Tipo**: general
-- **Linguagem Principal**: unknown
-- **Frameworks**: Nenhum detectado
+- **Projeto**: {PROJECT_NAME}
+- **Tipo**: {PROJECT_TYPE}
+- **Linguagem Principal**: {MAIN_LANGUAGE}
+- **Frameworks**: {FRAMEWORKS}
 
 ## 🎯 **METODOLOGIA Capybara**
 Este projeto usa a metodologia Capybara (Focus, Organize, Record, Grow, Evolve) para desenvolvimento solo.
@@ -100,4 +90,3 @@ As regras específicas deste projeto estão em `.capy/prevention-rules.md` (se e
 
 ---
 *Este arquivo é privado e não deve ser commitado. Ele contém suas instruções personalizadas para o GitHub Copilot.*
--- CAPYBARA MEMORY INSTRUCTIONS END --

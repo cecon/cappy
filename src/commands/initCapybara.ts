@@ -48,6 +48,9 @@ export class InitCapybaraCommand {
                 const extVersion = ext?.packageJSON?.version || '0.0.0';
                 await this.createConfigYaml(capyDir, extVersion);
 
+                // 2.1 Garantir stack.md vazio na instalação inicial
+                await this.ensureStackFile(capyDir);
+
                 progress.report({ increment: 65, message: 'Criando instruções locais do Capybara...' });
 
                 // 3. (Alterado) Não injeta mais CAPY:CONFIG no copilot-instructions.md
@@ -58,7 +61,10 @@ export class InitCapybaraCommand {
                 // 4. Copiar resources/instructions para .capy/instructions
                 await this.copyInstructionsFiles(capyDir);
 
-                // 5. Atualizar .gitignore para manter instruções privadas
+                // 5. Garantir .github/copilot-instructions.md a partir do template
+                await this.ensureGithubCopilotInstructions(workspaceFolder.uri.fsPath);
+
+                // 6. Atualizar .gitignore para manter instruções privadas
                 await this.updateGitignore(workspaceFolder.uri.fsPath);
 
                 progress.report({ increment: 100, message: 'Finalizado!' });
@@ -131,6 +137,19 @@ instructions:
         await fs.promises.writeFile(configPath, configContent, 'utf8');
     }
 
+    private async ensureStackFile(capyDir: string): Promise<void> {
+        const stackPath = path.join(capyDir, 'stack.md');
+        try {
+            await fs.promises.access(stackPath, fs.constants.F_OK);
+        } catch (err: any) {
+            if (err?.code === 'ENOENT') {
+                await fs.promises.writeFile(stackPath, '', 'utf8');
+            } else {
+                throw err;
+            }
+        }
+    }
+
     private getExtensionRoot(): string {
         // Prefer VS Code context when available
         const candidatePaths = [
@@ -164,6 +183,36 @@ instructions:
 
         // Copiar todos os arquivos de resources/instructions
         await this.copyDirectory(sourceDir, targetDir);
+    }
+
+    private async ensureGithubCopilotInstructions(workspaceRoot: string): Promise<void> {
+        const githubDir = path.join(workspaceRoot, '.github');
+        const targetPath = path.join(githubDir, 'copilot-instructions.md');
+        const templatePath = path.join(this.getExtensionRoot(), 'resources', 'templates', 'capybara-copilot-instructions.md');
+
+        await fs.promises.mkdir(githubDir, { recursive: true });
+
+        // Create only if missing. Never overwrite user-edited file.
+        try {
+            await fs.promises.access(targetPath, fs.constants.F_OK);
+            return; // exists, do nothing
+        } catch (e: any) {
+            if (e?.code !== 'ENOENT') {
+                throw e;
+            }
+        }
+
+        // Seed from template if available; otherwise, minimal header
+        try {
+            const content = await fs.promises.readFile(templatePath, 'utf8');
+            await fs.promises.writeFile(targetPath, content, 'utf8');
+        } catch (err: any) {
+            if (err?.code === 'ENOENT') {
+                await fs.promises.writeFile(targetPath, '# Capybara Copilot Instructions\n', 'utf8');
+            } else {
+                throw err;
+            }
+        }
     }
 
     private async updateGitignore(workspaceRoot: string): Promise<void> {
