@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ensureTelemetryConsent, showConsentWebview } from './commands/telemetryConsent';
+import getNewTaskInstruction from './commands/getNewTaskInstruction';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🦫 Capybara Memory: Starting activation...');
@@ -110,11 +111,34 @@ export function activate(context: vscode.ExtensionContext) {
             }
         });
 
+        // Register: get new task instruction (returns processed template content)
+        const getNewTaskInstructionCommand = vscode.commands.registerCommand('capybara.getNewTaskInstruction', async (args?: Record<string, string>) => {
+            try {
+                const content = await getNewTaskInstruction(context, args);
+                return content; // important: return string so LLM can consume it via executeCommand
+            } catch (error) {
+                console.error('Capybara getNewTaskInstruction error:', error);
+                vscode.window.showErrorMessage(`Capybara getNewTaskInstruction failed: ${error}`);
+                return '';
+            }
+        });
+
+        // Aliases to the same implementation
+        const getNewTaskInstructionCommandAlias1 = vscode.commands.registerCommand('cappy.getNewTaskInstruction', async (args?: Record<string, string>) => {
+            return vscode.commands.executeCommand('capybara.getNewTaskInstruction', args);
+        });
+        const getNewTaskInstructionCommandAlias2 = vscode.commands.registerCommand('cappy-get-new-task-istruction', async (args?: Record<string, string>) => {
+            return vscode.commands.executeCommand('capybara.getNewTaskInstruction', args);
+        });
+
         // Register all commands
         context.subscriptions.push(
             initCommand,
             knowStackCommand,
-            consentCommand
+            consentCommand,
+            getNewTaskInstructionCommand,
+            getNewTaskInstructionCommandAlias1,
+            getNewTaskInstructionCommandAlias2
         );
         
         console.log('🦫 Capybara Memory: All commands registered successfully');

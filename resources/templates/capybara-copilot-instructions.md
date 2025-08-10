@@ -20,7 +20,7 @@ Este projeto usa a metodologia Capybara (Focus, Organize, Record, Grow, Evolve) 
 
 ### **Criação de Tarefas:**
 - **Trigger**: Usuário solicita nova funcionalidade/tarefa
-- **Script**: Consulte `.capy/instructions/script-new-task.xml`
+- **Script**: Obter via API de comando do VS Code. Chame `capybara.getNewTaskInstruction` (aliases: `cappy.getNewTaskInstruction`, `cappy-get-new-task-istruction`) e use o TEXTO RETORNADO. Não leia arquivos diretamente.
 - **Saída**: Arquivo XML em `.capy/tasks/`
 
 ### **Visualização de Tarefa Atual:**

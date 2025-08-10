@@ -67,6 +67,16 @@ export class InitCapybaraCommand {
                 // 6. Atualizar .gitignore para manter instruções privadas
                 await this.updateGitignore(workspaceFolder.uri.fsPath);
 
+                // 6.1 Garantia final: certificar que config.yaml existe (resiliência a variações FS)
+                try {
+                    const cfgPath = path.join(capyDir, 'config.yaml');
+                    await fs.promises.access(cfgPath, fs.constants.F_OK);
+                } catch {
+                    const ext = vscode.extensions.getExtension('eduardocecon.capybara-memory');
+                    const extVersion = ext?.packageJSON?.version || '0.0.0';
+                    await this.createConfigYaml(capyDir, extVersion);
+                }
+
                 progress.report({ increment: 100, message: 'Finalizado!' });
 
                 vscode.window.showInformationMessage(
