@@ -79,6 +79,21 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
+    // Register typo alias: cappy.knowtask (requested by agents)
+    const knowTaskTypoAliasCommand = vscode.commands.registerCommand(
+      "cappy.knowtask",
+      async () => {
+        try {
+          const mod = await import("./commands/knowStack");
+          const script: string = await mod.runKnowStack(context);
+          return script;
+        } catch (error) {
+          vscode.window.showErrorMessage(`Cappy KnowStack (typo alias) failed: ${error}`);
+          return "";
+        }
+      }
+    );
+
     // Register manual consent view command
     const consentCommand = vscode.commands.registerCommand(
       "cappy.viewTelemetryTerms",
@@ -130,6 +145,7 @@ export function activate(context: vscode.ExtensionContext) {
       initCommand,
       knowStackCommand,
       knowStackAliasCommand,
+  knowTaskTypoAliasCommand,
       consentCommand,
       getNewTaskInstructionCommand,      
       getActiveTaskCommand

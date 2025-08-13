@@ -45,6 +45,11 @@
         "category": "Cappy"
       },
       {
+        "command": "cappy.knowtask",
+        "title": "🧠 Cappy: KnowStack (typo alias)",
+        "category": "Cappy"
+      },
+      {
         "command": "cappy.viewTelemetryTerms",
         "title": "📄 Cappy: Ver Termos de Telemetria",
         "category": "Cappy"

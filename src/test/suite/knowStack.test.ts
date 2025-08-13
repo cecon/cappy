@@ -48,6 +48,10 @@ suite('🧠 KnowStack Command Tests', () => {
         assert.ok(result.includes('<cappy:script') || result.includes('<?xml'), 'Result should look like XML script');
         assert.ok(result.includes('cappy:knowstack'), 'Result should mention cappy:knowstack');
 
+    // Log evidence for manual inspection
+    console.log(`KnowStack return length: ${result.length}`);
+    console.log(`KnowStack return preview: ${result.substring(0, 160).replace(/\n/g, ' ')}`);
+
         const stackPath = path.join(testWorkspaceDir, '.cappy', 'stack.md');
         const exists = await fs.promises.access(stackPath, fs.constants.F_OK).then(() => true).catch(() => false);
         assert.ok(exists, 'Should create .cappy/stack.md in workspace');
@@ -58,5 +62,17 @@ suite('🧠 KnowStack Command Tests', () => {
         assert.strictEqual(typeof result, 'string');
         assert.ok(result.length > 0, 'Alias result should not be empty');
         assert.ok(result.includes('<cappy:script') || result.includes('<?xml'), 'Alias result should look like XML script');
+    // Log alias evidence as well
+    console.log(`KnowStack(alias) return length: ${result.length}`);
+    console.log(`KnowStack(alias) return preview: ${result.substring(0, 160).replace(/\n/g, ' ')}`);
+    });
+
+    test('Typo alias cappy.knowtask returns XML', async () => {
+        const result = await vscode.commands.executeCommand<string>('cappy.knowtask');
+        assert.strictEqual(typeof result, 'string');
+        assert.ok(result.length > 0, 'Typo alias result should not be empty');
+        assert.ok(result.includes('<cappy:script') || result.includes('<?xml'), 'Typo alias result should look like XML script');
+        console.log(`KnowStack(typo alias) return length: ${result.length}`);
+        console.log(`KnowStack(typo alias) return preview: ${result.substring(0, 160).replace(/\n/g, ' ')}`);
     });
 });
