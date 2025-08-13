@@ -14,10 +14,4 @@ suite('🧩 GetNewTaskInstruction Command Tests', () => {
         assert.strictEqual(typeof result, 'string');
         assert.ok(result.includes('AliasTest') || result.length > 0, 'Result should include overrides or not be empty');
     });
-
-    test('Alias cappy-get-new-task-istruction works', async () => {
-        const result = await vscode.commands.executeCommand<string>('cappy-get-new-task-istruction', { frameworks: 'react' });
-        assert.strictEqual(typeof result, 'string');
-        assert.ok(result.includes('react') || result.length > 0, 'Result should include overrides or not be empty');
-    });
 });

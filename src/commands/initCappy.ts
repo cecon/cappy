@@ -26,8 +26,7 @@ export class InitCappyCommand {
                 return false;
             }
 
-            const cappyDir = path.join(workspaceFolder.uri.fsPath, '.cappy');
-            const githubDir = path.join(workspaceFolder.uri.fsPath, '.github');
+            const cappyDir = path.join(workspaceFolder.uri.fsPath, '.cappy');            
             const configPath = path.join(cappyDir, 'config.yaml');
             let configExisted = false;
             try {
@@ -40,7 +39,7 @@ export class InitCappyCommand {
                 location: vscode.ProgressLocation.Notification,
                 title: '🔨 Inicializando Cappy',
                 cancellable: false
-            }, async (progress) => {
+            }, async (progress: any) => {
                 
                 progress.report({ increment: 0, message: 'Verificando estrutura...' });
 

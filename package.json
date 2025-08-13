@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
   "icon": "assets/icon.png",
-  "version": "2.5.5",
+  "version": "2.5.6",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -43,20 +43,10 @@
         "command": "cappy.viewTelemetryTerms",
         "title": "📄 Cappy: Ver Termos de Telemetria",
         "category": "Cappy"
-      },
-      {
-        "command": "cappy.getNewTaskInstruction",
-        "title": "🧩 Cappy: Get New Task Instruction (processed template)",
-        "category": "Cappy"
-      },
+      },      
       {
         "command": "cappy.getNewTaskInstruction",
         "title": "🧩 Cappy: Get New Task Instruction",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy-get-new-task-istruction",
-        "title": "🧩 Cappy: get-new-task-istruction (alias)",
         "category": "Cappy"
       },
       {

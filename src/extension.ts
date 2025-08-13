@@ -93,17 +93,6 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
-    // Alias to the same implementation (hyphenated id)
-    const getNewTaskInstructionCommandAlias2 = vscode.commands.registerCommand(
-      "cappy-get-new-task-istruction",
-      async (args?: Record<string, string>) => {
-        return vscode.commands.executeCommand(
-          "cappy.getNewTaskInstruction",
-          args
-        );
-      }
-    );
-
     // Register: get active task (returns XML content or fallback string)
     const getActiveTaskCommand = vscode.commands.registerCommand(
       "cappy.getActiveTask",
@@ -126,8 +115,7 @@ export function activate(context: vscode.ExtensionContext) {
       initCommand,
       knowStackCommand,
       consentCommand,
-      getNewTaskInstructionCommand,
-      getNewTaskInstructionCommandAlias2,
+      getNewTaskInstructionCommand,      
       getActiveTaskCommand
     );
   } catch (error) {
