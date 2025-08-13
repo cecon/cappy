@@ -52,10 +52,11 @@ Padronizar como a LLM interage com o projeto Cappy: criar/seguir tarefas em XML,
 
 ### `cappy:knowstack` (alias: `cappy:runknowstack`)
 - **Ação:** preparar/validar o KnowStack do repositório.
-- **API/Comando VS Code:** `cappy.knowstack`.
+- **API/Comando VS Code:** `cappy.knowstack` (alias suportado: `cappy.runknowstack`).
 - **Fluxo LLM:**
-  1) Chame o comando VS Code acima e capture o retorno (XML) — é o roteiro oficial.
-  2) Siga o roteiro passo a passo, com respostas curtas e objetivas.
+  1) Execute o comando VS Code e capture o retorno (XML) — esta é a ÚNICA fonte de verdade.
+  2) Se o retorno não puder ser capturado ou vier vazio/erro, PARE imediatamente, reporte o erro em 1 linha e NÃO use fallback local.
+  3) Siga o roteiro passo a passo, com respostas curtas e objetivas.
 - **Efeitos colaterais:** cria `.cappy/stack.md` se não existir e abre o arquivo; se não houver workspace aberto, apenas retorna o script.
 - **Saída:** confirmação curta + próximo passo conforme o roteiro.
 
@@ -164,7 +165,7 @@ Padronizar como a LLM interage com o projeto Cappy: criar/seguir tarefas em XML,
 - “🧠 KnowStack pronto. Abri `.cappy/stack.md`. Vou seguir o roteiro retornado.”
 
 **Erro/falta de script**  
-- “⚠️ Script não encontrado: `<path>`. Use fallback: `<path-fallback>` ou rode `cappy:help`.”
+- “⚠️ Não foi possível obter o roteiro do KnowStack via comando VS Code. Interrompendo. Reexecute `cappy.knowstack`.”
 
 ---
 

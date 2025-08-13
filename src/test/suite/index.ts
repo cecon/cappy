@@ -32,7 +32,8 @@ export function run(): Promise<void> {
                 { compiled: 'createTask.test.js', source: 'createTask.test.ts' },
                 { compiled: 'createTaskFolderStructure.test.js', source: 'createTaskFolderStructure.test.ts' },
                 { compiled: 'languageDetectionFix.test.js', source: 'languageDetectionFix.test.ts' },
-                { compiled: 'getNewTaskInstruction.test.js', source: 'getNewTaskInstruction.test.ts' }
+                { compiled: 'getNewTaskInstruction.test.js', source: 'getNewTaskInstruction.test.ts' },
+                { compiled: 'knowStack.test.js', source: 'knowStack.test.ts' }
             ];
 
             const srcSuiteRoot = path.resolve(__dirname, '../../../src/test/suite');

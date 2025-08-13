@@ -64,6 +64,21 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
+    // Register knowstack alias for compatibility with agents that use the alias
+    const knowStackAliasCommand = vscode.commands.registerCommand(
+      "cappy.runknowstack",
+      async () => {
+        try {
+          const mod = await import("./commands/knowStack");
+          const script: string = await mod.runKnowStack(context);
+          return script;
+        } catch (error) {
+          vscode.window.showErrorMessage(`Cappy KnowStack (alias) failed: ${error}`);
+          return "";
+        }
+      }
+    );
+
     // Register manual consent view command
     const consentCommand = vscode.commands.registerCommand(
       "cappy.viewTelemetryTerms",
@@ -114,6 +129,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       initCommand,
       knowStackCommand,
+      knowStackAliasCommand,
       consentCommand,
       getNewTaskInstructionCommand,      
       getActiveTaskCommand

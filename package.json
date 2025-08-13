@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
   "icon": "assets/icon.png",
-  "version": "2.5.6",
+  "version": "2.5.7",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -37,6 +37,11 @@
       {
         "command": "cappy.knowstack",
         "title": "🧠 Cappy: KnowStack",
+        "category": "Cappy"
+      },
+      {
+        "command": "cappy.runknowstack",
+        "title": "🧠 Cappy: KnowStack (alias)",
         "category": "Cappy"
       },
       {
