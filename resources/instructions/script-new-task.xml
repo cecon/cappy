@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<capy:script name="new-task" version="1.2">
+<cappy:script name="new-task" version="1.2">
   <about>
     <summary>Preparar (não executar) uma nova task atômica via fluxo "scope-first".</summary>
     <command>#newtask</command>
     <notes>
       <note>Fluxo em pt-BR. Não implemente código; apenas crie o arquivo da task.</note>
       <note>Escopo atômico: 2-3 horas no máximo.</note>
-      <note>Exige KnowStack validado em .capy/config.* antes de qualquer pergunta de escopo.</note>
+      <note>Exige KnowStack validado em .cappy/config.* antes de qualquer pergunta de escopo.</note>
     </notes>
   </about>
 
@@ -15,7 +15,7 @@
       <goal>Check for active or paused tasks and ask to pause before creating a new one.</goal>
       <logic>
         <![CDATA[
-        tasks = list_files(".capy/tasks/*.xml")
+        tasks = list_files(".cappy/tasks/*.xml")
         for (t in tasks) {
           x = read_xml(t)
           if (x.metadata.status in ["in-progress", "preparing", "paused"]) {
@@ -28,20 +28,20 @@
     </step>
 
     <step id="2.context_read">
-      <goal>Carregar contexto mínimo a partir de .capy/config.* e validar KnowStack.</goal>
+      <goal>Carregar contexto mínimo a partir de .cappy/config.* e validar KnowStack.</goal>
       <logic>
         <![CDATA[
-        prevention_rules = optional_read(".capy/prevention-rules.md")
-        project_config   = required_read(".capy/config.yaml|.capy/config.json")
-        patterns         = optional_read(".capy/instructions/cappy-patterns.md")
+        prevention_rules = optional_read(".cappy/prevention-rules.md")
+        project_config   = required_read(".cappy/config.yaml|.cappy/config.json")
+        patterns         = optional_read(".cappy/instructions/cappy-patterns.md")
 
-        // Fonte da stack e validação devem vir do .capy/config.*
-        stack_path      = extract_yaml_value(project_config, "stack.source") || ".capy/stack.md"
+        // Fonte da stack e validação devem vir do .cappy/config.*
+        stack_path      = extract_yaml_value(project_config, "stack.source") || ".cappy/stack.md"
         stack_validated = extract_yaml_value(project_config, "stack.validated") == true
         stack_md        = optional_read(stack_path)
 
         if (!stack_validated || !stack_md) {
-          stop_with_message("KnowStack não finalizado. Execute 'cappy:knowstack' para criar/validar .capy/stack.md e .capy/config.yaml.")
+          stop_with_message("KnowStack não finalizado. Execute 'cappy:knowstack' para criar/validar .cappy/stack.md e .cappy/config.yaml.")
         }
 
         // Preferência de idioma (default pt-BR)
@@ -107,7 +107,7 @@
     </step>
 
     <step id="5.derive_workspace_context">
-      <goal>Inferir projetos/entrypoints/contexts a partir da Stack (.capy/stack.md).</goal>
+      <goal>Inferir projetos/entrypoints/contexts a partir da Stack (.cappy/stack.md).</goal>
       <logic>
         <![CDATA[
         workspace = { projects: [], runContexts: [] }
@@ -131,7 +131,7 @@
         ts = unix_timestamp()
         kebab = kebab_case(args.title)
         filename = `STEP_${ts}_${kebab}.xml`
-        outpath = `.capy/tasks/${filename}`
+        outpath = `.cappy/tasks/${filename}`
         ]]>
       </logic>
     </step>
@@ -218,9 +218,9 @@
         write_file(outpath, xml)
 
         // Save current task pointer
-        ensure_dir('.capy/state')
+        ensure_dir('.cappy/state')
         state = { currentTaskFile: outpath, status: 'prepared', updatedAt: now_iso() }
-        write_file('.capy/state/current-task.json', JSON.stringify(state, null, 2))
+        write_file('.cappy/state/current-task.json', JSON.stringify(state, null, 2))
         ]]>
       </logic>
     </step>
@@ -234,4 +234,4 @@
       </logic>
     </step>
   </steps>
-</capy:script>
+</cappy:script>

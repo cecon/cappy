@@ -25,7 +25,7 @@ A partir da versão 2.2.0, o Cappy utiliza um **arquivo XML único** para defini
 ## 📁 Nova Estrutura de Arquivos
 
 ```
-.capy/
+.cappy/
 ├── config.json                         # Configurações do Cappy
 ├── prevention-rules.md                 # Regras de prevenção (mantido)
 ├── task-id-exemplo/                    # Pasta da task (novo padrão)
@@ -133,7 +133,7 @@ Ctrl+Shift+P → "Cappy: Mark Step Completed"
 ```bash
 Ctrl+Shift+P → "Cappy: Complete Current Task"
 ```
-- Move task para `.capy/history/STEP_XXXX_nome/`
+- Move task para `.cappy/history/STEP_XXXX_nome/`
 - Preserva todo o histórico em XML
 - Libera para nova task
 

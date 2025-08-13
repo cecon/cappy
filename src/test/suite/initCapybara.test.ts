@@ -76,12 +76,12 @@ suite('🔨 InitCappy Command Test Suite', () => {
             // Verify the command succeeded
             assert.strictEqual(result, true, 'InitCappy command should return true on success');
 
-            // Verify .capy directory was created
-            const capyDir = path.join(projectDir, '.capy');
-            const capyDirExists = await fs.promises.access(capyDir, fs.constants.F_OK)
+            // Verify .cappy directory was created
+            const cappyDir = path.join(projectDir, '.cappy');
+            const cappyDirExists = await fs.promises.access(cappyDir, fs.constants.F_OK)
                 .then(() => true)
                 .catch(() => false);
-            assert.strictEqual(capyDirExists, true, '.capy directory should be created');
+            assert.strictEqual(cappyDirExists, true, '.cappy directory should be created');
 
             // Verify .github directory was created
             const githubDir = path.join(projectDir, '.github');
@@ -91,11 +91,11 @@ suite('🔨 InitCappy Command Test Suite', () => {
             assert.strictEqual(githubDirExists, true, '.github directory should be created');
 
             // Verify history subdirectory was created
-            const historyDir = path.join(capyDir, 'history');
+            const historyDir = path.join(cappyDir, 'history');
             const historyDirExists = await fs.promises.access(historyDir, fs.constants.F_OK)
                 .then(() => true)
                 .catch(() => false);
-            assert.strictEqual(historyDirExists, true, '.capy/history directory should be created');
+            assert.strictEqual(historyDirExists, true, '.cappy/history directory should be created');
 
             console.log('✅ Basic directory structure test passed');
         } finally {
@@ -139,7 +139,7 @@ suite('🔨 InitCappy Command Test Suite', () => {
             await initCommand.execute();
 
             // Verify config.yaml was created with correct content
-            const configPath = path.join(projectDir, '.capy', 'config.yaml');
+            const configPath = path.join(projectDir, '.cappy', 'config.yaml');
             const configExists = await fs.promises.access(configPath, fs.constants.F_OK)
                 .then(() => true)
                 .catch(() => false);
@@ -149,14 +149,14 @@ suite('🔨 InitCappy Command Test Suite', () => {
             assert.ok(/version:\s*"?\d+\.\d+\.\d+"?/m.test(configContent), 'config.yaml should contain version');
 
             // Verify stack location from config and initial file presence
-            const stackFile = path.join(projectDir, '.capy', 'stack.md');
+            const stackFile = path.join(projectDir, '.cappy', 'stack.md');
             const stackExists = await fs.promises.access(stackFile, fs.constants.F_OK)
                 .then(() => true)
                 .catch(() => false);
-            assert.strictEqual(stackExists, true, '.capy/stack.md should be created (empty)');
+            assert.strictEqual(stackExists, true, '.cappy/stack.md should be created (empty)');
 
-            // Config should reference .capy/stack.md and validated false
-            assert.ok(/stack:\s*[\s\S]*?source:\s*"?\.capy\/stack\.md"?/m.test(configContent), 'config.yaml should point stack.source to .capy/stack.md');
+            // Config should reference .cappy/stack.md and validated false
+            assert.ok(/stack:\s*[\s\S]*?source:\s*"?\.cappy\/stack\.md"?/m.test(configContent), 'config.yaml should point stack.source to .cappy/stack.md');
             assert.ok(/stack:\s*[\s\S]*?validated:\s*false/m.test(configContent), 'config.yaml should set stack.validated=false');
 
             // .gitignore should be created/updated
@@ -207,10 +207,10 @@ suite('🔨 InitCappy Command Test Suite', () => {
         const projectDir = path.join(testWorkspaceDir, 'test-project-existing');
         await fs.promises.mkdir(projectDir, { recursive: true });
         
-        // Create existing .capy directory
-        const capyDir = path.join(projectDir, '.capy');
-        await fs.promises.mkdir(capyDir, { recursive: true });
-        await fs.promises.writeFile(path.join(capyDir, 'config.json'), '{"existing": true}');
+        // Create existing .cappy directory
+        const cappyDir = path.join(projectDir, '.cappy');
+        await fs.promises.mkdir(cappyDir, { recursive: true });
+        await fs.promises.writeFile(path.join(cappyDir, 'config.json'), '{"existing": true}');
 
         const mockWorkspaceFolder = {
             uri: vscode.Uri.file(projectDir),
@@ -229,7 +229,7 @@ suite('🔨 InitCappy Command Test Suite', () => {
 
             // Should return true and produce config.yaml
             assert.strictEqual(result, true, 'Init should complete successfully');
-            const yamlExists = await fs.promises.access(path.join(capyDir, 'config.yaml'), fs.constants.F_OK)
+            const yamlExists = await fs.promises.access(path.join(cappyDir, 'config.yaml'), fs.constants.F_OK)
                 .then(() => true)
                 .catch(() => false);
             assert.strictEqual(yamlExists, true, 'config.yaml should exist after init');

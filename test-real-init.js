@@ -74,17 +74,17 @@ try {
             console.log('\\n🔍 Verificando estrutura criada...');
             
             const expectedDirs = [
-                '.capy',
-                '.capy/history',
-                '.capy/instructions', 
-                '.capy/tasks',
+                '.cappy',
+                '.cappy/history',
+                '.cappy/instructions', 
+                '.cappy/tasks',
                 '.github'
             ];
             
             const expectedFiles = [
-                '.capy/config.json',
-                '.capy/prevention-rules.md',
-                '.capy/instructions/cappy-task-file-structure-info.md'
+                '.cappy/config.json',
+                '.cappy/prevention-rules.md',
+                '.cappy/instructions/cappy-task-file-structure-info.md'
             ];
             
             for (const dir of expectedDirs) {
@@ -109,7 +109,7 @@ try {
             
             // Verificar conteúdo do config
             try {
-                const configPath = path.join(testWorkspacePath, '.capy/config.json');
+                const configPath = path.join(testWorkspacePath, '.cappy/config.json');
                 const configContent = await fs.promises.readFile(configPath, 'utf8');
                 const config = JSON.parse(configContent);
                 console.log('\\n📄 Configuração criada:');

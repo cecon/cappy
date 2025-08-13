@@ -12,7 +12,7 @@ Quando o usuário solicitar:
 ### **1. Localizar Step Atual**
 ```javascript
 // Pseudocódigo para LLM
-active_task_file = find_active_task(".capy/tasks/")
+active_task_file = find_active_task(".cappy/tasks/")
 xml = parse_xml(read_file(active_task_file))
 current_step = find_first_where(xml.steps.step, "completed=false")
 
@@ -97,7 +97,7 @@ if (next_step) {
 ask_user("Encontrou algum problema ou aprendizado neste step?")
 if (user_provides_learning) {
     new_rule = format_prevention_rule(user_learning, current_step.area)
-    append_to_file(".capy/prevention-rules.md", new_rule)
+    append_to_file(".cappy/prevention-rules.md", new_rule)
     show_user("🛡️ Nova prevention rule adicionada!")
 }
 ```

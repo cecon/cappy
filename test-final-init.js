@@ -45,14 +45,14 @@ app.listen(3000, () => {
     // **PASSO 1: Criar estrutura básica (como no código real)**
     console.log('\\n1️⃣ CRIANDO ESTRUTURA BÁSICA...');
     
-    const capyDir = path.join(testWorkspacePath, '.capy');
+    const cappyDir = path.join(testWorkspacePath, '.cappy');
     const githubDir = path.join(testWorkspacePath, '.github');
     
-    await fs.promises.mkdir(capyDir, { recursive: true });
+    await fs.promises.mkdir(cappyDir, { recursive: true });
     await fs.promises.mkdir(githubDir, { recursive: true });
-    await fs.promises.mkdir(path.join(capyDir, 'history'), { recursive: true });
-    await fs.promises.mkdir(path.join(capyDir, 'instructions'), { recursive: true });
-    await fs.promises.mkdir(path.join(capyDir, 'tasks'), { recursive: true });
+    await fs.promises.mkdir(path.join(cappyDir, 'history'), { recursive: true });
+    await fs.promises.mkdir(path.join(cappyDir, 'instructions'), { recursive: true });
+    await fs.promises.mkdir(path.join(cappyDir, 'tasks'), { recursive: true });
     
     console.log('✅ Diretórios criados');
     
@@ -124,7 +124,7 @@ app.listen(3000, () => {
     // **PASSO 4: Salvar configuração**
     console.log('\\n4️⃣ SALVANDO CONFIGURAÇÃO...');
     
-    const configPath = path.join(capyDir, 'config.json');
+    const configPath = path.join(cappyDir, 'config.json');
     await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
     console.log('✅ Config salvo:', configPath);
     
@@ -150,7 +150,7 @@ Este projeto usa a metodologia Cappy (Focus, Organize, Record, Grow, Evolve) par
 5. **Documentação Mínima**: Só o essencial que economiza tempo
 
 ### **Prevention Rules Ativas:**
-*As regras serão carregadas automaticamente do arquivo .capy/prevention-rules.md*
+*As regras serão carregadas automaticamente do arquivo .cappy/prevention-rules.md*
 
 ---
 *Este arquivo é privado e não deve ser commitado. Ele contém suas instruções personalizadas para o GitHub Copilot.*`;
@@ -208,7 +208,7 @@ Task files should be named: \`STEP_[UNIX_TIMESTAMP]_[title].xml\`
 \`\`\`
 `;
     
-    const xmlInstructionsPath = path.join(capyDir, 'instructions', 'cappy-task-file-structure-info.md');
+    const xmlInstructionsPath = path.join(cappyDir, 'instructions', 'cappy-task-file-structure-info.md');
     await fs.promises.writeFile(xmlInstructionsPath, xmlInstructionsTemplate, 'utf8');
     console.log('✅ Instruções XML criadas:', xmlInstructionsPath);
     
@@ -245,7 +245,7 @@ Task files should be named: \`STEP_[UNIX_TIMESTAMP]_[title].xml\`
 *⚡ Máximo de 15 regras para manter contexto enxuto e eficaz*
 `;
     
-    const preventionRulesPath = path.join(capyDir, 'prevention-rules.md');
+    const preventionRulesPath = path.join(cappyDir, 'prevention-rules.md');
     await fs.promises.writeFile(preventionRulesPath, preventionRulesTemplate, 'utf8');
     console.log('✅ Prevention Rules criadas:', preventionRulesPath);
     
@@ -272,13 +272,13 @@ yarn-error.log*
     console.log('='.repeat(60));
     
     const expectedStructure = [
-        '.capy',
-        '.capy/config.json',
-        '.capy/prevention-rules.md',
-        '.capy/history',
-        '.capy/instructions',
-        '.capy/instructions/cappy-task-file-structure-info.md',
-        '.capy/tasks',
+        '.cappy',
+        '.cappy/config.json',
+        '.cappy/prevention-rules.md',
+        '.cappy/history',
+        '.cappy/instructions',
+        '.cappy/instructions/cappy-task-file-structure-info.md',
+        '.cappy/tasks',
         '.github',
         '.github/copilot-instructions.md',
         '.gitignore',
@@ -308,7 +308,7 @@ yarn-error.log*
     if (allCorrect) {
         console.log('🎉 TESTE PASSOU! Toda a estrutura foi criada corretamente.');
         console.log('\\n📊 RESUMO:');
-        console.log('   - Pastas principais: .capy, .github ✅');
+        console.log('   - Pastas principais: .cappy, .github ✅');
         console.log('   - Subpastas: history, instructions, tasks ✅');
         console.log('   - Configuração: config.json ✅');
         console.log('   - Instruções: XML e Copilot ✅');
@@ -317,7 +317,7 @@ yarn-error.log*
         
         // Mostrar conteúdo do config
         try {
-            const configContent = await fs.promises.readFile(path.join(capyDir, 'config.json'), 'utf8');
+            const configContent = await fs.promises.readFile(path.join(cappyDir, 'config.json'), 'utf8');
             const parsedConfig = JSON.parse(configContent);
             console.log('\\n🔧 CONFIGURAÇÃO DETECTADA:');
             console.log('   - Projeto:', parsedConfig.project.name);

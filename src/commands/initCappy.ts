@@ -26,7 +26,7 @@ export class InitCappyCommand {
                 return false;
             }
 
-            const capyDir = path.join(workspaceFolder.uri.fsPath, '.cappy');
+            const cappyDir = path.join(workspaceFolder.uri.fsPath, '.cappy');
             const githubDir = path.join(workspaceFolder.uri.fsPath, '.github');
 
             // Mostrar progresso
@@ -39,27 +39,27 @@ export class InitCappyCommand {
                 progress.report({ increment: 0, message: 'Verificando estrutura...' });
 
                 // 1. Verificar/Criar pasta .cappy
-                await this.setupCappyDirectory(capyDir);
+                await this.setupCappyDirectory(cappyDir);
 
                 progress.report({ increment: 40, message: 'Criando config.yaml...' });
 
                 // 2. Criar config.yaml com versão da extensão
                 const ext = vscode.extensions.getExtension('eduardocecon.cappy-memory');
                 const extVersion = ext?.packageJSON?.version || '0.0.0';
-                await this.createConfigYaml(capyDir, extVersion);
+                await this.createConfigYaml(cappyDir, extVersion);
 
                 // 2.1 Garantir stack.md vazio na instalação inicial
-                await this.ensureStackFile(capyDir);
+                await this.ensureStackFile(cappyDir);
 
                 progress.report({ increment: 65, message: 'Criando instruções locais do Cappy...' });
 
                 // 3. (Alterado) Não injeta mais CAPY:CONFIG no copilot-instructions.md
-                // Mantemos apenas as instruções locais em .capy/instructions
+                // Mantemos apenas as instruções locais em .cappy/instructions
 
                 progress.report({ increment: 85, message: 'Copiando instruções...' });
 
-                // 4. Copiar resources/instructions para .capy/instructions
-                await this.copyInstructionsFiles(capyDir);
+                // 4. Copiar resources/instructions para .cappy/instructions
+                await this.copyInstructionsFiles(cappyDir);
 
                 // 5. Garantir .github/copilot-instructions.md a partir do template
                 await this.ensureGithubCopilotInstructions(workspaceFolder.uri.fsPath);
@@ -69,12 +69,12 @@ export class InitCappyCommand {
 
                 // 6.1 Garantia final: certificar que config.yaml existe (resiliência a variações FS)
                 try {
-                    const cfgPath = path.join(capyDir, 'config.yaml');
+                    const cfgPath = path.join(cappyDir, 'config.yaml');
                     await fs.promises.access(cfgPath, fs.constants.F_OK);
                 } catch {
                     const ext = vscode.extensions.getExtension('eduardocecon.cappy-memory');
                     const extVersion = ext?.packageJSON?.version || '0.0.0';
-                    await this.createConfigYaml(capyDir, extVersion);
+                    await this.createConfigYaml(cappyDir, extVersion);
                 }
 
                 progress.report({ increment: 100, message: 'Finalizado!' });
@@ -92,13 +92,13 @@ export class InitCappyCommand {
         }
     }
 
-    private async setupCappyDirectory(capyDir: string): Promise<void> {
+    private async setupCappyDirectory(cappyDir: string): Promise<void> {
         try {
             // Verificar se .cappy já existe
-            await fs.promises.access(capyDir, fs.constants.F_OK);
+            await fs.promises.access(cappyDir, fs.constants.F_OK);
             
             // Se existe, verificar se tem config.yaml
-            const configPath = path.join(capyDir, 'config.yaml');
+            const configPath = path.join(cappyDir, 'config.yaml');
             try {
                 await fs.promises.access(configPath, fs.constants.F_OK);
                 // Se config.yaml existe, estrutura está OK
@@ -106,7 +106,7 @@ export class InitCappyCommand {
             } catch (error: any) {
                 if (error.code === 'ENOENT') {
                     // Não tem config.yaml, remover pasta toda e recriar (API moderna)
-                    await fs.promises.rm(capyDir, { recursive: true, force: true });
+                    await fs.promises.rm(cappyDir, { recursive: true, force: true });
                 }
             }
         } catch (error: any) {
@@ -116,13 +116,13 @@ export class InitCappyCommand {
         }
 
         // Criar estrutura completa
-        await fs.promises.mkdir(capyDir, { recursive: true });
-        await fs.promises.mkdir(path.join(capyDir, 'tasks'), { recursive: true });
-        await fs.promises.mkdir(path.join(capyDir, 'history'), { recursive: true });
-        await fs.promises.mkdir(path.join(capyDir, 'instructions'), { recursive: true });
+        await fs.promises.mkdir(cappyDir, { recursive: true });
+        await fs.promises.mkdir(path.join(cappyDir, 'tasks'), { recursive: true });
+        await fs.promises.mkdir(path.join(cappyDir, 'history'), { recursive: true });
+        await fs.promises.mkdir(path.join(cappyDir, 'instructions'), { recursive: true });
     }
 
-    private async createConfigYaml(capyDir: string, extensionVersion: string): Promise<void> {
+    private async createConfigYaml(cappyDir: string, extensionVersion: string): Promise<void> {
                 const configContent = `# Cappy Configuration
 version: "${extensionVersion}"
 
@@ -143,12 +143,12 @@ instructions:
     directory: "instructions"
 `;
 
-        const configPath = path.join(capyDir, 'config.yaml');
+        const configPath = path.join(cappyDir, 'config.yaml');
         await fs.promises.writeFile(configPath, configContent, 'utf8');
     }
 
-    private async ensureStackFile(capyDir: string): Promise<void> {
-        const stackPath = path.join(capyDir, 'stack.md');
+    private async ensureStackFile(cappyDir: string): Promise<void> {
+        const stackPath = path.join(cappyDir, 'stack.md');
         try {
             await fs.promises.access(stackPath, fs.constants.F_OK);
         } catch (err: any) {
@@ -187,9 +187,9 @@ instructions:
 
     // Removed: injectCopilotInstructions. Copilot instructions no longer carry CAPY config.
 
-    private async copyInstructionsFiles(capyDir: string): Promise<void> {
+    private async copyInstructionsFiles(cappyDir: string): Promise<void> {
         const sourceDir = path.join(this.getExtensionRoot(), 'resources', 'instructions');
-        const targetDir = path.join(capyDir, 'instructions');
+        const targetDir = path.join(cappyDir, 'instructions');
 
         // Copiar todos os arquivos de resources/instructions
         await this.copyDirectory(sourceDir, targetDir);

@@ -21,11 +21,11 @@ export class FileManager {
     }
 
     async writeCappyConfig(config: CappyConfig): Promise<void> {
-        const configPath = path.join(this.ensureWorkspace(), '.capy', 'config.yaml');
-        // Ensure .capy directory exists
-        const capyDir = path.dirname(configPath);
-        if (!fs.existsSync(capyDir)) {
-            await fs.promises.mkdir(capyDir, { recursive: true });
+        const configPath = path.join(this.ensureWorkspace(), '.cappy', 'config.yaml');
+        // Ensure .cappy directory exists
+        const cappyDir = path.dirname(configPath);
+        if (!fs.existsSync(cappyDir)) {
+            await fs.promises.mkdir(cappyDir, { recursive: true });
         }
         // NOTE: For now, we store minimal YAML. Full mapping can be added when needed.
         const yaml = `version: "${config.version}"
@@ -36,7 +36,7 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
     }
 
     async readCappyConfig(): Promise<CappyConfig | null> {
-        const configPath = path.join(this.ensureWorkspace(), '.capy', 'config.yaml');
+        const configPath = path.join(this.ensureWorkspace(), '.cappy', 'config.yaml');
         
         try {
             const content = await fs.promises.readFile(configPath, 'utf8');

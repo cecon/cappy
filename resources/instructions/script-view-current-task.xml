@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<capy:script name="view-current-task" version="1.0">
+<cappy:script name="view-current-task" version="1.0">
   <about>
     <summary>Exibir o status da task atual (progresso, próximo step, arquivos e ações).</summary>
-    <command>capy:task:status</command>
+    <command>cappy:task:status</command>
     <notes>
-      <note>Não altera nenhum arquivo; apenas lê .capy/tasks/ e apresenta status.</note>
+      <note>Não altera nenhum arquivo; apenas lê .cappy/tasks/ e apresenta status.</note>
     </notes>
   </about>
 
   <steps>
     <step id="1.find_active_task">
-      <goal>Localizar a task ativa em .capy/tasks/.</goal>
+      <goal>Localizar a task ativa em .cappy/tasks/.</goal>
       <logic>
         <![CDATA[
         // 1) Tentar usar o ponteiro de estado
         active_task = null
-        state = optional_read_json('.capy/state/current-task.json')
+        state = optional_read_json('.cappy/state/current-task.json')
         if (state && state.currentTaskFile) {
           try {
             xml = parse_xml(read_file(state.currentTaskFile))
@@ -25,7 +25,7 @@
 
         // 2) Fallback: varrer tasks
         if (!active_task) {
-          tasks = list_files(".capy/tasks/*.xml")
+          tasks = list_files(".cappy/tasks/*.xml")
           for (task_file in tasks) {
             xml = parse_xml(read_file(task_file))
             if (xml.metadata.status in ["em-andamento", "in-progress", "prepared", "preparing"]) {
@@ -118,7 +118,7 @@
       <goal>Exibir Prevention Rules relevantes, se houver.</goal>
       <logic>
         <![CDATA[
-        rules = optional_read(".capy/prevention-rules.md")
+        rules = optional_read(".cappy/prevention-rules.md")
         if (rules) {
           // Não filtra por área aqui para manter simples; implementações podem evoluir o filtro
           say("\n## 🛡️ Prevention Rules Aplicáveis")
@@ -128,4 +128,4 @@
       </logic>
     </step>
   </steps>
-</capy:script>
+</cappy:script>

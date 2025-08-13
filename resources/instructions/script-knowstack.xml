@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<capy:script name="knowstack" version="2">
+<cappy:script name="knowstack" version="2">
   <about>
-    <summary>Descobrir a stack e registrá-la em .capy/stack.md; configurar .capy/config.yaml.</summary>
+    <summary>Descobrir a stack e registrá-la em .cappy/stack.md; configurar .cappy/config.yaml.</summary>
     <command>cappy:knowstack</command>
   </about>
 
@@ -17,7 +17,7 @@
     </step>
 
     <step id="2.write_stack_md">
-      <goal>Escrever .capy/stack.md em inglês como single source of truth da stack.</goal>
+      <goal>Escrever .cappy/stack.md em inglês como single source of truth da stack.</goal>
       <fields>
         <field>LanguagesFrameworks</field>
         <field>ProjectStructure</field>
@@ -31,13 +31,13 @@
       <validate>Peça aprovação do usuário antes de gravar.</validate>
     </step>
 
-    <step id="3.write_capy_config">
-      <goal>Criar/atualizar .capy/config.yaml como fonte de configuração do Cappy.</goal>
+    <step id="3.write_cappy_config">
+      <goal>Criar/atualizar .cappy/config.yaml como fonte de configuração do Cappy.</goal>
       <yaml>
         version: 1
         language: pt-BR
         stack:
-          source: ".capy/stack.md"
+          source: ".cappy/stack.md"
           validated: true
           validated-at: "{{ now_utc_iso }}"
           validated-by: "user-confirmation"
@@ -48,15 +48,15 @@
             maxHours: 3
       </yaml>
       <rules>
-        <rule>Se existir .capy/config.json, manter em YAML (migrar campos equivalentes quando possível).</rule>
+        <rule>Se existir .cappy/config.json, manter em YAML (migrar campos equivalentes quando possível).</rule>
       </rules>
     </step>
 
     <step id="4.commit">
       <goal>Commitar mudanças com mensagens claras.</goal>
       <commands>
-        <cmd>git add .capy/stack.md .capy/config.yaml</cmd>
-        <cmd>git commit -m "docs(capy): add/update stack.md and config.yaml"</cmd>
+        <cmd>git add .cappy/stack.md .cappy/config.yaml</cmd>
+        <cmd>git commit -m "docs(cappy): add/update stack.md and config.yaml"</cmd>
       </commands>
     </step>
 
@@ -64,4 +64,4 @@
       <goal>Prosseguir com os fluxos Cappy usando a stack aprovada como base.</goal>
     </step>
   </steps>
-</capy:script>
+</cappy:script>

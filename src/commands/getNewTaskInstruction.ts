@@ -109,11 +109,11 @@ export async function getNewTaskInstruction(context?: vscode.ExtensionContext, a
 
     const processed = fillTemplate(template, merged);
 
-    // Also persist under .capy/instructions for local reference
+    // Also persist under .cappy/instructions for local reference
     try {
-        const capyDir = path.join(root, '.capy', 'instructions');
-        await fs.promises.mkdir(capyDir, { recursive: true });
-        await fs.promises.writeFile(path.join(capyDir, 'copilot-instructions.md'), processed, 'utf8');
+        const cappyDir = path.join(root, '.cappy', 'instructions');
+        await fs.promises.mkdir(cappyDir, { recursive: true });
+        await fs.promises.writeFile(path.join(cappyDir, 'copilot-instructions.md'), processed, 'utf8');
     } catch (e) {
         // Non-fatal
     }

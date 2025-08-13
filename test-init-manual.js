@@ -9,22 +9,22 @@ class TestInitCappy {
 
     async testInit() {
         const workspacePath = 'd:\\temp\\test-cappy-init';
-        const capyDir = path.join(workspacePath, '.capy');
+        const cappyDir = path.join(workspacePath, '.cappy');
         const githubDir = path.join(workspacePath, '.github');
 
         console.log('🧪 Testando InitCappy...');
 
         try {
-            // 1. Setup .capy directory
-            await this.setupCapyDirectory(capyDir);
-            console.log('✅ Pasta .capy criada');
+            // 1. Setup .cappy directory
+            await this.setupCapyDirectory(cappyDir);
+            console.log('✅ Pasta .cappy criada');
 
             // 2. Collect project info
             const projectInfo = await this.collectProjectInfo(workspacePath);
             console.log('✅ Informações do projeto coletadas:', projectInfo);
 
             // 3. Create config.yaml
-            await this.createConfigYaml(capyDir, projectInfo);
+            await this.createConfigYaml(cappyDir, projectInfo);
             console.log('✅ config.yaml criado');
 
             // 4. Inject copilot instructions
@@ -32,7 +32,7 @@ class TestInitCappy {
             console.log('✅ Instruções Copilot injetadas');
 
             // 5. Copy instructions files
-            await this.copyInstructionsFiles(capyDir);
+            await this.copyInstructionsFiles(cappyDir);
             console.log('✅ Arquivos de instruções copiados');
 
             // Verificar estrutura final
@@ -45,16 +45,16 @@ class TestInitCappy {
         }
     }
 
-    async setupCapyDirectory(capyDir) {
+    async setupCapyDirectory(cappyDir) {
         try {
-            await fs.access(capyDir);
-            const configPath = path.join(capyDir, 'config.yaml');
+            await fs.access(cappyDir);
+            const configPath = path.join(cappyDir, 'config.yaml');
             try {
                 await fs.access(configPath);
                 return;
             } catch (error) {
                 if (error.code === 'ENOENT') {
-                    await fs.rmdir(capyDir, { recursive: true });
+                    await fs.rmdir(cappyDir, { recursive: true });
                 }
             }
         } catch (error) {
@@ -63,10 +63,10 @@ class TestInitCappy {
             }
         }
 
-        await fs.mkdir(capyDir, { recursive: true });
-        await fs.mkdir(path.join(capyDir, 'tasks'), { recursive: true });
-        await fs.mkdir(path.join(capyDir, 'history'), { recursive: true });
-        await fs.mkdir(path.join(capyDir, 'instructions'), { recursive: true });
+        await fs.mkdir(cappyDir, { recursive: true });
+        await fs.mkdir(path.join(cappyDir, 'tasks'), { recursive: true });
+        await fs.mkdir(path.join(cappyDir, 'history'), { recursive: true });
+        await fs.mkdir(path.join(cappyDir, 'instructions'), { recursive: true });
     }
 
     async collectProjectInfo(workspacePath) {
@@ -90,7 +90,7 @@ class TestInitCappy {
         };
     }
 
-    async createConfigYaml(capyDir, projectInfo) {
+    async createConfigYaml(cappyDir, projectInfo) {
         const configContent = `# Cappy Configuration
 version: "1.0.0"
 project:
@@ -114,7 +114,7 @@ instructions:
   directory: "instructions"
 `;
 
-        const configPath = path.join(capyDir, 'config.yaml');
+        const configPath = path.join(cappyDir, 'config.yaml');
         await fs.writeFile(configPath, configContent, 'utf8');
     }
 
@@ -158,9 +158,9 @@ ${instructions}
         await fs.writeFile(copilotInstructionsPath, finalContent, 'utf8');
     }
 
-    async copyInstructionsFiles(capyDir) {
+    async copyInstructionsFiles(cappyDir) {
         const sourceDir = path.join(this.extensionPath, 'resources', 'instructions');
-        const targetDir = path.join(capyDir, 'instructions');
+        const targetDir = path.join(cappyDir, 'instructions');
         await this.copyDirectory(sourceDir, targetDir);
     }
 
@@ -183,28 +183,28 @@ ${instructions}
     async verifyStructure(workspacePath) {
         console.log('\n📁 Verificando estrutura criada:');
         
-        const capyDir = path.join(workspacePath, '.capy');
+        const cappyDir = path.join(workspacePath, '.cappy');
         const githubDir = path.join(workspacePath, '.github');
 
-        // Verificar estrutura .capy
-        const capyExists = await this.fileExists(capyDir);
-        console.log(`  .capy/: ${capyExists ? '✅' : '❌'}`);
+        // Verificar estrutura .cappy
+        const cappyExists = await this.fileExists(cappyDir);
+        console.log(`  .cappy/: ${cappyExists ? '✅' : '❌'}`);
 
-        const configExists = await this.fileExists(path.join(capyDir, 'config.yaml'));
-        console.log(`  .capy/config.yaml: ${configExists ? '✅' : '❌'}`);
+        const configExists = await this.fileExists(path.join(cappyDir, 'config.yaml'));
+        console.log(`  .cappy/config.yaml: ${configExists ? '✅' : '❌'}`);
 
-        const tasksExists = await this.fileExists(path.join(capyDir, 'tasks'));
-        console.log(`  .capy/tasks/: ${tasksExists ? '✅' : '❌'}`);
+        const tasksExists = await this.fileExists(path.join(cappyDir, 'tasks'));
+        console.log(`  .cappy/tasks/: ${tasksExists ? '✅' : '❌'}`);
 
-        const historyExists = await this.fileExists(path.join(capyDir, 'history'));
-        console.log(`  .capy/history/: ${historyExists ? '✅' : '❌'}`);
+        const historyExists = await this.fileExists(path.join(cappyDir, 'history'));
+        console.log(`  .cappy/history/: ${historyExists ? '✅' : '❌'}`);
 
-        const instructionsExists = await this.fileExists(path.join(capyDir, 'instructions'));
-        console.log(`  .capy/instructions/: ${instructionsExists ? '✅' : '❌'}`);
+        const instructionsExists = await this.fileExists(path.join(cappyDir, 'instructions'));
+        console.log(`  .cappy/instructions/: ${instructionsExists ? '✅' : '❌'}`);
 
         // Verificar alguns arquivos de instruções
-    const scriptExists = await this.fileExists(path.join(capyDir, 'instructions', 'script-new-task.xml'));
-    console.log(`  .capy/instructions/script-new-task.xml: ${scriptExists ? '✅' : '❌'}`);
+    const scriptExists = await this.fileExists(path.join(cappyDir, 'instructions', 'script-new-task.xml'));
+    console.log(`  .cappy/instructions/script-new-task.xml: ${scriptExists ? '✅' : '❌'}`);
 
         // Verificar copilot instructions
         const copilotExists = await this.fileExists(path.join(githubDir, 'copilot-instructions.md'));

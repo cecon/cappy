@@ -3,10 +3,10 @@
 ### ✅ **Implementações Concluídas:**
 
 1. **📁 Estrutura Simplificada e Consistente**
-   - `.capy/tasks/` - Tasks ativas em formato XML
-   - `.capy/history/` - Tasks concluídas arquivadas  
-   - `.capy/instructions/` - Instruções para LLM
-   - `.capy/prevention-rules.md` - Regras acumuladas
+   - `.cappy/tasks/` - Tasks ativas em formato XML
+   - `.cappy/history/` - Tasks concluídas arquivadas  
+   - `.cappy/instructions/` - Instruções para LLM
+   - `.cappy/prevention-rules.md` - Regras acumuladas
 
 2. **🤖 Detecção Automática de Tasks**
    - LLM detecta automaticamente frases como "vamos adicionar auth do supabase"
@@ -38,17 +38,17 @@ USUÁRIO: "vamos adicionar auth do supabase nesse projeto"
     ↓
 LLM: Detecta intenção de criação de task
     ↓
-LLM: Verifica tasks ativas em .capy/tasks/
+LLM: Verifica tasks ativas em .cappy/tasks/
     ↓
 LLM: [Se há task ativa] Pergunta se deve pausar
     ↓
-LLM: Lê instruções de .capy/instructions/cappy-task-file-structure-info.md
+LLM: Lê instruções de .cappy/instructions/cappy-task-file-structure-info.md
     ↓
 LLM: Analisa atomicidade ("Setup Supabase Auth" = ATÔMICA)
     ↓
 LLM: Gera XML estruturado com 5 steps sequenciais
     ↓
-LLM: Salva em .capy/tasks/task-setup-supabase-auth.xml
+LLM: Salva em .cappy/tasks/task-setup-supabase-auth.xml
     ↓
 RESULTADO: Task pronta para execução step-by-step
 ```

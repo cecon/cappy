@@ -20,7 +20,7 @@ export async function getActiveTask(): Promise<string> {
             }
         };
 
-        const stateUri = vscode.Uri.joinPath(ws.uri, '.capy', 'state', 'current-task.json');
+        const stateUri = vscode.Uri.joinPath(ws.uri, '.cappy', 'state', 'current-task.json');
         if (!(await uriExists(stateUri))) {
             return 'No activit task found';
         }

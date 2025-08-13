@@ -12,7 +12,7 @@ Quando o usuário solicitar:
 ### **1. Localizar Task Ativa**
 ```javascript
 // Pseudocódigo para LLM
-active_task_file = find_active_task(".capy/tasks/")
+active_task_file = find_active_task(".cappy/tasks/")
 if (!active_task_file) {
     return "❌ Nenhuma task ativa para completar."
 }
@@ -56,7 +56,7 @@ show_validation_results(results)
 ask_user("Durante esta task, encontrou algum problema ou aprendizado importante?")
 if (user_provides_learning) {
     new_rule = format_prevention_rule(user_learning)
-    append_to_file(".capy/prevention-rules.md", new_rule)
+    append_to_file(".cappy/prevention-rules.md", new_rule)
 }
 ```
 
@@ -70,7 +70,7 @@ xml.metadata.final_validation = validation_results
 // Mover arquivo
 timestamp = unix_timestamp()
 history_filename = `COMPLETED_${timestamp}_${extract_title(active_task_file)}.xml`
-move_file(active_task_file, `.capy/history/${history_filename}`)
+move_file(active_task_file, `.cappy/history/${history_filename}`)
 ```
 
 ### **6. Gerar Relatório de Conclusão**
@@ -90,7 +90,7 @@ move_file(active_task_file, `.capy/history/${history_filename}`)
 [novos learnings adicionados às prevention rules]
 
 ## 📁 Localização do Histórico
-- **Arquivo**: .capy/history/[FILENAME]
+- **Arquivo**: .cappy/history/[FILENAME]
 - **Status**: Concluída
 - **Data**: [DATA_CONCLUSAO]
 
@@ -109,7 +109,7 @@ Agora você pode:
 - Gerar relatório de conclusão detalhado
 
 ## 📊 **Saídas Esperadas**
-- Task movida para `.capy/history/`
+- Task movida para `.cappy/history/`
 - Status alterado para "concluida"
 - Prevention rules atualizadas com novos learnings
 - Relatório de conclusão gerado

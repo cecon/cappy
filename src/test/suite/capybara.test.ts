@@ -120,18 +120,18 @@ suite('🦫 Cappy Extension Test Suite', () => {
 
         console.log('🧪 Workspace folder found, proceeding with test...');
         const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
-        const capyDir = path.join(workspaceRoot, '.capy');
+        const cappyDir = path.join(workspaceRoot, '.cappy');
         const githubDir = path.join(workspaceRoot, '.github');
 
         console.log(`🧪 Workspace root: ${workspaceRoot}`);
-        console.log(`🧪 Capy dir: ${capyDir}`);
+        console.log(`🧪 Capy dir: ${cappyDir}`);
 
-        // Clean up any existing .capy folder
+        // Clean up any existing .cappy folder
         try {
-            await fs.promises.rmdir(capyDir, { recursive: true });
-            console.log('🧪 Existing .capy folder removed');
+            await fs.promises.rmdir(cappyDir, { recursive: true });
+            console.log('🧪 Existing .cappy folder removed');
         } catch (error) {
-            console.log('🧪 No existing .capy folder to remove');
+            console.log('🧪 No existing .cappy folder to remove');
         }
 
         // Execute init command
@@ -145,8 +145,8 @@ suite('🦫 Cappy Extension Test Suite', () => {
 
             console.log('🧪 Checking if directories and files were created...');
 
-            // Check if .capy directory was created
-            const capyExists = await fs.promises.access(capyDir, fs.constants.F_OK)
+            // Check if .cappy directory was created
+            const cappyExists = await fs.promises.access(cappyDir, fs.constants.F_OK)
                 .then(() => true)
                 .catch(() => false);
 
@@ -156,7 +156,7 @@ suite('🦫 Cappy Extension Test Suite', () => {
                 .catch(() => false);
 
             // Check if config file was created (YAML)
-            const configPath = path.join(capyDir, 'config.yaml');
+            const configPath = path.join(cappyDir, 'config.yaml');
             const configExists = await fs.promises.access(configPath, fs.constants.F_OK)
                 .then(() => true)
                 .catch(() => false);
@@ -167,13 +167,13 @@ suite('🦫 Cappy Extension Test Suite', () => {
                 .then(() => true)
                 .catch(() => false);
 
-            console.log(`📁 .capy directory created: ${capyExists}`);
+            console.log(`📁 .cappy directory created: ${cappyExists}`);
             console.log(`📁 .github directory created: ${githubExists}`);
             console.log(`📄 config.yaml created: ${configExists}`);
             console.log(`📄 copilot-instructions.md created: ${instructionsExists}`);
 
             // Assertions
-            assert.ok(capyExists, '.capy directory should be created');
+            assert.ok(cappyExists, '.cappy directory should be created');
             assert.ok(githubExists, '.github directory should be created');
             assert.ok(configExists, 'config.yaml should be created');
             assert.ok(instructionsExists, 'copilot-instructions.md should be created');

@@ -6,9 +6,9 @@ export type TelemetryConsentStatus = 'accepted' | 'declined';
 
 const CONSENT_VERSION = '1.0.0'; // Fallback version if parsing fails
 const GLOBAL_STATE_KEYS = {
-    status: 'capy.telemetryConsent.status',
-    version: 'capy.telemetryConsent.version',
-    timestamp: 'capy.telemetryConsent.timestamp',
+    status: 'cappy.telemetryConsent.status',
+    version: 'cappy.telemetryConsent.version',
+    timestamp: 'cappy.telemetryConsent.timestamp',
 };
 
 export interface ConsentState {
@@ -50,7 +50,7 @@ export async function ensureTelemetryConsent(context: vscode.ExtensionContext): 
 
 export async function showConsentWebview(context: vscode.ExtensionContext): Promise<boolean> {
     const panel = vscode.window.createWebviewPanel(
-        'capyTelemetryConsent',
+        'cappyTelemetryConsent',
         'Cappy - Termos de Uso e Telemetria',
         vscode.ViewColumn.Active,
         {

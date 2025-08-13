@@ -82,11 +82,11 @@ test-results/
 coverage/
 
 # Cappy specific (Personal Development)
-.capy/
+.cappy/
 .github/copilot-instructions.md
 .github/stack-instructions.md
-*.capy.lock
-.capy-context/
+*.cappy.lock
+.cappy-context/
 
 # Cappy - Private AI Instructions
 .github/copilot-instructions.md

@@ -18,7 +18,7 @@
 **Cappy** is a **minimal VS Code extension** that sets up the Cappy methodology structure for solo developers. It now includes a first-class, guided command to establish the project stack as ground truth before you run anything else.
 
 ### 🏗️ **What it Creates**
-- **Project Structure**: `.capy/` folder with configuration (`config.yaml`)
+- **Project Structure**: `.cappy/` folder with configuration (`config.yaml`)
 - **Copilot Instructions**: Private GitHub Copilot instructions with version control (gitignored)
 - **Stack Doc**: `.github/instructions/copilot.stack.md` as the single source of truth for your stack
 - **Capy Config Markers**: A parseable section inside `.github/copilot-instructions.md` linking to the stack doc
@@ -60,8 +60,8 @@ Notes:
 - Until the stack is approved, other commands will prompt you to run “Capy: KnowStack”.
 
 ### Step 4: Start Working
-- Edit `.capy/prevention-rules.md` to add project-specific rules
-- Create task XML files manually in `.capy/` folder
+- Edit `.cappy/prevention-rules.md` to add project-specific rules
+- Create task XML files manually in `.cappy/` folder
 - Use GitHub Copilot with the generated instructions and the approved stack doc
 
 ---
@@ -79,7 +79,7 @@ Notes:
 
 ```
 your-project/
-├── .capy/
+├── .cappy/
 │   ├── config.yaml                    # Cappy configuration (YAML)
 │   ├── prevention-rules.md            # Project-specific rules
 │   └── history/                       # Manual task history
@@ -95,7 +95,7 @@ your-project/
 ## 🛠️ Manual Task Management
 
 ### Creating a Task
-Create a new XML file in `.capy/` folder:
+Create a new XML file in `.cappy/` folder:
 
 ```xml
 <task id="implement-auth" versao="1.0">
@@ -164,13 +164,13 @@ Mark steps as complete by changing `concluido="true"`:
 ```
 
 ### Managing History
-Move completed tasks to `.capy/history/` folder manually.
+Move completed tasks to `.cappy/history/` folder manually.
 
 ---
 
 ## 🛡️ Prevention Rules
 
-Add project-specific rules to `.capy/prevention-rules.md`:
+Add project-specific rules to `.cappy/prevention-rules.md`:
 
 ```markdown
 # 🛡️ Prevention Rules
@@ -218,7 +218,7 @@ Additionally, we insert/update a Capy Config section inside `.github/copilot-ins
 ### Capy Config
 
 ```yaml
-capy-config:
+cappy-config:
     version: 1
     templates:
         stack-instruction: true
@@ -241,7 +241,7 @@ Rules:
 
 ## 🔧 Configuration
 
-The `.capy/config.yaml` file contains project configuration:
+The `.cappy/config.yaml` file contains project configuration:
 
 ```yaml
 # Cappy Configuration
@@ -289,7 +289,7 @@ instructions:
 5) Versioning
 - Suggested commits:
     - `docs(stack): add or update copilot.stack.md`
-    - `docs(capy): update capy-config in copilot-instructions.md`
+    - `docs(cappy): update cappy-config in copilot-instructions.md`
 
 6) Gating
 - All commands rely on the approved stack

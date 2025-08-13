@@ -7,7 +7,7 @@ O sistema de versionamento garante que as instruções LLM estejam sempre atuali
 ### **Fluxo de Atualização:**
 
 1. **Verificação de Versão**: `initCappy.ts` compara `config.instructionsVersion` com versão da extensão
-2. **Atualização Automática**: Se versão for diferente, remove `.capy/instructions/` e copia nova versão
+2. **Atualização Automática**: Se versão for diferente, remove `.cappy/instructions/` e copia nova versão
 3. **Fonte Única**: Todos os arquivos vêm de `resources/instructions/`
 4. **Preservação de Dados**: Apenas instructions são atualizadas, config e prevention-rules são mantidos
 
@@ -24,7 +24,7 @@ Extension:
 │   └── script-completar-task.md    ← Script: Finalizar task
 
 Projeto:
-├── .capy/
+├── .cappy/
 │   ├── config.json                 ← { instructionsVersion: "2.0.0" }
 │   ├── instructions/               ← CÓPIA AUTOMÁTICA de resources/
 │   ├── tasks/                      ← Tasks ativas
@@ -45,7 +45,7 @@ Projeto:
 instructionsVersion: '2.0.0'  // ← Versão atual
 
 // src/commands/initCappy.ts
-await this.updateInstructionsFiles(capyDir, config);
+await this.updateInstructionsFiles(cappyDir, config);
 ```
 
 ### **Benefícios:**
