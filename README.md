@@ -21,7 +21,7 @@
 - **Project Structure**: `.cappy/` folder with configuration (`config.yaml`)
 - **Copilot Instructions**: Private GitHub Copilot instructions with version control (gitignored)
 - **Stack Doc**: `.github/instructions/copilot.stack.md` as the single source of truth for your stack
-- **Capy Config Markers**: A parseable section inside `.github/copilot-instructions.md` linking to the stack doc
+- **Cappy Config Markers**: A parseable section inside `.github/copilot-instructions.md` linking to the stack doc
 - **Prevention Rules**: Template for documenting project-specific rules
 - **XML Task Structure**: Documentation and examples for manual task management
 
@@ -52,12 +52,12 @@ code --install-extension eduardocecon.cappy
 
 ### Step 3: Know your Stack (Required)
 1. Press `Ctrl+Shift+P`
-2. Run `Capy: KnowStack`
+2. Run `Cappy: KnowStack`
 3. Answer questions one-by-one; we’ll draft `.github/instructions/copilot.stack.md` in English
-4. Approve the final stack; we’ll update the Capy Config markers in `.github/copilot-instructions.md`
+4. Approve the final stack; we’ll update the Cappy Config markers in `.github/copilot-instructions.md`
 
 Notes:
-- Until the stack is approved, other commands will prompt you to run “Capy: KnowStack”.
+- Until the stack is approved, other commands will prompt you to run “Cappy: KnowStack”.
 
 ### Step 4: Start Working
 - Edit `.cappy/prevention-rules.md` to add project-specific rules
@@ -71,7 +71,7 @@ Notes:
 | Command | Description |
 |---------|-------------|
 | `Cappy: Initialize` | Set up Cappy structure and configuration |
-| `🧠 Capy: KnowStack` | Guided flow to create/validate the project stack. Creates `.github/instructions/copilot.stack.md` and updates Capy Config markers inside `.github/copilot-instructions.md`. Required before other commands. |
+| `🧠 Cappy: KnowStack` | Guided flow to create/validate the project stack. Creates `.github/instructions/copilot.stack.md` and updates Cappy Config markers inside `.github/copilot-instructions.md`. Required before other commands. |
 
 ---
 
@@ -188,9 +188,9 @@ Add project-specific rules to `.cappy/prevention-rules.md`:
 
 ---
 
-## 🤖 GitHub Copilot Integration & Capy Config
+## 🤖 GitHub Copilot Integration & Cappy Config
 
-The extension creates versioned instructions for GitHub Copilot and manages a Capy Config block used by the LLM:
+The extension creates versioned instructions for GitHub Copilot and manages a Cappy Config block used by the LLM:
 
 ```markdown
 =====================START CAPYBARA MEMORY v1.0.0=====================
@@ -211,11 +211,11 @@ These are:
 - **Versioned**: Easy to update and track changes
 - **Preserved**: Other content in the file is maintained
 
-Additionally, we insert/update a Capy Config section inside `.github/copilot-instructions.md` (between idempotent markers):
+Additionally, we insert/update a Cappy Config section inside `.github/copilot-instructions.md` (between idempotent markers):
 
 ```
 <!-- CAPY:CONFIG:BEGIN -->
-### Capy Config
+### Cappy Config
 
 ```yaml
 cappy-config:
@@ -282,7 +282,7 @@ instructions:
 - Ask: “Anything missing or inaccurate?”
 - Only proceed after approval
 
-4) Update Capy Config markers
+4) Update Cappy Config markers
 - Insert or update the YAML block between `CAPY:CONFIG:BEGIN/END` in `.github/copilot-instructions.md`
 - Set `last-validated-at` to the current UTC ISO timestamp
 
@@ -293,7 +293,7 @@ instructions:
 
 6) Gating
 - All commands rely on the approved stack
-- If the stack changes later: update `.stack.md` → validate → update Capy Config
+- If the stack changes later: update `.stack.md` → validate → update Cappy Config
 
 
 ---

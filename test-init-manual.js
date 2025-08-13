@@ -16,7 +16,7 @@ class TestInitCappy {
 
         try {
             // 1. Setup .cappy directory
-            await this.setupCapyDirectory(cappyDir);
+            await this.setupCappyDirectory(cappyDir);
             console.log('✅ Pasta .cappy criada');
 
             // 2. Collect project info
@@ -45,7 +45,7 @@ class TestInitCappy {
         }
     }
 
-    async setupCapyDirectory(cappyDir) {
+    async setupCappyDirectory(cappyDir) {
         try {
             await fs.access(cappyDir);
             const configPath = path.join(cappyDir, 'config.yaml');

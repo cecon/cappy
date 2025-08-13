@@ -28,6 +28,12 @@ export class InitCappyCommand {
 
             const cappyDir = path.join(workspaceFolder.uri.fsPath, '.cappy');
             const githubDir = path.join(workspaceFolder.uri.fsPath, '.github');
+            const configPath = path.join(cappyDir, 'config.yaml');
+            let configExisted = false;
+            try {
+                await fs.promises.access(configPath, fs.constants.F_OK);
+                configExisted = true;
+            } catch { /* no-op */ }
 
             // Mostrar progresso
             return await vscode.window.withProgress({
@@ -41,28 +47,26 @@ export class InitCappyCommand {
                 // 1. Verificar/Criar pasta .cappy
                 await this.setupCappyDirectory(cappyDir);
 
-                progress.report({ increment: 40, message: 'Criando config.yaml...' });
+                progress.report({ increment: 40, message: configExisted ? 'Atualizando config.yaml...' : 'Criando config.yaml...' });
 
-                // 2. Criar config.yaml com versão da extensão
+                // 2. Criar/Atualizar config.yaml com versão da extensão
                 const ext = vscode.extensions.getExtension('eduardocecon.cappy-memory');
                 const extVersion = ext?.packageJSON?.version || '0.0.0';
                 await this.createConfigYaml(cappyDir, extVersion);
-
-                // 2.1 Garantir stack.md vazio na instalação inicial
-                await this.ensureStackFile(cappyDir);
 
                 progress.report({ increment: 65, message: 'Criando instruções locais do Cappy...' });
 
                 // 3. (Alterado) Não injeta mais CAPY:CONFIG no copilot-instructions.md
                 // Mantemos apenas as instruções locais em .cappy/instructions
 
-                progress.report({ increment: 85, message: 'Copiando instruções...' });
+                progress.report({ increment: 85, message: configExisted ? 'Atualizando instruções do Copilot...' : 'Copiando instruções...' });
 
-                // 4. Copiar resources/instructions para .cappy/instructions
-                await this.copyInstructionsFiles(cappyDir);
-
-                // 5. Garantir .github/copilot-instructions.md a partir do template
-                await this.ensureGithubCopilotInstructions(workspaceFolder.uri.fsPath);
+                // 5. Atualizar/garantir .github/copilot-instructions.md a partir do template
+                if (configExisted) {
+                    await this.refreshGithubCopilotInstructions(workspaceFolder.uri.fsPath);
+                } else {
+                    await this.ensureGithubCopilotInstructions(workspaceFolder.uri.fsPath);
+                }
 
                 // 6. Atualizar .gitignore para manter instruções privadas
                 await this.updateGitignore(workspaceFolder.uri.fsPath);
@@ -76,6 +80,9 @@ export class InitCappyCommand {
                     const extVersion = ext?.packageJSON?.version || '0.0.0';
                     await this.createConfigYaml(cappyDir, extVersion);
                 }
+
+                // 6.2 Garantir .cappy/stack.md existe
+                await this.ensureStackFile(cappyDir);
 
                 progress.report({ increment: 100, message: 'Finalizado!' });
 
@@ -123,41 +130,51 @@ export class InitCappyCommand {
     }
 
     private async createConfigYaml(cappyDir: string, extensionVersion: string): Promise<void> {
-                const configContent = `# Cappy Configuration
-version: "${extensionVersion}"
+        const nowIso = new Date().toISOString();
+        const templatePath = path.join(this.getExtensionRoot(), 'resources', 'templates', 'cappy-config.yaml');
+        const cfgPath = path.join(cappyDir, 'config.yaml');
 
-cappy:
-    initialized_at: "${new Date().toISOString()}"
-    last_updated: "${new Date().toISOString()}"
-
-stack:
-    source: ".cappy/stack.md"
-    validated: false
-    validated_at:
-
-tasks:
-    directory: "tasks"
-    history_directory: "history"
-
-instructions:
-    directory: "instructions"
-`;
-
-        const configPath = path.join(cappyDir, 'config.yaml');
-        await fs.promises.writeFile(configPath, configContent, 'utf8');
-    }
-
-    private async ensureStackFile(cappyDir: string): Promise<void> {
-        const stackPath = path.join(cappyDir, 'stack.md');
+        // If config exists, update only version and last_updated to preserve user edits
+        let exists = false;
         try {
-            await fs.promises.access(stackPath, fs.constants.F_OK);
+            await fs.promises.access(cfgPath, fs.constants.F_OK);
+            exists = true;
+        } catch { /* ignore */ }
+
+        if (exists) {
+            try {
+                let current = await fs.promises.readFile(cfgPath, 'utf8');
+                const hasVersion = /^(\s*)version:\s*"?.+?"?\s*$/m.test(current);
+                const hasLastUpdated = /^(\s*)last_updated:\s*.*$/m.test(current);
+                // Replace version
+                if (hasVersion) {
+                    current = current.replace(/^(\s*)version:\s*"?.+?"?\s*$/m, `$1version: "${extensionVersion}"`);
+                } else {
+                    current = `version: "${extensionVersion}"\n` + current;
+                }
+                // Replace last_updated under cappy:
+                current = current.replace(/(\bcappy:\s*[\s\S]*?\blast_updated:)\s*.*$/m, `$1 "${nowIso}"`);
+                await fs.promises.writeFile(cfgPath, current, 'utf8');
+                return;
+            } catch {
+                // fallthrough to recreate from template
+            }
+        }
+
+        // Create from template
+        let contentFromTemplate = '';
+        try {
+            const tpl = await fs.promises.readFile(templatePath, 'utf8');
+            contentFromTemplate = tpl
+                .replace(/__VERSION__/g, extensionVersion)
+                .replace(/__INITIALIZED_AT__/g, nowIso)
+                .replace(/__LAST_UPDATED__/g, nowIso);
         } catch (err: any) {
-            if (err?.code === 'ENOENT') {
-                await fs.promises.writeFile(stackPath, '', 'utf8');
-            } else {
+            if (err?.code !== 'ENOENT') {
                 throw err;
             }
         }
+        await fs.promises.writeFile(cfgPath, contentFromTemplate, 'utf8');
     }
 
     private getExtensionRoot(): string {
@@ -178,22 +195,13 @@ instructions:
                     return base;
                 }
             } catch {
+                vscode.window.showWarningMessage('⚠️ Não foi possível localizar resources/instructions. As instruções locais do Cappy não foram criadas.');
                 // ignore and continue
             }
         }
         // Fallback to current working directory
         return process.cwd();
-    }
-
-    // Removed: injectCopilotInstructions. Copilot instructions no longer carry CAPY config.
-
-    private async copyInstructionsFiles(cappyDir: string): Promise<void> {
-        const sourceDir = path.join(this.getExtensionRoot(), 'resources', 'instructions');
-        const targetDir = path.join(cappyDir, 'instructions');
-
-        // Copiar todos os arquivos de resources/instructions
-        await this.copyDirectory(sourceDir, targetDir);
-    }
+    }    
 
     private async ensureGithubCopilotInstructions(workspaceRoot: string): Promise<void> {
         const githubDir = path.join(workspaceRoot, '.github');
@@ -225,6 +233,65 @@ instructions:
         }
     }
 
+    private async refreshGithubCopilotInstructions(workspaceRoot: string): Promise<void> {
+        const githubDir = path.join(workspaceRoot, '.github');
+        const targetPath = path.join(githubDir, 'copilot-instructions.md');
+        const templatePath = path.join(this.getExtensionRoot(), 'resources', 'templates', 'cappy-copilot-instructions.md');
+
+        await fs.promises.mkdir(githubDir, { recursive: true });
+
+        try {
+            const tpl = await fs.promises.readFile(templatePath, 'utf8');
+            const start = '<!-- CAPPY INI -->';
+            const end = '<!-- CAPPY END -->';
+
+            // If target doesn't exist, create with template
+            let existing = '';
+            try {
+                existing = await fs.promises.readFile(targetPath, 'utf8');
+            } catch (e: any) {
+                if (e?.code === 'ENOENT') {
+                    await fs.promises.writeFile(targetPath, tpl, 'utf8');
+                    return;
+                }
+                throw e;
+            }
+
+            const hasStart = existing.includes(start);
+            const hasEnd = existing.includes(end);
+            if (!hasStart || !hasEnd) {
+                // No markers; overwrite entire file to align with template once
+                await fs.promises.writeFile(targetPath, tpl, 'utf8');
+                return;
+            }
+
+            // Replace only the marked block
+            const pattern = new RegExp(`${start}[\s\S]*?${end}`);
+            const updated = existing.replace(pattern, tpl.trim());
+            await fs.promises.writeFile(targetPath, updated, 'utf8');
+        } catch (err: any) {
+            if (err?.code === 'ENOENT') {
+                // If template is missing, keep existing file or create a minimal header
+                try {
+                    await fs.promises.access(targetPath, fs.constants.F_OK);
+                } catch {
+                    await fs.promises.writeFile(targetPath, '# Cappy Copilot Instructions\n', 'utf8');
+                }
+            } else {
+                throw err;
+            }
+        }
+    }
+
+    private async ensureStackFile(cappyDir: string): Promise<void> {
+        const stackPath = path.join(cappyDir, 'stack.md');
+        try {
+            await fs.promises.access(stackPath, fs.constants.F_OK);
+        } catch {
+            await fs.promises.writeFile(stackPath, '', 'utf8');
+        }
+    }
+
     private async updateGitignore(workspaceRoot: string): Promise<void> {
         const gitignorePath = path.join(workspaceRoot, '.gitignore');
         let content = '';
@@ -238,10 +305,11 @@ instructions:
 
         const header = '# Cappy - Private AI Instructions';
         const entry = '.github/copilot-instructions.md';
+        const entry2 = '.cappy/';
 
         let changed = false;
         if (!content.includes(header)) {
-            content = content ? `${content}\n\n${header}\n${entry}\n` : `${header}\n${entry}\n`;
+            content = content ? `${content}\n\n${header}\n${entry}\n${entry2}` : `${header}\n${entry}\n`;
             changed = true;
         } else if (!content.includes(entry)) {
             content = `${content.trim()}\n${entry}\n`;
@@ -251,21 +319,5 @@ instructions:
         if (changed) {
             await fs.promises.writeFile(gitignorePath, content, 'utf8');
         }
-    }
-
-    private async copyDirectory(source: string, destination: string): Promise<void> {
-        const entries = await fs.promises.readdir(source, { withFileTypes: true });
-        
-        for (const entry of entries) {
-            const sourcePath = path.join(source, entry.name);
-            const destPath = path.join(destination, entry.name);
-            
-            if (entry.isDirectory()) {
-                await fs.promises.mkdir(destPath, { recursive: true });
-                await this.copyDirectory(sourcePath, destPath);
-            } else {
-                await fs.promises.copyFile(sourcePath, destPath);
-            }
-        }
-    }
+    }   
 }

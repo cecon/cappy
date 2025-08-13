@@ -26,14 +26,14 @@ suite('🦫 Cappy Extension Test Suite', () => {
 
     test('🎯 Extension Commands Registration', async () => {
         // Poll for a short while to allow activation to register commands
-        const getCapyCommands = async () => {
+        const getCappyCommands = async () => {
             const commands = await vscode.commands.getCommands(true);
             return commands.filter(cmd => cmd.startsWith('cappy.'));
         };
 
         let cappyCommands: string[] = [];
         for (let i = 0; i < 6; i++) { // up to ~3s
-            cappyCommands = await getCapyCommands();
+            cappyCommands = await getCappyCommands();
             if (cappyCommands.length > 0) {
                 break;
             }
@@ -92,7 +92,7 @@ suite('🦫 Cappy Extension Test Suite', () => {
             assert.strictEqual(pkg.name, 'cappy');
             assert.strictEqual(pkg.displayName, 'Cappy');
             assert.ok(pkg.description.includes('calm and wise'));
-            assert.ok(pkg.version.startsWith('2.0'));
+            assert.ok(/^2\.\d+\.\d+/.test(pkg.version), 'Extension version should be 2.x.x');
             
             console.log('✅ Package.json structure valid');
             console.log(`📦 Name: ${pkg.name}`);
@@ -124,7 +124,7 @@ suite('🦫 Cappy Extension Test Suite', () => {
         const githubDir = path.join(workspaceRoot, '.github');
 
         console.log(`🧪 Workspace root: ${workspaceRoot}`);
-        console.log(`🧪 Capy dir: ${cappyDir}`);
+        console.log(`🧪 Cappy dir: ${cappyDir}`);
 
         // Clean up any existing .cappy folder
         try {

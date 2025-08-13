@@ -93,7 +93,7 @@
     "snippets": [
       {
         "language": "markdown",
-        "path": "./snippets/cappy.json"
+  "path": "./snippets/capybara.json"
       }
     ],
     "languages": [

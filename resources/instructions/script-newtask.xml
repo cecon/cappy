@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<cappy:script name="new-task" version="1.2">
+<cappy:script name="newtask" version="1.2">
   <about>
     <summary>Preparar (não executar) uma nova task atômica via fluxo "scope-first".</summary>
     <command>#newtask</command>
@@ -12,7 +12,16 @@
 
   <steps>
     <step id="1.check_active">
-      <goal>Check for active or paused tasks and ask to pause before creating a new one.</goal>
+      <goal>Check for active or paused tasks using VSCode Command getActiveTask; ask to pause if one exists.</goal>
+      <logic>
+        <![CDATA[
+        activeTaskText = vscode_command("cappy.getActiveTask")
+        if (activeTaskText && !activeTaskText.includes("não tem uma task ativa")) {
+          ask_user("Há uma task ativa: '" + activeTaskText + "'. Pausar para criar uma nova? (sim/não)")
+          if (user_answer == "não") return
+        }
+        ]]>
+      </logic>
       <logic>
         <![CDATA[
         tasks = list_files(".cappy/tasks/*.xml")

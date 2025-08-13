@@ -1,17 +1,46 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 
-export async function runKnowStack(): Promise<void> {
+function getExtensionRoot(context?: vscode.ExtensionContext): string {
+    const candidates = [
+        context?.extensionPath,
+        path.resolve(__dirname, '../..'),
+        path.resolve(__dirname, '../../..')
+    ].filter(Boolean) as string[];
+    for (const base of candidates) {
+        const probe = path.join(base, 'resources', 'instructions', 'script-knowstack.xml');
+        if (fs.existsSync(probe)) {
+            return base;
+        }
+    }
+    return (candidates[0] as string) || process.cwd();
+}
+
+async function readKnowStackScript(context?: vscode.ExtensionContext): Promise<string> {
+    try {
+        const extRoot = getExtensionRoot(context);
+        const filePath = path.join(extRoot, 'resources', 'instructions', 'script-knowstack.xml');
+        const content = await fs.promises.readFile(filePath, 'utf8');
+        return content;
+    } catch {
+        return '';
+    }
+}
+
+export async function runKnowStack(context?: vscode.ExtensionContext): Promise<string> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         vscode.window.showWarningMessage('Cappy: open a workspace folder to run KnowStack.');
-        return;
+        return await readKnowStackScript(context);
     }
 
+    let script = '';
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
-        title: '🧠 Capy: KnowStack',
+        title: '🧠 Cappy: KnowStack',
         cancellable: false,
-    }, async (progress) => {
+    }, async (_) => {
         const cappyDir = vscode.Uri.joinPath(workspaceFolder.uri, '.cappy');
         await vscode.workspace.fs.createDirectory(cappyDir);
 
@@ -23,6 +52,9 @@ export async function runKnowStack(): Promise<void> {
         }
 
         await vscode.window.showTextDocument(stackFile, { preview: false });
-    vscode.window.showInformationMessage('🧠 Capy: KnowStack started. Answer one-by-one to build .cappy/stack.md and then mark it validated in .cappy/config.yaml.');
+
+        script = await readKnowStackScript(context);
     });
+
+    return script;
 }

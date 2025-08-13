@@ -7,8 +7,6 @@ import getNewTaskInstruction from "./commands/getNewTaskInstruction";
 import getActiveTask from "./commands/getActiveTask";
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log("🦫 Cappy Memory: Starting activation...");
-
   try {
     // Show immediate activation message
     vscode.window.showInformationMessage("🦫 Cappy Memory: Activating...");
@@ -26,49 +24,27 @@ export function activate(context: vscode.ExtensionContext) {
         console.warn("Failed to ensure telemetry consent:", err);
       });
 
-    // (removed) test command
-
-    // Helper: gating check - ensure stack is known/validated
-    const uriExists = async (uri: vscode.Uri): Promise<boolean> => {
-      try {
-        await vscode.workspace.fs.stat(uri);
-        return true;
-      } catch {
-        return false;
-      }
-    };
-
     // Register init command (always run init; KnowStack must not block it)
     const initCommand = vscode.commands.registerCommand(
       "cappy.init",
       async () => {
-        try {                    
+        try {
           try {
             const initModule = await import("./commands/initCappy");
-
             const initCommand = new initModule.InitCappyCommand(context);
-
             const success = await initCommand.execute();
-            if (success) {
-              vscode.window.showInformationMessage(
-                "🦫 Cappy Memory: Initialization completed successfully!"
-              );
-            } else {
+            if (!success) {
               vscode.window.showWarningMessage(
                 "🦫 Cappy Memory: Initialization was cancelled or failed."
               );
             }
           } catch (importError) {
-            console.error("Error loading InitCappyCommand:", importError);
             vscode.window.showErrorMessage(
               `Cappy Memory: Init feature failed to load: ${importError}`
             );
           }
         } catch (error) {
-          console.error("Cappy Memory Init error:", error);
-          vscode.window.showErrorMessage(
-            `Cappy Memory Init failed: ${error}`
-          );
+          vscode.window.showErrorMessage(`Cappy Memory Init failed: ${error}`);
         }
       }
     );
@@ -79,10 +55,11 @@ export function activate(context: vscode.ExtensionContext) {
       async () => {
         try {
           const mod = await import("./commands/knowStack");
-          await mod.runKnowStack();
+          const script: string = await mod.runKnowStack(context);
+          return script; // return instructions for LLM to start the flow
         } catch (error) {
-          console.error("Cappy KnowStack error:", error);
           vscode.window.showErrorMessage(`Cappy KnowStack failed: ${error}`);
+          return "";
         }
       }
     );
@@ -116,16 +93,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
-    // Aliases to the same implementation
-    const getNewTaskInstructionCommandAlias1 = vscode.commands.registerCommand(
-      "cappy.getNewTaskInstruction",
-      async (args?: Record<string, string>) => {
-        return vscode.commands.executeCommand(
-          "cappy.getNewTaskInstruction",
-          args
-        );
-      }
-    );
+    // Alias to the same implementation (hyphenated id)
     const getNewTaskInstructionCommandAlias2 = vscode.commands.registerCommand(
       "cappy-get-new-task-istruction",
       async (args?: Record<string, string>) => {
@@ -159,17 +127,10 @@ export function activate(context: vscode.ExtensionContext) {
       knowStackCommand,
       consentCommand,
       getNewTaskInstructionCommand,
-      getNewTaskInstructionCommandAlias1,
       getNewTaskInstructionCommandAlias2,
       getActiveTaskCommand
     );
-
-    console.log("🦫 Cappy Memory: All commands registered successfully");
-    vscode.window.showInformationMessage(
-      '🦫 Cappy Memory: Ready! Use "Cappy: Initialize" to set up your project.'
-    );
   } catch (error) {
-    console.error("🦫 Cappy Memory: Activation failed:", error);
     vscode.window.showErrorMessage(
       `🦫 Cappy Memory activation failed: ${error}`
     );
@@ -177,5 +138,5 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  console.log("🦫 Cappy Memory: Deactivation");
+  vscode.window.showErrorMessage(`🦫 Cappy Memory: Deactivation`);
 }

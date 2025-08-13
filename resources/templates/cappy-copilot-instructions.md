@@ -1,3 +1,5 @@
+<!-- CAPPY INI -->
+````instructions
 # 🔨 Cappy — Instruções para GitHub Copilot (LLM Runtime)
 
 ## 🎯 Objetivo
@@ -177,3 +179,6 @@ Padronizar como a LLM interage com o projeto Cappy: criar/seguir tarefas em XML,
 ## 📝 Notas finais
 - Padronize o **kebab-case** do `id` e alias dos comandos.  
 - Mantenha coerência: `cappy:taskstatus` (não use `cappy:task:status`).
+
+````
+<!-- CAPPY END -->
