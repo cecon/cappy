@@ -1,4 +1,4 @@
-# Sistema de Versionamento de Instruções - Capybara
+# Sistema de Versionamento de Instruções - Cappy
 
 ## 🎯 **Como Funciona**
 
@@ -6,7 +6,7 @@ O sistema de versionamento garante que as instruções LLM estejam sempre atuali
 
 ### **Fluxo de Atualização:**
 
-1. **Verificação de Versão**: `initCapybara.ts` compara `config.instructionsVersion` com versão da extensão
+1. **Verificação de Versão**: `initCappy.ts` compara `config.instructionsVersion` com versão da extensão
 2. **Atualização Automática**: Se versão for diferente, remove `.capy/instructions/` e copia nova versão
 3. **Fonte Única**: Todos os arquivos vêm de `resources/instructions/`
 4. **Preservação de Dados**: Apenas instructions são atualizadas, config e prevention-rules são mantidos
@@ -16,8 +16,8 @@ O sistema de versionamento garante que as instruções LLM estejam sempre atuali
 ```
 Extension:
 ├── resources/instructions/          ← FONTE DE VERDADE
-│   ├── capybara-methodology.md     ← Princípios Capybara
-│   ├── capybara-patterns.md        ← Padrões de decomposição  
+│   ├── cappy-methodology.md     ← Princípios Cappy
+│   ├── cappy-patterns.md        ← Padrões de decomposição  
 │   ├── script-new-task.xml         ← Script: New task (create and prepare)
 │   ├── script-view-current-task.xml    ← Script: Ver progresso
 │   ├── script-marcar-step-concluido.md ← Script: Completar step
@@ -41,10 +41,10 @@ Projeto:
 ### **Código Responsável:**
 
 ```typescript
-// src/models/capybaraConfig.ts
+// src/models/cappyConfig.ts
 instructionsVersion: '2.0.0'  // ← Versão atual
 
-// src/commands/initCapybara.ts
+// src/commands/initCappy.ts
 await this.updateInstructionsFiles(capyDir, config);
 ```
 
@@ -59,7 +59,7 @@ await this.updateInstructionsFiles(capyDir, config);
 ### **Para Desenvolvedores:**
 
 1. **Adicionar nova instrução**: Criar arquivo em `resources/instructions/`
-2. **Atualizar versão**: Incrementar `instructionsVersion` em `capybaraConfig.ts`
+2. **Atualizar versão**: Incrementar `instructionsVersion` em `cappyConfig.ts`
 3. **Deploy**: Usuários recebem automática na próxima inicialização
 
 ---

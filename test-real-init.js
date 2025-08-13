@@ -3,16 +3,16 @@ const path = require('path');
 
 // Importar as classes reais da extensão compilada
 try {
-    const { InitCapybaraCommand } = require('./out/commands/initCapybara');
+    const { InitCappyCommand } = require('./out/commands/initCappy');
     const { FileManager } = require('./out/utils/fileManager');
     
     console.log('✅ Classes importadas com sucesso');
     
     // Criar um teste mais realista
     async function testRealInitialization() {
-        console.log('🧪 Teste REAL da inicialização do Capybara...\n');
+        console.log('🧪 Teste REAL da inicialização do Cappy...\n');
         
-        const testWorkspacePath = 'd:\\projetos\\test-capybara-real';
+        const testWorkspacePath = 'd:\\projetos\\test-cappy-real';
         
         // Criar workspace de teste
         try {
@@ -61,9 +61,9 @@ try {
         try {
             // Criar instância real das classes
             const fileManager = new FileManager();
-            const initCommand = new InitCapybaraCommand(fileManager);
+            const initCommand = new InitCappyCommand(fileManager);
             
-            console.log('🚀 Executando InitCapybaraCommand...\n');
+            console.log('🚀 Executando InitCappyCommand...\n');
             
             // Executar o comando real
             const result = await initCommand.execute();
@@ -84,7 +84,7 @@ try {
             const expectedFiles = [
                 '.capy/config.json',
                 '.capy/prevention-rules.md',
-                '.capy/instructions/capybara-task-file-structure-info.md'
+                '.capy/instructions/cappy-task-file-structure-info.md'
             ];
             
             for (const dir of expectedDirs) {

@@ -2,7 +2,7 @@ import * as path from 'path';
 const mocha = require('mocha');
 
 export function run(): Promise<void> {
-    console.log('🦫 Starting Capybara tests...');
+    console.log('🦫 Starting Cappy tests...');
     
     // Create the mocha test
     const mochaInstance = new mocha({
@@ -16,13 +16,13 @@ export function run(): Promise<void> {
     return new Promise((resolve, reject) => {
         try {
             // Add the main test file
-            const mainTestFile = path.resolve(testsRoot, 'capybara.test.js');
+            const mainTestFile = path.resolve(testsRoot, 'cappy.test.js');
             console.log(`Adding main test file: ${mainTestFile}`);
             mochaInstance.addFile(mainTestFile);
             
-            // Add the InitCapybara test file
-            const initTestFile = path.resolve(testsRoot, 'initCapybara.test.js');
-            console.log(`Adding InitCapybara test file: ${initTestFile}`);
+            // Add the InitCappy test file
+            const initTestFile = path.resolve(testsRoot, 'initCappy.test.js');
+            console.log(`Adding InitCappy test file: ${initTestFile}`);
             mochaInstance.addFile(initTestFile);
             
             // Optionally add other test files ONLY if their TypeScript sources exist.
@@ -57,7 +57,7 @@ export function run(): Promise<void> {
                 if (failures > 0) {
                     reject(new Error(`${failures} tests failed.`));
                 } else {
-                    console.log('✅ All Capybara tests passed!');
+                    console.log('✅ All Cappy tests passed!');
                     resolve();
                 }
             });

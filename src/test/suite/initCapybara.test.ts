@@ -3,30 +3,30 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { InitCapybaraCommand } from '../../commands/initCapybara';
+import { InitCappyCommand } from '../../commands/initCappy';
 import { FileManager } from '../../utils/fileManager';
 
-suite('🔨 InitCapybara Command Test Suite', () => {
+suite('🔨 InitCappy Command Test Suite', () => {
     let testWorkspaceDir: string;
     let fileManager: FileManager;
-    let initCommand: InitCapybaraCommand;
+    let initCommand: InitCappyCommand;
 
     suiteSetup(async () => {
-        console.log('🧪 Setting up InitCapybara test suite...');
+        console.log('🧪 Setting up InitCappy test suite...');
         
         // Create a temporary workspace directory for testing
-        testWorkspaceDir = path.join(os.tmpdir(), 'capybara-test-' + Date.now());
+        testWorkspaceDir = path.join(os.tmpdir(), 'cappy-test-' + Date.now());
         await fs.promises.mkdir(testWorkspaceDir, { recursive: true });
         
         // Initialize dependencies
         fileManager = new FileManager();
-        initCommand = new InitCapybaraCommand();
+        initCommand = new InitCappyCommand();
         
         console.log(`✅ Test workspace created at: ${testWorkspaceDir}`);
     });
 
     suiteTeardown(async () => {
-        console.log('🧹 Cleaning up InitCapybara test suite...');
+        console.log('🧹 Cleaning up InitCappy test suite...');
         
         // Clean up test workspace
         try {
@@ -37,7 +37,7 @@ suite('🔨 InitCapybara Command Test Suite', () => {
         }
     });
 
-    test('🏗️ Should create basic Capybara directory structure', async () => {
+    test('🏗️ Should create basic Cappy directory structure', async () => {
         // Create a test project structure
         const projectDir = path.join(testWorkspaceDir, 'test-project-structure');
         await fs.promises.mkdir(projectDir, { recursive: true });
@@ -74,7 +74,7 @@ suite('🔨 InitCapybara Command Test Suite', () => {
             const result = await initCommand.execute();
             
             // Verify the command succeeded
-            assert.strictEqual(result, true, 'InitCapybara command should return true on success');
+            assert.strictEqual(result, true, 'InitCappy command should return true on success');
 
             // Verify .capy directory was created
             const capyDir = path.join(projectDir, '.capy');
@@ -166,7 +166,7 @@ suite('🔨 InitCapybara Command Test Suite', () => {
                 .catch(() => false);
             assert.strictEqual(giExists, true, '.gitignore should exist');
             const giContent = await fs.promises.readFile(giPath, 'utf8');
-            assert.ok(giContent.includes('# Capybara - Private AI Instructions'), 'gitignore should include header');
+            assert.ok(giContent.includes('# Cappy - Private AI Instructions'), 'gitignore should include header');
             assert.ok(giContent.includes('.github/copilot-instructions.md'), 'gitignore should ignore copilot instructions');
 
             console.log('✅ Configuration files test passed');
@@ -203,7 +203,7 @@ suite('🔨 InitCapybara Command Test Suite', () => {
         }
     });
 
-    test('⚠️ Should handle existing Capybara installation', async () => {
+    test('⚠️ Should handle existing Cappy installation', async () => {
         const projectDir = path.join(testWorkspaceDir, 'test-project-existing');
         await fs.promises.mkdir(projectDir, { recursive: true });
         
@@ -273,7 +273,7 @@ dist/`;
             
             assert.ok(gitignoreContent.includes('node_modules/'), 'Should preserve existing entries');
             // We no longer require ignoring copilot-instructions.md here, but keep backward compatibility if present
-            assert.ok(gitignoreContent.includes('# Capybara - Private AI Instructions'), 'Should add Capybara comment');
+            assert.ok(gitignoreContent.includes('# Cappy - Private AI Instructions'), 'Should add Cappy comment');
 
             console.log('✅ .gitignore update test passed');
         } finally {

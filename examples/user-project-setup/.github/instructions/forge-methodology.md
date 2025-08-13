@@ -1,8 +1,8 @@
-# Capybara Methodology - Complete Workflow
+# Cappy Methodology - Complete Workflow
 
-## 🎯 **Capybara Core Rules**
+## 🎯 **Cappy Core Rules**
 
-When asked to "create STEP_XX" or "set up Capybara structure":
+When asked to "create STEP_XX" or "set up Cappy structure":
 
 1. **Always create this folder structure:**
 ```

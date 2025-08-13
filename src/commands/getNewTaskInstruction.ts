@@ -38,7 +38,7 @@ function getExtensionRoot(context?: vscode.ExtensionContext): string {
         path.resolve(__dirname, '../../..')
     ].filter(Boolean) as string[];
     for (const base of candidates) {
-        const tpl = path.join(base, 'resources', 'templates', 'capybara-copilot-instructions.md');
+        const tpl = path.join(base, 'resources', 'templates', 'cappy-copilot-instructions.md');
         if (fs.existsSync(tpl)) {
             return base;
         }
@@ -98,12 +98,12 @@ export async function getNewTaskInstruction(context?: vscode.ExtensionContext, a
     const merged: Record<string, string> = { ...defaults, ...(args || {}) };
 
     const extRoot = getExtensionRoot(context);
-    const templatePath = path.join(extRoot, 'resources', 'templates', 'capybara-copilot-instructions.md');
+    const templatePath = path.join(extRoot, 'resources', 'templates', 'cappy-copilot-instructions.md');
     let template: string;
     try {
         template = await fs.promises.readFile(templatePath, 'utf8');
     } catch (e) {
-        const fallback = '# Capybara Copilot Instructions\n';
+        const fallback = '# Cappy Copilot Instructions\n';
         template = fallback;
     }
 

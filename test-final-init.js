@@ -1,10 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 
-async function testCapybaraInitializationFlow() {
-    console.log('🧪 TESTE COMPLETO: Fluxo de Inicialização do Capybara\n');
+async function testCappyInitializationFlow() {
+    console.log('🧪 TESTE COMPLETO: Fluxo de Inicialização do Cappy\n');
     
-    const testWorkspacePath = 'd:\\projetos\\test-capybara-final';
+    const testWorkspacePath = 'd:\\projetos\\test-cappy-final';
     
     // Limpar e criar workspace
     try {
@@ -18,7 +18,7 @@ async function testCapybaraInitializationFlow() {
     
     // Criar alguns arquivos para simular um projeto real
     await fs.promises.writeFile(path.join(testWorkspacePath, 'package.json'), JSON.stringify({
-        name: 'test-capybara-final',
+        name: 'test-cappy-final',
         version: '1.0.0',
         main: 'index.js',
         dependencies: {
@@ -67,7 +67,7 @@ app.listen(3000, () => {
     
     const projectInfo = {
         name: projectName,
-        description: `Projeto ${projectName} - Desenvolvimento solo com Capybara`,
+        description: `Projeto ${projectName} - Desenvolvimento solo com Cappy`,
         language: languages[0],
         languages: languages,
         framework: frameworks,
@@ -76,7 +76,7 @@ app.listen(3000, () => {
     
     console.log('✅ Projeto detectado:', projectInfo);
     
-    // **PASSO 3: Criar configuração (simulando CapybaraConfig)**
+    // **PASSO 3: Criar configuração (simulando CappyConfig)**
     console.log('\\n3️⃣ CRIANDO CONFIGURAÇÃO...');
     
     const config = {
@@ -131,7 +131,7 @@ app.listen(3000, () => {
     // **PASSO 5: Criar instruções para Copilot (template embeddido)**
     console.log('\\n5️⃣ CRIANDO INSTRUÇÕES PARA COPILOT...');
     
-    const copilotInstructionsTemplate = `# 🔨 Capybara - Instruções para GitHub Copilot
+    const copilotInstructionsTemplate = `# 🔨 Cappy - Instruções para GitHub Copilot
 
 ## 📋 **CONTEXTO DO PROJETO**
 - **Projeto**: ${config.project.name}
@@ -139,8 +139,8 @@ app.listen(3000, () => {
 - **Linguagem Principal**: ${config.project.language.join(', ')}
 - **Frameworks**: ${config.project.framework.join(', ')}
 
-## 🎯 **METODOLOGIA Capybara**
-Este projeto usa a metodologia Capybara (Focus, Organize, Record, Grow, Evolve) para desenvolvimento solo:
+## 🎯 **METODOLOGIA Cappy**
+Este projeto usa a metodologia Cappy (Focus, Organize, Record, Grow, Evolve) para desenvolvimento solo:
 
 ### **Princípios:**
 1. **Tarefas Atômicas**: Máximo 2-3 horas por STEP
@@ -162,10 +162,10 @@ Este projeto usa a metodologia Capybara (Focus, Organize, Record, Grow, Evolve) 
     // **PASSO 6: Criar arquivo de instruções XML**
     console.log('\\n6️⃣ CRIANDO ARQUIVO DE INSTRUÇÕES XML...');
     
-    const xmlInstructionsTemplate = `# LLM Instructions: XML Task Generation for Capybara Methodology
+    const xmlInstructionsTemplate = `# LLM Instructions: XML Task Generation for Cappy Methodology
 
 ## Overview
-You are responsible for creating XML task structures that follow the Capybara methodology.
+You are responsible for creating XML task structures that follow the Cappy methodology.
 
 ## File Naming Convention
 Task files should be named: \`STEP_[UNIX_TIMESTAMP]_[title].xml\`
@@ -208,7 +208,7 @@ Task files should be named: \`STEP_[UNIX_TIMESTAMP]_[title].xml\`
 \`\`\`
 `;
     
-    const xmlInstructionsPath = path.join(capyDir, 'instructions', 'capybara-task-file-structure-info.md');
+    const xmlInstructionsPath = path.join(capyDir, 'instructions', 'cappy-task-file-structure-info.md');
     await fs.promises.writeFile(xmlInstructionsPath, xmlInstructionsTemplate, 'utf8');
     console.log('✅ Instruções XML criadas:', xmlInstructionsPath);
     
@@ -221,18 +221,18 @@ Task files should be named: \`STEP_[UNIX_TIMESTAMP]_[title].xml\`
 
 ## 📝 **Como usar:**
 1. Quando encontrar um erro/problema, documente aqui
-2. Use o comando "Capybara: Add Prevention Rule" para facilitar
+2. Use o comando "Cappy: Add Prevention Rule" para facilitar
 3. As regras são automaticamente incluídas no contexto do Copilot
 
 ---
 
 ## 🏗️ **Regras Gerais**
 
-### [SETUP] Inicialização do Capybara
-**Context:** Ao inicializar Capybara pela primeira vez  
+### [SETUP] Inicialização do Cappy
+**Context:** Ao inicializar Cappy pela primeira vez  
 **Problem:** Usuário pode tentar usar comandos não implementados  
 **Solution:** Sempre informar sobre comandos funcionais vs placeholders  
-**Example:** Após \`Capybara: Initialize\`, usar \`Capybara: Create New Task\` (funcional)
+**Example:** Após \`Cappy: Initialize\`, usar \`Cappy: Create New Task\` (funcional)
 
 ### [NODE] Configuração Express
 **Context:** Desenvolvimento de APIs Node.js com Express  
@@ -253,7 +253,7 @@ Task files should be named: \`STEP_[UNIX_TIMESTAMP]_[title].xml\`
     console.log('\\n8️⃣ ATUALIZANDO .GITIGNORE...');
     
     const gitignoreEntries = `
-# Capybara - Private AI Instructions
+# Cappy - Private AI Instructions
 .github/copilot-instructions.md
 
 # Node.js
@@ -277,7 +277,7 @@ yarn-error.log*
         '.capy/prevention-rules.md',
         '.capy/history',
         '.capy/instructions',
-        '.capy/instructions/capybara-task-file-structure-info.md',
+        '.capy/instructions/cappy-task-file-structure-info.md',
         '.capy/tasks',
         '.github',
         '.github/copilot-instructions.md',
@@ -337,7 +337,7 @@ yarn-error.log*
 }
 
 // Executar teste
-testCapybaraInitializationFlow().catch(error => {
+testCappyInitializationFlow().catch(error => {
     console.error('💥 ERRO CRÍTICO:', error);
     console.error('Stack:', error.stack);
 });

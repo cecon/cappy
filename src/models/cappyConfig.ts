@@ -1,4 +1,4 @@
-export interface CapybaraConfig {
+export interface CappyConfig {
     version: string;
     instructionsVersion: string; // Versão dos arquivos de instruções
     project: {
@@ -61,7 +61,7 @@ export interface CapybaraConfig {
     lastUpdated: Date;
 }
 
-export const DEFAULT_CAPYBARA_CONFIG: Partial<CapybaraConfig> = {
+export const DEFAULT_CAPYBARA_CONFIG: Partial<CappyConfig> = {
     version: '1.0.0',
     instructionsVersion: '2.0.0', // Nova versão com scripts LLM
     stack: {

@@ -2,7 +2,7 @@ import * as path from 'path';
 const mocha = require('mocha');
 
 export function run(): Promise<void> {
-    console.log('🦫 Starting Capybara Simple Tests...');
+    console.log('🦫 Starting Cappy Simple Tests...');
     
     // Create the mocha test
     const mochaInstance = new mocha({

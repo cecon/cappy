@@ -1,14 +1,14 @@
 {
-    "Capybara Prevention Rule": {
-        "prefix": "capybara-rule",
+    "Cappy Prevention Rule": {
+        "prefix": "cappy-rule",
         "body": [
             "❌ **DON'T** ${1:problem description} → ${2:solution description}",
             "   *Source: ${3:TASK_XX}, Time Lost: ${4:2}h, Confidence: ${5:4}/5*"
         ],
-        "description": "Add a new Capybara prevention rule"
+        "description": "Add a new Cappy prevention rule"
     },
-    "Capybara Task Structure": {
-        "prefix": "capybara-task",
+    "Cappy Task Structure": {
+        "prefix": "cappy-task",
         "body": [
             "# Task: ${1:Task Name}",
             "",
@@ -35,10 +35,10 @@
             "---",
             "*Created: ${CURRENT_DATE}*"
         ],
-        "description": "Create a new Capybara task structure"
+        "description": "Create a new Cappy task structure"
     },
-    "Capybara Task Completion": {
-        "prefix": "capybara-complete",
+    "Cappy Task Completion": {
+        "prefix": "cappy-complete",
         "body": [
             "# Task Completion: ${1:Task Name}",
             "",
@@ -67,10 +67,10 @@
             "---",
             "*Completed: ${CURRENT_DATE}*"
         ],
-        "description": "Complete a Capybara task"
+        "description": "Complete a Cappy task"
     },
-    "Capybara Difficulty Entry": {
-        "prefix": "capybara-difficulty",
+    "Cappy Difficulty Entry": {
+        "prefix": "cappy-difficulty",
         "body": [
             "### ${1:Problem Title}",
             "**Issue:** ${2:Description of what went wrong}",

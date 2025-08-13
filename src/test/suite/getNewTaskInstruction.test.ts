@@ -3,10 +3,10 @@ import * as vscode from 'vscode';
 
 suite('🧩 GetNewTaskInstruction Command Tests', () => {
     test('Returns processed instruction from canonical command', async () => {
-        const result = await vscode.commands.executeCommand<string>('capybara.getNewTaskInstruction');
+        const result = await vscode.commands.executeCommand<string>('cappy.getNewTaskInstruction');
         assert.strictEqual(typeof result, 'string');
         assert.ok(result.length > 0, 'Result should not be empty');
-        assert.ok(result.includes('Capybara'), 'Result should include Capybara branding');
+        assert.ok(result.includes('Cappy'), 'Result should include Cappy branding');
     });
 
     test('Alias cappy.getNewTaskInstruction works', async () => {

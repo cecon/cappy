@@ -1,8 +1,8 @@
-# 🔄 Migração para Tasks XML - Capybara v2.2.0
+# 🔄 Migração para Tasks XML - Cappy v2.2.0
 
 ## 📋 O que mudou?
 
-A partir da versão 2.2.0, o Capybara utiliza um **arquivo XML único** para definir e gerenciar tasks, substituindo o sistema anterior de múltiplos arquivos Markdown.
+A partir da versão 2.2.0, o Cappy utiliza um **arquivo XML único** para definir e gerenciar tasks, substituindo o sistema anterior de múltiplos arquivos Markdown.
 
 ## 🎯 Principais Benefícios
 
@@ -26,7 +26,7 @@ A partir da versão 2.2.0, o Capybara utiliza um **arquivo XML único** para def
 
 ```
 .capy/
-├── config.json                         # Configurações do Capybara
+├── config.json                         # Configurações do Cappy
 ├── prevention-rules.md                 # Regras de prevenção (mantido)
 ├── task-id-exemplo/                    # Pasta da task (novo padrão)
 │   ├── task.xml                        # ⭐ Arquivo principal da task
@@ -107,7 +107,7 @@ A partir da versão 2.2.0, o Capybara utiliza um **arquivo XML único** para def
 
 ### 1. **Criar Task**
 ```bash
-Ctrl+Shift+P → "Capybara: Create New Task"
+Ctrl+Shift+P → "Cappy: Create New Task"
 ```
 - Define ID, título, descrição e tecnologia principal
 - Gera `task.xml` com steps básicos
@@ -115,7 +115,7 @@ Ctrl+Shift+P → "Capybara: Create New Task"
 
 ### 2. **Acompanhar Progresso**
 ```bash
-Ctrl+Shift+P → "Capybara: Show Step Progress"
+Ctrl+Shift+P → "Cappy: Show Step Progress"
 ```
 - Visualiza status de todos os steps
 - Mostra dependências e critérios
@@ -123,7 +123,7 @@ Ctrl+Shift+P → "Capybara: Show Step Progress"
 
 ### 3. **Marcar Steps como Concluídos**
 ```bash
-Ctrl+Shift+P → "Capybara: Mark Step Completed"
+Ctrl+Shift+P → "Cappy: Mark Step Completed"
 ```
 - Seleciona step para marcar como concluído
 - Valida dependências automaticamente
@@ -131,7 +131,7 @@ Ctrl+Shift+P → "Capybara: Mark Step Completed"
 
 ### 4. **Completar Task**
 ```bash
-Ctrl+Shift+P → "Capybara: Complete Current Task"
+Ctrl+Shift+P → "Cappy: Complete Current Task"
 ```
 - Move task para `.capy/history/STEP_XXXX_nome/`
 - Preserva todo o histórico em XML
@@ -160,15 +160,15 @@ O arquivo `.github/copilot-instructions.md` foi atualizado para incluir:
 ## 🛠️ Comandos Disponíveis
 
 ### ✅ **Novos Comandos Funcionais:**
-- `Capybara: Create New Task` - Cria task em XML
-- `Capybara: Show Step Progress` - Visualiza progresso detalhado
-- `Capybara: Mark Step Completed` - Marca step como concluído
-- `Capybara: Mark Step Incomplete` - Reverte conclusão de step
+- `Cappy: Create New Task` - Cria task em XML
+- `Cappy: Show Step Progress` - Visualiza progresso detalhado
+- `Cappy: Mark Step Completed` - Marca step como concluído
+- `Cappy: Mark Step Incomplete` - Reverte conclusão de step
 
 ### 🚧 **Em Desenvolvimento:**
-- `Capybara: Complete Task` - Completar e mover para histórico
-- `Capybara: Resume Task` - Retomar task pausada
-- `Capybara: Manage All Tasks` - Gerenciar múltiplas tasks
+- `Cappy: Complete Task` - Completar e mover para histórico
+- `Cappy: Resume Task` - Retomar task pausada
+- `Cappy: Manage All Tasks` - Gerenciar múltiplas tasks
 
 ## 📝 Exemplos Práticos
 

@@ -1,4 +1,4 @@
-## 📋 **Resumo da Metodologia Capybara Revisada**
+## 📋 **Resumo da Metodologia Cappy Revisada**
 
 ### ✅ **Implementações Concluídas:**
 
@@ -42,7 +42,7 @@ LLM: Verifica tasks ativas em .capy/tasks/
     ↓
 LLM: [Se há task ativa] Pergunta se deve pausar
     ↓
-LLM: Lê instruções de .capy/instructions/capybara-task-file-structure-info.md
+LLM: Lê instruções de .capy/instructions/cappy-task-file-structure-info.md
     ↓
 LLM: Analisa atomicidade ("Setup Supabase Auth" = ATÔMICA)
     ↓
@@ -72,13 +72,13 @@ A metodologia está **100% funcional** e alinhada com a implementação. O siste
 4. ✅ Aplica princípio de atomicidade automaticamente
 5. ✅ Acumula prevention rules progressivamente
 
-**A Capybara Methodology está pronta para uso produtivo!** 🎉
+**A Cappy Methodology está pronta para uso produtivo!** 🎉
 
 ### 📖 **Documentação Completa:**
 
-- `capybara-methodology.md` - Metodologia completa revisada
-- `capybara-task-file-structure-info.md` - Instruções técnicas para LLM  
+- `cappy-methodology.md` - Metodologia completa revisada
+- `cappy-task-file-structure-info.md` - Instruções técnicas para LLM  
 - `task-example-supabase-auth.xml` - Exemplo prático de task XML
-- Implementação em `initCapybara.ts` - Código funcional
+- Implementação em `initCappy.ts` - Código funcional
 
 **Resultado: Desenvolvimento focado, estruturado e com aprendizado contínuo!** 🚀

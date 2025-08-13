@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
-export class InitCapybaraCommand {
+export class InitCappyCommand {
     constructor(        
         private extensionContext?: vscode.ExtensionContext
     ) {}
@@ -12,7 +12,7 @@ export class InitCapybaraCommand {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
                 const openFolder = await vscode.window.showInformationMessage(
-                    '🔨 Capybara precisa de uma pasta de projeto para ser inicializado.\n\nAbra uma pasta primeiro e depois execute "Capybara: Initialize" novamente.',
+                    '🔨 Cappy precisa de uma pasta de projeto para ser inicializado.\n\nAbra uma pasta primeiro e depois execute "Cappy: Initialize" novamente.',
                     'Abrir Pasta', 'Cancelar'
                 );
                 
@@ -26,32 +26,32 @@ export class InitCapybaraCommand {
                 return false;
             }
 
-            const capyDir = path.join(workspaceFolder.uri.fsPath, '.capy');
+            const capyDir = path.join(workspaceFolder.uri.fsPath, '.cappy');
             const githubDir = path.join(workspaceFolder.uri.fsPath, '.github');
 
             // Mostrar progresso
             return await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
-                title: '🔨 Inicializando Capybara',
+                title: '🔨 Inicializando Cappy',
                 cancellable: false
             }, async (progress) => {
                 
                 progress.report({ increment: 0, message: 'Verificando estrutura...' });
 
-                // 1. Verificar/Criar pasta .capy
-                await this.setupCapyDirectory(capyDir);
+                // 1. Verificar/Criar pasta .cappy
+                await this.setupCappyDirectory(capyDir);
 
                 progress.report({ increment: 40, message: 'Criando config.yaml...' });
 
                 // 2. Criar config.yaml com versão da extensão
-                const ext = vscode.extensions.getExtension('eduardocecon.capybara-memory');
+                const ext = vscode.extensions.getExtension('eduardocecon.cappy-memory');
                 const extVersion = ext?.packageJSON?.version || '0.0.0';
                 await this.createConfigYaml(capyDir, extVersion);
 
                 // 2.1 Garantir stack.md vazio na instalação inicial
                 await this.ensureStackFile(capyDir);
 
-                progress.report({ increment: 65, message: 'Criando instruções locais do Capybara...' });
+                progress.report({ increment: 65, message: 'Criando instruções locais do Cappy...' });
 
                 // 3. (Alterado) Não injeta mais CAPY:CONFIG no copilot-instructions.md
                 // Mantemos apenas as instruções locais em .capy/instructions
@@ -72,7 +72,7 @@ export class InitCapybaraCommand {
                     const cfgPath = path.join(capyDir, 'config.yaml');
                     await fs.promises.access(cfgPath, fs.constants.F_OK);
                 } catch {
-                    const ext = vscode.extensions.getExtension('eduardocecon.capybara-memory');
+                    const ext = vscode.extensions.getExtension('eduardocecon.cappy-memory');
                     const extVersion = ext?.packageJSON?.version || '0.0.0';
                     await this.createConfigYaml(capyDir, extVersion);
                 }
@@ -80,21 +80,21 @@ export class InitCapybaraCommand {
                 progress.report({ increment: 100, message: 'Finalizado!' });
 
                 vscode.window.showInformationMessage(
-                    '🎉 Capybara inicializado com sucesso! Use "Capybara: Create New Task" para começar.'
+                    '🎉 Cappy inicializado com sucesso! Use "Cappy: Create New Task" para começar.'
                 );
 
                 return true;
             });
 
         } catch (error) {
-            vscode.window.showErrorMessage(`Erro ao inicializar Capybara: ${error}`);
+            vscode.window.showErrorMessage(`Erro ao inicializar Cappy: ${error}`);
             return false;
         }
     }
 
-    private async setupCapyDirectory(capyDir: string): Promise<void> {
+    private async setupCappyDirectory(capyDir: string): Promise<void> {
         try {
-            // Verificar se .capy já existe
+            // Verificar se .cappy já existe
             await fs.promises.access(capyDir, fs.constants.F_OK);
             
             // Se existe, verificar se tem config.yaml
@@ -123,15 +123,15 @@ export class InitCapybaraCommand {
     }
 
     private async createConfigYaml(capyDir: string, extensionVersion: string): Promise<void> {
-                const configContent = `# Capybara Configuration
+                const configContent = `# Cappy Configuration
 version: "${extensionVersion}"
 
-capybara:
+cappy:
     initialized_at: "${new Date().toISOString()}"
     last_updated: "${new Date().toISOString()}"
 
 stack:
-    source: ".capy/stack.md"
+    source: ".cappy/stack.md"
     validated: false
     validated_at:
 
@@ -171,7 +171,7 @@ instructions:
         ].filter(Boolean) as string[];
 
         for (const base of candidatePaths) {
-            const tpl = path.join(base, 'resources', 'templates', 'capybara-copilot-instructions.md');
+            const tpl = path.join(base, 'resources', 'templates', 'cappy-copilot-instructions.md');
             const instr = path.join(base, 'resources', 'instructions');
             try {
                 if (fs.existsSync(tpl) && fs.existsSync(instr)) {
@@ -198,7 +198,7 @@ instructions:
     private async ensureGithubCopilotInstructions(workspaceRoot: string): Promise<void> {
         const githubDir = path.join(workspaceRoot, '.github');
         const targetPath = path.join(githubDir, 'copilot-instructions.md');
-        const templatePath = path.join(this.getExtensionRoot(), 'resources', 'templates', 'capybara-copilot-instructions.md');
+        const templatePath = path.join(this.getExtensionRoot(), 'resources', 'templates', 'cappy-copilot-instructions.md');
 
         await fs.promises.mkdir(githubDir, { recursive: true });
 
@@ -218,7 +218,7 @@ instructions:
             await fs.promises.writeFile(targetPath, content, 'utf8');
         } catch (err: any) {
             if (err?.code === 'ENOENT') {
-                await fs.promises.writeFile(targetPath, '# Capybara Copilot Instructions\n', 'utf8');
+                await fs.promises.writeFile(targetPath, '# Cappy Copilot Instructions\n', 'utf8');
             } else {
                 throw err;
             }
@@ -236,7 +236,7 @@ instructions:
             }
         }
 
-        const header = '# Capybara - Private AI Instructions';
+        const header = '# Cappy - Private AI Instructions';
         const entry = '.github/copilot-instructions.md';
 
         let changed = false;

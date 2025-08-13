@@ -1,4 +1,4 @@
-# Capybara Patterns - Context-Specific Guidelines
+# Cappy Patterns - Context-Specific Guidelines
 
 ## 🚨 **Known Patterns to AVOID**
 

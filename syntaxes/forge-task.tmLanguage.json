@@ -1,67 +1,67 @@
 {
     "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-    "name": "Capybara Task Markdown",
-    "scopeName": "text.html.markdown.capybara",
+    "name": "Cappy Task Markdown",
+    "scopeName": "text.html.markdown.cappy",
     "patterns": [
         {
             "include": "text.html.markdown"
         },
         {
-            "name": "markup.bold.capybara.prevention-rule",
+            "name": "markup.bold.cappy.prevention-rule",
             "match": "❌\\s*\\*\\*DON'T\\*\\*.*?→.*$",
             "captures": {
                 "0": {
-                    "name": "markup.bold.capybara.prevention-rule"
+                    "name": "markup.bold.cappy.prevention-rule"
                 }
             }
         },
         {
-            "name": "markup.italic.capybara.source",
+            "name": "markup.italic.cappy.source",
             "match": "\\*Source:.*?\\*",
             "captures": {
                 "0": {
-                    "name": "markup.italic.capybara.source"
+                    "name": "markup.italic.cappy.source"
                 }
             }
         },
         {
-            "name": "entity.name.section.capybara.task-header",
+            "name": "entity.name.section.cappy.task-header",
             "match": "^# Task: .*$"
         },
         {
-            "name": "entity.name.section.capybara.completion-header", 
+            "name": "entity.name.section.cappy.completion-header", 
             "match": "^# Task Completion: .*$"
         },
         {
-            "name": "entity.name.section.capybara.difficulty-header",
+            "name": "entity.name.section.cappy.difficulty-header",
             "match": "^# Difficulties & Prevention Rules: .*$"
         },
         {
-            "name": "markup.heading.capybara.emoji-section",
+            "name": "markup.heading.cappy.emoji-section",
             "match": "^## [🎯📋🚫⏱️✅📊🔧📁🎓📈🚨].*$"
         },
         {
-            "name": "constant.character.capybara.checkbox-checked",
+            "name": "constant.character.cappy.checkbox-checked",
             "match": "- \\[x\\].*$"
         },
         {
-            "name": "variable.other.capybara.checkbox-unchecked",
+            "name": "variable.other.cappy.checkbox-unchecked",
             "match": "- \\[ \\].*$"
         },
         {
-            "name": "markup.italic.capybara.metadata",
+            "name": "markup.italic.cappy.metadata",
             "match": "\\*\\*(Estimated|Actual|Variance|Atomicity):\\*\\*"
         },
         {
-            "name": "string.other.capybara.time-estimate",
+            "name": "string.other.cappy.time-estimate",
             "match": "\\b\\d+(\\.\\d+)?\\s*h\\b"
         },
         {
-            "name": "markup.inserted.capybara.atomic",
+            "name": "markup.inserted.cappy.atomic",
             "match": "✅\\s*Atomic"
         },
         {
-            "name": "markup.deleted.capybara.non-atomic",
+            "name": "markup.deleted.cappy.non-atomic",
             "match": "❌\\s*Not\\s*Atomic"
         }
     ]

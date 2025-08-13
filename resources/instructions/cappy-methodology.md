@@ -1,8 +1,8 @@
-# Metodologia Capybara - Princípios Fundamentais
+# Metodologia Cappy - Princípios Fundamentais
 
 ## 🎯 **Core da Metodologia**
 
-### **F.O.R.G.E - Os 5 Pilares**
+### **CAPPY - Os 5 Pilares**
 - **Focus**: Tarefas atômicas (1-3h máximo)
 - **Organize**: Estrutura XML para tracking
 - **Record**: Prevention rules automáticas 

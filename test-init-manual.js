@@ -1,18 +1,18 @@
 const path = require('path');
 const fs = require('fs').promises;
 
-// Simular o InitCapybaraCommand
-class TestInitCapybara {
+// Simular o InitCappyCommand
+class TestInitCappy {
     constructor() {
         this.extensionPath = 'd:\\projetos\\forge-framework';
     }
 
     async testInit() {
-        const workspacePath = 'd:\\temp\\test-capybara-init';
+        const workspacePath = 'd:\\temp\\test-cappy-init';
         const capyDir = path.join(workspacePath, '.capy');
         const githubDir = path.join(workspacePath, '.github');
 
-        console.log('🧪 Testando InitCapybara...');
+        console.log('🧪 Testando InitCappy...');
 
         try {
             // 1. Setup .capy directory
@@ -83,7 +83,7 @@ class TestInitCapybara {
 
         return {
             name: projectName,
-            description: `Projeto ${projectName} - Desenvolvimento solo com Capybara`,
+            description: `Projeto ${projectName} - Desenvolvimento solo com Cappy`,
             languages: languages.length > 0 ? languages : ['unknown'],
             framework: [],
             type: languages.length > 0 ? 'node-app' : 'general'
@@ -91,7 +91,7 @@ class TestInitCapybara {
     }
 
     async createConfigYaml(capyDir, projectInfo) {
-        const configContent = `# Capybara Configuration
+        const configContent = `# Cappy Configuration
 version: "1.0.0"
 project:
   name: "${projectInfo.name}"
@@ -102,7 +102,7 @@ project:
     - ${projectInfo.framework.map(fw => `"${fw}"`).join('\n    - ')}
   description: "${projectInfo.description}"
 
-capybara:
+cappy:
   initialized_at: "${new Date().toISOString()}"
   last_updated: "${new Date().toISOString()}"
   
@@ -124,7 +124,7 @@ instructions:
         const copilotInstructionsPath = path.join(githubDir, 'copilot-instructions.md');
         
         // Ler template das instruções
-        const templatePath = path.join(this.extensionPath, 'resources', 'templates', 'capybara-copilot-instructions.md');
+        const templatePath = path.join(this.extensionPath, 'resources', 'templates', 'cappy-copilot-instructions.md');
         const templateContent = await fs.readFile(templatePath, 'utf8');
 
         // Substituir placeholders
@@ -134,13 +134,13 @@ instructions:
             .replace(/{MAIN_LANGUAGE}/g, projectInfo.languages.join(', '))
             .replace(/{FRAMEWORKS}/g, projectInfo.framework?.join(', ') || 'Nenhum detectado');
 
-        const capybaraInstructions = `
+        const cappyInstructions = `
 -- CAPYBARA MEMORY INSTRUCTIONS INIT --
 ${instructions}
 -- CAPYBARA MEMORY INSTRUCTIONS END --
 `;
 
-        let finalContent = capybaraInstructions;
+        let finalContent = cappyInstructions;
 
         try {
             const existingContent = await fs.readFile(copilotInstructionsPath, 'utf8');
@@ -148,7 +148,7 @@ ${instructions}
                 /-- CAPYBARA MEMORY INSTRUCTIONS INIT --[\s\S]*?-- CAPYBARA MEMORY INSTRUCTIONS END --/g,
                 ''
             ).trim();
-            finalContent = cleanContent ? `${cleanContent}\n\n${capybaraInstructions}` : capybaraInstructions;
+            finalContent = cleanContent ? `${cleanContent}\n\n${cappyInstructions}` : cappyInstructions;
         } catch (error) {
             if (error.code !== 'ENOENT') {
                 console.error('Erro ao ler arquivo existente:', error);
@@ -213,7 +213,7 @@ ${instructions}
         if (copilotExists) {
             const content = await fs.readFile(path.join(githubDir, 'copilot-instructions.md'), 'utf8');
             const hasMarkers = content.includes('-- CAPYBARA MEMORY INSTRUCTIONS INIT --');
-            console.log(`    Marcadores Capybara: ${hasMarkers ? '✅' : '❌'}`);
+            console.log(`    Marcadores Cappy: ${hasMarkers ? '✅' : '❌'}`);
         }
     }
 
@@ -228,5 +228,5 @@ ${instructions}
 }
 
 // Executar teste
-const test = new TestInitCapybara();
+const test = new TestInitCappy();
 test.testInit().catch(console.error);

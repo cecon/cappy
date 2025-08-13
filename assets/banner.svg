@@ -31,12 +31,12 @@
   <circle cx="200" cy="320" r="100" fill="rgba(255,255,255,0.05)"/>
   <circle cx="1000" cy="80" r="120" fill="rgba(255,255,255,0.03)"/>
   
-  <!-- Capybara Logo -->
+  <!-- Cappy Logo -->
   <g transform="translate(100, 200) scale(0.8)">
     <!-- Background circle -->
     <circle cx="0" cy="0" r="45" fill="#FFFFFF" stroke="#E8F4FD" stroke-width="2" filter="url(#shadow)"/>
     
-    <!-- Capybara silhouette -->
+    <!-- Cappy silhouette -->
     <g>
       <!-- Body -->
       <ellipse cx="0" cy="8" rx="20" ry="12" fill="#2D5A87"/>
@@ -76,7 +76,7 @@
   
   <!-- Main Title -->
   <text x="190" y="180" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="800" fill="white" filter="url(#shadow)">
-    Capybara Framework
+    Cappy Framework
   </text>
   
   <!-- Subtitle -->

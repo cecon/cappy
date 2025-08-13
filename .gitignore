@@ -81,12 +81,12 @@ Thumbs.db
 test-results/
 coverage/
 
-# Capybara specific (Personal Development)
+# Cappy specific (Personal Development)
 .capy/
 .github/copilot-instructions.md
 .github/stack-instructions.md
 *.capy.lock
 .capy-context/
 
-# Capybara - Private AI Instructions
+# Cappy - Private AI Instructions
 .github/copilot-instructions.md

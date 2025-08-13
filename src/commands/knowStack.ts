@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 export async function runKnowStack(): Promise<void> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
-        vscode.window.showWarningMessage('Capybara: open a workspace folder to run KnowStack.');
+        vscode.window.showWarningMessage('Cappy: open a workspace folder to run KnowStack.');
         return;
     }
 

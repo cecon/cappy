@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { CapybaraConfig } from '../models/capybaraConfig';
+import { CappyConfig } from '../models/cappyConfig';
 
 export class FileManager {
     private workspaceRoot: string | null = null;
@@ -20,7 +20,7 @@ export class FileManager {
         return this.workspaceRoot;
     }
 
-    async writeCapybaraConfig(config: CapybaraConfig): Promise<void> {
+    async writeCappyConfig(config: CappyConfig): Promise<void> {
         const configPath = path.join(this.ensureWorkspace(), '.capy', 'config.yaml');
         // Ensure .capy directory exists
         const capyDir = path.dirname(configPath);
@@ -35,7 +35,7 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
         await fs.promises.writeFile(configPath, yaml, 'utf8');
     }
 
-    async readCapybaraConfig(): Promise<CapybaraConfig | null> {
+    async readCappyConfig(): Promise<CappyConfig | null> {
         const configPath = path.join(this.ensureWorkspace(), '.capy', 'config.yaml');
         
         try {
@@ -55,7 +55,7 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
                 analytics: { enabled: false, trackTime: false, trackEffectiveness: false },
                 createdAt: new Date(),
                 lastUpdated: new Date(),
-            } as CapybaraConfig;
+            } as CappyConfig;
         } catch (error) {
             return null;
         }
@@ -76,9 +76,9 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
     }
 
     /**
-     * Update or inject Capybara instructions in copilot-instructions.md with version control
+     * Update or inject Cappy instructions in copilot-instructions.md with version control
      */
-    async updateCapybaraInstructions(capybaraContent: string, version: string): Promise<void> {
+    async updateCappyInstructions(cappyContent: string, version: string): Promise<void> {
         const instructionsPath = await this.getCopilotInstructionsPath();
         const startMarker = `=====================START CAPYBARA MEMORY v${version}=====================`;
         const endMarker = `======================END CAPYBARA MEMORY v${version}======================`;
@@ -88,13 +88,13 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
             existingContent = await fs.promises.readFile(instructionsPath, 'utf8');
         }
 
-        // Remove any existing Capybara sections (any version)
-        const cleanedContent = this.removeExistingCapybaraSection(existingContent);
+        // Remove any existing Cappy sections (any version)
+        const cleanedContent = this.removeExistingCappySection(existingContent);
         
-        // Add new Capybara section
+        // Add new Cappy section
         const newContent = cleanedContent.trim() 
-            ? `${cleanedContent}\n\n${capybaraContent}`
-            : capybaraContent;
+            ? `${cleanedContent}\n\n${cappyContent}`
+            : cappyContent;
 
         // Ensure .github directory exists
         const githubDir = path.dirname(instructionsPath);
@@ -106,28 +106,28 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
     }
 
     /**
-     * Remove existing Capybara section from content
+     * Remove existing Cappy section from content
      */
-    private removeExistingCapybaraSection(content: string): string {
+    private removeExistingCappySection(content: string): string {
         const startPattern = /=+START CAPYBARA MEMORY v[\d.]+={20,}/;
         const endPattern = /=+END CAPYBARA MEMORY v[\d.]+={20,}/;
         
         const lines = content.split('\n');
         const result: string[] = [];
-        let inCapybaraSection = false;
+        let inCappySection = false;
         
         for (const line of lines) {
             if (startPattern.test(line)) {
-                inCapybaraSection = true;
+                inCappySection = true;
                 continue;
             }
             
             if (endPattern.test(line)) {
-                inCapybaraSection = false;
+                inCappySection = false;
                 continue;
             }
             
-            if (!inCapybaraSection) {
+            if (!inCappySection) {
                 result.push(line);
             }
         }
@@ -136,9 +136,9 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
     }
 
     /**
-     * Get current Capybara version from instructions file
+     * Get current Cappy version from instructions file
      */
-    async getCurrentCapybaraVersion(): Promise<string | null> {
+    async getCurrentCappyVersion(): Promise<string | null> {
         const instructionsPath = await this.getCopilotInstructionsPath();
         
         if (!fs.existsSync(instructionsPath)) {

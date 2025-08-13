@@ -1,4 +1,4 @@
-# Capybara - Padrões Comuns de Decomposição
+# Cappy - Padrões Comuns de Decomposição
 
 ## 🔧 **Patterns de Decomposição por Área**
 

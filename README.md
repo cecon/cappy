@@ -1,21 +1,21 @@
-# 🦫 Capybara - Minimal Setup + KnowStack
+# 🦫 Cappy - Minimal Setup + KnowStack
 
-> A lightweight VS Code extension that sets up the Capybara methodology for solo developers
+> A lightweight VS Code extension that sets up the Cappy methodology for solo developers
 
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Solo Developer](https://img.shields.io/badge/Optimized%20for-Solo%20Developers-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.capybara)
+[![Solo Developer](https://img.shields.io/badge/Optimized%20for-Solo%20Developers-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
 
-[**Install**](#-installation) • [**Quick Setup**](#-quick-setup) • [**Manual Usage**](#-manual-usage) • [**GitHub**](https://github.com/cecon/capybara)
+[**Install**](#-installation) • [**Quick Setup**](#-quick-setup) • [**Manual Usage**](#-manual-usage) • [**GitHub**](https://github.com/cecon/cappy)
 
 </div>
 
 ---
 
-## 🎯 What is Capybara?
+## 🎯 What is Cappy?
 
-**Capybara** is a **minimal VS Code extension** that sets up the Capybara methodology structure for solo developers. It now includes a first-class, guided command to establish the project stack as ground truth before you run anything else.
+**Cappy** is a **minimal VS Code extension** that sets up the Cappy methodology structure for solo developers. It now includes a first-class, guided command to establish the project stack as ground truth before you run anything else.
 
 ### 🏗️ **What it Creates**
 - **Project Structure**: `.capy/` folder with configuration (`config.yaml`)
@@ -41,13 +41,13 @@ This extension follows the **initialization-only** approach:
 ### Step 1: Install the Extension
 ```bash
 # Install from VS Code Marketplace
-code --install-extension eduardocecon.capybara
+code --install-extension eduardocecon.cappy
 ```
 
 ### Step 2: Initialize Your Project
 1. Open your project in VS Code
 2. Press `Ctrl+Shift+P` (Windows) or `Cmd+Shift+P` (Mac)
-3. Type `Capybara: Initialize`
+3. Type `Cappy: Initialize`
 4. Follow the prompts
 
 ### Step 3: Know your Stack (Required)
@@ -70,7 +70,7 @@ Notes:
 
 | Command | Description |
 |---------|-------------|
-| `Capybara: Initialize` | Set up Capybara structure and configuration |
+| `Cappy: Initialize` | Set up Cappy structure and configuration |
 | `🧠 Capy: KnowStack` | Guided flow to create/validate the project stack. Creates `.github/instructions/copilot.stack.md` and updates Capy Config markers inside `.github/copilot-instructions.md`. Required before other commands. |
 
 ---
@@ -80,14 +80,14 @@ Notes:
 ```
 your-project/
 ├── .capy/
-│   ├── config.yaml                    # Capybara configuration (YAML)
+│   ├── config.yaml                    # Cappy configuration (YAML)
 │   ├── prevention-rules.md            # Project-specific rules
 │   └── history/                       # Manual task history
 ├── .github/
 │   ├── copilot-instructions.md        # Private Copilot instructions (gitignored)
 │   └── instructions/
 │       └── copilot.stack.md           # Project stack (single source of truth)
-└── .gitignore                         # Updated with Capybara entries
+└── .gitignore                         # Updated with Cappy entries
 ```
 
 ---
@@ -194,7 +194,7 @@ The extension creates versioned instructions for GitHub Copilot and manages a Ca
 
 ```markdown
 =====================START CAPYBARA MEMORY v1.0.0=====================
-# 🔨 Capybara - GitHub Copilot Instructions
+# 🔨 Cappy - GitHub Copilot Instructions
 
 ## 📋 **PROJECT CONTEXT**
 - **Project**: your-project-name
@@ -202,7 +202,7 @@ The extension creates versioned instructions for GitHub Copilot and manages a Ca
 - **Frameworks**: React
 
 ## 🎯 **CAPYBARA METHODOLOGY**
-This project uses Capybara methodology for solo development...
+This project uses Cappy methodology for solo development...
 ======================END CAPYBARA MEMORY v1.0.0======================
 ```
 
@@ -244,7 +244,7 @@ Rules:
 The `.capy/config.yaml` file contains project configuration:
 
 ```yaml
-# Capybara Configuration
+# Cappy Configuration
 version: "1.0.0"
 project:
     name: "your-project"
@@ -256,7 +256,7 @@ project:
         - "vscode-extension"
     description: "Project description"
 
-capybara:
+cappy:
     initialized_at: "2025-01-01T00:00:00.000Z"
     last_updated: "2025-01-01T00:00:00.000Z"
 
@@ -298,7 +298,7 @@ instructions:
 
 ---
 
-## 🎯 Capybara Methodology Principles
+## 🎯 Cappy Methodology Principles
 
 1. **Atomic Tasks**: Maximum 2-3 hours per task
 2. **XML Structure**: Tasks defined in structured XML files
@@ -334,8 +334,8 @@ MIT License - feel free to use in your projects!
 
 ---
 
-## 🦫 About Capybara
+## 🦫 About Cappy
 
-Capybara methodology is designed for solo developers who want structure without complexity. Like the animal, it's calm, methodical, and gets things done efficiently.
+Cappy methodology is designed for solo developers who want structure without complexity. Like the animal, it's calm, methodical, and gets things done efficiently.
 
 **Happy coding!** 🚀

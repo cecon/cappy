@@ -2,14 +2,14 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CapybaraConfig } from '../../models/capybaraConfig';
+import { CappyConfig } from '../../models/cappyConfig';
 
-suite('🦫 Capybara Extension Test Suite', () => {
-    vscode.window.showInformationMessage('🧪 Starting Capybara tests.');
+suite('🦫 Cappy Extension Test Suite', () => {
+    vscode.window.showInformationMessage('🧪 Starting Cappy tests.');
 
     test('📋 Config Interface Test', () => {
-        // Test CapybaraConfig interface structure
-        const mockConfig: Partial<CapybaraConfig> = {
+        // Test CappyConfig interface structure
+        const mockConfig: Partial<CappyConfig> = {
             version: '2.0.1',
             project: {
                 name: 'test-project',
@@ -21,38 +21,38 @@ suite('🦫 Capybara Extension Test Suite', () => {
         assert.strictEqual(mockConfig.version, '2.0.1');
         assert.strictEqual(mockConfig.project?.name, 'test-project');
         assert.ok(Array.isArray(mockConfig.project?.language));
-        console.log('✅ CapybaraConfig interface working correctly');
+        console.log('✅ CappyConfig interface working correctly');
     });
 
     test('🎯 Extension Commands Registration', async () => {
         // Poll for a short while to allow activation to register commands
         const getCapyCommands = async () => {
             const commands = await vscode.commands.getCommands(true);
-            return commands.filter(cmd => cmd.startsWith('capybara.'));
+            return commands.filter(cmd => cmd.startsWith('cappy.'));
         };
 
-        let capybaraCommands: string[] = [];
+        let cappyCommands: string[] = [];
         for (let i = 0; i < 6; i++) { // up to ~3s
-            capybaraCommands = await getCapyCommands();
-            if (capybaraCommands.length > 0) {
+            cappyCommands = await getCapyCommands();
+            if (cappyCommands.length > 0) {
                 break;
             }
             await new Promise(r => setTimeout(r, 500));
         }
 
         const expectedCommands = [
-            'capybara.test',
-            'capybara.init',
-            'capybara.createTask',
-            'capybara.createSmartTask',
-            'capybara.addPreventionRule',
-            'capybara.completeTask'
+            'cappy.test',
+            'cappy.init',
+            'cappy.createTask',
+            'cappy.createSmartTask',
+            'cappy.addPreventionRule',
+            'cappy.completeTask'
         ];
 
-        console.log(`Found ${capybaraCommands.length} Capybara commands:`, capybaraCommands);
+        console.log(`Found ${cappyCommands.length} Cappy commands:`, cappyCommands);
 
         expectedCommands.forEach(expectedCmd => {
-            const exists = capybaraCommands.includes(expectedCmd);
+            const exists = cappyCommands.includes(expectedCmd);
             if (exists) {
                 console.log(`✅ Command ${expectedCmd} registered`);
             } else {
@@ -60,37 +60,37 @@ suite('🦫 Capybara Extension Test Suite', () => {
             }
         });
 
-        if (capybaraCommands.length === 0) {
-            console.warn('⚠️ No Capybara commands found via getCommands; continuing tests.');
+        if (cappyCommands.length === 0) {
+            console.warn('⚠️ No Cappy commands found via getCommands; continuing tests.');
         }
     });
 
     test('📦 Extension Activation', () => {
         // Test if extension is active
-        const extension = vscode.extensions.getExtension('eduardocecon.capybara');
+        const extension = vscode.extensions.getExtension('eduardocecon.cappy');
         
         if (extension) {
-            console.log('✅ Capybara extension found');
+            console.log('✅ Cappy extension found');
             console.log(`📋 Extension ID: ${extension.id}`);
             console.log(`📋 Extension Version: ${extension.packageJSON.version}`);
             console.log(`📋 Extension Active: ${extension.isActive}`);
             
-            assert.ok(extension, 'Capybara extension should be installed');
-            assert.strictEqual(extension.id, 'eduardocecon.capybara');
+            assert.ok(extension, 'Cappy extension should be installed');
+            assert.strictEqual(extension.id, 'eduardocecon.cappy');
         } else {
-            console.log('⚠️ Capybara extension not found - might not be installed');
+            console.log('⚠️ Cappy extension not found - might not be installed');
         }
     });
 
     test('🔧 Package.json Validation', () => {
         // Test package.json structure
-        const extension = vscode.extensions.getExtension('eduardocecon.capybara');
+        const extension = vscode.extensions.getExtension('eduardocecon.cappy');
         
         if (extension) {
             const pkg = extension.packageJSON;
             
-            assert.strictEqual(pkg.name, 'capybara');
-            assert.strictEqual(pkg.displayName, 'Capybara');
+            assert.strictEqual(pkg.name, 'cappy');
+            assert.strictEqual(pkg.displayName, 'Cappy');
             assert.ok(pkg.description.includes('calm and wise'));
             assert.ok(pkg.version.startsWith('2.0'));
             
@@ -136,8 +136,8 @@ suite('🦫 Capybara Extension Test Suite', () => {
 
         // Execute init command
         try {
-            console.log('🧪 Executing capybara.init command...');
-            await vscode.commands.executeCommand('capybara.init');
+            console.log('🧪 Executing cappy.init command...');
+            await vscode.commands.executeCommand('cappy.init');
             
             console.log('🧪 Init command executed, waiting for completion...');
             // Give more time for the command to complete

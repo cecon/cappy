@@ -14,7 +14,7 @@
 **Resultado**:
 ```
 .github/
-├── copilot-instructions.md (template Capybara + referência ao stack)
+├── copilot-instructions.md (template Cappy + referência ao stack)
 └── stack-instructions.md (configurações específicas da stack)
 src/
 └── forgeConfig.json (configuração completa do FORGE)
@@ -31,11 +31,11 @@ src/
 }
 ```
 
-**LLM**: "Detectei TypeScript + Express. Configurar Capybara para esta stack? [Y/n]"
+**LLM**: "Detectei TypeScript + Express. Configurar Cappy para esta stack? [Y/n]"
 
 **Se confirmado**, gera:
 - `stack-instructions.md` com padrões TypeScript/Express
-- `copilot-instructions.md` com integração Capybara + referência ao stack
+- `copilot-instructions.md` com integração Cappy + referência ao stack
 - `forgeConfig.json` com stack configurada
 
 ## Cenário 2: Projeto com copilot-instructions.md Existente
@@ -61,9 +61,9 @@ src/
 ```
 🤖 **Detectei instruções existentes. Como integrar FORGE?**
 
-a) 📄 Manter instruções + Adicionar Capybara no final
+a) 📄 Manter instruções + Adicionar Cappy no final
 b) 🔗 Extrair stack para stack-instructions.md + Integrar FORGE
-c) 🔄 Substituir por template Capybara completo  
+c) 🔄 Substituir por template Cappy completo  
 d) ⏭️ Pular integração (configurar manualmente)
 ```
 
@@ -81,28 +81,28 @@ d) ⏭️ Pular integração (configurar manualmente)
 
 ---
 
-## Capybara Integration
-This project uses the Capybara for atomic task management.
+## Cappy Integration
+This project uses the Cappy for atomic task management.
 
 **Stack Configuration**: See `.github/stack-instructions.md`
-**Capybara Config**: See `src/forgeConfig.json`
+**Cappy Config**: See `src/forgeConfig.json`
 ...
 ```
 
 ### **Opção B: Extrair Stack + Integrar** (RECOMENDADA)
 1. **Extrai** regras de stack para `stack-instructions.md`
-2. **Integra** Capybara no copilot-instructions.md  
+2. **Integra** Cappy no copilot-instructions.md  
 3. **Referencia** stack-instructions.md
 
 **Resultado**:
 ```markdown
-# GitHub Copilot Instructions - Capybara
+# GitHub Copilot Instructions - Cappy
 
 ## Stack-Specific Guidelines
 {LOAD_FROM: .github/stack-instructions.md}
 
-## Capybara Integration
-This project uses the Capybara for atomic task management...
+## Cappy Integration
+This project uses the Cappy for atomic task management...
 ```
 
 **Novo arquivo** `.github/stack-instructions.md`:
@@ -117,16 +117,16 @@ This project uses the Capybara for atomic task management...
 - Write unit tests for all functions
 ```
 
-## Cenário 3: Capybara Já Instalado
+## Cenário 3: Cappy Já Instalado
 
 **Detecção**: Se encontrar qualquer um:
 - `forgeConfig.json` 
-- Arquivo contém `Capybara`
+- Arquivo contém `Cappy`
 - Existe `stack-instructions.md`
 
 **Resultado**: 
 ```
-🤖 **Capybara já está configurado neste projeto!**
+🤖 **Cappy já está configurado neste projeto!**
 
 Configurações encontradas:
 - Stack: TypeScript + Express (em stack-instructions.md)

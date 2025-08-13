@@ -32,7 +32,7 @@
     </step>
 
     <step id="3.write_capy_config">
-      <goal>Criar/atualizar .capy/config.yaml como fonte de configuração do Capybara.</goal>
+      <goal>Criar/atualizar .capy/config.yaml como fonte de configuração do Cappy.</goal>
       <yaml>
         version: 1
         language: pt-BR
@@ -61,7 +61,7 @@
     </step>
 
     <step id="5.next_flow">
-      <goal>Prosseguir com os fluxos Capybara usando a stack aprovada como base.</goal>
+      <goal>Prosseguir com os fluxos Cappy usando a stack aprovada como base.</goal>
     </step>
   </steps>
 </capy:script>

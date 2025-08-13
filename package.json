@@ -30,22 +30,22 @@
   "contributes": {
     "commands": [
       {
-        "command": "capybara.init",
+        "command": "cappy.init",
         "title": "🦫 Initialize Cappy",
         "category": "Cappy"
       },
       {
-        "command": "capybara.knowstack",
+        "command": "cappy.knowstack",
         "title": "🧠 Cappy: KnowStack",
         "category": "Cappy"
       },
       {
-        "command": "capybara.viewTelemetryTerms",
+        "command": "cappy.viewTelemetryTerms",
         "title": "📄 Cappy: Ver Termos de Telemetria",
         "category": "Cappy"
       },
       {
-        "command": "capybara.getNewTaskInstruction",
+        "command": "cappy.getNewTaskInstruction",
         "title": "🧩 Cappy: Get New Task Instruction (processed template)",
         "category": "Cappy"
       },
@@ -58,45 +58,50 @@
         "command": "cappy-get-new-task-istruction",
         "title": "🧩 Cappy: get-new-task-istruction (alias)",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.getActiveTask",
+        "title": "📄 Cappy: Get Active Task (XML content)",
+        "category": "Cappy"
       }
     ],
     "configuration": {
       "title": "Cappy",
       "properties": {
-        "capybara.autoUpdateCopilotContext": {
+        "cappy.autoUpdateCopilotContext": {
           "type": "boolean",
           "default": true,
           "description": "Automatically update Copilot context when prevention rules change"
         },
-        "capybara.maxPreventionRules": {
+        "cappy.maxPreventionRules": {
           "type": "number",
           "default": 50,
           "description": "Maximum number of prevention rules to include in Copilot context"
         },
-        "capybara.taskTimeEstimation": {
+        "cappy.taskTimeEstimation": {
           "type": "boolean",
           "default": true,
           "description": "Enable automatic task time estimation and atomicity analysis"
         },
-        "capybara.showNotifications": {
+        "cappy.showNotifications": {
           "type": "boolean",
           "default": true,
-          "description": "Show notifications for Capybara events"
+          "description": "Show notifications for Cappy events"
         }
       }
     },
     "snippets": [
       {
         "language": "markdown",
-        "path": "./snippets/capybara.json"
+        "path": "./snippets/cappy.json"
       }
     ],
     "languages": [
       {
-        "id": "capybara-task-xml",
+        "id": "cappy-task-xml",
         "aliases": [
-          "Capybara Task XML",
-          "capybara-task"
+          "Cappy Task XML",
+          "cappy-task"
         ],
         "extensions": [
           ".task.xml"
@@ -107,13 +112,13 @@
     "grammars": [
       {
         "language": "markdown",
-        "scopeName": "text.html.markdown.capybara",
+        "scopeName": "text.html.markdown.cappy",
         "path": "./syntaxes/forge-task.tmLanguage.json"
       },
       {
-        "language": "capybara-task-xml",
-        "scopeName": "text.xml.capybara.task",
-        "path": "./syntaxes/capybara-task-xml.tmLanguage.json"
+        "language": "cappy-task-xml",
+        "scopeName": "text.xml.cappy.task",
+        "path": "./syntaxes/cappy-task-xml.tmLanguage.json"
       }
     ]
   },
@@ -154,12 +159,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cecon/capybara-framework.git"
+    "url": "git+https://github.com/cecon/cappy-framework.git"
   },
   "bugs": {
-    "url": "https://github.com/cecon/capybara-framework/issues"
+    "url": "https://github.com/cecon/cappy-framework/issues"
   },
-  "homepage": "https://github.com/cecon/capybara-framework#readme",
+  "homepage": "https://github.com/cecon/cappy-framework#readme",
   "license": "MIT",
   "author": "",
   "type": "commonjs"

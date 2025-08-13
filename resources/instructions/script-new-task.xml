@@ -2,7 +2,7 @@
 <capy:script name="new-task" version="1.2">
   <about>
     <summary>Preparar (não executar) uma nova task atômica via fluxo "scope-first".</summary>
-    <command>cappy:newtask</command>
+    <command>#newtask</command>
     <notes>
       <note>Fluxo em pt-BR. Não implemente código; apenas crie o arquivo da task.</note>
       <note>Escopo atômico: 2-3 horas no máximo.</note>
@@ -33,7 +33,7 @@
         <![CDATA[
         prevention_rules = optional_read(".capy/prevention-rules.md")
         project_config   = required_read(".capy/config.yaml|.capy/config.json")
-        patterns         = optional_read(".capy/instructions/capybara-patterns.md")
+        patterns         = optional_read(".capy/instructions/cappy-patterns.md")
 
         // Fonte da stack e validação devem vir do .capy/config.*
         stack_path      = extract_yaml_value(project_config, "stack.source") || ".capy/stack.md"
