@@ -28,6 +28,7 @@ Padronizar como a LLM interage com o projeto Cappy: criar/seguir tarefas em XML,
 ## 📦 Estrutura de Comandos e APIs (referência)
 - Comandos com instrução (fonte de verdade):
   - `cappy.getNewTaskInstruction`  
+  - `cappy.knowstack`  
   - `Cappy: task:status`  
   - `Cappy: step:done`  
   - `Cappy: task:complete`
@@ -48,6 +49,15 @@ Padronizar como a LLM interage com o projeto Cappy: criar/seguir tarefas em XML,
   **Aliases aceitos:** `cappy.getNewTaskInstruction`, `cappy-get-new-task-instruction`
 - **Saída (arquivo):** `.cappy/tasks/STEP_<timestamp>_<kebab>.active.xml` com `status="em-andamento"`.
 - **Args suportados (se fornecidos):** `title`, `area`, `priority`, `labels`, `estimate`.
+
+### `cappy:knowstack` (alias: `cappy:runknowstack`)
+- **Ação:** preparar/validar o KnowStack do repositório.
+- **API/Comando VS Code:** `cappy.knowstack`.
+- **Fluxo LLM:**
+  1) Chame o comando VS Code acima e capture o retorno (XML) — é o roteiro oficial.
+  2) Siga o roteiro passo a passo, com respostas curtas e objetivas.
+- **Efeitos colaterais:** cria `.cappy/stack.md` se não existir e abre o arquivo; se não houver workspace aberto, apenas retorna o script.
+- **Saída:** confirmação curta + próximo passo conforme o roteiro.
 
 ### `cappy:task:status`
 - **Ação:** exibir status detalhado da **tarefa ativa**.
@@ -149,6 +159,9 @@ Padronizar como a LLM interage com o projeto Cappy: criar/seguir tarefas em XML,
 
 **`cappy:taskcomplete`**  
 - “🏁 Tarefa finalizada. Movida para `.cappy/history/STEP_...xml`. Adicionei nota de encerramento.”
+
+**`cappy:knowstack` / `cappy:runknowstack`**  
+- “🧠 KnowStack pronto. Abri `.cappy/stack.md`. Vou seguir o roteiro retornado.”
 
 **Erro/falta de script**  
 - “⚠️ Script não encontrado: `<path>`. Use fallback: `<path-fallback>` ou rode `cappy:help`.”
