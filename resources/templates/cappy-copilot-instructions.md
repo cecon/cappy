@@ -1,232 +1,141 @@
 <!-- CAPPY INI -->
-````instructions
 # 🔨 Cappy — Instruções para GitHub Copilot (LLM Runtime)
 
 ## 🎯 Objetivo
-Padronizar como a LLM interage com o projeto ## 🧰 Templates de Resposta (curtos)
-
-> **📄 Lembrete:** Após executar comandos VS Code, sempre leia `.cappy/output.txt` para ver o resultado real.
-
-**`cappy:newtask ...`**  
-- "✅ Executei `cappy.getNewTaskInstruction`. Resultado em `.cappy/output.txt`. Nova tarefa criada: `STEP_..._kebab`."
-
-**`cappy:taskstatus`**  
-- "📌 Executei `cappy.getActiveTask`. Resultado em `.cappy/output.txt`. Tarefa atual: [status baseado no XML]."
-
-**`cappy:knowstack` / `cappy:runknowstack`**  
-- "🧠 Executei `cappy.knowstack`. Script XML disponível em `.cappy/output.txt`. Seguindo roteiro..."
-
-**`cappy:version`**  
-- "📦 Executei `cappy.version`. Versão disponível em `.cappy/output.txt`: [valor lido]."
-
-**`cappy:stepdone`**  
-- "✅ Step #4 concluído. Atualizei progresso (4/7). Próximo step: #5 '…'. Critérios: '…'."
-
-**`cappy:taskcomplete`**  
-- "🏁 Tarefa finalizada. Movida para `.cappy/history/STEP_...xml`. Adicionei nota de encerramento."
-
-**Erro/falta de script**  
-- "⚠️ Comando VS Code falhou ou `.cappy/output.txt` vazio. Verifique se extensão está ativa." tarefas em XML, registrar progresso, e transformar erros em regras de prevenção — sempre com respostas curtas, zero subjetividade e rastreabilidade.
-
-## 🧭 Regras de Ouro (sempre)
-1. **Comando manda:** mensagens começando com `cappy:` têm prioridade máxima.  
-2. **Fonte única por fluxo:** siga **exatamente** os instruções dos comandos APIs referenciado para cada comando. Não invente etapas.  
-3. **Clarificação atômica:** quando necessário, **pergunte 1 coisa por vez** até não restar ambiguidade.  
-4. **Saídas curtas e acionáveis:** diga o que fez e o próximo passo em 2–5 linhas.  
-5. **Sem “adoção criativa” de contexto:** não leia arquivos além dos explicitamente autorizados no fluxo.
+Padronizar como a LLM interage com o projeto Cappy:
+- Criar e seguir **tarefas em XML**.
+- Registrar progresso.
+- Transformar erros em **Regras de Prevenção**.
+- Sempre usar **respostas curtas, sem subjetividade, com rastreabilidade**.
 
 ---
 
-## 🧱 Contrato de Execução (LLM)
-- **Entrada:** `cappy:<comando> [args...]`
-- **Ações permitidas:**  
-  - Obter **apenas** as instruções via API da extensão para cada comando citados em cada fluxo.  
-  - Criar/atualizar arquivos **somente** em caminhos definidos aqui ou nas instruções vindas da API.
-- **Saída:** confirmação sucinta + próxima ação esperada.  
-- **Falhas:** reporte **em 1 linha** a causa e **a única** informação mínima necessária para continuar.  
-- **Privacidade/segurança:** não mova/importe conteúdo fora de `.cappy/` sem instrução explícita do script.
+## 🧭 Regras de Ouro
+1. **Comando manda** — mensagens começando com `cappy:` têm prioridade máxima.  
+2. **Fonte única de retorno** — sempre que executar um comando no VS Code, o retorno oficial estará **exclusivamente** em `.cappy/output.txt` se o comando gerar saída.  
+   - Se o arquivo não existir ou estiver vazio, interrompa e informe que não é possível seguir.  
+3. **Clarificação atômica** — se houver dúvida, pergunte **uma coisa por vez** até não restar ambiguidade.  
+4. **Saídas curtas** — máximo 2–5 linhas, sempre com o próximo passo claro.  
+5. **Sem contexto extra** — não leia arquivos não autorizados.
 
 ---
 
-## 📦 Estrutura de Comandos e APIs (referência)
-- Comandos com instrução (fonte de verdade):
-  - `cappy.getNewTaskInstruction`  
-  - `cappy.knowstack`  
-  - `Cappy: task:status`  
-  - `Cappy: step:done`  
-  - `Cappy: task:complete`
-- Regras de prevenção (opcional): `.cappy/prevention-rules.md`
-- Configuração: `.cappy/config.yaml`
-- Tarefas ativas: `.cappy/tasks/*.active.xml`
-- Histórico: `.cappy/history/`
+## 📂 Estrutura de Arquivos
 
-> Nota: para **`cappy:newtask`**, a **preferência** é usar a API da extensão do VS Code (se disponível) e, **se indisponível**, cair para o script local.
+.cappy/
+├─ tasks/ # Tarefas ativas (.active.xml)
+├─ history/ # Tarefas concluídas
+├─ prevention-rules.md # Regras de prevenção
+├─ config.yaml # Configuração (opcional)
+├─ output.txt # Resultado do último comando executado
+
 
 ---
 
-## ⚙️ Scripts LLM Ativos (mapeamento canônico)
+## ⚙️ Comandos e Fluxos
 
-> **📄 IMPORTANTE - Sistema de Output Unificado:**  
-> Todos os comandos VS Code da extensão Cappy escrevem seus resultados em `.cappy/output.txt`, **substituindo** o conteúdo anterior. Após executar qualquer comando (`cappy.version`, `cappy.getNewTaskInstruction`, `cappy.getActiveTask`, etc.), **SEMPRE** leia `.cappy/output.txt` para obter o valor de retorno real do comando executado.
+### `cappy:newtask`
+- **Ação:** cria uma nova tarefa **atômica** em XML.  
+- **Fonte única de retorno:**  
+  - Resultado escrito em `.cappy/output.txt` é a **única fonte válida**.  
+  - **Se não existir ou estiver vazio:**  
+    `⚠️ Não foi possível criar a tarefa. Comando não retornou saída. Reexecute no VS Code.`  
+- **API/Comando VS Code:** `cappy.getNewTaskInstruction`  
+- **Args suportados:** `title`, `area`, `priority`, `labels`, `estimate`  
+- **Arquivo final esperado:** `.cappy/tasks/STEP_<timestamp>_<kebab>.active.xml` (status `em-andamento`)
 
-### `#newtask`
-- **Ação:** criar uma tarefa **atômica** em XML.
-- **Script (fonte primária):** **API VS Code** `cappy.getNewTaskInstruction`  
-  **Aliases aceitos:** `cappy.getNewTaskInstruction`, `cappy-get-new-task-instruction`
-- **Saída (arquivo):** `.cappy/tasks/STEP_<timestamp>_<kebab>.active.xml` com `status="em-andamento"`.
-- **Output:** resultado completo escrito em `.cappy/output.txt`
-- **Args suportados (se fornecidos):** `title`, `area`, `priority`, `labels`, `estimate`.
+---
 
-### `cappy:knowstack` (alias: `cappy:runknowstack`)
-- **Ação:** preparar/validar o KnowStack do repositório.
-- **API/Comando VS Code:** `cappy.knowstack` (alias suportado: `cappy.runknowstack`).
-- **Fluxo LLM:**
-  1) Execute o comando VS Code via `cappy.knowstack`
-  2) Leia `.cappy/output.txt` para obter o script XML retornado
-  3) Siga o roteiro passo a passo, com respostas curtas e objetivas
-- **Output:** script XML completo escrito em `.cappy/output.txt`
-- **Efeitos colaterais:** cria `.cappy/stack.md` se não existir e abre o arquivo; se não houver workspace aberto, apenas retorna o script.
+### `cappy:taskstatus` _(usar este nome, sem “:” interno)_
+- **Ação:** retorna o **status detalhado** da tarefa ativa.  
+- **Fonte única de retorno:** `.cappy/output.txt`.  
+  - **Se não existir ou estiver vazio:**  
+    `⚠️ Não foi possível obter o status. Comando não retornou saída. Reexecute no VS Code.`  
+- **API/Comando VS Code:** `cappy.getActiveTask`  
+- **Resolução de tarefa ativa:**  
+  1) `id`/`file` via argumentos;  
+  2) mais recente em `.cappy/tasks/` com `status="em-andamento"`;  
+  3) se nada existir, a própria resposta deve orientar a criar com `cappy:newtask`.  
 
-### `cappy:task:status`
-- **Ação:** exibir status detalhado da **tarefa ativa**.
-- **API/Comando VS Code:** `cappy.getActiveTask`
-- **Output:** XML da tarefa ativa ou "No activit task found" escrito em `.cappy/output.txt`
-- **Resolução da tarefa ativa (ordem):**
-  1) ID explícito via args (`id=...` ou `file=...`),  
-  2) arquivo mais recente em `.cappy/tasks/` com `status="em-andamento"`,  
-  3) se nada encontrado: peça para criar com `cappy:newtask`.
+---
+
+### `cappy:knowstack` _(alias: `cappy:runknowstack`)_
+- **Ação:** prepara/valida o **KnowStack** e fornece o roteiro a seguir.  
+- **Fonte única de retorno:** `.cappy/output.txt`.  
+  - **Se não existir ou estiver vazio:**  
+    `⚠️ Não foi possível obter o roteiro do KnowStack. Comando não retornou saída. Reexecute no VS Code.`  
+- **API/Comando VS Code:** `cappy.knowstack` (alias `cappy.runknowstack`)  
+- **Efeitos esperados:** pode criar/abrir `.cappy/stack.md`.  
+
+---
 
 ### `cappy:version`
-- **Ação:** retornar a versão atual da extensão Cappy.
-- **API/Comando VS Code:** `cappy.version`
-- **Output:** versão da extensão (ex: "2.5.11") escrita em `.cappy/output.txt`
-- **Efeitos colaterais:** exibe versão no status bar por 3 segundos.
+- **Ação:** retorna a **versão** atual da extensão Cappy.  
+- **Fonte única de retorno:** `.cappy/output.txt`.  
+  - **Se não existir ou estiver vazio:**  
+    `⚠️ Não foi possível ler a versão. Comando não retornou saída. Reexecute no VS Code.`  
+- **API/Comando VS Code:** `cappy.version`  
+- **Saída esperada:** ex.: `2.5.11`  
 
-### `cappy:step:done`
-- **Ação:** marcar o **step corrente** como concluído, validar critérios e avançar ponteiro.
-- **Script:** `.cappy/instructions/script-marcar-step-concluido.md`
-- **Saída:** XML atualizado (incremento de progresso, carimbo de data/hora, evidência opcional).
+---
 
-### `cappy:task:complete`
-- **Ação:** finalizar tarefa **se e somente se** todos os steps obrigatórios estiverem concluídos.
-- **Script:** `.cappy/instructions/script-completar-task.md`
-- **Saída:** mover o XML para `.cappy/history/` registrando encerramento (data, autor, notas finais).
+### `cappy:stepdone`
+- **Ação:** marca o **step corrente** como concluído, valida critérios e avança o ponteiro.  
+- **Fonte única de retorno:** `.cappy/output.txt`.  
+  - **Se não existir ou estiver vazio:**  
+    `⚠️ Não foi possível concluir o step. Comando não retornou saída. Reexecute no VS Code.`  
+- **Script envolvido:** `.cappy/instructions/script-marcar-step-concluido.md`  
+- **Efeitos esperados:** atualização do XML (progresso, timestamps, evidências se aplicável).
+
+---
+
+### `cappy:taskcomplete`
+- **Ação:** finaliza a tarefa **apenas** se todos os steps obrigatórios estiverem concluídos.  
+- **Fonte única de retorno:** `.cappy/output.txt`.  
+  - **Se não existir ou estiver vazio:**  
+    `⚠️ Não foi possível finalizar a tarefa. Comando não retornou saída. Reexecute no VS Code.`  
+- **Script envolvido:** `.cappy/instructions/script-completar-task.md`  
+- **Efeitos esperados:** mover XML para `.cappy/history/` com registro de encerramento.
+
+---
 
 ### `cappy:help`
-- **Ação:** listar comandos disponíveis e resumo em 1 linha por comando.
+- **Ação:** lista comandos disponíveis com resumo de 1 linha por comando.  
+- **Fonte única de retorno:** `.cappy/output.txt`.  
+  - **Se não existir ou estiver vazio:**  
+    `⚠️ Não foi possível listar os comandos. Comando não retornou saída. Reexecute no VS Code.`  
 
 ---
 
-## 🧩 Sintaxe de Argumentos
-- Formato: `cappy:<comando> key="valor com espaços" flag=valor`
-- **Aplicação direta:** quando suportado, grave no XML (ex.: `<title>`, `<context><area>`, `<meta><priority>`).
-- **Desconhecidos:** ignore silenciosamente.
+## 📜 Observações Gerais
+- Sempre **execute o comando** e **leia `.cappy/output.txt`**.  
+- **Sem fallback manual:** se não houver saída, **pare** e informe a falha em 1 linha.  
+- **Resposta curta (2–5 linhas):** descreva o que aconteceu + próximo passo.  
+- **Sem inventar dados** a partir de outros arquivos ou contexto.  
 
 ---
 
-## 🗂️ Esquema mínimo do XML de Tarefa (contrato)
-```xml
-<Task version="1.0" status="em-andamento" id="STEP_2025-08-11_123456_kebab">
-  <title>...</title>
-  <context>
-    <area>backend|frontend|devops|docs|research</area>
-    <repo>...</repo>
-    <branch>...</branch>
-  </context>
-  <meta>
-    <createdAt>ISO-8601</createdAt>
-    <updatedAt>ISO-8601</updatedAt>
-    <priority>P1|P2|P3</priority>
-    <estimate>n horas</estimate>
-    <labels>
-      <label>...</label>
-    </labels>
-  </meta>
-  <goals>
-    <goal>Objetivo claro e verificável</goal>
-  </goals>
-  <constraints>
-    <constraint>Limites e não-requisitos</constraint>
-  </constraints>
-  <references>
-    <ref type="file|url">...</ref>
-  </references>
-  <steps current="1">
-    <step id="1" required="true" status="pending">
-      <desc>...</desc>
-      <inputs>...</inputs>
-      <doneWhen>Critérios de aceite objetivos</doneWhen>
-      <evidence/>
-    </step>
-  </steps>
-  <risks>
-    <risk severity="high|medium|low">...</risk>
-  </risks>
-  <preventionLinks>
-    <ruleRef id="PR-xxx">.cappy/prevention-rules.md#PR-xxx</ruleRef>
-  </preventionLinks>
-  <log>
-    <entry at="ISO-8601">Evento curto</entry>
-  </log>
-</Task>
-```
+## 🧩 Template de Resposta Curta
 
----
-
-## 🧪 Validações obrigatórias antes de gravar
-1. **Atomicidade:** 1 tarefa = 1 objetivo entregável.  
-2. **Critérios de aceite** presentes nos steps obrigatórios.  
-3. **Referências e limites** minimamente descritos (`<references>`, `<constraints>`).  
-4. **Sem ambiguidade detectada:** se houver, **pare** e pergunte **uma** clarificação.
-
----
-
-## 🧰 Templates de Resposta (curtos)
-
-**`cappy:newtask ...`**  
-- “✅ Nova tarefa criada: `STEP_..._kebab` → `.cappy/tasks/...`. Próximo: `cappy:taskstatus` para ver passos.”
+**`cappy:newtask`**  
+`✅ Nova tarefa criada: STEP_..._kebab → .cappy/tasks/... Próximo: cappy:taskstatus.`
 
 **`cappy:taskstatus`**  
-- “📌 Tarefa `STEP_...`: 3/7 steps. Atual: #4 ‘…’. Próximo: execute o step e marque com `cappy:stepdone`.”
+`📌 Tarefa STEP_...: 3/7 steps. Atual: #4 '…'. Próximo: cappy:stepdone.`
 
 **`cappy:stepdone`**  
-- “✅ Step #4 concluído. Atualizei progresso (4/7). Próximo step: #5 ‘…’. Critérios: ‘…’.”
+`✅ Step #4 concluído (4/7). Próximo: #5 '…'. Critérios: '…'.`
 
 **`cappy:taskcomplete`**  
-- “🏁 Tarefa finalizada. Movida para `.cappy/history/STEP_...xml`. Adicionei nota de encerramento.”
+`🏁 Tarefa finalizada. Movida para .cappy/history/STEP_...xml.`
 
-**`cappy:knowstack` / `cappy:runknowstack`**  
-- “🧠 KnowStack pronto. Abri `.cappy/stack.md`. Vou seguir o roteiro retornado.”
+**`cappy:knowstack`**  
+`🧠 KnowStack pronto. Abri .cappy/stack.md.`
 
 **Erro/falta de script**  
-- “⚠️ Não foi possível obter o roteiro do KnowStack via comando VS Code. Interrompendo. Reexecute `cappy.knowstack`.”
+`⚠️ Falha ao obter retorno. Reexecute o comando no VS Code.`
 
 ---
 
-## 🛡️ Prevention Rules (ganhos de aprendizado)
-- Se existir `.cappy/prevention-rules.md`, **linke** regras no `<preventionLinks>` e **sugira** atualização quando um erro recorrente for identificado ao concluir um step.  
-- Quando registrar um erro evitável, descreva **em 1 linha** o gatilho e a prevenção.
 
----
-
-## 🧭 Resolução de “tarefa ativa”
-1) `id`/`file` nos argumentos → usar.  
-2) Caso contrário, escolher a **mais recente** em `.cappy/tasks/` com `status="em-andamento"`.  
-3) Se nada existir → orientar `cappy:newtask`.
-
----
-
-## 🔁 Tratamento de Erros (curto e objetivo)
-- **Arquivo ausente:** cite o caminho exato e o fallback.  
-- **XML inválido:** diga o nó faltante e peça apenas aquela informação.  
-- **Critério de aceite não atendido:** informe o critério faltante e **não** avance o step.  
-- **Conflito de edição:** priorize a versão mais recente; se duvidoso, peça confirmação do `id`.
-
----
-
-## 📝 Notas finais
-- Padronize o **kebab-case** do `id` e alias dos comandos.  
-- Mantenha coerência: `cappy:taskstatus` (não use `cappy:task:status`).
-
-````
 <!-- CAPPY END -->

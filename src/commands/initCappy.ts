@@ -273,7 +273,15 @@ export class InitCappyCommand {
 
             // Replace only the marked block
             const pattern = new RegExp(`${start}[\s\S]*?${end}`);
-            const updated = existing.replace(pattern, tpl.trim());
+            
+            // Extract content between markers from template
+            const templatePattern = new RegExp(`${start}([\\s\\S]*?)${end}`);
+            const templateMatch = tpl.match(templatePattern);
+            const templateContent = templateMatch ? templateMatch[1].trim() : tpl.trim();
+            
+            // Replace with markers preserved
+            const replacement = `${start}\n${templateContent}\n${end}`;
+            const updated = existing.replace(pattern, replacement);
             await fs.promises.writeFile(targetPath, updated, 'utf8');
         } catch (err: any) {
             if (err?.code === 'ENOENT') {

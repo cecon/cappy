@@ -1,0 +1,22 @@
+<!-- CAPPY INI -->
+# 🔨 TEMPLATE ATUALIZADO - TESTE - Instruções para GitHub Copilot (LLM Runtime)
+
+## 🎯 Objetivo MODIFICADO
+Este é um teste para verificar se a atualização está funcionando corretamente.
+
+Padronizar como a LLM interage com o projeto tarefas em XML, registrar progresso, e transformar erros em regras de prevenção — sempre com respostas curtas, zero subjetividade e rastreabilidade.
+
+## 🧭 Regras de Ouro (sempre)
+1. **Comando manda:** mensagens começando com `cappy:` têm prioridade máxima.  
+2. **Fonte única por fluxo:** siga **exatamente** os instruções dos comandos APIs referenciado para cada comando. Não invente etapas.  
+3. **Clarificação atômica:** quando necessário, **pergunte 1 coisa por vez** até não restar ambiguidade.  
+4. **Saídas curtas e acionáveis:** diga o que fez e o próximo passo em 2–5 linhas.  
+5. **Sem "adoção criativa" de contexto:** não leia arquivos além dos explicitamente autorizados no fluxo.
+
+---
+
+## TESTE - NOVO CONTEÚDO AQUI
+
+Este conteúdo deve aparecer no arquivo se a atualização estiver funcionando.
+
+<!-- CAPPY END -->
