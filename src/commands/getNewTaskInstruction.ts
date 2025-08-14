@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { writeOutput } from '../utils/outputWriter';
 
 function getWorkspaceRoot(): string | null {
     const folder = vscode.workspace.workspaceFolders?.[0];
@@ -108,6 +109,9 @@ export async function getNewTaskInstruction(context?: vscode.ExtensionContext, a
     }
 
     const processed = fillTemplate(template, merged);
+
+    // Write result to .cappy/output.txt
+    writeOutput(processed);
 
     // Also persist under .cappy/instructions for local reference
     try {

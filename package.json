@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
   "icon": "assets/icon.png",
-  "version": "2.5.9",
+  "version": "2.5.11",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -62,6 +62,11 @@
       {
         "command": "cappy.getActiveTask",
         "title": "📄 Cappy: Get Active Task (XML content)",
+        "category": "Cappy"
+      },
+      {
+        "command": "cappy.version",
+        "title": "📦 Cappy: Get Version",
         "category": "Cappy"
       }
     ],

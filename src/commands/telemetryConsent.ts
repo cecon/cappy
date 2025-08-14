@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { writeOutput } from '../utils/outputWriter';
 
 export type TelemetryConsentStatus = 'accepted' | 'declined';
 
@@ -37,7 +38,9 @@ export async function ensureTelemetryConsent(context: vscode.ExtensionContext): 
     const desiredVersion = extractContractVersion(contractMd) || CONSENT_VERSION;
     const state = getConsentState(context);
     if (isConsentUpToDate(state, desiredVersion)) {
-        return state.status === 'accepted';
+        const result = state.status === 'accepted';
+        writeOutput(`Telemetry consent: ${result ? 'accepted' : 'declined'}`);
+        return result;
     }
 
     const accepted = await showConsentWebview(context);
@@ -45,6 +48,8 @@ export async function ensureTelemetryConsent(context: vscode.ExtensionContext): 
     await context.globalState.update(GLOBAL_STATE_KEYS.status, accepted ? 'accepted' : 'declined');
     await context.globalState.update(GLOBAL_STATE_KEYS.version, desiredVersion);
     await context.globalState.update(GLOBAL_STATE_KEYS.timestamp, now);
+    
+    writeOutput(`Telemetry consent: ${accepted ? 'accepted' : 'declined'}`);
     return accepted;
 }
 

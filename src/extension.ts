@@ -160,6 +160,21 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
+    // Register: version command (returns extension semantic version)
+    const versionCommand = vscode.commands.registerCommand(
+      "cappy.version",
+      async () => {
+        try {
+          const mod = await import("./commands/getVersion");
+          const version = await mod.getVersion();
+          return version;
+        } catch (error) {
+          vscode.window.showErrorMessage(`Cappy version command failed: ${error}`);
+          return "";
+        }
+      }
+    );
+
     // Register all commands
     context.subscriptions.push(
       initCommand,
@@ -168,7 +183,8 @@ export function activate(context: vscode.ExtensionContext) {
   knowTaskTypoAliasCommand,
       consentCommand,
       getNewTaskInstructionCommand,      
-      getActiveTaskCommand
+  getActiveTaskCommand,
+  versionCommand
     );
   } catch (error) {
     vscode.window.showErrorMessage(

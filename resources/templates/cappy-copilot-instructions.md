@@ -3,7 +3,30 @@
 # 🔨 Cappy — Instruções para GitHub Copilot (LLM Runtime)
 
 ## 🎯 Objetivo
-Padronizar como a LLM interage com o projeto Cappy: criar/seguir tarefas em XML, registrar progresso, e transformar erros em regras de prevenção — sempre com respostas curtas, zero subjetividade e rastreabilidade.
+Padronizar como a LLM interage com o projeto ## 🧰 Templates de Resposta (curtos)
+
+> **📄 Lembrete:** Após executar comandos VS Code, sempre leia `.cappy/output.txt` para ver o resultado real.
+
+**`cappy:newtask ...`**  
+- "✅ Executei `cappy.getNewTaskInstruction`. Resultado em `.cappy/output.txt`. Nova tarefa criada: `STEP_..._kebab`."
+
+**`cappy:taskstatus`**  
+- "📌 Executei `cappy.getActiveTask`. Resultado em `.cappy/output.txt`. Tarefa atual: [status baseado no XML]."
+
+**`cappy:knowstack` / `cappy:runknowstack`**  
+- "🧠 Executei `cappy.knowstack`. Script XML disponível em `.cappy/output.txt`. Seguindo roteiro..."
+
+**`cappy:version`**  
+- "📦 Executei `cappy.version`. Versão disponível em `.cappy/output.txt`: [valor lido]."
+
+**`cappy:stepdone`**  
+- "✅ Step #4 concluído. Atualizei progresso (4/7). Próximo step: #5 '…'. Critérios: '…'."
+
+**`cappy:taskcomplete`**  
+- "🏁 Tarefa finalizada. Movida para `.cappy/history/STEP_...xml`. Adicionei nota de encerramento."
+
+**Erro/falta de script**  
+- "⚠️ Comando VS Code falhou ou `.cappy/output.txt` vazio. Verifique se extensão está ativa." tarefas em XML, registrar progresso, e transformar erros em regras de prevenção — sempre com respostas curtas, zero subjetividade e rastreabilidade.
 
 ## 🧭 Regras de Ouro (sempre)
 1. **Comando manda:** mensagens começando com `cappy:` têm prioridade máxima.  
@@ -43,30 +66,41 @@ Padronizar como a LLM interage com o projeto Cappy: criar/seguir tarefas em XML,
 
 ## ⚙️ Scripts LLM Ativos (mapeamento canônico)
 
+> **📄 IMPORTANTE - Sistema de Output Unificado:**  
+> Todos os comandos VS Code da extensão Cappy escrevem seus resultados em `.cappy/output.txt`, **substituindo** o conteúdo anterior. Após executar qualquer comando (`cappy.version`, `cappy.getNewTaskInstruction`, `cappy.getActiveTask`, etc.), **SEMPRE** leia `.cappy/output.txt` para obter o valor de retorno real do comando executado.
+
 ### `#newtask`
 - **Ação:** criar uma tarefa **atômica** em XML.
 - **Script (fonte primária):** **API VS Code** `cappy.getNewTaskInstruction`  
   **Aliases aceitos:** `cappy.getNewTaskInstruction`, `cappy-get-new-task-instruction`
 - **Saída (arquivo):** `.cappy/tasks/STEP_<timestamp>_<kebab>.active.xml` com `status="em-andamento"`.
+- **Output:** resultado completo escrito em `.cappy/output.txt`
 - **Args suportados (se fornecidos):** `title`, `area`, `priority`, `labels`, `estimate`.
 
 ### `cappy:knowstack` (alias: `cappy:runknowstack`)
 - **Ação:** preparar/validar o KnowStack do repositório.
 - **API/Comando VS Code:** `cappy.knowstack` (alias suportado: `cappy.runknowstack`).
 - **Fluxo LLM:**
-  1) Execute o comando VS Code e capture o retorno (XML) — esta é a ÚNICA fonte de verdade.
-  2) Se o retorno não puder ser capturado ou vier vazio/erro, PARE imediatamente, reporte o erro em 1 linha e NÃO use fallback local.
-  3) Siga o roteiro passo a passo, com respostas curtas e objetivas.
+  1) Execute o comando VS Code via `cappy.knowstack`
+  2) Leia `.cappy/output.txt` para obter o script XML retornado
+  3) Siga o roteiro passo a passo, com respostas curtas e objetivas
+- **Output:** script XML completo escrito em `.cappy/output.txt`
 - **Efeitos colaterais:** cria `.cappy/stack.md` se não existir e abre o arquivo; se não houver workspace aberto, apenas retorna o script.
-- **Saída:** confirmação curta + próximo passo conforme o roteiro.
 
 ### `cappy:task:status`
 - **Ação:** exibir status detalhado da **tarefa ativa**.
-- **Script:** `.cappy/instructions/script-view-current-task.xml`
+- **API/Comando VS Code:** `cappy.getActiveTask`
+- **Output:** XML da tarefa ativa ou "No activit task found" escrito em `.cappy/output.txt`
 - **Resolução da tarefa ativa (ordem):**
   1) ID explícito via args (`id=...` ou `file=...`),  
   2) arquivo mais recente em `.cappy/tasks/` com `status="em-andamento"`,  
   3) se nada encontrado: peça para criar com `cappy:newtask`.
+
+### `cappy:version`
+- **Ação:** retornar a versão atual da extensão Cappy.
+- **API/Comando VS Code:** `cappy.version`
+- **Output:** versão da extensão (ex: "2.5.11") escrita em `.cappy/output.txt`
+- **Efeitos colaterais:** exibe versão no status bar por 3 segundos.
 
 ### `cappy:step:done`
 - **Ação:** marcar o **step corrente** como concluído, validar critérios e avançar ponteiro.

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { writeOutput } from '../utils/outputWriter';
 
 /**
  * Returns the raw XML string of the active task file, if it exists.
@@ -8,7 +9,9 @@ export async function getActiveTask(): Promise<string> {
     try {
         const ws = vscode.workspace.workspaceFolders?.[0];
         if (!ws) {
-            return 'No activit task found';
+            const result = 'No activit task found';
+            writeOutput(result);
+            return result;
         }
 
         const uriExists = async (uri: vscode.Uri): Promise<boolean> => {
@@ -22,7 +25,9 @@ export async function getActiveTask(): Promise<string> {
 
         const stateUri = vscode.Uri.joinPath(ws.uri, '.cappy', 'state', 'current-task.json');
         if (!(await uriExists(stateUri))) {
-            return 'No activit task found';
+            const result = 'No activit task found';
+            writeOutput(result);
+            return result;
         }
 
         const stateBytes = await vscode.workspace.fs.readFile(stateUri);
@@ -32,11 +37,15 @@ export async function getActiveTask(): Promise<string> {
             const state = JSON.parse(stateText) as { currentTaskFile?: string };
             currentTaskFile = state.currentTaskFile;
         } catch {
-            return 'No activit task found';
+            const result = 'No activit task found';
+            writeOutput(result);
+            return result;
         }
 
         if (!currentTaskFile || typeof currentTaskFile !== 'string') {
-            return 'No activit task found';
+            const result = 'No activit task found';
+            writeOutput(result);
+            return result;
         }
 
         const normalized = currentTaskFile.replace(/^[.][\\/]/, '');
@@ -45,14 +54,23 @@ export async function getActiveTask(): Promise<string> {
             : vscode.Uri.file(currentTaskFile);
 
         if (!(await uriExists(taskUri))) {
-            return 'No activit task found';
+            const result = 'No activit task found';
+            writeOutput(result);
+            return result;
         }
 
         const xmlBytes = await vscode.workspace.fs.readFile(taskUri);
         const xml = Buffer.from(xmlBytes).toString('utf8');
-        return xml || 'No activit task found';
+        const result = xml || 'No activit task found';
+        
+        // Write result to .cappy/output.txt
+        writeOutput(result);
+        
+        return result;
     } catch {
-        return 'No activit task found';
+        const result = 'No activit task found';
+        writeOutput(result);
+        return result;
     }
 }
 
