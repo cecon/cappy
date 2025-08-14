@@ -11,6 +11,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Show immediate activation message
     vscode.window.showInformationMessage("🦫 Cappy Memory: Activating...");
 
+  // Shared output channel for surfaced internal scripts / diagnostics
+  const cappyOutput = vscode.window.createOutputChannel('Cappy');
+  context.subscriptions.push(cappyOutput);
+
     // Telemetry consent gating (one-time and on updates)
     ensureTelemetryConsent(context)
       .then((accepted) => {
@@ -52,10 +56,20 @@ export function activate(context: vscode.ExtensionContext) {
     // Register knowstack command
     const knowStackCommand = vscode.commands.registerCommand(
       "cappy.knowstack",
-      async () => {
+      async (): Promise<string> => {
         try {
           const mod = await import("./commands/knowStack");
           const script: string = await mod.runKnowStack(context);
+          if (script) {
+            cappyOutput.appendLine(`[knowstack] Loaded script (${script.length} chars)`);
+            // Avoid dumping entire XML repeatedly; show first line as confirmation
+            const firstLine = script.split(/\r?\n/, 1)[0];
+            cappyOutput.appendLine(`[knowstack] First line: ${firstLine}`);
+            cappyOutput.show(true);
+            vscode.window.setStatusBarMessage('Cappy KnowStack script ready (verifique Output: Cappy)', 4000);
+          } else {
+            vscode.window.showWarningMessage('Cappy KnowStack: script vazio (não encontrado ou erro de leitura).');
+          }
           return script; // return instructions for LLM to start the flow
         } catch (error) {
           vscode.window.showErrorMessage(`Cappy KnowStack failed: ${error}`);
@@ -71,6 +85,9 @@ export function activate(context: vscode.ExtensionContext) {
         try {
           const mod = await import("./commands/knowStack");
           const script: string = await mod.runKnowStack(context);
+          if (script) {
+            cappyOutput.appendLine(`[runknowstack] Loaded script (${script.length} chars)`);
+          }
           return script;
         } catch (error) {
           vscode.window.showErrorMessage(`Cappy KnowStack (alias) failed: ${error}`);
@@ -86,6 +103,9 @@ export function activate(context: vscode.ExtensionContext) {
         try {
           const mod = await import("./commands/knowStack");
           const script: string = await mod.runKnowStack(context);
+          if (script) {
+            cappyOutput.appendLine(`[knowtask-alias] Loaded script (${script.length} chars)`);
+          }
           return script;
         } catch (error) {
           vscode.window.showErrorMessage(`Cappy KnowStack (typo alias) failed: ${error}`);

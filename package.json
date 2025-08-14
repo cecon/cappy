@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
   "icon": "assets/icon.png",
-  "version": "2.5.7",
+  "version": "2.5.9",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -143,7 +143,7 @@
     "@typescript-eslint/eslint-plugin": "^5.45.0",
     "@typescript-eslint/parser": "^5.45.0",
     "@vscode/test-electron": "^2.2.0",
-    "@vscode/vsce": "^2.15.0",
+    "@vscode/vsce": "^3.6.0",
     "eslint": "^8.28.0",
     "glob": "^8.0.3",
     "mocha": "^10.1.0",
