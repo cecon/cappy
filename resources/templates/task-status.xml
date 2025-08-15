@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<task-status>
+    <active>{{ACTIVE}}</active>
+    <file-path>{{FILE_PATH}}</file-path>
+    <last-modified>{{LAST_MODIFIED}}</last-modified>
+    <line-count>{{LINE_COUNT}}</line-count>
+</task-status>

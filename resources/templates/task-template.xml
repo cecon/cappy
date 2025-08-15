@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<task id="{{TASK_ID}}" status="em-andamento">
+    <meta>
+        <created>{{CREATED_TIMESTAMP}}</created>
+        <updated>{{CREATED_TIMESTAMP}}</updated>
+        <file>{{FILE_NAME}}</file>
+        <priority>media</priority>
+        <labels></labels>
+        <estimate>30min</estimate>
+    </meta>
+    <title>Nova Tarefa</title>
+    <description>Descrição da tarefa</description>
+    <area>desenvolvimento</area>
+    <steps>
+        <step id="1" status="pendente" required="true">
+            <title>Primeiro passo</title>
+            <description>Descreva o que precisa ser feito</description>
+            <criteria>Critérios de conclusão</criteria>
+        </step>
+    </steps>
+    <validation>
+        <criteria>Critérios gerais de validação da tarefa</criteria>
+        <evidence type="code">Evidências necessárias</evidence>
+    </validation>
+    <progress>
+        <completed-steps>0</completed-steps>
+        <total-steps>1</total-steps>
+        <percentage>0</percentage>
+        <current-step>1</current-step>
+    </progress>
+</task>

@@ -1,141 +1,245 @@
 <!-- CAPPY INI -->
-# 🔨 Cappy — Instruções para GitHub Copilot (LLM Runtime)
+
+# 🔨 Cappy — Manual de Comandos e Fluxos (LLM Runtime)
 
 ## 🎯 Objetivo
-Padronizar como a LLM interage com o projeto Cappy:
-- Criar e seguir **tarefas em XML**.
-- Registrar progresso.
-- Transformar erros em **Regras de Prevenção**.
-- Sempre usar **respostas curtas, sem subjetividade, com rastreabilidade**.
+Padronizar como a LLM e o dev interagem com o Cappy para:
+- Criar/gerir **tarefas atômicas** em XML.
+- Registrar progresso com **poucas linhas** e **sem subjetividade**.
+- Reaproveitar **KnowStack** e **Prevention Rules** para reduzir erros.
 
 ---
 
 ## 🧭 Regras de Ouro
-1. **Comando manda** — mensagens começando com `cappy:` têm prioridade máxima.  
-2. **Fonte única de retorno** — sempre que executar um comando no VS Code, o retorno oficial estará **exclusivamente** em `.cappy/output.txt` se o comando gerar saída.  
-   - Se o arquivo não existir ou estiver vazio, interrompa e informe que não é possível seguir.  
-3. **Clarificação atômica** — se houver dúvida, pergunte **uma coisa por vez** até não restar ambiguidade.  
-4. **Saídas curtas** — máximo 2–5 linhas, sempre com o próximo passo claro.  
-5. **Sem contexto extra** — não leia arquivos não autorizados.
+1. **Comando manda** — mensagens iniciadas com `cappy:` têm prioridade máxima.  
+2. **Fonte única de retorno** — após executar um comando, **leia exclusivamente** `.cappy/output.txt`.  
+   - Se o arquivo **não existir** ou vier **vazio**, **pare** e informe em **1 linha**:  
+     `⚠️ Comando sem saída em .cappy/output.txt. Reexecute no VS Code.`
+3. **Pergunte 1×1** — quando precisar de contexto, faça **uma pergunta por vez**, até eliminar ambiguidade.  
+4. **Respostas curtas** — 2–5 linhas, sempre apontando o **próximo passo**.  
+5. **Escopo atômico** — uma task ≤ **3h** de esforço. Se exceder: **interrompa** e recomende decomposição.
 
 ---
 
 ## 📂 Estrutura de Arquivos
-
+```
 .cappy/
-├─ tasks/ # Tarefas ativas (.active.xml)
-├─ history/ # Tarefas concluídas
-├─ prevention-rules.md # Regras de prevenção
-├─ config.yaml # Configuração (opcional)
-├─ output.txt # Resultado do último comando executado
-
-
----
-
-## ⚙️ Comandos e Fluxos
-
-### `cappy:newtask`
-- **Ação:** cria uma nova tarefa **atômica** em XML.  
-- **Fonte única de retorno:**  
-  - Resultado escrito em `.cappy/output.txt` é a **única fonte válida**.  
-  - **Se não existir ou estiver vazio:**  
-    `⚠️ Não foi possível criar a tarefa. Comando não retornou saída. Reexecute no VS Code.`  
-- **API/Comando VS Code:** `cappy.getNewTaskInstruction`  
-- **Args suportados:** `title`, `area`, `priority`, `labels`, `estimate`  
-- **Arquivo final esperado:** `.cappy/tasks/STEP_<timestamp>_<kebab>.active.xml` (status `em-andamento`)
+ ├─ tasks/                  # Tarefas ativas (.active.xml)
+ ├─ history/                # Tarefas concluídas
+ ├─ prevention-rules.md     # Regras de prevenção
+ ├─ config.yaml             # Configuração do Cappy
+ ├─ stack.md                # KnowStack do projeto
+ └─ output.txt              # Resultado do último comando executado (fonte única)
+```
+> **Padrões canônicos**
+> - **Nomes de arquivo**: `STEP_YYYYMMDD-HHMMSS_kebab.active.xml`
+> - **Ciclo de vida**: `prepared → em-andamento → paused → completed`
+> - **ID lógico** (atributo em `<Task ... id="...">`) **não** inclui `.active.xml`  
+>   Ex.: arquivo `STEP_...active.xml` ↔ id `STEP_...`
 
 ---
 
-### `cappy:taskstatus` _(usar este nome, sem “:” interno)_
-- **Ação:** retorna o **status detalhado** da tarefa ativa.  
-- **Fonte única de retorno:** `.cappy/output.txt`.  
-  - **Se não existir ou estiver vazio:**  
-    `⚠️ Não foi possível obter o status. Comando não retornou saída. Reexecute no VS Code.`  
-- **API/Comando VS Code:** `cappy.getActiveTask`  
-- **Resolução de tarefa ativa:**  
-  1) `id`/`file` via argumentos;  
-  2) mais recente em `.cappy/tasks/` com `status="em-andamento"`;  
-  3) se nada existir, a própria resposta deve orientar a criar com `cappy:newtask`.  
+## 🔄 Fluxo Típico
+1) `cappy.init` → estrutura base do Cappy  
+2) `cappy.knowstack` → analisa e (re)gera `stack.md`  
+3) `cappy.getNewTaskInstruction` → roteiro/templating de nova task  
+4) **(Q&A scope-first 1×1; checar ≤3h)**  
+5) `cappy.createTaskFile` → cria o arquivo `*.active.xml`  
+6) `cappy.getActiveTask` → status resumido (XML em `output.txt`)  
+7) `cappy.changeTaskStatus` → pausar/retomar quando necessário  
+8) `cappy.completeTask` → concluir e mover para `history/`
 
 ---
 
-### `cappy:knowstack` _(alias: `cappy:runknowstack`)_
-- **Ação:** prepara/valida o **KnowStack** e fornece o roteiro a seguir.  
-- **Fonte única de retorno:** `.cappy/output.txt`.  
-  - **Se não existir ou estiver vazio:**  
-    `⚠️ Não foi possível obter o roteiro do KnowStack. Comando não retornou saída. Reexecute no VS Code.`  
-- **API/Comando VS Code:** `cappy.knowstack` (alias `cappy.runknowstack`)  
-- **Efeitos esperados:** pode criar/abrir `.cappy/stack.md`.  
+## 🧩 Convenções de Saída (contratos mínimos)
+
+### `getActiveTask` — **sempre XML**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<task-status>
+  <active>true|false</active>
+  <file-path>.../STEP_...active.xml</file-path>   <!-- null/ vazio se não houver -->
+  <last-modified>ISO-8601</last-modified>
+  <line-count>123</line-count>
+</task-status>
+```
+
+### `createTaskFile` — **XML**
+```xml
+<create-task>
+  <file-path>.../STEP_...active.xml</file-path>
+  <id>STEP_...active.xml</id>          <!-- pode vir com extensão; ID lógico = sem ".active.xml" -->
+  <status>prepared</status>
+</create-task>
+```
+
+### `getNewTaskInstruction` — **XML**
+```xml
+<newtask>
+  <template>...XML/roteiro...</template>   <!-- roteiro/templating; pode incluir placeholders -->
+</newtask>
+```
+> **Outros comandos** podem devolver **texto simples** (ex.: `cappy.version`) ou **XML**. Em todos os casos, a leitura é **exclusiva** de `.cappy/output.txt`.
 
 ---
 
-### `cappy:version`
-- **Ação:** retorna a **versão** atual da extensão Cappy.  
-- **Fonte única de retorno:** `.cappy/output.txt`.  
-  - **Se não existir ou estiver vazio:**  
-    `⚠️ Não foi possível ler a versão. Comando não retornou saída. Reexecute no VS Code.`  
-- **API/Comando VS Code:** `cappy.version`  
-- **Saída esperada:** ex.: `2.5.11`  
+## ⚙️ Comandos
+
+### 1) 🦫 `cappy.init` — Initialize Cappy
+- **Copilot:** —  
+- **Ação:** cria estrutura base do Cappy no workspace.  
+- **Efeitos esperados:** cria `.cappy/` com subpastas/arquivos listados em **Estrutura de Arquivos**; atualiza `.gitignore`.  
+- **Saída esperada em `output.txt`:** texto simples com “ok” ou XML mínimo:
+  ```xml
+  <init><ok>true</ok><created>tasks,history,stack.md,config.yaml,prevention-rules.md</created></init>
+  ```
+- **Erro padrão:** `⚠️ cappy.init sem saída. Reexecute.`  
+- **Resposta curta:** `✅ Cappy iniciado. Estrutura criada em .cappy/. Próximo: cappy:knowstack.`
 
 ---
 
-### `cappy:stepdone`
-- **Ação:** marca o **step corrente** como concluído, valida critérios e avança o ponteiro.  
-- **Fonte única de retorno:** `.cappy/output.txt`.  
-  - **Se não existir ou estiver vazio:**  
-    `⚠️ Não foi possível concluir o step. Comando não retornou saída. Reexecute no VS Code.`  
-- **Script envolvido:** `.cappy/instructions/script-marcar-step-concluido.md`  
-- **Efeitos esperados:** atualização do XML (progresso, timestamps, evidências se aplicável).
+### 2) 🧠 `cappy.knowstack` — KnowStack
+- **Copilot:** `cappy:knowstack` / `cappy:runknowstack` (alias: `cappy.knowtask`)  
+- **Ação:** analisa o workspace, (re)gera `stack.md` e retorna **roteiro XML**.  
+- **Saída esperada (XML):**
+  ```xml
+  <knowstack>
+    <stack-file>.cappy/stack.md</stack-file>
+    <script>...XML/roteiro...</script>
+  </knowstack>
+  ```
+- **Erro padrão:** `⚠️ KnowStack sem saída. Reexecute.`  
+- **Resposta curta:** `🧠 KnowStack pronto (.cappy/stack.md). Seguindo roteiro retornado.`
 
 ---
 
-### `cappy:taskcomplete`
-- **Ação:** finaliza a tarefa **apenas** se todos os steps obrigatórios estiverem concluídos.  
-- **Fonte única de retorno:** `.cappy/output.txt`.  
-  - **Se não existir ou estiver vazio:**  
-    `⚠️ Não foi possível finalizar a tarefa. Comando não retornou saída. Reexecute no VS Code.`  
-- **Script envolvido:** `.cappy/instructions/script-completar-task.md`  
-- **Efeitos esperados:** mover XML para `.cappy/history/` com registro de encerramento.
+### 3) 🧩 `cappy.getNewTaskInstruction` — Get New Task Instruction
+- **Copilot:** `cappy:newtask`  
+- **Ação:** retorna **roteiro/templating** XML para nova task (não cria arquivo).  
+- **Saída esperada (XML):**
+  ```xml
+  <newtask>
+    <template>...XML/roteiro...</template>
+  </newtask>
+  ```
+- **Uso LLM (scope-first 1×1):** coletar escopo, critérios, paths, deps, validação e **estimativa (≤3h)** antes de criar arquivo.  
+- **Erro padrão:** `⚠️ newtask sem saída. Reexecute.`  
+- **Resposta curta:** `🧩 Roteiro de nova task obtido. Próximo: cappy:createtaskfile.`
 
 ---
 
-### `cappy:help`
-- **Ação:** lista comandos disponíveis com resumo de 1 linha por comando.  
-- **Fonte única de retorno:** `.cappy/output.txt`.  
-  - **Se não existir ou estiver vazio:**  
-    `⚠️ Não foi possível listar os comandos. Comando não retornou saída. Reexecute no VS Code.`  
+### 4) 📝 `cappy.createTaskFile` — Create Task File
+- **Copilot:** `cappy:createtaskfile`  
+- **Ação:** cria `*.active.xml` em `.cappy/tasks/` com `status="prepared"`.  
+- **Saída esperada (XML):** *(ver contrato em Convenções)*  
+- **Comportamento LLM após criar:**  
+  1) Ler `<file-path>` do `output.txt`.  
+  2) **Abrir o XML criado** e preencher: `<title>`, `<goals>`, `<constraints>`, `<references>`, `<meta><estimate>`, `<steps>` com `<doneWhen>`.  
+  3) **Vincular** `<preventionLinks>` relevantes de `.cappy/prevention-rules.md`.  
+  4) **Inserir** snapshot de *workspace context* a partir de `stack.md`.  
+  5) Atualizar `<updatedAt>` e logar evento de preparação.
+- **Erro padrão:** `⚠️ createTaskFile sem <file-path>. Reexecute.`  
+- **Resposta curta:** `✅ Task preparada: {ID} → .cappy/tasks/{ARQ}. Próximo: cappy:taskstatus.`
 
 ---
 
-## 📜 Observações Gerais
-- Sempre **execute o comando** e **leia `.cappy/output.txt`**.  
-- **Sem fallback manual:** se não houver saída, **pare** e informe a falha em 1 linha.  
-- **Resposta curta (2–5 linhas):** descreva o que aconteceu + próximo passo.  
-- **Sem inventar dados** a partir de outros arquivos ou contexto.  
+### 5) 📄 `cappy.getActiveTask` — Get Active Task
+- **Copilot:** `cappy:taskstatus`  
+- **Ação:** retorna status da tarefa ativa (se existir).  
+- **Saída esperada (XML):** *(ver contrato em Convenções)*  
+- **Comportamento LLM:**  
+  - `<active>false</active>` → `ℹ️ Nenhuma tarefa ativa. Use cappy:newtask.`  
+  - `<active>true</active>` → ecoar resumo curto com `<file-path>` e dica do próximo passo.  
+- **Erro padrão:** `⚠️ taskstatus sem saída. Reexecute.`  
+- **Resposta curta (ativa):** `📌 Task ativa em "{file-path}". Próximo: executar step atual e marcar com cappy:stepdone.`
 
 ---
 
-## 🧩 Template de Resposta Curta
+### 6) 🔄 `cappy.changeTaskStatus` — Change Task Status
+- **Copilot:** —  
+- **Ação:** pausar/retomar **sem inventar estado**.  
+- **Regra de nomenclatura (normalizada):** manter **sufixos minúsculos** nos arquivos:  
+  - `*.active.xml` ↔ `*.paused.xml`  
+- **Efeitos esperados:**  
+  - Renomeia arquivo (`.active.xml` ⇄ `.paused.xml`).  
+  - Atualiza `status` **no XML** (`em-andamento` ⇄ `paused`).  
+  - Adiciona `<log><entry at="...">...</entry></log>`.  
+- **Saída esperada (XML):**
+  ```xml
+  <change-status>
+    <file-path-old>.../STEP_...active.xml</file-path-old>
+    <file-path-new>.../STEP_...paused.xml</file-path-new>
+    <status>paused</status>
+  </change-status>
+  ```
+- **Erro padrão:** `⚠️ changeTaskStatus sem saída. Reexecute.`  
+- **Resposta curta:** `⏸️ Status alterado para paused → {novo-arquivo}.`
 
-**`cappy:newtask`**  
-`✅ Nova tarefa criada: STEP_..._kebab → .cappy/tasks/... Próximo: cappy:taskstatus.`
-
-**`cappy:taskstatus`**  
-`📌 Tarefa STEP_...: 3/7 steps. Atual: #4 '…'. Próximo: cappy:stepdone.`
-
-**`cappy:stepdone`**  
-`✅ Step #4 concluído (4/7). Próximo: #5 '…'. Critérios: '…'.`
-
-**`cappy:taskcomplete`**  
-`🏁 Tarefa finalizada. Movida para .cappy/history/STEP_...xml.`
-
-**`cappy:knowstack`**  
-`🧠 KnowStack pronto. Abri .cappy/stack.md.`
-
-**Erro/falta de script**  
-`⚠️ Falha ao obter retorno. Reexecute o comando no VS Code.`
+> **Nota:** Evite `.ACTIVE.xml/.PAUSED.xml/.DONE.xml` (maiúsculo). Use sufixos minúsculos para consistência.
 
 ---
 
+### 7) ✅ `cappy.completeTask` — Complete Task
+- **Copilot:** `cappy:taskcomplete`  
+- **Ação:** finalizar a task atual **somente** se critérios atendidos.  
+- **Efeitos esperados:**  
+  - Atualiza `status="completed"` no XML.  
+  - Move de `tasks/` para `history/` (pode renomear para `*.done.xml`).  
+  - Registra timestamp de conclusão em `<log>`.  
+- **Saída esperada (XML):**
+  ```xml
+  <complete-task>
+    <from>.../tasks/STEP_...active.xml</from>
+    <to>.../history/STEP_...done.xml</to>
+    <completedAt>ISO-8601</completedAt>
+  </complete-task>
+  ```
+- **Erro padrão:** `⚠️ taskcomplete sem saída. Reexecute.`  
+- **Resposta curta:** `🏁 Tarefa concluída → .cappy/history/STEP_...done.xml.`
+
+---
+
+### 8) 📦 `cappy.version` — Get Version
+- **Copilot:** `cappy:version`  
+- **Ação:** escreve a versão da extensão em `output.txt`.  
+- **Saída esperada:** texto simples (ex.: `2.5.13`)  
+- **Erro padrão:** `⚠️ version sem saída. Reexecute.`  
+- **Resposta curta:** `📦 Cappy v{versão}.`
+
+---
+
+### 9) 📄 `cappy.viewTelemetryTerms` — Ver Termos de Telemetria
+- **Copilot:** —  
+- **Ação:** abre uma webview de consentimento de telemetria.  
+- **Saída LLM:** **nenhuma** ação textual a partir de `output.txt` é necessária; trate como interação de UI.  
+- **Resposta curta (quando invocado via chat):** `ℹ️ Abrindo termos de telemetria na UI.`
+
+---
+
+## 🧪 Validações Antes de Gravar/Avançar
+1. **Atomicidade**: estimativa **≤3h**; senão, **pare** e recomende decomposição.  
+2. **Critérios de aceite**: presentes e objetivos (`<doneWhen>`).  
+3. **Referências/limites**: registrar `<references>` e `<constraints>`.  
+4. **Sem ambiguidade**: se restar dúvida, **pergunte 1×1**.
+
+---
+
+## 🧷 Templates de Resposta (curtos)
+- **newtask** → `🧩 Roteiro de nova task obtido. Próximo: cappy:createtaskfile.`
+- **createtaskfile** → `✅ Task preparada: {ID} → .cappy/tasks/{ARQ}. Próximo: cappy:taskstatus.`
+- **taskstatus (ativa)** → `📌 Task ativa em "{file-path}". Próximo: executar step atual e marcar com cappy:stepdone.`
+- **taskstatus (inativa)** → `ℹ️ Nenhuma tarefa ativa. Crie com cappy:newtask.`
+- **changeTaskStatus** → `⏸️ Status alterado para {paused|em-andamento} → {arquivo}.`
+- **taskcomplete** → `🏁 Tarefa concluída → .cappy/history/{ARQ}.`
+- **knowstack** → `🧠 KnowStack pronto (.cappy/stack.md).`
+- **version** → `📦 Cappy v{versão}.`
+- **erro genérico (sem saída)** → `⚠️ Comando sem saída em .cappy/output.txt. Reexecute no VS Code.`
+
+---
+
+## 📝 Notas Finais
+- **Nunca** invente resultados a partir de outros arquivos — `.cappy/output.txt` é **a única fonte de retorno**.  
+- **Consistência** nos sufixos de arquivo (`.active.xml`, `.paused.xml`, `.done.xml`) e nos estados (`prepared`, `em-andamento`, `paused`, `completed`).  
+- **Logue** mudanças relevantes no `<log>` da task.
 
 <!-- CAPPY END -->

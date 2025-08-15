@@ -1,246 +1,250 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<cappy:script name="newtask" version="1.2">
+<cappy:script xmlns:cappy="https://schemas.cappy.dev" name="newtask" version="1.8">
   <about>
     <summary>Preparar (não executar) uma nova task atômica via fluxo "scope-first".</summary>
     <command>#newtask</command>
     <notes>
-      <note>Fluxo em pt-BR. Não implemente código; apenas crie o arquivo da task.</note>
-      <note>Escopo atômico: 2-3 horas no máximo.</note>
-      <note>Exige KnowStack validado em .cappy/config.* antes de qualquer pergunta de escopo.</note>
+      <note>Fluxo em pt-BR. A criação do arquivo é feita por comandos VS Code; a LLM apenas preenche
+        o XML criado.</note>
+      <note>Escopo atômico: até 3 horas.</note>
+      <note>Requer KnowStack validado em .cappy/config.* e .cappy/stack.md.</note>
     </notes>
   </about>
 
   <steps>
+
+    <!-- 1) Verificar tarefa ativa via fonte única -->
     <step id="1.check_active">
-      <goal>Check for active or paused tasks using VSCode Command getActiveTask; ask to pause if one exists.</goal>
-      <logic>
-        <![CDATA[
-        activeTaskText = vscode_command("cappy.getActiveTask")
-        if (activeTaskText && !activeTaskText.includes("não tem uma task ativa")) {
-          ask_user("Há uma task ativa: '" + activeTaskText + "'. Pausar para criar uma nova? (sim/não)")
-          if (user_answer == "não") return
+      <goal>Verificar tarefa ativa via cappy.getActiveTask; pausar se o usuário aceitar.</goal>
+      <logic><![CDATA[
+        run_vscode("cappy.getActiveTask");
+        ts_xml = read_text(".cappy/output.txt");
+        if (!ts_xml) stop_with_message("⚠️ getActiveTask sem saída (.cappy/output.txt). Reexecute no VS Code.");
+
+        ts = parse_xml(ts_xml);
+        isActive   = (string_value(ts, "task-status.active") || "").toLowerCase() === "true";
+        activeFile = (string_value(ts, "task-status.file-path") || "").trim();
+        if (activeFile.toLowerCase() === "null") activeFile = "";
+
+        if (!isActive || !activeFile) { return; } // segue para criação
+
+        ans = ask_one("Há uma task ativa. Deseja pausá-la para criar uma nova? (sim/não)");
+        if (ans.toLowerCase() !== "sim") {
+          stop_with_message("Criação cancelada: mantenha foco na tarefa ativa ou pause antes de criar outra.");
         }
-        ]]>
-      </logic>
-      <logic>
-        <![CDATA[
-        tasks = list_files(".cappy/tasks/*.xml")
-        for (t in tasks) {
-          x = read_xml(t)
-          if (x.metadata.status in ["in-progress", "preparing", "paused"]) {
-            ask_user("Há uma task ativa: '" + x.metadata.title + "'. Pausar para criar uma nova? (sim/não)")
-            if (user_answer == "no") return
-          }
+
+        // Renomear *.active.xml → *.paused.xml (consistência de sufixos) e atualizar status no XML
+        if (!/\.active\.xml$/i.test(activeFile)) {
+          stop_with_message("⚠️ Tarefa ativa não está em .active.xml. Ajuste o arquivo ou use changeTaskStatus.");
         }
-        ]]>
-      </logic>
+
+        pausedFile = activeFile.replace(/\.active\.xml$/i, ".paused.xml");
+        xml = read_text(activeFile);
+        if (!xml) stop_with_message("⚠️ Não foi possível ler o XML da tarefa ativa.");
+
+        changed = false;
+        // status como atributo <Task ... status="...">
+        xml2 = xml.replace(/(<Task\b[^>]*\bstatus=")(prepared|em-andamento|in-progress)("/i, "$1paused$3");
+        if (xml2 !== xml) { xml = xml2; changed = true; }
+        // status como nó <status>...</status>
+        xml2 = xml.replace(/<status>\s*(prepared|em-andamento|in-progress)\s*<\/status>/i, "<status>paused</status>");
+        if (xml2 !== xml) { xml = xml2; changed = true; }
+
+        if (/<log>/i.test(xml)) {
+          xml = xml.replace(/<\/log>/i, `  <entry at="${now_iso()}">Pausada para criação de nova task</entry>\n</log>`);
+        } else {
+          xml = upsert_block(xml, "log", `<entry at="${now_iso()}">Pausada para criação de nova task</entry>`);
+        }
+
+        if (!changed) stop_with_message("⚠️ Não foi possível localizar/atualizar o status da tarefa ativa.");
+        write_file(activeFile, xml);
+        rename_file(activeFile, pausedFile);
+      ]]></logic>
     </step>
 
-    <step id="2.context_read">
-      <goal>Carregar contexto mínimo a partir de .cappy/config.* e validar KnowStack.</goal>
-      <logic>
-        <![CDATA[
-        prevention_rules = optional_read(".cappy/prevention-rules.md")
-        project_config   = required_read(".cappy/config.yaml|.cappy/config.json")
-        patterns         = optional_read(".cappy/instructions/cappy-patterns.md")
+    <!-- 2) Contexto do projeto -->
+    <step id="2.load_context">
+      <goal>Carregar config, KnowStack e Prevention Rules.</goal>
+      <logic><![CDATA[
+        prevention_rules = optional_read(".cappy/prevention-rules.md");
+        project_config   = required_read(".cappy/config.yaml|.cappy/config.json");
 
-        // Fonte da stack e validação devem vir do .cappy/config.*
-        stack_path      = extract_yaml_value(project_config, "stack.source") || ".cappy/stack.md"
-        stack_validated = extract_yaml_value(project_config, "stack.validated") == true
-        stack_md        = optional_read(stack_path)
+        stack_path      = extract_kv(project_config, ["stack.source"], ".cappy/stack.md");
+        stack_validated = extract_kv(project_config, ["stack.validated"], false) == true;
+        stack_md        = optional_read(stack_path);
 
         if (!stack_validated || !stack_md) {
-          stop_with_message("KnowStack não finalizado. Execute 'cappy:knowstack' para criar/validar .cappy/stack.md e .cappy/config.yaml.")
+          stop_with_message("KnowStack não finalizado. Execute 'cappy:knowstack' para criar/validar .cappy/stack.md e .cappy/config.*.");
         }
 
-        // Preferência de idioma (default pt-BR)
-        lang = extract_yaml_value(project_config, "language") || "pt-BR"
-        ]]>
-      </logic>
+        lang = extract_kv(project_config, ["language"], "pt-BR");
+      ]]></logic>
     </step>
 
-    <step id="3.atomicity_gate">
-      <goal>Ensure the requested task is atomic; suggest decomposition otherwise.</goal>
-      <logic>
-        <![CDATA[
-        if (estimated_effort_hours > 3) {
-          suggest_decomposition_using(patterns)
-          stop_with_message("Task não criada: escopo não é atômico. Divida em steps menores.")
+    <!-- 3) Coleta de escopo 1×1 e gate de atomicidade -->
+    <step id="3.scope_first">
+      <goal>Coletar escopo mínimo (perguntas 1×1) e validar que é ≤3h.</goal>
+      <logic><![CDATA[
+        scope        = ask_one("Qual é o escopo da nova task? (1–2 linhas; verbo no imperativo)");
+        acceptance   = ask_one("Quais são os critérios de aceite objetivos?");
+        area         = ask_one("Qual área principal? (frontend/backend/fullstack/mobile/devops)");
+        paths        = ask_one("Onde você imagina tocar no projeto? (pastas/arquivos relevantes)");
+        deps         = ask_one("Há dependências externas (libs/serviços)? Liste.");
+        validation   = ask_one("Como será validado? (comandos, testes, URL)");
+        estimate_str = ask_one("Qual estimativa de esforço (em horas, máximo 3h)?");
+
+        estimate = parse_float(estimate_str);
+        if (!estimate || estimate > 3) {
+          stop_with_message("Task não criada: escopo não é atômico (≤3h). Sugira decomposição.");
         }
-        ]]>
-      </logic>
+
+        title = generate_title_from_scope(scope, lang); // curto, imperativo
+        tech  = infer_main_tech_from_stack(stack_md) || "unknown";
+
+        // Escapes para segurança do XML
+        xmlTitle      = xml_escape(title);
+        xmlScope      = xml_escape(scope);
+        xmlPaths      = xml_escape(paths);
+        xmlDeps       = xml_escape(deps);
+        xmlAcceptance = xml_escape(acceptance);
+        xmlValidation = xml_escape(validation);
+      ]]></logic>
     </step>
 
-    <step id="4.collect_min_fields">
-      <goal>Coletar informações mínimas pelo fluxo "scope-first" (sem exigir título).</goal>
-      <inputs>
-        <arg name="title" required="false" example="Configurar autenticação Supabase" />
-        <arg name="scope" required="false" example="Criar endpoint de login com validação JWT e testes" />
-        <arg name="area"  required="false" values="frontend,backend,fullstack,mobile,devops" />
-        <arg name="tech"  required="false" example="nodejs" />
-        <arg name="description" required="false" />
-      </inputs>
-      <logic>
-        <![CDATA[
-        // Se não houver título, conduzir perguntas de escopo em pt-BR
-        if (!args.title) {
-          q = [
-            "Qual é o escopo da nova task? Resuma em 1-2 linhas.",
-            "Quais são os critérios de aceitação (o que define 'pronto')?",
-            "Quais áreas serão afetadas? (frontend/backend/fullstack/mobile/devops)",
-            "Há dependências externas (libs/serviços) relevantes?",
-            "Como será validado (tests, comando, URL)?"
-          ]
-          answers = ask_series(q)
-          args.scope = args.scope || answers[0]
-          args.description = args.description || ("Escopo: " + (answers[0]||""))
-          args.area = args.area || normalize_area(answers[2]) || "fullstack"
+    <!-- 4) Obter roteiro (template) da task -->
+    <step id="4.fetch_template">
+      <goal>Obter roteiro/templating pelo cappy.getNewTaskInstruction.</goal>
+      <logic><![CDATA[
+        run_vscode("cappy.getNewTaskInstruction");
+        tpl_xml = read_text(".cappy/output.txt");
+        if (!tpl_xml) stop_with_message("⚠️ getNewTaskInstruction sem saída. Reexecute no VS Code.");
+        // tpl = parse_xml(tpl_xml); // opcional
+      ]]></logic>
+    </step>
 
-          // Gerar título curto em modo imperativo a partir do escopo
-          args.title = generate_title_from_scope(args.scope, lang)
+    <!-- 5) Criar arquivo da task via comando -->
+    <step id="5.create_file">
+      <goal>Criar o arquivo *.active.xml via cappy.createTaskFile e obter &lt;file-path&gt;.</goal>
+      <logic><![CDATA[
+        // Passa args para enriquecer o template inicial
+        run_vscode("cappy.createTaskFile", {
+          title: xmlTitle,
+          description: xmlScope,
+          area: area,
+          estimate: estimate + "h",
+          priority: extract_kv(project_config, ["defaults.priority"], "P2")
+        });
+        ct_xml = read_text(".cappy/output.txt");
+        if (!ct_xml) stop_with_message("⚠️ createTaskFile sem saída. Reexecute no VS Code.");
+
+        ct = parse_xml(ct_xml);
+        outpath = (string_value(ct, "create-task.file-path") || "").trim();
+        raw_id  = (string_value(ct, "create-task.id") || "").trim();
+
+        if (!outpath || outpath.toLowerCase() === "null") {
+          stop_with_message("⚠️ Comando retornou sem <file-path>. Reexecute no VS Code.");
+        }
+
+        if (!raw_id) raw_id = basename(outpath); // ex.: STEP_...active.xml
+        task_id = raw_id.replace(/\.active\.xml$/i, ""); // ex.: STEP_...
+      ]]></logic>
+      <output>task_id,outpath</output>
+    </step>
+
+    <!-- 6) Preencher o XML criado com escopo, critérios e contexto -->
+    <step id="6.patch_xml">
+      <goal>Preencher campos essenciais e normalizar status=id.</goal>
+      <logic><![CDATA[
+        xml = read_text(outpath);
+        if (!xml) stop_with_message("⚠️ Arquivo da task criado, mas não foi possível ler o conteúdo.");
+
+        // Normalizar <Task> em maiúsculo e assegurar id/status
+        if (!/<Task\b/i.test(xml)) {
+          xml = xml.replace(/<task\b/gi, "<Task").replace(/<\/task>/gi, "</Task>");
+        }
+        // id lógico
+        if (/\b id="/i.test(xml)) {
+          xml = xml.replace(/(<Task\b[^>]*\bid=")[^"]*(")/i, `$1${task_id}$2`);
         } else {
-          // Se o título foi fornecido, ainda coletar critérios mínimos
-          answers = ask_series([
-            "Descreva brevemente o escopo e o resultado esperado (1-2 linhas).",
-            "Critérios de aceitação?",
-            "Arquivos/pastas prováveis a tocar?",
-            "Dependências (libs/serviços)?",
-            "Forma de validação (tests/comandos/URL)?"
-          ])
-          args.scope = args.scope || answers[0]
-          args.description = args.description || ("Escopo: " + (answers[0]||""))
-          args.area = args.area || "fullstack"
+          xml = xml.replace(/<Task\b/i, `<Task id="${task_id}"`);
         }
-        ]]>
-      </logic>
-    </step>
-
-    <step id="5.derive_workspace_context">
-      <goal>Inferir projetos/entrypoints/contexts a partir da Stack (.cappy/stack.md).</goal>
-      <logic>
-        <![CDATA[
-        workspace = { projects: [], runContexts: [] }
-        if (stack_md) {
-          workspace.projects = parse_projects_from_stack(stack_md) // e.g., [{name, path, type, language}]
-          for (p in workspace.projects) {
-            rc = recommend_run_context(p) // e.g., {cd: p.path, env: [], build: [], test: [], run: []}
-            workspace.runContexts.push(rc)
-          }
+        // status="prepared"
+        if (/\bstatus="/i.test(xml)) {
+          xml = xml.replace(/(<Task\b[^>]*\bstatus=")[^"]*(")/i, '$1prepared$2');
+        } else {
+          xml = xml.replace(/<Task\b/i, '<Task status="prepared"');
         }
-        // If multiple projects (e.g., web and api), keep both contexts and document navigation commands
-        ]]>
-      </logic>
-      <output>internal.workspace</output>
+
+        // Seções principais
+        xml = upsert_tag(xml, "title", xmlTitle);
+
+        // context + technology
+        xml = ensure_section(xml, "context", [
+          ["area", area],
+          ["repo", extract_kv(project_config, ["repo"], "")],
+          ["branch", extract_kv(project_config, ["branch"], "")]
+        ]);
+        // adiciona tecnologia principal (não quebra se já existir)
+        xml = upsert_block(xml, "context", None, { "append":
+          f"<technology main=\"{xml_escape(tech)}\"></technology>"
+        });
+
+        // meta: preservar createdAt se existir; sempre atualizar updatedAt
+        existingCreated = string_between(xml, "<createdAt>", "</createdAt>") || "";
+        xml = ensure_meta(xml, {
+          createdAt: existingCreated or now_iso(),
+          updatedAt: now_iso(),
+          priority: extract_kv(project_config, ["defaults.priority"], "P2"),
+          estimate: str(estimate) + "h"
+        });
+
+        xml = upsert_block(xml, "goals", f"<goal>{xmlScope}</goal>");
+        xml = upsert_block(xml, "constraints", f"<constraint>Não alterar partes fora de {xmlPaths}</constraint>");
+        xml = upsert_block(xml, "references", f"<ref type=\"file\">{xml_escape(stack_path)}</ref>");
+
+        // Steps mínimos com critérios objetivos + bloco de validation
+        steps_block = (
+          "<steps current=\"1\">\n"
+          "  <step id=\"1\" required=\"true\" status=\"pending\">\n"
+          "    <desc>Implementar primeiro resultado concreto desta task.</desc>\n"
+          f"    <inputs>{xmlDeps}</inputs>\n"
+          f"    <doneWhen>{xmlAcceptance}</doneWhen>\n"
+          f"    <validation>{xmlValidation}</validation>\n"
+          "    <evidence></evidence>\n"
+          "  </step>\n"
+          "</steps>"
+        );
+        xml = upsert_block(xml, "steps", steps_block);
+
+        // Snapshot de workspace context
+        workspace = parse_projects_and_contexts(stack_md);
+        xml = upsert_block(xml, "workspace", "<![CDATA[\n" + JSON.stringify(workspace or {}, None, 2) + "\n]]"+">");
+
+        // Vincular Prevention Rules relevantes
+        if (prevention_rules) {
+          matches = find_relevant_rules(prevention_rules, { "title": xmlTitle, "scope": xmlScope, "area": area, "deps": xmlDeps });
+          links = (matches or []).map(lambda m: f"    <ruleRef id=\"{m.id}\">.cappy/prevention-rules.md#{m.anchor}</ruleRef>").join("\n");
+          xml = upsert_block(xml, "preventionLinks", ("\n" + links + "\n") if links else "");
+        }
+
+        // Log
+        if (/<log>/i.test(xml)) {
+          xml = xml.replace(/<\/log>/i, `  <entry at="${now_iso()}">Task preparada via newtask (scope-first) — área=${xml_escape(area)}; estimativa=${estimate}h</entry>\n</log>`);
+        } else {
+          xml = upsert_block(xml, "log", `<entry at="${now_iso()}">Task preparada via newtask (scope-first) — área=${xml_escape(area)}; estimativa=${estimate}h</entry>`);
+        }
+
+        write_file(outpath, xml);
+      ]]></logic>
     </step>
 
-    <step id="6.generate_filename">
-      <goal>Gerar nome do arquivo usando timestamp e título em kebab-case.</goal>
-      <logic>
-        <![CDATA[
-        ts = unix_timestamp()
-        kebab = kebab_case(args.title)
-        filename = `STEP_${ts}_${kebab}.xml`
-        outpath = `.cappy/tasks/${filename}`
-        ]]>
-      </logic>
+    <!-- 7) Confirmar -->
+    <step id="7.confirm">
+      <goal>Confirmar e orientar próximo passo.</goal>
+      <logic><![CDATA[
+        say(`✅ Task preparada: ${task_id}\nLocal: ${outpath}\nPróximo: execute 'cappy:taskstatus' para ver passos e iniciar.`);
+      ]]></logic>
     </step>
 
-    <step id="7.write_task_xml">
-      <goal>Write the task XML with required structure and defaults (status=preparing).</goal>
-      <template>
-        <![CDATA[
-<task id="{{ kebab }}" version="1.0">
-  <metadata>
-    <title>{{ args.title }}</title>
-    <description>{{ args.description || ("Atomic task: " + args.title) }}</description>
-    <status>preparing</status>
-    <progress>0/1</progress>
-  </metadata>
-  <context>
-    <area>{{ args.area }}</area>
-    <technology main="{{ args.tech || 'unknown' }}" version=""/>
-    <step id="7.write_task_xml">
-      <goal>Escrever o XML da task com defaults (status=preparing) sem executar nada.</goal>
-    </dependencies>
-    <files>
-      <!-- Enumerate files once known during execution; empty on creation is acceptable -->
-    </files>
-  </context>
-  <steps>
-    <step id="step001" order="1" completed="false" required="true">
-      <title>Describe the concrete outcome</title>
-      <description>Define the first concrete implementation step for this task.</description>
-      <criteria>
-        <criterion>Build succeeds</criterion>
-        <criterion>Unit test(s) for this step pass</criterion>
-      </criteria>
-      <files>
-        <!-- Add file paths touched by this step when known -->
-      </files>
-      <dependencies>
-        <!-- Optional per-step dependencies -->
-      </dependencies>
-      <validation>
-        <command>npm run test</command>
-        <metric>tests_passed >= 1</metric>
-      </validation>
-    </step>
-  </steps>
-  <validation>
-    <checklist>
-      <item>All required steps completed</item>
-      <item>All required files created</item>
-      <item>Code compiles without errors</item>
-      <item>No linting warnings</item>
-    </checklist>
-  </validation>
-</task>
-        ]]>
-      </template>
-      <logic>
-        <![CDATA[
-        xml = render_template(template, { args, kebab })
-        write_file(outpath, xml)
-        ]]>
-      </logic>
-    </step>
-
-    <step id="8.embed_preparation_notes">
-      <goal>Acrescentar seção de preparação com Q&A do escopo e contexts de execução.</goal>
-      <logic>
-        <![CDATA[
-        xml = read_text(outpath)
-        prep = `\n  <!-- preparation -->\n  <preparation>\n    <scope>\n      <summary>${last_answers[0]||''}</summary>\n      <acceptance>${last_answers[1]||''}</acceptance>\n      <areas>${args.area||''}</areas>\n      <paths>${last_answers[2]||''}</paths>\n      <dependencies>${last_answers[3]||''}</dependencies>\n      <validation>${last_answers[4]||''}</validation>\n    </scope>\n    <workspace>\n      ${JSON.stringify(internal.workspace || {}, null, 2)}\n    </workspace>\n  </preparation>`
-        xml = xml.replace(/<validation>[\s\S]*?<\/validation>[\r\n]*<\/task>/, (m)=> m.replace('</task>', prep + "\n</task>"))
-        write_file(outpath, xml)
-        ]]>
-      </logic>
-    </step>
-
-    <step id="9.mark_prepared">
-      <goal>Marcar como preparada e salvar ponteiro de task atual.</goal>
-      <logic>
-        <![CDATA[
-        // Update status to prepared
-        xml = read_text(outpath)
-        xml = xml.replace('<status>preparing</status>', '<status>prepared</status>')
-        write_file(outpath, xml)
-
-        // Save current task pointer
-        ensure_dir('.cappy/state')
-        state = { currentTaskFile: outpath, status: 'prepared', updatedAt: now_iso() }
-        write_file('.cappy/state/current-task.json', JSON.stringify(state, null, 2))
-        ]]>
-      </logic>
-    </step>
-
-    <step id="10.confirm">
-      <goal>Confirmar criação e preparação. Aguardar próximo comando.</goal>
-      <logic>
-        <![CDATA[
-        say(`Task preparada: ${filename}\nLocal: ${outpath}\nPróximo: use 'cappy:run exe:' com o run context adequado.`)
-        ]]>
-      </logic>
-    </step>
   </steps>
 </cappy:script>

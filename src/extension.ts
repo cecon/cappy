@@ -5,6 +5,9 @@ import {
 } from "./commands/telemetryConsent";
 import getNewTaskInstruction from "./commands/getNewTaskInstruction";
 import getActiveTask from "./commands/getActiveTask";
+import createTaskFile from "./commands/createTaskFile";
+import { changeTaskStatusCommand } from "./commands/changeTaskStatus";
+import completeTask from "./commands/completeTask";
 
 export function activate(context: vscode.ExtensionContext) {
   try {
@@ -175,6 +178,49 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
+    // Register: create task file command (creates new task XML file)
+    const createTaskFileCommand = vscode.commands.registerCommand(
+      "cappy.createTaskFile",
+      async (args?: Record<string, string>) => {
+        try {
+          const result = await createTaskFile(context, args);
+          return result;
+        } catch (error) {
+          console.error("Cappy createTaskFile error:", error);
+          vscode.window.showErrorMessage(`Cappy createTaskFile failed: ${error}`);
+          return "";
+        }
+      }
+    );
+
+    // Register: change task status command (changes task status between active/paused)
+    const changeTaskStatusCmd = vscode.commands.registerCommand(
+      "cappy.changeTaskStatus",
+      async () => {
+        try {
+          await changeTaskStatusCommand();
+        } catch (error) {
+          console.error("Cappy changeTaskStatus error:", error);
+          vscode.window.showErrorMessage(`Cappy changeTaskStatus failed: ${error}`);
+        }
+      }
+    );
+
+    // Register: complete task command (moves active task to history)
+    const completeTaskCommand = vscode.commands.registerCommand(
+      "cappy.completeTask",
+      async () => {
+        try {
+          const result = await completeTask();
+          return result;
+        } catch (error) {
+          console.error("Cappy completeTask error:", error);
+          vscode.window.showErrorMessage(`Cappy completeTask failed: ${error}`);
+          return "";
+        }
+      }
+    );
+
     // Register all commands
     context.subscriptions.push(
       initCommand,
@@ -184,7 +230,10 @@ export function activate(context: vscode.ExtensionContext) {
       consentCommand,
       getNewTaskInstructionCommand,      
   getActiveTaskCommand,
-  versionCommand
+  versionCommand,
+  createTaskFileCommand,
+  changeTaskStatusCmd,
+  completeTaskCommand
     );
   } catch (error) {
     vscode.window.showErrorMessage(

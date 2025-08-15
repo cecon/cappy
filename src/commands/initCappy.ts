@@ -60,14 +60,10 @@ export class InitCappyCommand {
                 // 3. (Alterado) Não injeta mais CAPY:CONFIG no copilot-instructions.md
                 // Mantemos apenas as instruções locais em .cappy/instructions
 
-                progress.report({ increment: 85, message: configExisted ? 'Atualizando instruções do Copilot...' : 'Copiando instruções...' });
+                progress.report({ increment: 85, message: 'Atualizando instruções do Copilot...' });
 
-                // 5. Atualizar/garantir .github/copilot-instructions.md a partir do template
-                if (configExisted) {
-                    await this.refreshGithubCopilotInstructions(workspaceFolder.uri.fsPath);
-                } else {
-                    await this.ensureGithubCopilotInstructions(workspaceFolder.uri.fsPath);
-                }
+                // 5. Sempre atualizar .github/copilot-instructions.md a partir do template
+                await this.refreshGithubCopilotInstructions(workspaceFolder.uri.fsPath);
 
                 // 6. Atualizar .gitignore para manter instruções privadas
                 await this.updateGitignore(workspaceFolder.uri.fsPath);
