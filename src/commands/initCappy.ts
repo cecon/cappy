@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { writeOutput } from '../utils/outputWriter';
+import { writeOutput, appendOutput } from '../utils/outputWriter';
 
 export class InitCappyCommand {
     constructor(        
@@ -261,6 +261,7 @@ export class InitCappyCommand {
 
             const hasStart = existing.includes(start);
             const hasEnd = existing.includes(end);
+            
             if (!hasStart || !hasEnd) {
                 // No markers; overwrite entire file to align with template once
                 await fs.promises.writeFile(targetPath, tpl, 'utf8');
@@ -268,7 +269,7 @@ export class InitCappyCommand {
             }
 
             // Replace only the marked block
-            const pattern = new RegExp(`${start}[\s\S]*?${end}`);
+            const pattern = new RegExp(`${start}[\\s\\S]*?${end}`);
             
             // Extract content between markers from template
             const templatePattern = new RegExp(`${start}([\\s\\S]*?)${end}`);
