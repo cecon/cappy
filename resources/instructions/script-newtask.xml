@@ -11,11 +11,119 @@
     </notes>
   </about>
 
+  <state-management>
+    <overview>
+      Este script mantém controle rigoroso de estados durante todo o processo de criação de tasks.
+      O sistema é stateful e controla múltiplas camadas de estado simultaneamente.
+    </overview>
+    
+    <task-states>
+      <state name="empty" description="Template criado aguardando preenchimento pela LLM" initial="true" />
+      <state name="prepared" description="Task preenchida e configurada, pronta para execução" />
+      <state name="em-andamento" description="Task sendo executada ativamente" />
+      <state name="paused" description="Task pausada temporariamente" />
+      <state name="completed" description="Task finalizada e movida para history" />
+      <transitions>
+        empty → prepared → em-andamento → paused → completed
+        paused → em-andamento (retomar)
+      </transitions>
+    </task-states>
+
+    <step-states>
+      <state name="pending" description="Step ainda não iniciado" initial="true" />
+      <state name="in-progress" description="Step sendo executado" />
+      <state name="completed" description="Step concluído" />
+      <usage>
+        Cada &lt;step&gt; individual mantém seu próprio status independentemente.
+        Formato: &lt;step id="1" status="pending|in-progress|completed" required="true"&gt;
+      </usage>
+    </step-states>
+
+    <progress-tracking>
+      <current-step>Indica qual step está ativo no momento</current-step>
+      <completed-steps>Contador de steps já finalizados</completed-steps>
+      <total-steps>Total de steps na task</total-steps>
+      <percentage>Percentual de conclusão calculado automaticamente</percentage>
+      <xml-example><![CDATA[
+<steps current="1">
+  <step id="1" status="pending">...</step>
+</steps>
+<progress>
+  <current-step>1</current-step>
+  <completed-steps>0</completed-steps>
+  <total-steps>1</total-steps>
+  <percentage>0</percentage>
+</progress>
+      ]]></xml-example>
+    </progress-tracking>
+
+    <audit-trail>
+      <description>
+        Cada mudança de estado é registrada em &lt;log&gt; com timestamp ISO-8601.
+        Inclui: criação, pausas, retomadas, conclusões e qualquer alteração significativa.
+      </description>
+      <meta-timestamps>
+        createdAt: timestamp de criação inicial (preservado)
+        updatedAt: timestamp da última modificação (sempre atualizado)
+      </meta-timestamps>
+    </audit-trail>
+
+    <state-flow-during-creation>
+      <step number="1" action="check_active" state="verificando task ativa" />
+      <step number="2" action="load_context" state="coletando dados do projeto" />
+      <step number="3" action="scope_first" state="validando atomicidade ≤3h" />
+      <step number="4" action="fetch_template" state="preparando estrutura" />
+      <step number="5" action="create_file" state="criando arquivo com status=empty (template vazio)" />
+      <step number="6" action="patch_xml" state="preenchendo XML e mudando status=empty→prepared" />
+      <step number="7" action="confirm" state="task finalizada em estado prepared (pronta para execução)" />
+    </state-flow-during-creation>
+
+    <final-xml-example>
+      <description>Exemplo de XML final gerado após transição empty → prepared:</description>
+      <xml><![CDATA[
+<?xml version="1.0" encoding="UTF-8"?>
+<Task id="STEP_20250815-143022_implementar-feature" status="prepared">
+  <meta>
+    <createdAt>2025-08-15T14:30:22.123Z</createdAt>
+    <updatedAt>2025-08-15T14:30:22.123Z</updatedAt>
+    <priority>P2</priority>
+    <estimate>2h</estimate>
+  </meta>
+  <title>Implementar nova funcionalidade</title>
+  <steps current="1">
+    <step id="1" required="true" status="pending">
+      <desc>Implementar primeiro resultado concreto desta task.</desc>
+      <doneWhen>Feature funcionando conforme especificação</doneWhen>
+      <validation>npm test && npm run e2e</validation>
+      <evidence></evidence>
+    </step>
+  </steps>
+  <progress>
+    <current-step>1</current-step>
+    <completed-steps>0</completed-steps>
+    <total-steps>1</total-steps>
+    <percentage>0</percentage>
+  </progress>
+  <log>
+    <entry at="2025-08-15T14:30:22.123Z">Task criada com status=empty (template)</entry>
+    <entry at="2025-08-15T14:30:22.456Z">Task preenchida via newtask (scope-first) — área=frontend; estimativa=2h — status=empty→prepared</entry>
+  </log>
+</Task>
+      ]]></xml>
+    </final-xml-example>
+  </state-management>
+
   <steps>
 
     <!-- 1) Verificar tarefa ativa via fonte única -->
     <step id="1.check_active">
       <goal>Verificar tarefa ativa via cappy.getActiveTask; pausar se o usuário aceitar.</goal>
+      <state-notes>
+        Transição de estado: se task ativa existe, muda de "em-andamento" → "paused"
+        Arquivo renomeado: .active.xml → .paused.xml (consistência de sufixos)
+        Log atualizado: registro da pausa com timestamp
+        Permite criar nova task sem conflito de estado
+      </state-notes>
       <logic><![CDATA[
         run_vscode("cappy.getActiveTask");
         ts_xml = read_text(".cappy/output.txt");
@@ -66,7 +174,7 @@
     <step id="2.load_context">
       <goal>Carregar config, KnowStack e Prevention Rules.</goal>
       <logic><![CDATA[
-        prevention_rules = optional_read(".cappy/prevention-rules.md");
+        prevention_rules = optional_read(".cappy/prevention-rules.xml");
         project_config   = required_read(".cappy/config.yaml|.cappy/config.json");
 
         stack_path      = extract_kv(project_config, ["stack.source"], ".cappy/stack.md");
@@ -125,6 +233,11 @@
     <!-- 5) Criar arquivo da task via comando -->
     <step id="5.create_file">
       <goal>Criar o arquivo *.active.xml via cappy.createTaskFile e obter &lt;file-path&gt;.</goal>
+      <state-notes>
+        Estado inicial: arquivo criado com status="empty" (template vazio para LLM preencher)
+        Extensão: .active.xml indica task disponível para processamento
+        ID lógico: nome do arquivo sem extensão .active.xml
+      </state-notes>
       <logic><![CDATA[
         // Passa args para enriquecer o template inicial
         run_vscode("cappy.createTaskFile", {
@@ -154,6 +267,13 @@
     <!-- 6) Preencher o XML criado com escopo, critérios e contexto -->
     <step id="6.patch_xml">
       <goal>Preencher campos essenciais e normalizar status=id.</goal>
+      <state-notes>
+        Transição de estado: status muda de "empty" → "prepared" após preenchimento
+        Steps criados: todos com status="pending" inicialmente
+        Progress: current="1" (primeiro step será o ativo)
+        Audit: log de criação com timestamp ISO-8601
+        Meta: createdAt preservado, updatedAt sempre atualizado
+      </state-notes>
       <logic><![CDATA[
         xml = read_text(outpath);
         if (!xml) stop_with_message("⚠️ Arquivo da task criado, mas não foi possível ler o conteúdo.");
@@ -168,7 +288,7 @@
         } else {
           xml = xml.replace(/<Task\b/i, `<Task id="${task_id}"`);
         }
-        // status="prepared"
+        // status="prepared" (transição de empty→prepared após preenchimento)
         if (/\bstatus="/i.test(xml)) {
           xml = xml.replace(/(<Task\b[^>]*\bstatus=")[^"]*(")/i, '$1prepared$2');
         } else {
@@ -223,15 +343,15 @@
         // Vincular Prevention Rules relevantes
         if (prevention_rules) {
           matches = find_relevant_rules(prevention_rules, { "title": xmlTitle, "scope": xmlScope, "area": area, "deps": xmlDeps });
-          links = (matches or []).map(lambda m: f"    <ruleRef id=\"{m.id}\">.cappy/prevention-rules.md#{m.anchor}</ruleRef>").join("\n");
+          links = (matches or []).map(lambda m: f"    <ruleRef id=\"{m.id}\">.cappy/prevention-rules.xml#{m.id}</ruleRef>").join("\n");
           xml = upsert_block(xml, "preventionLinks", ("\n" + links + "\n") if links else "");
         }
 
         // Log
         if (/<log>/i.test(xml)) {
-          xml = xml.replace(/<\/log>/i, `  <entry at="${now_iso()}">Task preparada via newtask (scope-first) — área=${xml_escape(area)}; estimativa=${estimate}h</entry>\n</log>`);
+          xml = xml.replace(/<\/log>/i, `  <entry at="${now_iso()}">Task preenchida via newtask (scope-first) — área=${xml_escape(area)}; estimativa=${estimate}h — status=empty→prepared</entry>\n</log>`);
         } else {
-          xml = upsert_block(xml, "log", `<entry at="${now_iso()}">Task preparada via newtask (scope-first) — área=${xml_escape(area)}; estimativa=${estimate}h</entry>`);
+          xml = upsert_block(xml, "log", `<entry at="${now_iso()}">Task preenchida via newtask (scope-first) — área=${xml_escape(area)}; estimativa=${estimate}h — status=empty→prepared</entry>`);
         }
 
         write_file(outpath, xml);

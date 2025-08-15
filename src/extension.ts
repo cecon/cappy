@@ -8,6 +8,9 @@ import getActiveTask from "./commands/getActiveTask";
 import createTaskFile from "./commands/createTaskFile";
 import { changeTaskStatusCommand } from "./commands/changeTaskStatus";
 import completeTask from "./commands/completeTask";
+import workOnCurrentTask from "./commands/workOnCurrentTask";
+import { AddPreventionRuleCommand } from "./commands/addPreventionRule";
+import { RemovePreventionRuleCommand } from "./commands/removePreventionRule";
 
 export function activate(context: vscode.ExtensionContext) {
   try {
@@ -221,19 +224,65 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
+    // Register: add prevention rule command
+    const addPreventionRuleCommand = vscode.commands.registerCommand(
+      "cappy.addPreventionRule",
+      async () => {
+        try {
+          const cmd = new AddPreventionRuleCommand();
+          await cmd.execute();
+        } catch (error) {
+          console.error("Cappy addPreventionRule error:", error);
+          vscode.window.showErrorMessage(`Cappy addPreventionRule failed: ${error}`);
+        }
+      }
+    );
+
+    // Register: remove prevention rule command
+    const removePreventionRuleCommand = vscode.commands.registerCommand(
+      "cappy.removePreventionRule",
+      async () => {
+        try {
+          const cmd = new RemovePreventionRuleCommand();
+          await cmd.execute();
+        } catch (error) {
+          console.error("Cappy removePreventionRule error:", error);
+          vscode.window.showErrorMessage(`Cappy removePreventionRule failed: ${error}`);
+        }
+      }
+    );
+
+    // Register: work on current task command (executes active task following its script)
+    const workOnCurrentTaskCommand = vscode.commands.registerCommand(
+      "cappy.workOnCurrentTask",
+      async () => {
+        try {
+          const result = await workOnCurrentTask();
+          return result;
+        } catch (error) {
+          console.error("Cappy workOnCurrentTask error:", error);
+          vscode.window.showErrorMessage(`Cappy workOnCurrentTask failed: ${error}`);
+          return "";
+        }
+      }
+    );
+
     // Register all commands
     context.subscriptions.push(
       initCommand,
       knowStackCommand,
       knowStackAliasCommand,
-  knowTaskTypoAliasCommand,
+      knowTaskTypoAliasCommand,
       consentCommand,
       getNewTaskInstructionCommand,      
-  getActiveTaskCommand,
-  versionCommand,
-  createTaskFileCommand,
-  changeTaskStatusCmd,
-  completeTaskCommand
+      getActiveTaskCommand,
+      versionCommand,
+      createTaskFileCommand,
+      changeTaskStatusCmd,
+      completeTaskCommand,
+      addPreventionRuleCommand,
+      removePreventionRuleCommand,
+      workOnCurrentTaskCommand
     );
   } catch (error) {
     vscode.window.showErrorMessage(

@@ -55,8 +55,12 @@ show_validation_results(results)
 // Identificar novos learnings para prevention rules
 ask_user("Durante esta task, encontrou algum problema ou aprendizado importante?")
 if (user_provides_learning) {
-    new_rule = format_prevention_rule(user_learning)
-    append_to_file(".cappy/prevention-rules.md", new_rule)
+    // Usar comando específico para adicionar prevention rule
+    execute_command("cappy.addPreventionRule", {
+        title: format_rule_title(user_learning),
+        description: user_learning,
+        category: extract_task_category(xml) || "general"
+    })
 }
 ```
 

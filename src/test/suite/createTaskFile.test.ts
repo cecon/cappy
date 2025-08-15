@@ -45,6 +45,72 @@ suite('CreateTaskFile Tests', () => {
         assert.ok(result.includes('<estimate>60min</estimate>'));
     });
 
+    test('Should include prevention rules from .cappy/prevention-rules.md', async () => {
+        // Arrange
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+            assert.fail('No workspace folder found');
+        }
+
+        const cappyDir = path.join(workspaceRoot, '.cappy');
+        const preventionRulesPath = path.join(cappyDir, 'prevention-rules.md');
+        
+        // Create prevention rules file
+        if (!fs.existsSync(cappyDir)) {
+            fs.mkdirSync(cappyDir, { recursive: true });
+        }
+        
+        const testRules = `# Terminal Syntax Issues
+Priority: high
+
+Evitar usar sintaxe bash em terminal PowerShell.
+
+## File Path Problems  
+Priority: medium
+
+Usar separadores corretos para o sistema operacional.`;
+
+        fs.writeFileSync(preventionRulesPath, testRules, 'utf8');
+
+        // Act
+        const result = await createTaskFile();
+
+        // Assert
+        assert.ok(result.includes('prevention-rules'));
+        assert.ok(result.includes('terminal-syntax-issues'));
+        assert.ok(result.includes('file-path-problems'));
+        assert.ok(result.includes('<rule-ref'));
+        assert.ok(result.includes('environment-context'));
+        
+        // Cleanup
+        if (fs.existsSync(preventionRulesPath)) {
+            fs.unlinkSync(preventionRulesPath);
+        }
+    });
+
+    test('Should handle missing prevention rules file gracefully', async () => {
+        // Arrange 
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+            assert.fail('No workspace folder found');
+        }
+
+        const preventionRulesPath = path.join(workspaceRoot, '.cappy', 'prevention-rules.md');
+        
+        // Ensure no prevention rules file exists
+        if (fs.existsSync(preventionRulesPath)) {
+            fs.unlinkSync(preventionRulesPath);
+        }
+
+        // Act
+        const result = await createTaskFile();
+
+        // Assert
+        assert.ok(result.includes('prevention-rules'));
+        assert.ok(result.includes('placeholder'));
+        assert.ok(result.includes('Execute cappy.init para criar arquivo de prevention rules'));
+    });
+
     test('Should create .cappy/tasks directory if not exists', async () => {
         // Arrange
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;

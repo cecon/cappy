@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<task id="{{TASK_ID}}" status="em-andamento">
+<task id="{{TASK_ID}}" status="empty">
     <meta>
         <created>{{CREATED_TIMESTAMP}}</created>
         <updated>{{CREATED_TIMESTAMP}}</updated>
@@ -22,6 +22,69 @@
         <criteria>Critérios gerais de validação da tarefa</criteria>
         <evidence type="code">Evidências necessárias</evidence>
     </validation>
+    <prevention-rules-context>
+        <!-- 
+        EDUCATIVO: Como a LLM deve identificar quando precisa criar uma nova prevention rule
+        -->
+        <identification-triggers>
+            <trigger type="error-repetition">
+                <description>Erro se repetiu 2+ vezes em contextos similares</description>
+                <examples>
+                    <example>Mesmo erro de sintaxe de terminal em diferentes tarefas</example>
+                    <example>Mesmo tipo de path incorreto em múltiplas execuções</example>
+                </examples>
+            </trigger>
+            
+            <trigger type="environment-mismatch">
+                <description>LLM assumiu ambiente diferente do real</description>
+                <examples>
+                    <example>Assumiu bash quando usuário usa PowerShell</example>
+                    <example>Assumiu Linux quando usuário usa Windows</example>
+                    <example>Assumiu Node.js quando projeto é Python</example>
+                </examples>
+            </trigger>
+            
+            <trigger type="scope-violation">
+                <description>Tarefa excedeu escopo atômico (>3h)</description>
+                <examples>
+                    <example>Tarefa que deveria ser decomposta</example>
+                    <example>Múltiplos domínios em uma única task</example>
+                </examples>
+            </trigger>
+            
+            <trigger type="user-correction">
+                <description>Usuário corrigiu a LLM sobre algo específico</description>
+                <examples>
+                    <example>Usuário corrigiu comando ou approach</example>
+                    <example>Usuário indicou padrão específico do projeto</example>
+                </examples>
+            </trigger>
+        </identification-triggers>
+        
+        <when-to-create>
+            <immediate>Erro crítico que pode quebrar execução (sintaxe, paths)</immediate>
+            <after-completion>Padrão identificado que pode ser reutilizado</after-completion>
+            <user-request>Usuário explicitamente pede para documentar regra</user-request>
+        </when-to-create>
+        
+        <how-to-document>
+            <step>1. Identificar o padrão do erro</step>
+            <step>2. Documentar contexto específico (OS, shell, framework)</step>
+            <step>3. Criar exemplo wrong vs correct</step>
+            <step>4. Adicionar verification checklist</step>
+            <step>5. Referenciar na seção prevention-rules desta task</step>
+        </how-to-document>
+    </prevention-rules-context>
+    
+    <prevention-rules>
+        <!-- Regras de prevenção específicas para esta tarefa devem vir do .cappy/prevention-rules.xml -->
+        <verification-checklist>
+            <check>Confirmar sintaxe de comandos adequada ao shell do usuário</check>
+            <check>Verificar se estimativa da tarefa não excede 3 horas</check>
+            <check>Usar caminhos de arquivo no formato correto do OS</check>
+            <check>Consultar .cappy/prevention-rules.md antes de ações críticas</check>
+        </verification-checklist>
+    </prevention-rules>
     <progress>
         <completed-steps>0</completed-steps>
         <total-steps>1</total-steps>

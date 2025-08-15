@@ -46,6 +46,7 @@ suite('🦫 Cappy Extension Test Suite', () => {
             'cappy.createTask',
             'cappy.createSmartTask',
             'cappy.addPreventionRule',
+            'cappy.removePreventionRule',
             'cappy.completeTask'
         ];
 

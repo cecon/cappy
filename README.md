@@ -90,7 +90,7 @@ your-project/
 │   ├── history/                        # Completed tasks (*.done.xml)
 │   ├── config.yaml                     # Cappy configuration
 │   ├── stack.md                        # Project knowledge base
-│   ├── prevention-rules.md             # Learning from mistakes
+│   ├── prevention-rules.xml            # Learning from mistakes
 │   └── output.txt                      # Command outputs (LLM reads this)
 ├── .github/
 │   └── copilot-instructions.md         # Enhanced with Cappy methodology

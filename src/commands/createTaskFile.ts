@@ -46,6 +46,101 @@ function generateFileName(): string {
     return `TASK_${timestamp}_.ACTIVE.xml`;
 }
 
+async function loadPreventionRules(workspaceRoot: string): Promise<string> {
+    const preventionRulesPath = path.join(workspaceRoot, '.cappy', 'prevention-rules.md');
+    
+    if (fs.existsSync(preventionRulesPath)) {
+        const content = fs.readFileSync(preventionRulesPath, 'utf8');
+        
+        // Parse prevention rules from markdown and convert to XML references
+        const rules = parsePreventionRulesFromMarkdown(content);
+        return generatePreventionRulesXml(rules);
+    }
+    
+    // If no prevention rules file exists, return empty structure
+    return `        <active-rules>
+            <!-- Nenhuma prevention rule encontrada em .cappy/prevention-rules.md -->
+            <rule id="placeholder" priority="medium">
+                <title>Regras serão carregadas do .cappy/prevention-rules.md</title>
+                <description>Execute cappy.init para criar arquivo de prevention rules</description>
+            </rule>
+        </active-rules>
+        
+        <environment-context>
+            <os>{{OS_TYPE}}</os>
+            <shell>{{SHELL_TYPE}}</shell>
+            <workspace-root>${workspaceRoot}</workspace-root>
+        </environment-context>`;
+}
+
+function parsePreventionRulesFromMarkdown(content: string): Array<{id: string, title: string, priority: string}> {
+    const rules: Array<{id: string, title: string, priority: string}> = [];
+    const lines = content.split('\n');
+    
+    let currentRule: {id: string, title: string, priority: string} | null = null;
+    
+    for (const line of lines) {
+        // Look for markdown headers that could be rule titles
+        const headerMatch = line.match(/^#+\s+(.+)/);
+        if (headerMatch) {
+            if (currentRule) {
+                rules.push(currentRule);
+            }
+            const title = headerMatch[1];
+            const id = title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            currentRule = {
+                id: id,
+                title: title,
+                priority: 'medium' // Default priority
+            };
+        }
+        
+        // Look for priority indicators
+        if (currentRule && (line.includes('priority:') || line.includes('Priority:'))) {
+            const priorityMatch = line.match(/priority:\s*(high|medium|low)/i);
+            if (priorityMatch && currentRule) {
+                currentRule.priority = priorityMatch[1].toLowerCase();
+            }
+        }
+    }
+    
+    if (currentRule) {
+        rules.push(currentRule);
+    }
+    
+    return rules;
+}
+
+function generatePreventionRulesXml(rules: Array<{id: string, title: string, priority: string}>): string {
+    if (rules.length === 0) {
+        return `        <active-rules>
+            <!-- Nenhuma prevention rule encontrada -->
+        </active-rules>
+        
+        <environment-context>
+            <os>{{OS_TYPE}}</os>
+            <shell>{{SHELL_TYPE}}</shell>
+            <workspace-root>{{WORKSPACE_ROOT}}</workspace-root>
+        </environment-context>`;
+    }
+    
+    const ruleRefs = rules.map(rule => 
+        `            <rule-ref id="${rule.id}" priority="${rule.priority}" source=".cappy/prevention-rules.md#${rule.id}">
+                <title>${rule.title}</title>
+            </rule-ref>`
+    ).join('\n');
+    
+    return `        <active-rules>
+${ruleRefs}
+        </active-rules>
+        
+        <environment-context>
+            <os>{{OS_TYPE}}</os>
+            <shell>{{SHELL_TYPE}}</shell>
+            <workspace-root>{{WORKSPACE_ROOT}}</workspace-root>
+        </environment-context>`;
+}
+
 async function createTaskFile(context?: vscode.ExtensionContext, args?: Record<string, string>): Promise<string> {
     try {
         const workspaceRoot = getWorkspaceRoot();
@@ -79,16 +174,36 @@ async function createTaskFile(context?: vscode.ExtensionContext, args?: Record<s
 
         let templateContent = fs.readFileSync(templatePath, 'utf8');
 
+        // Carregar prevention rules existentes
+        const preventionRulesXml = await loadPreventionRules(workspaceRoot);
+
         // Gerar dados da tarefa
         const taskId = generateTaskId();
         const fileName = generateFileName();
         const timestamp = new Date().toISOString();
         
+        // Detectar OS e shell (simplificado)
+        const osType = process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux';
+        const shellType = process.platform === 'win32' ? 'powershell.exe' : 'bash';
+        
         // Substituir placeholders no template
         templateContent = templateContent
             .replace(/\{\{TASK_ID\}\}/g, taskId)
             .replace(/\{\{FILE_NAME\}\}/g, fileName)
-            .replace(/\{\{CREATED_TIMESTAMP\}\}/g, timestamp);
+            .replace(/\{\{CREATED_TIMESTAMP\}\}/g, timestamp)
+            .replace(/\{\{WORKSPACE_ROOT\}\}/g, workspaceRoot)
+            .replace(/\{\{OS_TYPE\}\}/g, osType)
+            .replace(/\{\{SHELL_TYPE\}\}/g, shellType);
+
+        // Inserir prevention rules na seção appropriada
+        templateContent = templateContent.replace(
+            /<prevention-rules>\s*<!--[^>]*-->\s*<verification-checklist>/s,
+            `<prevention-rules>
+        <!-- Prevention rules carregadas automaticamente do .cappy/prevention-rules.md -->
+${preventionRulesXml}
+        
+        <verification-checklist>`
+        );
 
         // Aplicar argumentos opcionais se fornecidos
         if (args) {

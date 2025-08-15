@@ -96,9 +96,13 @@ if (next_step) {
 ```javascript
 ask_user("Encontrou algum problema ou aprendizado neste step?")
 if (user_provides_learning) {
-    new_rule = format_prevention_rule(user_learning, current_step.area)
-    append_to_file(".cappy/prevention-rules.md", new_rule)
-    show_user("🛡️ Nova prevention rule adicionada!")
+    // Usar comando específico para adicionar prevention rule
+    execute_command("cappy.addPreventionRule", {
+        title: format_rule_title(user_learning, current_step.area),
+        description: user_learning,
+        category: current_step.area || "general"
+    })
+    show_user("🛡️ Nova prevention rule adicionada via cappy.addPreventionRule!")
 }
 ```
 

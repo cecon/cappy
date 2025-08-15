@@ -129,6 +129,9 @@ export class InitCappyCommand {
         await fs.promises.mkdir(path.join(cappyDir, 'tasks'), { recursive: true });
         await fs.promises.mkdir(path.join(cappyDir, 'history'), { recursive: true });
         await fs.promises.mkdir(path.join(cappyDir, 'instructions'), { recursive: true });
+        
+        // Criar arquivo prevention-rules.xml se não existir
+        await this.ensurePreventionRulesFile(cappyDir);
     }
 
     private async createConfigYaml(cappyDir: string, extensionVersion: string): Promise<void> {
@@ -300,6 +303,26 @@ export class InitCappyCommand {
             await fs.promises.access(stackPath, fs.constants.F_OK);
         } catch {
             await fs.promises.writeFile(stackPath, '', 'utf8');
+        }
+    }
+
+    private async ensurePreventionRulesFile(cappyDir: string): Promise<void> {
+        const preventionRulesPath = path.join(cappyDir, 'prevention-rules.xml');
+        try {
+            await fs.promises.access(preventionRulesPath, fs.constants.F_OK);
+        } catch {
+            const templatePath = path.join(this.getExtensionRoot(), 'resources', 'templates', 'prevention-rules.xml');
+            try {
+                const templateContent = await fs.promises.readFile(templatePath, 'utf8');
+                await fs.promises.writeFile(preventionRulesPath, templateContent, 'utf8');
+            } catch {
+                // Fallback: criar arquivo vazio se template não for encontrado
+                const defaultContent = `<?xml version="1.0" encoding="UTF-8"?>
+<prevention-rules count="0">
+  <!-- Prevention rules will be added here -->
+</prevention-rules>`;
+                await fs.promises.writeFile(preventionRulesPath, defaultContent, 'utf8');
+            }
         }
     }
 

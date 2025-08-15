@@ -2,8 +2,10 @@
 
 # 🔨 Cappy — Manual de Comandos e Fluxos (LLM Runtime)
 
-## 🎯 Objetivo
-Padronizar como a LLM e o dev interagem com o Cappy para:
+## 🎯 Objeti- **Saída esperada em `output.txt`:** texto simples com "ok" ou XML mínimo:
+  ```xml
+  <init><ok>true</ok><created>tasks,history,stack.md,config.yaml,prevention-rules.xml</created></init>
+  ```Padronizar como a LLM e o dev interagem com o Cappy para:
 - Criar/gerir **tarefas atômicas** em XML.
 - Registrar progresso com **poucas linhas** e **sem subjetividade**.
 - Reaproveitar **KnowStack** e **Prevention Rules** para reduzir erros.
@@ -26,7 +28,7 @@ Padronizar como a LLM e o dev interagem com o Cappy para:
 .cappy/
  ├─ tasks/                  # Tarefas ativas (.active.xml)
  ├─ history/                # Tarefas concluídas
- ├─ prevention-rules.md     # Regras de prevenção
+ ├─ prevention-rules.xml    # Regras de prevenção
  ├─ config.yaml             # Configuração do Cappy
  ├─ stack.md                # KnowStack do projeto
  └─ output.txt              # Resultado do último comando executado (fonte única)
@@ -46,8 +48,9 @@ Padronizar como a LLM e o dev interagem com o Cappy para:
 4) **(Q&A scope-first 1×1; checar ≤3h)**  
 5) `cappy.createTaskFile` → cria o arquivo `*.active.xml`  
 6) `cappy.getActiveTask` → status resumido (XML em `output.txt`)  
-7) `cappy.changeTaskStatus` → pausar/retomar quando necessário  
-8) `cappy.completeTask` → concluir e mover para `history/`
+7) `cappy.workOnCurrentTask` → trabalha na task ativa seguindo seu roteiro  
+8) `cappy.changeTaskStatus` → pausar/retomar quando necessário  
+9) `cappy.completeTask` → concluir e mover para `history/`
 
 ---
 
@@ -135,7 +138,7 @@ Padronizar como a LLM e o dev interagem com o Cappy para:
 - **Comportamento LLM após criar:**  
   1) Ler `<file-path>` do `output.txt`.  
   2) **Abrir o XML criado** e preencher: `<title>`, `<goals>`, `<constraints>`, `<references>`, `<meta><estimate>`, `<steps>` com `<doneWhen>`.  
-  3) **Vincular** `<preventionLinks>` relevantes de `.cappy/prevention-rules.md`.  
+  3) **Vincular** `<preventionLinks>` relevantes de `.cappy/prevention-rules.xml`.  
   4) **Inserir** snapshot de *workspace context* a partir de `stack.md`.  
   5) Atualizar `<updatedAt>` e logar evento de preparação.
 - **Erro padrão:** `⚠️ createTaskFile sem <file-path>. Reexecute.`  
@@ -155,7 +158,32 @@ Padronizar como a LLM e o dev interagem com o Cappy para:
 
 ---
 
-### 6) 🔄 `cappy.changeTaskStatus` — Change Task Status
+### 6) 🎯 `cappy.workOnCurrentTask` — Work on Current Task
+- **Copilot:** `cappy:workcurrent` / `cappy:worktask`  
+- **Ação:** obtém a task ativa via `getActiveTask` e segue o roteiro contido no XML da task.  
+- **Fluxo:**  
+  1) Chama internamente `cappy.getActiveTask` para verificar se há task ativa.  
+  2) Se `<active>true</active>`, lê o arquivo XML da task em `<file-path>`.  
+  3) Extrai e segue o roteiro/instruções contidos no XML (seções `<goals>`, `<steps>`, etc.).  
+  4) Executa os steps pendentes conforme definido na task.  
+- **Saída esperada (XML):**
+  ```xml
+  <work-current-task>
+    <active>true|false</active>
+    <file-path>.../STEP_...active.xml</file-path>
+    <next-step>step-id-or-description</next-step>
+    <task-content>...conteúdo-do-xml-da-task...</task-content>
+  </work-current-task>
+  ```
+- **Comportamento LLM:**  
+  - `<active>false</active>` → `ℹ️ Nenhuma task ativa para trabalhar. Use cappy:newtask primeiro.`  
+  - `<active>true</active>` → analisa `<task-content>` e executa próximo step conforme roteiro da task.  
+- **Erro padrão:** `⚠️ workcurrent sem saída. Reexecute.`  
+- **Resposta curta (ativa):** `🎯 Trabalhando na task ativa. Executando: {next-step}.`
+
+---
+
+### 7) 🔄 `cappy.changeTaskStatus` — Change Task Status
 - **Copilot:** —  
 - **Ação:** pausar/retomar **sem inventar estado**.  
 - **Regra de nomenclatura (normalizada):** manter **sufixos minúsculos** nos arquivos:  
@@ -179,7 +207,7 @@ Padronizar como a LLM e o dev interagem com o Cappy para:
 
 ---
 
-### 7) ✅ `cappy.completeTask` — Complete Task
+### 8) ✅ `cappy.completeTask` — Complete Task
 - **Copilot:** `cappy:taskcomplete`  
 - **Ação:** finalizar a task atual **somente** se critérios atendidos.  
 - **Efeitos esperados:**  
@@ -199,7 +227,7 @@ Padronizar como a LLM e o dev interagem com o Cappy para:
 
 ---
 
-### 8) 📦 `cappy.version` — Get Version
+### 9) 📦 `cappy.version` — Get Version
 - **Copilot:** `cappy:version`  
 - **Ação:** escreve a versão da extensão em `output.txt`.  
 - **Saída esperada:** texto simples (ex.: `2.5.13`)  
@@ -208,7 +236,7 @@ Padronizar como a LLM e o dev interagem com o Cappy para:
 
 ---
 
-### 9) 📄 `cappy.viewTelemetryTerms` — Ver Termos de Telemetria
+### 10) 📄 `cappy.viewTelemetryTerms` — Ver Termos de Telemetria
 - **Copilot:** —  
 - **Ação:** abre uma webview de consentimento de telemetria.  
 - **Saída LLM:** **nenhuma** ação textual a partir de `output.txt` é necessária; trate como interação de UI.  
@@ -227,13 +255,39 @@ Padronizar como a LLM e o dev interagem com o Cappy para:
 ## 🧷 Templates de Resposta (curtos)
 - **newtask** → `🧩 Roteiro de nova task obtido. Próximo: cappy:createtaskfile.`
 - **createtaskfile** → `✅ Task preparada: {ID} → .cappy/tasks/{ARQ}. Próximo: cappy:taskstatus.`
-- **taskstatus (ativa)** → `📌 Task ativa em "{file-path}". Próximo: executar step atual e marcar com cappy:stepdone.`
+- **taskstatus (ativa)** → `📌 Task ativa em "{file-path}". Próximo: cappy:workcurrent.`
 - **taskstatus (inativa)** → `ℹ️ Nenhuma tarefa ativa. Crie com cappy:newtask.`
+- **workcurrent (ativa)** → `🎯 Trabalhando na task ativa. Executando: {next-step}.`
+- **workcurrent (inativa)** → `ℹ️ Nenhuma task ativa para trabalhar. Use cappy:newtask primeiro.`
 - **changeTaskStatus** → `⏸️ Status alterado para {paused|em-andamento} → {arquivo}.`
 - **taskcomplete** → `🏁 Tarefa concluída → .cappy/history/{ARQ}.`
 - **knowstack** → `🧠 KnowStack pronto (.cappy/stack.md).`
 - **version** → `📦 Cappy v{versão}.`
+- **addpreventionrule** → `➕ Nova prevention rule adicionada (ID: {id}).`
+- **removepreventionrule** → `➖ Prevention rule removida (ID: {id}).`
 - **erro genérico (sem saída)** → `⚠️ Comando sem saída em .cappy/output.txt. Reexecute no VS Code.`
+
+---
+
+## 🛡️ Prevention Rules Commands
+
+### 11) ➕ `cappy.addPreventionRule` — Add Prevention Rule
+- **Copilot:** `cappy:addpreventionrule`  
+- **Ação:** adiciona nova regra de prevenção via prompts interativos.  
+- **Processo:** solicita título, descrição e categoria; calcula próximo ID automaticamente.  
+- **Efeitos esperados:** insere nova `<rule>` no XML; incrementa `count` do header.  
+- **Saída esperada:** apenas o XML da nova regra criada.  
+- **Erro padrão:** `⚠️ addPreventionRule sem saída. Reexecute.`  
+- **Resposta curta:** `➕ Prevention rule adicionada (ID: {id}). Ver .cappy/prevention-rules.xml.`
+
+### 12) ➖ `cappy.removePreventionRule` — Remove Prevention Rule  
+- **Copilot:** `cappy:removepreventionrule`  
+- **Ação:** remove regra existente via seleção em QuickPick.  
+- **Processo:** lista rules existentes; permite seleção; remove pelo ID.  
+- **Efeitos esperados:** remove `<rule>` do XML; decrementa `count` do header.  
+- **Saída esperada:** apenas o ID da regra removida.  
+- **Erro padrão:** `⚠️ removePreventionRule sem saída. Reexecute.`  
+- **Resposta curta:** `➖ Prevention rule removida (ID: {id}). Ver .cappy/prevention-rules.xml.`
 
 ---
 
