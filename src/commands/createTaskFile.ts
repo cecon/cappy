@@ -43,7 +43,7 @@ function generateTaskId(): string {
 
 function generateFileName(): string {
     const timestamp = generateTimestamp();
-    return `TASK_${timestamp}_.ACTIVE.xml`;
+    return `TASK_${timestamp}.ACTIVE.xml`;
 }
 
 async function loadPreventionRules(workspaceRoot: string): Promise<string> {
