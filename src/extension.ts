@@ -132,17 +132,17 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
-    // Register: get new task instruction (returns processed template content)
-    const getNewTaskInstructionCommand = vscode.commands.registerCommand(
-      "cappy.getNewTaskInstruction",
+    // Register: new task (returns processed template content)
+    const newTaskCommand = vscode.commands.registerCommand(
+      "cappy.new",
       async (args?: Record<string, string>) => {
         try {
           const content = await getNewTaskInstruction(context, args);
           return content; // important: return string so LLM can consume it via executeCommand
         } catch (error) {
-          console.error("Cappy getNewTaskInstruction error:", error);
+          console.error("Cappy new task error:", error);
           vscode.window.showErrorMessage(
-            `Cappy getNewTaskInstruction failed: ${error}`
+            `Cappy new task failed: ${error}`
           );
           return "";
         }
@@ -274,7 +274,7 @@ export function activate(context: vscode.ExtensionContext) {
       knowStackAliasCommand,
       knowTaskTypoAliasCommand,
       consentCommand,
-      getNewTaskInstructionCommand,      
+      newTaskCommand,      
       getActiveTaskCommand,
       versionCommand,
       createTaskFileCommand,

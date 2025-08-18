@@ -86,7 +86,7 @@ code --install-extension eduardocecon.cappy
 ```
 your-project/
 ├── .cappy/
-│   ├── tasks/                          # Active task XML files (*.active.xml)
+│   ├── tasks/                          # Active task XML files (*.ACTIVE.xml)
 │   ├── history/                        # Completed tasks (*.done.xml)
 │   ├── config.yaml                     # Cappy configuration
 │   ├── stack.md                        # Project knowledge base
@@ -143,7 +143,7 @@ Tasks are managed as XML files with this structure:
 
 ### Task Lifecycle
 - `prepared` → `em-andamento` → `paused` → `completed`
-- Files: `*.active.xml` → `*.paused.xml` → `*.done.xml`
+- Files: `*.ACTIVE.xml` → `*.paused.xml` → `*.done.xml`
 - Location: `.cappy/tasks/` → `.cappy/history/`
 
 ---

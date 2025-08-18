@@ -4,7 +4,7 @@ import { writeOutput } from '../utils/outputWriter';
 
 /**
  * Returns a standardized XML with task status information.
- * Searches for .active.xml files in .cappy/tasks/ directory.
+ * Searches for .ACTIVE.xml files in .cappy/tasks/ directory.
  */
 export async function getActiveTask(): Promise<string> {
     try {
@@ -35,9 +35,9 @@ export async function getActiveTask(): Promise<string> {
         // Read directory contents
         const entries = await vscode.workspace.fs.readDirectory(tasksUri);
         
-        // Find .active.xml files
+        // Find .ACTIVE.xml files
         const activeFiles = entries
-            .filter(([name, type]) => type === vscode.FileType.File && name.endsWith('.active.xml'))
+            .filter(([name, type]) => type === vscode.FileType.File && name.endsWith('.ACTIVE.xml'))
             .map(([name]) => name);
 
         if (activeFiles.length === 0) {

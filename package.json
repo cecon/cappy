@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
   "icon": "assets/icon.png",
-  "version": "2.7.0",
+  "version": "2.7.3",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
@@ -55,8 +55,8 @@
         "category": "Cappy"
       },
       {
-        "command": "cappy.getNewTaskInstruction",
-        "title": "🧩 Cappy: Get New Task Instruction",
+        "command": "cappy.new",
+        "title": "🧩 Cappy: New Task",
         "category": "Cappy"
       },
       {
@@ -190,12 +190,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cecon/cappy-framework.git"
+    "url": "git+https://github.com/cecon/cappy.git"
   },
   "bugs": {
-    "url": "https://github.com/cecon/cappy-framework/issues"
+    "url": "https://github.com/cecon/cappy/issues"
   },
-  "homepage": "https://github.com/cecon/cappy-framework#readme",
+  "homepage": "https://github.com/cecon/cappy#readme",
   "license": "MIT",
   "author": "",
   "type": "commonjs"

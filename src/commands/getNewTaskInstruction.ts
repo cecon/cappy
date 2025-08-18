@@ -99,30 +99,37 @@ export async function getNewTaskInstruction(context?: vscode.ExtensionContext, a
     const merged: Record<string, string> = { ...defaults, ...(args || {}) };
 
     const extRoot = getExtensionRoot(context);
-    const templatePath = path.join(extRoot, 'resources', 'templates', 'cappy-copilot-instructions.md');
+    const templatePath = path.join(extRoot, 'resources', 'instructions', 'script-newtask.xml');
     let template: string;
     try {
         template = await fs.promises.readFile(templatePath, 'utf8');
     } catch (e) {
-        const fallback = '# Cappy Copilot Instructions\n';
+        const fallback = `<?xml version="1.0" encoding="UTF-8"?>
+<newtask>
+  <template>Arquivo script-newtask.xml não encontrado</template>
+</newtask>`;
         template = fallback;
     }
 
-    const processed = fillTemplate(template, merged);
+    // Para o comando newtask, retornamos o XML diretamente sem template substitution
+    const xmlOutput = `<?xml version="1.0" encoding="UTF-8"?>
+<newtask>
+  <template>${template.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</template>
+</newtask>`;
 
     // Write result to .cappy/output.txt
-    writeOutput(processed);
+    writeOutput(xmlOutput);
 
     // Also persist under .cappy/instructions for local reference
     try {
         const cappyDir = path.join(root, '.cappy', 'instructions');
         await fs.promises.mkdir(cappyDir, { recursive: true });
-        await fs.promises.writeFile(path.join(cappyDir, 'copilot-instructions.md'), processed, 'utf8');
+        await fs.promises.writeFile(path.join(cappyDir, 'newtask-script.xml'), template, 'utf8');
     } catch (e) {
         // Non-fatal
     }
 
-    return processed;
+    return xmlOutput;
 }
 
 export default getNewTaskInstruction;

@@ -12,7 +12,7 @@ O comando `cappy.changeTaskStatus` permite alterar o status de uma tarefa entre 
 
 ### 📝 Modificações Realizadas
 1. **Renomeação do arquivo**: 
-   - `TASK_20250814_exemplo.active.xml` → `TASK_20250814_exemplo.ACTIVE.xml`
+   - `TASK_20250814_exemplo.ACTIVE.xml` → `TASK_20250814_exemplo.ACTIVE.xml`
    - `TASK_20250814_exemplo.paused.xml` → `TASK_20250814_exemplo.PAUSED.xml`
 
 2. **Atualização do XML**:
@@ -33,7 +33,7 @@ O comando `cappy.changeTaskStatus` permite alterar o status de uma tarefa entre 
 import { changeTaskStatus } from './commands/changeTaskStatus';
 
 // Alterar para pausado
-const result = await changeTaskStatus('TASK_20250814_exemplo.active.xml', 'paused');
+const result = await changeTaskStatus('TASK_20250814_exemplo.ACTIVE.xml', 'paused');
 
 // Alterar para ativo
 const result = await changeTaskStatus('TASK_20250814_exemplo.paused.xml', 'active');
@@ -44,7 +44,7 @@ const result = await changeTaskStatus('TASK_20250814_exemplo.paused.xml', 'activ
 ### Antes da Alteração
 ```
 .cappy/tasks/
-├── TASK_20250814_exemplo.active.xml (status="em-andamento")
+├── TASK_20250814_exemplo.ACTIVE.xml (status="em-andamento")
 ```
 
 ### Depois da Alteração (active → paused)

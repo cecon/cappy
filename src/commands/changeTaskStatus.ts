@@ -36,11 +36,11 @@ export async function changeTaskStatus(fileName: string, newStatus: 'active' | '
             return errorMsg;
         }
 
-        // Find the current file (could be .active.xml or .paused.xml)
+        // Find the current file (could be .ACTIVE.xml or .paused.xml)
         const entries = await vscode.workspace.fs.readDirectory(tasksDir);
         const taskFiles = entries.filter(([name, type]) => 
             type === vscode.FileType.File && 
-            (name === fileName || name === fileName.replace(/\.(active|paused)\.xml$/, '.active.xml') || name === fileName.replace(/\.(active|paused)\.xml$/, '.paused.xml'))
+            (name === fileName || name === fileName.replace(/\.(active|paused)\.xml$/, '.ACTIVE.xml') || name === fileName.replace(/\.(active|paused)\.xml$/, '.paused.xml'))
         );
 
         let currentFile: string | null = null;
@@ -52,7 +52,7 @@ export async function changeTaskStatus(fileName: string, newStatus: 'active' | '
             // Try to find file with different status extension
             const baseFileName = fileName.replace(/\.(active|paused)\.xml$/, '');
             const foundFile = taskFiles.find(([name]) => 
-                name.startsWith(baseFileName) && (name.endsWith('.active.xml') || name.endsWith('.paused.xml'))
+                name.startsWith(baseFileName) && (name.endsWith('.ACTIVE.xml') || name.endsWith('.paused.xml'))
             );
             if (foundFile) {
                 currentFile = foundFile[0];
@@ -123,8 +123,8 @@ export async function changeTaskStatusCommand(): Promise<void> {
     try {
         // Get filename from user input
         const fileName = await vscode.window.showInputBox({
-            prompt: 'Nome do arquivo da tarefa (ex: TASK_20250814_exemplo.active.xml)',
-            placeHolder: 'TASK_YYYYMMDD_nome.active.xml'
+            prompt: 'Nome do arquivo da tarefa (ex: TASK_20250814_exemplo.ACTIVE.xml)',
+            placeHolder: 'TASK_YYYYMMDD_nome.ACTIVE.xml'
         });
 
         if (!fileName) {

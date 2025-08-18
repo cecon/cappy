@@ -82,7 +82,7 @@ suite('workOnCurrentTask Command Tests', () => {
 
     test('Should work on active task when one exists', async () => {
         // Create a sample active task file
-        const taskFileName = 'STEP_20250815_120000_test-task.active.xml';
+        const taskFileName = 'STEP_20250815_120000_test-task.ACTIVE.xml';
         const taskFileUri = vscode.Uri.joinPath(tasksUri, taskFileName);
         const taskContent = `<?xml version="1.0" encoding="UTF-8"?>
 <task id="STEP_20250815_120000_test-task" status="em-andamento">
@@ -115,7 +115,7 @@ suite('workOnCurrentTask Command Tests', () => {
 
     test('Should identify next step correctly', async () => {
         // Create a task with multiple steps, some completed
-        const taskFileName = 'STEP_20250815_120000_multi-step.active.xml';
+        const taskFileName = 'STEP_20250815_120000_multi-step.ACTIVE.xml';
         const taskFileUri = vscode.Uri.joinPath(tasksUri, taskFileName);
         const taskContent = `<?xml version="1.0" encoding="UTF-8"?>
 <task id="STEP_20250815_120000_multi-step" status="em-andamento">
@@ -145,7 +145,7 @@ suite('workOnCurrentTask Command Tests', () => {
     });
 
     test('Should handle task with all steps completed', async () => {
-        const taskFileName = 'STEP_20250815_120000_completed.active.xml';
+        const taskFileName = 'STEP_20250815_120000_completed.ACTIVE.xml';
         const taskFileUri = vscode.Uri.joinPath(tasksUri, taskFileName);
         const taskContent = `<?xml version="1.0" encoding="UTF-8"?>
 <task id="STEP_20250815_120000_completed" status="em-andamento">
@@ -171,7 +171,7 @@ suite('workOnCurrentTask Command Tests', () => {
     });
 
     test('Should handle task without steps', async () => {
-        const taskFileName = 'STEP_20250815_120000_no-steps.active.xml';
+        const taskFileName = 'STEP_20250815_120000_no-steps.ACTIVE.xml';
         const taskFileUri = vscode.Uri.joinPath(tasksUri, taskFileName);
         const taskContent = `<?xml version="1.0" encoding="UTF-8"?>
 <task id="STEP_20250815_120000_no-steps" status="em-andamento">
@@ -190,7 +190,7 @@ suite('workOnCurrentTask Command Tests', () => {
     });
 
     test('Should escape XML content properly', async () => {
-        const taskFileName = 'STEP_20250815_120000_xml-content.active.xml';
+        const taskFileName = 'STEP_20250815_120000_xml-content.ACTIVE.xml';
         const taskFileUri = vscode.Uri.joinPath(tasksUri, taskFileName);
         const taskContent = `<?xml version="1.0" encoding="UTF-8"?>
 <task id="STEP_20250815_120000_xml-content" status="em-andamento">
@@ -216,7 +216,7 @@ suite('workOnCurrentTask Command Tests', () => {
 
     test('Should handle errors gracefully', async () => {
         // Create an invalid XML file to trigger error
-        const taskFileName = 'STEP_20250815_120000_invalid.active.xml';
+        const taskFileName = 'STEP_20250815_120000_invalid.ACTIVE.xml';
         const taskFileUri = vscode.Uri.joinPath(tasksUri, taskFileName);
         const invalidContent = 'This is not valid XML';
 

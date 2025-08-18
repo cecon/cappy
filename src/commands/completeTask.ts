@@ -4,7 +4,7 @@ import { writeOutput } from '../utils/outputWriter';
 
 /**
  * Moves an active task to history by:
- * 1. Finding the active task file (.active.xml)
+ * 1. Finding the active task file (.ACTIVE.xml)
  * 2. Renaming it to .done.xml
  * 3. Moving it to .cappy/history/ directory
  * 4. Updating internal file references within the XML

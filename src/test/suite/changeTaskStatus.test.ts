@@ -161,13 +161,13 @@ suite('Change Task Status Tests', () => {
     });
 
     test('should handle non-existent file gracefully', async () => {
-        const result = await changeTaskStatus('NON_EXISTENT_TASK.active.xml', 'paused');
+        const result = await changeTaskStatus('NON_EXISTENT_TASK.ACTIVE.xml', 'paused');
         assert.ok(result.startsWith('❌'), 'Should return error message');
         assert.ok(result.includes('não encontrado'), 'Error message should indicate file not found');
     });
 
     test('should handle invalid status gracefully', async () => {
-        const result = await changeTaskStatus('TEST_task.active.xml', 'invalid' as any);
+        const result = await changeTaskStatus('TEST_task.ACTIVE.xml', 'invalid' as any);
         assert.ok(result.startsWith('❌'), 'Should return error message');
         assert.ok(result.includes("'active' ou 'paused'"), 'Error message should indicate valid status options');
     });

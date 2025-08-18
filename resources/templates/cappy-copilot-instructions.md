@@ -26,7 +26,7 @@
 ## 📂 Estrutura de Arquivos
 ```
 .cappy/
- ├─ tasks/                  # Tarefas ativas (.active.xml)
+ ├─ tasks/                  # Tarefas ativas (.ACTIVE.xml)
  ├─ history/                # Tarefas concluídas
  ├─ prevention-rules.xml    # Regras de prevenção
  ├─ config.yaml             # Configuração do Cappy
@@ -34,19 +34,19 @@
  └─ output.txt              # Resultado do último comando executado (fonte única)
 ```
 > **Padrões canônicos**
-> - **Nomes de arquivo**: `STEP_YYYYMMDD-HHMMSS_kebab.active.xml`
+> - **Nomes de arquivo**: `STEP_YYYYMMDD-HHMMSS_kebab.ACTIVE.xml`
 > - **Ciclo de vida**: `prepared → em-andamento → paused → completed`
-> - **ID lógico** (atributo em `<Task ... id="...">`) **não** inclui `.active.xml`  
->   Ex.: arquivo `STEP_...active.xml` ↔ id `STEP_...`
+> - **ID lógico** (atributo em `<Task ... id="...">`) **não** inclui `.ACTIVE.xml`  
+>   Ex.: arquivo `STEP_...ACTIVE.xml` ↔ id `STEP_...`
 
 ---
 
 ## 🔄 Fluxo Típico
 1) `cappy.init` → estrutura base do Cappy  
 2) `cappy.knowstack` → analisa e (re)gera `stack.md`  
-3) `cappy.getNewTaskInstruction` → roteiro/templating de nova task  
+3) `cappy.new` → roteiro/templating de nova task  
 4) **(Q&A scope-first 1×1; checar ≤3h)**  
-5) `cappy.createTaskFile` → cria o arquivo `*.active.xml`  
+5) `cappy.createTaskFile` → cria o arquivo `*.ACTIVE.xml`  
 6) `cappy.getActiveTask` → status resumido (XML em `output.txt`)  
 7) `cappy.workOnCurrentTask` → trabalha na task ativa seguindo seu roteiro  
 8) `cappy.changeTaskStatus` → pausar/retomar quando necessário  
@@ -61,7 +61,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <task-status>
   <active>true|false</active>
-  <file-path>.../STEP_...active.xml</file-path>   <!-- null/ vazio se não houver -->
+  <file-path>.../STEP_...ACTIVE.xml</file-path>   <!-- null/ vazio se não houver -->
   <last-modified>ISO-8601</last-modified>
   <line-count>123</line-count>
 </task-status>
@@ -70,17 +70,17 @@
 ### `createTaskFile` — **XML**
 ```xml
 <create-task>
-  <file-path>.../STEP_...active.xml</file-path>
-  <id>STEP_...active.xml</id>          <!-- pode vir com extensão; ID lógico = sem ".active.xml" -->
+  <file-path>.../STEP_...ACTIVE.xml</file-path>
+  <id>STEP_...ACTIVE.xml</id>          <!-- pode vir com extensão; ID lógico = sem ".ACTIVE.xml" -->
   <status>prepared</status>
 </create-task>
 ```
 
-### `getNewTaskInstruction` — **XML**
+### `new` — **XML**
 ```xml
-<newtask>
+<new>
   <template>...XML/roteiro...</template>   <!-- roteiro/templating; pode incluir placeholders -->
-</newtask>
+</new>
 ```
 > **Outros comandos** podem devolver **texto simples** (ex.: `cappy.version`) ou **XML**. Em todos os casos, a leitura é **exclusiva** de `.cappy/output.txt`.
 
@@ -116,24 +116,24 @@
 
 ---
 
-### 3) 🧩 `cappy.getNewTaskInstruction` — Get New Task Instruction
-- **Copilot:** `cappy:newtask`  
+### 3) 🧩 `cappy.new` — New Task
+- **Copilot:** `cappy:new`  
 - **Ação:** retorna **roteiro/templating** XML para nova task (não cria arquivo).  
 - **Saída esperada (XML):**
   ```xml
-  <newtask>
+  <new>
     <template>...XML/roteiro...</template>
-  </newtask>
+  </new>
   ```
 - **Uso LLM (scope-first 1×1):** coletar escopo, critérios, paths, deps, validação e **estimativa (≤3h)** antes de criar arquivo.  
-- **Erro padrão:** `⚠️ newtask sem saída. Reexecute.`  
+- **Erro padrão:** `⚠️ new sem saída. Reexecute.`  
 - **Resposta curta:** `🧩 Roteiro de nova task obtido. Próximo: cappy:createtaskfile.`
 
 ---
 
 ### 4) 📝 `cappy.createTaskFile` — Create Task File
 - **Copilot:** `cappy:createtaskfile`  
-- **Ação:** cria `*.active.xml` em `.cappy/tasks/` com `status="prepared"`.  
+- **Ação:** cria `*.ACTIVE.xml` em `.cappy/tasks/` com `status="prepared"`.  
 - **Saída esperada (XML):** *(ver contrato em Convenções)*  
 - **Comportamento LLM após criar:**  
   1) Ler `<file-path>` do `output.txt`.  
@@ -151,7 +151,7 @@
 - **Ação:** retorna status da tarefa ativa (se existir).  
 - **Saída esperada (XML):** *(ver contrato em Convenções)*  
 - **Comportamento LLM:**  
-  - `<active>false</active>` → `ℹ️ Nenhuma tarefa ativa. Use cappy:newtask.`  
+  - `<active>false</active>` → `ℹ️ Nenhuma tarefa ativa. Use cappy:new.`  
   - `<active>true</active>` → ecoar resumo curto com `<file-path>` e dica do próximo passo.  
 - **Erro padrão:** `⚠️ taskstatus sem saída. Reexecute.`  
 - **Resposta curta (ativa):** `📌 Task ativa em "{file-path}". Próximo: executar step atual e marcar com cappy:stepdone.`
@@ -170,13 +170,13 @@
   ```xml
   <work-current-task>
     <active>true|false</active>
-    <file-path>.../STEP_...active.xml</file-path>
+    <file-path>.../STEP_...ACTIVE.xml</file-path>
     <next-step>step-id-or-description</next-step>
     <task-content>...conteúdo-do-xml-da-task...</task-content>
   </work-current-task>
   ```
 - **Comportamento LLM:**  
-  - `<active>false</active>` → `ℹ️ Nenhuma task ativa para trabalhar. Use cappy:newtask primeiro.`  
+  - `<active>false</active>` → `ℹ️ Nenhuma task ativa para trabalhar. Use cappy:new primeiro.`  
   - `<active>true</active>` → analisa `<task-content>` e executa próximo step conforme roteiro da task.  
 - **Erro padrão:** `⚠️ workcurrent sem saída. Reexecute.`  
 - **Resposta curta (ativa):** `🎯 Trabalhando na task ativa. Executando: {next-step}.`
@@ -187,15 +187,15 @@
 - **Copilot:** —  
 - **Ação:** pausar/retomar **sem inventar estado**.  
 - **Regra de nomenclatura (normalizada):** manter **sufixos minúsculos** nos arquivos:  
-  - `*.active.xml` ↔ `*.paused.xml`  
+  - `*.ACTIVE.xml` ↔ `*.paused.xml`  
 - **Efeitos esperados:**  
-  - Renomeia arquivo (`.active.xml` ⇄ `.paused.xml`).  
+  - Renomeia arquivo (`.ACTIVE.xml` ⇄ `.paused.xml`).  
   - Atualiza `status` **no XML** (`em-andamento` ⇄ `paused`).  
   - Adiciona `<log><entry at="...">...</entry></log>`.  
 - **Saída esperada (XML):**
   ```xml
   <change-status>
-    <file-path-old>.../STEP_...active.xml</file-path-old>
+    <file-path-old>.../STEP_...ACTIVE.xml</file-path-old>
     <file-path-new>.../STEP_...paused.xml</file-path-new>
     <status>paused</status>
   </change-status>
@@ -217,7 +217,7 @@
 - **Saída esperada (XML):**
   ```xml
   <complete-task>
-    <from>.../tasks/STEP_...active.xml</from>
+    <from>.../tasks/STEP_...ACTIVE.xml</from>
     <to>.../history/STEP_...done.xml</to>
     <completedAt>ISO-8601</completedAt>
   </complete-task>
@@ -253,12 +253,12 @@
 ---
 
 ## 🧷 Templates de Resposta (curtos)
-- **newtask** → `🧩 Roteiro de nova task obtido. Próximo: cappy:createtaskfile.`
+- **new** → `🧩 Roteiro de nova task obtido. Próximo: cappy:createtaskfile.`
 - **createtaskfile** → `✅ Task preparada: {ID} → .cappy/tasks/{ARQ}. Próximo: cappy:taskstatus.`
 - **taskstatus (ativa)** → `📌 Task ativa em "{file-path}". Próximo: cappy:workcurrent.`
-- **taskstatus (inativa)** → `ℹ️ Nenhuma tarefa ativa. Crie com cappy:newtask.`
+- **taskstatus (inativa)** → `ℹ️ Nenhuma tarefa ativa. Crie com cappy:new.`
 - **workcurrent (ativa)** → `🎯 Trabalhando na task ativa. Executando: {next-step}.`
-- **workcurrent (inativa)** → `ℹ️ Nenhuma task ativa para trabalhar. Use cappy:newtask primeiro.`
+- **workcurrent (inativa)** → `ℹ️ Nenhuma task ativa para trabalhar. Use cappy:new primeiro.`
 - **changeTaskStatus** → `⏸️ Status alterado para {paused|em-andamento} → {arquivo}.`
 - **taskcomplete** → `🏁 Tarefa concluída → .cappy/history/{ARQ}.`
 - **knowstack** → `🧠 KnowStack pronto (.cappy/stack.md).`
@@ -293,7 +293,7 @@
 
 ## 📝 Notas Finais
 - **Nunca** invente resultados a partir de outros arquivos — `.cappy/output.txt` é **a única fonte de retorno**.  
-- **Consistência** nos sufixos de arquivo (`.active.xml`, `.paused.xml`, `.done.xml`) e nos estados (`prepared`, `em-andamento`, `paused`, `completed`).  
+- **Consistência** nos sufixos de arquivo (`.ACTIVE.xml`, `.paused.xml`, `.done.xml`) e nos estados (`prepared`, `em-andamento`, `paused`, `completed`).  
 - **Logue** mudanças relevantes no `<log>` da task.
 
 <!-- CAPPY END -->
