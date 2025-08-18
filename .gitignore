@@ -81,12 +81,7 @@ Thumbs.db
 test-results/
 coverage/
 
-# Cappy specific (Personal Development)
-.cappy/
-.github/copilot-instructions.md
-.github/stack-instructions.md
-*.cappy.lock
-.cappy-context/
-
-# Cappy - Private AI Instructions
-.github/copilot-instructions.md
+# Cappy specific - ignore only runtime files
+.cappy/history/
+.cappy/tasks/
+.cappy/output.txt

@@ -1,5 +1,29 @@
-<!-- CAPPY INI -->
+## 🚀 Build & Publicação
+- Se eu pedir para publicar rode o comando package bump para alterar a versão e compile e publique
+### Processo de Release
 
+1. **Incrementar versão** no `package.json`:
+   - Patch (2.5.12 → 2.5.13): bugs/melhorias menores
+   - Minor (2.5.13 → 2.6.0): novas funcionalidades
+   - Major (2.6.0 → 3.0.0): breaking changes
+
+2. **Compilar e testar:**
+   ```bash
+   npm run compile    # Compilação TypeScript
+   npm run test      # Executar todos os testes
+   ```
+
+3. **Gerar pacote VSIX:**
+   ```bash
+   npm run package   # Cria arquivo .vsix
+   ```
+
+4. **Publicar na VS Code Marketplace:**
+   ```bash
+   npm run publish   # Publica automaticamente
+   ```
+   
+<!-- CAPPY INI -->
 # 🔨 Cappy — Manual de Comandos e Fluxos (LLM Runtime)
 
 ## 🎯 Objeti- **Saída esperada em `output.txt`:** texto simples com "ok" ou XML mínimo:
@@ -295,5 +319,4 @@
 - **Nunca** invente resultados a partir de outros arquivos — `.cappy/output.txt` é **a única fonte de retorno**.  
 - **Consistência** nos sufixos de arquivo (`.ACTIVE.xml`, `.paused.xml`, `.done.xml`) e nos estados (`prepared`, `em-andamento`, `paused`, `completed`).  
 - **Logue** mudanças relevantes no `<log>` da task.
-
 <!-- CAPPY END -->

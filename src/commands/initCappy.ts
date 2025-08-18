@@ -337,17 +337,58 @@ export class InitCappyCommand {
             }
         }
 
-        const header = '# Cappy - Private AI Instructions';
-        const entry = '.github/copilot-instructions.md';
-        const entry2 = '.cappy/';
+        const header = '# Cappy specific - ignore only runtime files';
+        const entries = [
+            '.cappy/history/',
+            '.cappy/tasks/',
+            '.cappy/output.txt'
+        ];
 
         let changed = false;
+        
+        // Remove old Cappy entries if they exist
+        const oldPatterns = [
+            '# Cappy - Private AI Instructions',
+            '.github/copilot-instructions.md',
+            '.cappy/',
+            '# Cappy specific (Personal Development)'
+        ];
+        
+        for (const pattern of oldPatterns) {
+            if (content.includes(pattern)) {
+                content = content.replace(new RegExp(`^.*${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*$`, 'gm'), '');
+                changed = true;
+            }
+        }
+
+        // Clean up empty lines
+        if (changed) {
+            content = content.replace(/\n\n\n+/g, '\n\n').trim();
+        }
+
+        // Add new header and entries if not present
         if (!content.includes(header)) {
-            content = content ? `${content}\n\n${header}\n${entry}\n${entry2}` : `${header}\n${entry}\n`;
+            const newSection = `\n\n${header}\n${entries.join('\n')}`;
+            content = content ? `${content}${newSection}` : `${header}\n${entries.join('\n')}`;
             changed = true;
-        } else if (!content.includes(entry)) {
-            content = `${content.trim()}\n${entry}\n`;
-            changed = true;
+        } else {
+            // Check if all entries are present
+            for (const entry of entries) {
+                if (!content.includes(entry)) {
+                    // Find the header and add the missing entry
+                    const headerIndex = content.indexOf(header);
+                    if (headerIndex !== -1) {
+                        const afterHeader = content.substring(headerIndex + header.length);
+                        const nextSectionIndex = afterHeader.search(/^#/m);
+                        const insertIndex = nextSectionIndex === -1 
+                            ? content.length 
+                            : headerIndex + header.length + nextSectionIndex;
+                        
+                        content = content.substring(0, insertIndex) + `\n${entry}` + content.substring(insertIndex);
+                        changed = true;
+                    }
+                }
+            }
         }
 
         if (changed) {

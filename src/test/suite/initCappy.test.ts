@@ -166,8 +166,10 @@ suite('🔨 InitCappy Command Test Suite', () => {
                 .catch(() => false);
             assert.strictEqual(giExists, true, '.gitignore should exist');
             const giContent = await fs.promises.readFile(giPath, 'utf8');
-            assert.ok(giContent.includes('# Cappy - Private AI Instructions'), 'gitignore should include header');
-            assert.ok(giContent.includes('.github/copilot-instructions.md'), 'gitignore should ignore copilot instructions');
+            assert.ok(giContent.includes('# Cappy specific - ignore only runtime files'), 'gitignore should include new header');
+            assert.ok(giContent.includes('.cappy/history/'), 'gitignore should ignore history folder');
+            assert.ok(giContent.includes('.cappy/tasks/'), 'gitignore should ignore tasks folder');
+            assert.ok(giContent.includes('.cappy/output.txt'), 'gitignore should ignore output.txt');
 
             console.log('✅ Configuration files test passed');
         } finally {
@@ -272,8 +274,10 @@ dist/`;
             const gitignoreContent = await fs.promises.readFile(path.join(projectDir, '.gitignore'), 'utf8');
             
             assert.ok(gitignoreContent.includes('node_modules/'), 'Should preserve existing entries');
-            // We no longer require ignoring copilot-instructions.md here, but keep backward compatibility if present
-            assert.ok(gitignoreContent.includes('# Cappy - Private AI Instructions'), 'Should add Cappy comment');
+            assert.ok(gitignoreContent.includes('# Cappy specific - ignore only runtime files'), 'Should add new Cappy header');
+            assert.ok(gitignoreContent.includes('.cappy/history/'), 'Should ignore history folder');
+            assert.ok(gitignoreContent.includes('.cappy/tasks/'), 'Should ignore tasks folder');
+            assert.ok(gitignoreContent.includes('.cappy/output.txt'), 'Should ignore output.txt');
 
             console.log('✅ .gitignore update test passed');
         } finally {
