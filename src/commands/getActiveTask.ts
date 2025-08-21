@@ -59,7 +59,8 @@ export async function getActiveTask(): Promise<string> {
         const fileContent = Buffer.from(fileBytes).toString('utf8');
         const lineCount = fileContent.split('\n').length;
         
-        const filePath = path.join('.cappy', 'tasks', activeFileName);
+        // Use the full absolute path instead of relative path
+        const filePath = activeFileUri.fsPath;
         const result = await generateTaskStatusXml(true, filePath, lastModified, lineCount);
         
         writeOutput(result);

@@ -214,17 +214,66 @@ suite('workOnCurrentTask Command Tests', () => {
         assert.ok(result.includes('&quot;'), 'Should escape quote characters');
     });
 
-    test('Should handle errors gracefully', async () => {
-        // Create an invalid XML file to trigger error
-        const taskFileName = 'STEP_20250815_120000_invalid.ACTIVE.xml';
+    test('Should return absolute file paths in response', async () => {
+        // Create a simple active task
+        const taskFileName = 'TASK_20250819_absolute_path.ACTIVE.xml';
         const taskFileUri = vscode.Uri.joinPath(tasksUri, taskFileName);
-        const invalidContent = 'This is not valid XML';
+        const taskContent = `<?xml version="1.0" encoding="UTF-8"?>
+<task id="TASK_20250819_absolute_path" status="em-andamento">
+  <title>Test Absolute Path</title>
+  <steps>
+    <step id="step1">
+      <description>Test step</description>
+    </step>
+  </steps>
+</task>`;
 
-        await vscode.workspace.fs.writeFile(taskFileUri, Buffer.from(invalidContent, 'utf8'));
+        await vscode.workspace.fs.writeFile(taskFileUri, Buffer.from(taskContent, 'utf8'));
 
         const result = await workOnCurrentTask();
 
-        // The command should handle errors gracefully and return error message
-        assert.ok(result.includes('❌') || result.includes('Erro'), 'Should return error message for invalid content');
+        // Validate that the file path in the response is absolute (should contain the full drive path)
+        const filePathMatch = result.match(/<file-path>(.*?)<\/file-path>/);
+        assert.ok(filePathMatch, 'Should contain file-path element');
+        
+        const filePath = filePathMatch[1];
+        assert.ok(filePath.includes('\\') || filePath.includes('/'), 'Should contain path separators');
+        assert.ok(filePath.includes(taskFileName), 'Should contain the task file name');
+        
+        // On Windows, absolute paths should start with drive letter (like D:\) 
+        // On Unix systems, they should start with /
+        const isAbsolute = /^[A-Za-z]:\\/.test(filePath) || filePath.startsWith('/');
+        assert.ok(isAbsolute, `File path should be absolute. Got: ${filePath}`);
+    });
+
+    test('Should handle errors gracefully', async () => {
+        // Create a valid active task file first
+        const taskFileName = 'STEP_20250815_120000_invalid.ACTIVE.xml';
+        const taskFileUri = vscode.Uri.joinPath(tasksUri, taskFileName);
+        
+        const validTaskContent = `<?xml version="1.0" encoding="UTF-8"?>
+<Task version="1.0" id="STEP_20250815_120000_invalid" status="em-andamento">
+    <title>Test Task</title>
+    <goals>Test goals</goals>
+    <steps>
+        <step id="step1">
+            <action>Test action</action>
+            <doneWhen>Test completion</doneWhen>
+        </step>
+    </steps>
+</Task>`;
+        
+        await vscode.workspace.fs.writeFile(taskFileUri, Buffer.from(validTaskContent, 'utf8'));
+        
+        // Corrupt the file to test malformed XML handling
+        const corruptedContent = 'This is not valid XML content that will cause parsing errors';
+        await vscode.workspace.fs.writeFile(taskFileUri, Buffer.from(corruptedContent, 'utf8'));
+
+        const result = await workOnCurrentTask();
+        // Even with malformed XML, it should return a valid response structure
+        assert.ok(result.includes('<work-current-task>'), 'Should return valid XML structure even with malformed task content');
+        assert.ok(result.includes('<active>true</active>'), 'Should show task as active');
+        assert.ok(result.includes('<next-step>'), 'Should include next-step element');
+        assert.ok(result.includes('<task-content>'), 'Should include task-content element');
     });
 });

@@ -2,13 +2,28 @@
 
 # 🔨 Cappy — Manual de Comandos e Fluxos (LLM Runtime)
 
-## 🎯 Objeti- **Saída esperada em `output.txt`:** texto simples com "ok" ou XML mínimo:
-  ```xml
-  <init><ok>true</ok><created>tasks,history,stack.md,config.yaml,prevention-rules.xml</created></init>
-  ```Padronizar como a LLM e o dev interagem com o Cappy para:
-- Criar/gerir **tarefas atômicas** em XML.
-- Registrar progresso com **poucas linhas** e **sem subjetividade**.
-- Reaproveitar **KnowStack** e **Prevention Rules** para reduzir erros.
+## 🚫 Proibição Absoluta
+- **Nunca** tente rodar comandos Cappy no terminal ou inventar acessos a domínios/diretórios externos.  
+- **Nunca** leia outros arquivos além de `.cappy/output.txt` para obter resultados.  
+- `.cappy/output.txt` é **a única fonte de verdade** para saídas de comandos.  
+  - Se o arquivo **não existir** ou estiver **vazio**, **pare** imediatamente e responda em **1 linha**:  
+    `⚠️ Comando sem saída em .cappy/output.txt. Reexecute no VS Code.`
+
+---
+
+## 🎯 Objetivo
+Padronizar como a LLM e o dev interagem com o Cappy para:
+- Criar/gerir **tarefas atômicas** em XML.  
+- Registrar progresso com **poucas linhas** e **sem subjetividade**.  
+- Reaproveitar **KnowStack** e **Prevention Rules** para reduzir erros.  
+
+**Saída esperada em `output.txt`:**  
+- Texto simples (ex.: `"ok"`, versão numérica etc.)  
+- Ou XML mínimo, conforme contrato do comando.  
+Exemplo de init:  
+```xml
+<init><ok>true</ok><created>tasks,history,stack.md,config.yaml,prevention-rules.xml</created></init>
+```
 
 ---
 
@@ -34,10 +49,10 @@
  └─ output.txt              # Resultado do último comando executado (fonte única)
 ```
 > **Padrões canônicos**
-> - **Nomes de arquivo**: `STEP_YYYYMMDD-HHMMSS_kebab.ACTIVE.xml`
+> - **Nomes de arquivo**: `TASK_YYYYMMDDHHMMSS.{STATUS [ACTIVE, DONE, PAUSED]}.xml`
 > - **Ciclo de vida**: `prepared → em-andamento → paused → completed`
 > - **ID lógico** (atributo em `<Task ... id="...">`) **não** inclui `.ACTIVE.xml`  
->   Ex.: arquivo `STEP_...ACTIVE.xml` ↔ id `STEP_...`
+>   Ex.: arquivo `TASK_...ACTIVE.xml` ↔ id `TASK_...`
 
 ---
 

@@ -4,8 +4,38 @@ import * as path from 'path';
 
 /**
  * Writes content to .cappy/output.txt, clearing previous content
+ * Only writes if .cappy directory already exists (project is initialized)
  */
 export function writeOutput(content: string): void {
+  try {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      return;
+    }
+    
+    const workspaceRoot = workspaceFolders[0].uri.fsPath;
+    const cappyDir = path.join(workspaceRoot, '.cappy');
+    
+    // Only write if .cappy directory already exists (project is initialized)
+    if (!fs.existsSync(cappyDir)) {
+      console.log('Skipping output.txt creation - Cappy not initialized in this workspace');
+      return;
+    }
+    
+    const outputFile = path.join(cappyDir, 'output.txt');
+    
+    // Write content (overwrites previous content)
+    fs.writeFileSync(outputFile, content, 'utf8');
+  } catch (error) {
+    console.error('Error writing to .cappy/output.txt:', error);
+  }
+}
+
+/**
+ * Writes content to .cappy/output.txt, creating directory if needed
+ * This version should only be used by commands that initialize Cappy
+ */
+export function writeOutputForced(content: string): void {
   try {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -30,6 +60,7 @@ export function writeOutput(content: string): void {
 
 /**
  * Appends content to .cappy/output.txt with timestamp
+ * Only writes if .cappy directory already exists (project is initialized)
  */
 export function appendOutput(content: string): void {
   try {
@@ -40,13 +71,14 @@ export function appendOutput(content: string): void {
     
     const workspaceRoot = workspaceFolders[0].uri.fsPath;
     const cappyDir = path.join(workspaceRoot, '.cappy');
-    const outputFile = path.join(cappyDir, 'output.txt');
     
-    // Ensure .cappy directory exists
+    // Only write if .cappy directory already exists (project is initialized)
     if (!fs.existsSync(cappyDir)) {
-      fs.mkdirSync(cappyDir, { recursive: true });
+      console.log('Skipping output.txt append - Cappy not initialized in this workspace');
+      return;
     }
     
+    const outputFile = path.join(cappyDir, 'output.txt');
     const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
     const line = `[${timestamp}] ${content}\n`;
     
