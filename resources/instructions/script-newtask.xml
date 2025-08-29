@@ -7,51 +7,60 @@
       <note>LLM só preenche XML; criação física é via comandos VS Code.</note>
       <note>Não deve iniciar o desenvolvimento.</note>
       <note>Requer .cappy/stack.md validado.</note>
-      <note>Fazer perguntas sempre no formato 1a1.</note>
+      <note>Fazer perguntas sempre no formato 1 a 1.</note>
     </notes>
   </about>
 
   <steps>
-    <step id="1.check_active">
-      <goal>Abortar se houver task ativa não pausada.</goal>
-      <logic><![CDATA[
-        run_vscode("cappy.getActiveTask");
-        ts = read_text(".cappy/output.txt");
-        if (!ts) stop_with_message("ERR:getActiveTask sem saída.");
-        isActive = includes(ts, "<active>true</active>");
-        file = extract(ts, "<file-path>", "</file-path>");
-        if (isActive && file && !ends_with(file, ".paused.xml"))
-          stop_with_message("ERR:Há task ativa. Pause antes de criar outra. HINT: use cappy:pause");
-      ]]></logic>
+    <step id="1">
+      <goal>Vamos verificar se temos o arquivo da stack.md em .cappy/</goal>
+      <logic>
+        1 - Verificar se o arquivo .cappy/stack.md existe
+          1.1 - Se não existir, alertar o usuário e não prosseguir
+          1.2 - Se existir, verifique que não está vazio
+            1.2.1 - Se estiver vazio, alertar o usuário e não prosseguir
+            1.2.2 - Se não estiver vazio, continuar o fluxo normalmente                
+      </logic>
+    </step>
+    <step id="2">
+      <goal>Abortar se houver uma task ativa ou não pausada.</goal>
+      <logic>
+        1 - Verificar se existe na pasta .cappy/tasks/ algum arquivo com o nome terminado em *.ACTIVE.xml        
+          1.1 - Se existir então alerte o usuário de que existe uma task em andamento e que você não poderá prosseguir
+          1.2 - Caso contrario: continuar o fluxo normalmente.
+      </logic>
+    </step>
+    <step id="3">
+      <goal>Ler as informações da STACK.md.</goal>
+      <logic>
+        1 - Leia o arquivo completo .cappy/stack.md
+        2 - Extraia as informações relevantes para a nova task
+        3 - Se for uma stack multi projetos pergunte em qual projeto a nova task se encaixa
+        4 - Se tiver alguma duvida sobre a stack pergunte ao usuário no formato 1 a 1 até não restar duvidas
+          4.1 - Se seguiu por esse caminho então lembre-se de atualizar o arquivo da stack.md para não ter que perguntar novamente
+        5 - Se tudo estiver correto, prosseguir para o próximo passo
+      </logic>
     </step>
 
-    <step id="2.load_context">
-      <goal>Abortar se KnowStack inválido.</goal>
-      <logic><![CDATA[
-        cfg = required_read(".cappy/config.yaml|.cappy/config.json");
-        stack = extract_kv(cfg, ["stack.source"], ".cappy/stack.md");
-        ok = extract_kv(cfg, ["stack.validated"], false) == true && file_exists(stack);
-        if (!ok) stop_with_message("ERR:KnowStack não validado. HINT: cappy:knowstack");
-      ]]></logic>
+    <step id="3">
+      <goal>Coletar escopo</goal>
+      <logic>
+        1 - Sempre em um padrão de perguntas 1 a 1
+        2 - Ler os dados da .cappy/Stack.md
+        3 - Coletar informações de escopo de forma clara e objetiva
+        4 - Investigue onde a task se encaixa no contexto geral do projeto como pastas, arquivos, subprojetos etc.
+        5 - Garantir que todas as informações necessárias sejam coletadas antes de prosseguir
+        6 - Criticar a task pois você é um analista de sistemas especialista
+        7 - Garantir que não há subjetividades
+        8 - Aplicar gate de tempo (≤3h) com base nas informações coletadas
+        9 - Confirmar se o escopo está atômico (≤3h) antes de prosseguir
+          9.1 - Se o escopo não estiver atômico, sugerir decomposição
+          9.2 - Se o escopo estiver atômico, prosseguir
+        10 - Se tudo estiver correto, prosseguir para o próximo passo
+      </logic>
     </step>
 
-    <step id="3.scope_first">
-      <goal>Coletar escopo e aplicar gate ≤3h.</goal>
-      <logic><![CDATA[
-        scope = ask_one("Escopo (1–2 linhas; imperativo):");
-        acceptance = ask_one("Critérios de aceite objetivos:");
-        area = ask_one("Área (frontend/backend/fullstack/mobile/devops):");
-        paths = ask_one("Pastas/arquivos-alvo:");
-        deps = ask_one("Dependências externas:");
-        validation = ask_one("Validação (comandos/testes/URL):");
-        estimate = parse_float(ask_one("Estimativa em horas (≤3):"));
-        if (!estimate || estimate > 3)
-          stop_with_message("ERR:Escopo não atômico (>3h). HINT:cappy:decompose");
-        title = generate_title_from_scope(scope, "pt-BR");
-      ]]></logic>
-    </step>
-
-    <step id="4.create_file">
+    <step id="4">
       <goal>Gerar *.ACTIVE.xml e obter caminho/id.</goal>
       <logic><![CDATA[
         run_vscode("cappy.createTaskFile", {
@@ -66,7 +75,7 @@
       <output>task_id,outpath</output>
     </step>
 
-    <step id="5.patch_xml">
+    <step id="5">
       <goal>Preencher campos essenciais e marcar status=prepared.</goal>
       <logic><![CDATA[
         xml = read_text(outpath);

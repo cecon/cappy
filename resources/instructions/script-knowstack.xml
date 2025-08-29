@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<cappy:script name="knowstack" version="2">
+<cappy:script xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:noNamespaceSchemaLocation="script-knowstack.xsd" name="knowstack" version="2">
   <about>
     <summary>Descobrir a stack e registrá-la em .cappy/stack.md; configurar .cappy/config.yaml.</summary>
     <command>cappy:knowstack</command>
