@@ -228,4 +228,82 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
         
         return files;
     }
+
+    /**
+     * Copy all XSD files from resources/ to .cappy/schemas/
+     * Replaces existing files completely
+     */
+    async copyXsdSchemas(): Promise<void> {
+        const workspaceRoot = this.ensureWorkspace();
+        const resourcesPath = path.join(workspaceRoot, 'resources');
+        const schemasPath = path.join(workspaceRoot, '.cappy', 'schemas');
+
+        console.log(`[copyXsdSchemas] workspaceRoot: ${workspaceRoot}`);
+        console.log(`[copyXsdSchemas] resourcesPath: ${resourcesPath}`);
+        console.log(`[copyXsdSchemas] schemasPath: ${schemasPath}`);
+
+        // Ensure .cappy/schemas directory exists
+        if (!fs.existsSync(schemasPath)) {
+            console.log(`[copyXsdSchemas] Creating schemas directory: ${schemasPath}`);
+            await fs.promises.mkdir(schemasPath, { recursive: true });
+        } else {
+            console.log(`[copyXsdSchemas] Schemas directory already exists: ${schemasPath}`);
+        }
+
+        try {
+            // Find all XSD files in resources/
+            console.log(`[copyXsdSchemas] Looking for XSD files in: ${resourcesPath}`);
+            const xsdFiles = await this.findXsdFiles(resourcesPath);
+            console.log(`[copyXsdSchemas] Found ${xsdFiles.length} XSD files:`, xsdFiles);
+            
+            // Copy each XSD file to .cappy/schemas/
+            for (const xsdFile of xsdFiles) {
+                const fileName = path.basename(xsdFile);
+                const destPath = path.join(schemasPath, fileName);
+                
+                console.log(`[copyXsdSchemas] Copying ${xsdFile} -> ${destPath}`);
+                await fs.promises.copyFile(xsdFile, destPath);
+                console.log(`Copied XSD: ${fileName} to .cappy/schemas/`);
+            }
+            
+            if (xsdFiles.length > 0) {
+                console.log(`Successfully copied ${xsdFiles.length} XSD file(s) to .cappy/schemas/`);
+            } else {
+                console.log('No XSD files found to copy');
+            }
+        } catch (error) {
+            console.error('Error copying XSD schemas:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Find all XSD files recursively in a directory
+     */
+    private async findXsdFiles(dir: string): Promise<string[]> {
+        const xsdFiles: string[] = [];
+        
+        try {
+            const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+            
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                
+                if (entry.isDirectory()) {
+                    // Recursively search subdirectories
+                    const subXsdFiles = await this.findXsdFiles(fullPath);
+                    xsdFiles.push(...subXsdFiles);
+                } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.xsd')) {
+                    xsdFiles.push(fullPath);
+                }
+            }
+        } catch (error) {
+            // If resources directory doesn't exist, just return empty array
+            if ((error as any).code !== 'ENOENT') {
+                console.error(`Error reading directory ${dir}:`, error);
+            }
+        }
+        
+        return xsdFiles;
+    }
 }

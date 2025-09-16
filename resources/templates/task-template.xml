@@ -1,94 +1,164 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<task id="{{TASK_ID}}" status="empty">
-    <meta>
-        <created>{{CREATED_TIMESTAMP}}</created>
-        <updated>{{CREATED_TIMESTAMP}}</updated>
-        <file>{{FILE_NAME}}</file>
-        <priority>media</priority>
-        <labels></labels>
-        <estimate>30min</estimate>
-    </meta>
-    <title>Nova Tarefa</title>
-    <description>Descrição da tarefa</description>
-    <area>desenvolvimento</area>
-    <steps>
-        <step id="1" status="pendente" required="true">
-            <title>Primeiro passo</title>
-            <description>Descreva o que precisa ser feito</description>
-            <criteria>Critérios de conclusão</criteria>
-        </step>
-    </steps>
-    <validation>
-        <criteria>Critérios gerais de validação da tarefa</criteria>
-        <evidence type="code">Evidências necessárias</evidence>
-    </validation>
-    <prevention-rules-context>
-        <!-- 
-        EDUCATIVO: Como a LLM deve identificar quando precisa criar uma nova prevention rule
-        -->
-        <identification-triggers>
-            <trigger type="error-repetition">
-                <description>Erro se repetiu 2+ vezes em contextos similares</description>
-                <examples>
-                    <example>Mesmo erro de sintaxe de terminal em diferentes tarefas</example>
-                    <example>Mesmo tipo de path incorreto em múltiplas execuções</example>
-                </examples>
-            </trigger>
-            
-            <trigger type="environment-mismatch">
-                <description>LLM assumiu ambiente diferente do real</description>
-                <examples>
-                    <example>Assumiu bash quando usuário usa PowerShell</example>
-                    <example>Assumiu Linux quando usuário usa Windows</example>
-                    <example>Assumiu Node.js quando projeto é Python</example>
-                </examples>
-            </trigger>
-            
-            <trigger type="scope-violation">
-                <description>Tarefa excedeu escopo atômico (>3h)</description>
-                <examples>
-                    <example>Tarefa que deveria ser decomposta</example>
-                    <example>Múltiplos domínios em uma única task</example>
-                </examples>
-            </trigger>
-            
-            <trigger type="user-correction">
-                <description>Usuário corrigiu a LLM sobre algo específico</description>
-                <examples>
-                    <example>Usuário corrigiu comando ou approach</example>
-                    <example>Usuário indicou padrão específico do projeto</example>
-                </examples>
-            </trigger>
-        </identification-triggers>
-        
-        <when-to-create>
-            <immediate>Erro crítico que pode quebrar execução (sintaxe, paths)</immediate>
-            <after-completion>Padrão identificado que pode ser reutilizado</after-completion>
-            <user-request>Usuário explicitamente pede para documentar regra</user-request>
-        </when-to-create>
-        
-        <how-to-document>
-            <step>1. Identificar o padrão do erro</step>
-            <step>2. Documentar contexto específico (OS, shell, framework)</step>
-            <step>3. Criar exemplo wrong vs correct</step>
-            <step>4. Adicionar verification checklist</step>
-            <step>5. Referenciar na seção prevention-rules desta task</step>
-        </how-to-document>
-    </prevention-rules-context>
+<task id="{{TASK_ID}}" 
+      category="{{CATEGORY}}" 
+      priority="normal" 
+      status="pending" 
+      created="{{CREATED_TIMESTAMP}}"
+      xmlns="https://cappy-methodology.dev/task/1.0">
     
-    <prevention-rules>
-        <!-- Regras de prevenção específicas para esta tarefa devem vir do .cappy/prevention-rules.xml -->
-        <verification-checklist>
-            <check>Confirmar sintaxe de comandos adequada ao shell do usuário</check>
-            <check>Verificar se estimativa da tarefa não excede 3 horas</check>
-            <check>Usar caminhos de arquivo no formato correto do OS</check>
-            <check>Consultar .cappy/prevention-rules.md antes de ações críticas</check>
-        </verification-checklist>
-    </prevention-rules>
-    <progress>
-        <completed-steps>0</completed-steps>
-        <total-steps>1</total-steps>
-        <percentage>0</percentage>
-        <current-step>1</current-step>
-    </progress>
+    <context>
+        <docs_refs>
+            <!-- Documentações relevantes serão injetadas automaticamente -->
+            <!-- Exemplo: <doc path="docs/{{AREA}}/overview.md" relevance="medium">Documentação base</doc> -->
+        </docs_refs>
+        
+        <prevention_rules>
+            <!-- Prevention rules aplicáveis serão injetadas do índice -->
+            <!-- Sistema automaticamente busca por categoria e contexto -->
+            <rule id="basic-verification" category="{{CATEGORY}}" severity="medium" auto_apply="true">
+                Verificar sintaxe antes de executar comandos
+            </rule>
+            <rule id="scope-validation" category="general" severity="high" auto_apply="true">
+                Manter tarefa atômica - máximo 5 steps principais
+            </rule>
+        </prevention_rules>
+        
+        <related_tasks>
+            <!-- Tasks relacionadas serão descobertas automaticamente -->
+        </related_tasks>
+        
+        <dependencies>
+            <!-- Dependências do ambiente/projeto -->
+            <dependency type="tool" critical="false">{{PRIMARY_TOOL}}</dependency>
+        </dependencies>
+    </context>
+    
+    <execution estimated_duration="PT30M">
+        <step id="main-step" 
+              validation="{{VALIDATION_CRITERIA}}" 
+              status="pending" 
+              atomic="true">
+            {{STEP_DESCRIPTION}}
+            
+            <!-- SubSteps aparecerão aqui quando LLM decompor a task -->
+            <!-- Exemplo de estrutura que LLM deve seguir: -->
+            <!--
+            <substep id="setup" validation="Environment ready">
+                <action type="verify_environment" 
+                        expected_result="Required tools available"
+                        command="{{VERIFICATION_COMMAND}}"
+                        verification="Exit code 0">
+                    Verificar ambiente e dependências
+                </action>
+            </substep>
+            
+            <substep id="implement" validation="Feature implemented">
+                <action type="edit_file" 
+                        expected_result="File contains required changes"
+                        file_path="{{TARGET_FILE}}"
+                        verification="Code compiles without errors">
+                    Implementar funcionalidade principal
+                </action>
+                
+                <action type="test_function" 
+                        expected_result="All tests pass"
+                        command="{{TEST_COMMAND}}"
+                        verification="Test suite green">
+                    Executar testes
+                </action>
+            </substep>
+            -->
+        </step>
+    </execution>
+    
+    <!-- Completion section é preenchida apenas após execução -->
+    <completion completed_at="{{COMPLETED_TIMESTAMP}}" success="false">
+        <validation_checklist>
+            <item checked="false" critical="true">{{MAIN_VALIDATION_CRITERIA}}</item>
+            <item checked="false" critical="false">Documentação atualizada se necessário</item>
+            <item checked="false" critical="false">Prevention rules aplicadas</item>
+        </validation_checklist>
+        
+        <knowledge_capture>
+            <new_learnings>
+                <!-- LLM deve preencher com insights descobertos -->
+            </new_learnings>
+            
+            <docs_updated>
+                <!-- Arquivos de documentação modificados -->
+            </docs_updated>
+            
+            <new_prevention_rules>
+                <!-- Novas regras identificadas durante execução -->
+            </new_prevention_rules>
+        </knowledge_capture>
+        
+        <metrics>
+            <!-- Métricas são coletadas automaticamente -->
+            <metric name="actual_duration_minutes" value="{{ACTUAL_DURATION_MINUTES}}" unit="minutes"/>
+            <metric name="estimated_vs_actual" value="{{ESTIMATED_VS_ACTUAL_RATIO}}" unit="ratio"/>
+            <metric name="steps_completed" value="{{STEPS_COMPLETED}}" unit="count"/>
+            <metric name="prevention_rules_applied" value="{{PREVENTION_RULES_APPLIED}}" unit="count"/>
+        </metrics>
+    </completion>
 </task>
+
+<!--
+TEMPLATE VARIABLES EXPLANATION:
+{{TASK_ID}} - Unique identifier for the task
+{{CATEGORY}} - One of: auth, database, api, ui, testing, deployment, security, performance, refactor, feature, bugfix, maintenance, documentation, infrastructure, integration
+{{CREATED_TIMESTAMP}} - ISO 8601 timestamp (task creation)
+{{COMPLETED_TIMESTAMP}} - ISO 8601 timestamp (task completion) - filled when task finishes
+{{ACTUAL_DURATION_MINUTES}} - Total minutes spent on task execution
+{{ESTIMATED_VS_ACTUAL_RATIO}} - Ratio of actual vs estimated time (for learning)
+{{STEPS_COMPLETED}} - Number of steps actually completed
+{{PREVENTION_RULES_APPLIED}} - Count of prevention rules that were applied
+{{AREA}} - Project area for documentation lookup
+{{VALIDATION_CRITERIA}} - Main success criteria
+{{STEP_DESCRIPTION}} - What needs to be accomplished
+{{PRIMARY_TOOL}} - Main tool/technology involved
+{{TARGET_FILE}} - Main file to be modified (if applicable)
+{{VERIFICATION_COMMAND}} - Command to verify environment
+{{TEST_COMMAND}} - Command to run tests
+{{MAIN_VALIDATION_CRITERIA}} - Primary validation check
+
+TIMING CALCULATION:
+The extension should calculate timing as follows:
+- Start time: {{CREATED_TIMESTAMP}} when task file is created
+- End time: {{COMPLETED_TIMESTAMP}} when completion section is filled
+- Duration: {{ACTUAL_DURATION_MINUTES}} = (end_time - start_time) in minutes
+- Ratio: {{ESTIMATED_VS_ACTUAL_RATIO}} = actual_duration / estimated_duration
+
+PREVENTION RULES CONTEXT FOR LLM:
+The LLM should identify when to create prevention rules based on:
+
+1. ERROR REPETITION TRIGGERS:
+   - Same syntax error in different tasks
+   - Same path/environment mistakes
+   - Repeated scope violations (task too big)
+
+2. ENVIRONMENT MISMATCHES:
+   - Assuming wrong OS (bash vs PowerShell)
+   - Wrong tech stack assumptions
+   - Incorrect tool versions
+
+3. USER CORRECTIONS:
+   - User fixes LLM's approach
+   - User indicates project-specific patterns
+   - User mentions company/team conventions
+
+4. WHEN TO CREATE RULES:
+   - IMMEDIATE: Critical errors that break execution
+   - AFTER COMPLETION: Reusable patterns identified
+   - USER REQUEST: Explicit ask to document rule
+
+5. HOW TO DOCUMENT:
+   - Identify error pattern
+   - Document specific context (OS, shell, framework)
+   - Create wrong vs correct examples
+   - Add verification checklist
+   - Reference in prevention_rules section
+
+The prevention-rules-context from your original template is now built into 
+the methodology and should be handled by the LLM automatically when processing tasks.
+-->

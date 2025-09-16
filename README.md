@@ -1,272 +1,312 @@
-# 🦫 Cappy - AI Task Management for Solo Developers
+# CAPPY - Context Orchestration for Intelligent Development
 
-> Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically
+> Transform your development from reactive to intelligent. Every task learns from your project's context automatically.
 
 <div align="center">
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/Version-2.6.20-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
-[![Solo Developer](https://img.shields.io/badge/Optimized%20for-Solo%20Developers-green.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
+<img src="assets/icon.png" alt="CAPPY Logo" width="128" height="128">
 
-[**Install**](#-installation) • [**Quick Setup**](#-quick-setup) • [**Commands**](#-commands) • [**GitHub**](https://github.com/cecon/cappy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/Version-3.0.0-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
+[![Context Orchestration](https://img.shields.io/badge/Powered%20by-Context%20Orchestration-green.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
+
+[**Install**](#installation) • [**Quick Start**](#quick-start) • [**How It Works**](#how-it-works) • [**Contribute**](#become-a-contributor) • [**GitHub**](https://github.com/cecon/cappy)
 
 </div>
 
 ---
 
-## 🎯 What is Cappy?
+## The Problem with Traditional Development
 
-**Cappy** is an intelligent VS Code extension that implements a **LLM Runtime** for task management. It creates a structured workflow where you interact with GitHub Copilot using specific commands to manage atomic tasks (≤3h each), with automatic learning from mistakes through Prevention Rules.
+**Every task starts from zero.** You write code, encounter the same issues, google the same solutions, and repeat mistakes you've already solved. Your project's knowledge exists only in your head.
 
-### 🧠 **Core Philosophy**
-- **LLM Runtime**: Commands prefixed with `cappy:` have maximum priority
-- **Single Source of Truth**: All command outputs go to `.cappy/output.txt` 
-- **Atomic Tasks**: Maximum 3 hours per task for maintainability
-- **Prevention Learning**: Every mistake becomes a documented rule
-- **1x1 Interaction**: One question at a time for clarity
+**Context switching kills productivity.** You jump between tasks without understanding their relationships, missing opportunities for reuse and creating inconsistencies.
 
-### 🏗️ **What it Creates**
-- **Task Management**: XML-based atomic tasks with lifecycle tracking
-- **KnowStack**: Project knowledge base (`.cappy/stack.md`)
-- **Prevention Rules**: Automatic learning from mistakes
-- **LLM Integration**: Structured GitHub Copilot instructions
-- **Output System**: Centralized command feedback via `.cappy/output.txt`
+**Prevention knowledge gets lost.** You fix a bug, but the knowledge of why it happened and how to prevent it vanishes into git commits and forgotten conversations.
 
 ---
 
-## 🚀 Quick Setup
+## The CAPPY Solution: Context Orchestration
 
-### 1. Install the Extension
+CAPPY 2.0 introduces **Context Orchestration** - your development environment becomes intelligent by automatically connecting tasks with relevant documentation, prevention rules, and related work.
+
+### Intelligence That Grows With Your Project
+
+**Every task is born smart.** When you describe a new task, CAPPY automatically:
+- Finds relevant documentation from your project
+- Applies prevention rules from similar past work  
+- Suggests related tasks and dependencies
+- Pre-populates context with architectural knowledge
+
+**Your mistakes become system intelligence.** Failed approaches, debugging solutions, and hard-learned lessons transform into **Prevention Rules** that protect future work automatically.
+
+**Context flows seamlessly.** Tasks aren't isolated - they inherit knowledge from your project's architecture, coding patterns, and accumulated wisdom.
+
+---
+
+## How It Works
+
+### 1. **Intelligent Task Creation**
+```
+You: "I need to add JWT authentication"
+
+CAPPY Context Discovery:
+✓ Found: docs/auth/patterns.md
+✓ Found: 3 prevention rules for auth category  
+✓ Found: 1 related task (user-session-mgmt)
+✓ Auto-applied: JWT null validation rule
+✓ Category: auth (inferred automatically)
+
+Result: Task born with complete context
+```
+
+### 2. **Natural Language Commands**
+No memorizing syntax. Just express intent naturally:
+
+- "create new task" → Context discovery + XSD template
+- "what's my current task?" → Status with context summary  
+- "analyze my project" → Architecture mapping + knowledge extraction
+- "work on current task" → Context-aware execution
+
+### 3. **Prevention Rules Evolution**
+```xml
+<rule category="auth" severity="high" auto_apply="true">
+  Always validate JWT token existence before decode operations
+</rule>
+```
+
+Errors become protection. Debugging becomes documentation. Learning compounds automatically.
+
+### 4. **XSD-Structured Intelligence**
+Every task follows a rigorous schema ensuring:
+- Context section with discovered knowledge
+- Execution steps with clear validation criteria
+- Learning capture for continuous improvement
+- Metrics tracking for effectiveness measurement
+
+---
+
+## Quick Start
+
+### Install & Initialize
 ```bash
 # Install from VS Code Marketplace
 code --install-extension eduardocecon.cappy
+
+# In VS Code Command Palette (Ctrl+Shift+P)
+> CAPPY: Initialize Project
 ```
 
-### 2. Initialize Cappy
-1. Open your project in VS Code
-2. Press `Ctrl+Shift+P` (Windows) or `Cmd+Shift+P` (Mac)
-3. Run `🦫 Initialize Cappy`
-4. Cappy creates `.cappy/` structure and configuration
-
-### 3. Build Knowledge Stack (Required)
-1. In GitHub Copilot Chat, type: `cappy:knowstack`
-2. Answer questions about your project one by one
-3. Approve the generated stack documentation
-4. Cappy updates project knowledge base
-
-### 4. Start Working with Tasks
-1. Type `cappy:newtask` in Copilot Chat
-2. Follow the guided task creation process
-3. Use `cappy:taskstatus` to check active tasks
-4. Complete tasks with `cappy:taskcomplete`
-
----
-
-## 📋 LLM Commands (GitHub Copilot Chat)
-
-| Command | Description |
-|---------|-------------|
-| `cappy:knowstack` | Analyze project and build knowledge stack |
-| `cappy:newtask` | Get template for creating new atomic task |
-| `cappy:createtaskfile` | Create new task XML file |
-| `cappy:taskstatus` | Check active task status |
-| `cappy:taskcomplete` | Complete current active task |
-| `cappy:version` | Get Cappy extension version |
-
-### VS Code Command Palette Commands
-| Command | Description |
-|---------|-------------|
-| `🦫 Initialize Cappy` | Set up Cappy structure and configuration |
-| `🧠 Cappy: KnowStack` | Alternative way to build knowledge stack |
-
----
-
-## 📁 File Structure Created
-
+### Build Project Intelligence
 ```
-your-project/
-├── .cappy/
-│   ├── tasks/                          # Active task XML files (*.ACTIVE.xml)
-│   ├── history/                        # Completed tasks (*.done.xml)
-│   ├── config.yaml                     # Cappy configuration
-│   ├── stack.md                        # Project knowledge base
-│   ├── prevention-rules.xml            # Learning from mistakes
-│   └── output.txt                      # Command outputs (LLM reads this)
-├── .github/
-│   └── copilot-instructions.md         # Enhanced with Cappy methodology
-└── .gitignore                          # Updated with Cappy entries
+# In GitHub Copilot Chat
+"analyze my project structure"
+
+# CAPPY maps your architecture, identifies components,
+# and builds foundational context for intelligent task management
+```
+
+### Create Your First Smart Task
+```
+# In GitHub Copilot Chat  
+"I need to add user authentication"
+
+# Watch CAPPY automatically discover relevant context:
+# - Related documentation
+# - Applicable prevention rules  
+# - Similar past tasks
+# - Architectural dependencies
 ```
 
 ---
 
-## 🔄 Typical Workflow
+## Architecture: Context Orchestration Engine
 
-1. **Initialize**: Run `🦫 Initialize Cappy` once per project
-2. **Know Your Stack**: `cappy:knowstack` to build project knowledge
-3. **Create Task**: `cappy:newtask` → answer scope questions → `cappy:createtaskfile`
-4. **Work**: Edit code, check progress with `cappy:taskstatus`
-5. **Complete**: `cappy:taskcomplete` when task criteria met
-6. **Learn**: Mistakes become prevention rules automatically
+```
+.cappy/
+├── index/                    # Context orchestration brain
+│   ├── tasks.json           # Task relationships and similarity
+│   ├── prevention.json      # Categorized prevention rules
+│   └── context.json         # Knowledge graph connections
+├── tasks/                   # Active tasks (XSD compliant)
+├── history/                 # Completed tasks with learnings
+└── stack.md                 # Project architecture knowledge
+
+docs/
+├── components/              # Auto-indexed documentation  
+├── prevention/              # Categorized prevention rules
+└── index/                   # Search and discovery indices
+```
+
+**Context Discovery Pipeline:**
+1. **Semantic Analysis** - Extract keywords and intent from task description
+2. **Category Inference** - Automatically categorize based on content patterns  
+3. **Knowledge Retrieval** - Find relevant docs, rules, and related tasks
+4. **Context Injection** - Pre-populate task with discovered intelligence
+5. **Continuous Learning** - Capture outcomes for future context improvement
 
 ---
 
-## 📋 Task Management
+## Why Context Orchestration Changes Everything
 
-### XML Task Structure
-Tasks are managed as XML files with this structure:
+### For Individual Developers
+- **Eliminate repeated mistakes** through automatic prevention rule application
+- **Accelerate task creation** with pre-populated relevant context
+- **Maintain project knowledge** that grows more valuable over time
+- **Reduce cognitive load** by having context served automatically
 
+### For Development Teams
+- **Knowledge sharing** through shared context indices and prevention rules
+- **Consistency enforcement** via automatic application of team standards  
+- **Onboarding acceleration** with comprehensive project context mapping
+- **Quality improvement** through accumulated prevention intelligence
+
+### For Complex Projects
+- **Architectural awareness** in every task through context orchestration
+- **Dependency management** via automatic relationship mapping
+- **Technical debt prevention** through pattern recognition and rule application
+- **Knowledge preservation** that survives team changes and time
+
+---
+
+## Real-World Impact
+
+**Before CAPPY:** Task creation takes 15+ minutes of context gathering, reviewing similar work, and remembering edge cases.
+
+**With CAPPY:** Describe intent in natural language. System instantly provides relevant context, prevention rules, and architectural knowledge. Task creation in under 2 minutes with superior context.
+
+**The Multiplier Effect:** Each completed task makes the next one smarter. Prevention rules compound. Context quality improves. Development velocity increases over time.
+
+---
+
+## Become a Contributor
+
+CAPPY 2.0 represents a fundamental shift in how development tools should work - intelligent, contextual, and continuously learning. We're building the future of development assistance.
+
+### 🎯 **What We're Looking For**
+
+**Context Orchestration Engineers**
+- Improve semantic search algorithms for better context discovery
+- Enhance category inference for more accurate task classification
+- Develop sophisticated prevention rule evolution patterns
+
+**Developer Experience Specialists**  
+- Design intuitive natural language command interpretation
+- Create powerful task template generation systems
+- Build seamless VS Code and GitHub Copilot integration
+
+**AI/ML Contributors**
+- Implement learning systems for prevention rule effectiveness
+- Develop context quality measurement and optimization
+- Create intelligent task decomposition algorithms
+
+**Documentation & Community**
+- Write compelling examples of context orchestration benefits
+- Create comprehensive guides for advanced usage patterns
+- Build community around intelligent development practices
+
+### 🚀 **How to Contribute**
+
+1. **Explore the Architecture**
+   ```bash
+   git clone https://github.com/cecon/cappy
+   cd cappy
+   npm install
+   code .
+   ```
+
+2. **Understand Context Orchestration**
+   - Study the `src/context/` module for discovery algorithms
+   - Examine XSD schema in `schemas/task.xsd`
+   - Review prevention rule evolution in `src/prevention/`
+
+3. **Pick Your Impact Area**
+   - 🧠 **Core Intelligence**: Context discovery and orchestration algorithms
+   - 🎨 **Developer UX**: Natural language processing and command interpretation  
+   - 📊 **Analytics**: Metrics, learning effectiveness, and optimization
+   - 🔧 **Integration**: VS Code, Copilot, and ecosystem connections
+
+4. **Submit Your First Contribution**
+   - Check [Issues](https://github.com/cecon/cappy/issues) for good first contributions
+   - Join our [Discord](https://discord.gg/cappy) for architecture discussions
+   - Follow [Contributing Guidelines](https://github.com/cecon/cappy/blob/main/CONTRIBUTING.md)
+
+### 💡 **Innovation Opportunities**
+
+- **Multi-Project Context** - Share prevention rules across project boundaries
+- **Team Intelligence** - Collaborative context building and sharing
+- **IDE Agnostic** - Expand beyond VS Code to other development environments
+- **Language Expansion** - Context orchestration for more programming languages
+- **Enterprise Features** - Advanced analytics and team coordination capabilities
+
+---
+
+## Technical Foundation
+
+### XSD Schema Compliance
+All tasks follow rigorous XML schema validation:
 ```xml
-<Task id="implement-auth" status="em-andamento">
-    <title>Implement User Authentication</title>
-    <goals>
-        <goal>Add login/logout functionality</goal>
-        <goal>Secure user sessions</goal>
-    </goals>
-    
-    <steps>
-        <step id="step001" done="false">
-            <title>Create Login Component</title>
-            <doneWhen>Form validates and handles errors</doneWhen>
-        </step>
-        <step id="step002" done="false">
-            <title>API Integration</title>
-            <doneWhen>JWT tokens stored and managed</doneWhen>
-        </step>
-    </steps>
-    
-    <meta>
-        <estimate>2.5h</estimate>
-        <createdAt>2025-08-15T10:30:00Z</createdAt>
-    </meta>
-</Task>
+<task xmlns="https://cappy-methodology.dev/task/1.0" 
+      category="auth" 
+      id="jwt-implementation">
+  <context discovery_timestamp="2025-01-15T10:30:00Z">
+    <!-- Automatically populated by context orchestration -->
+  </context>
+  <execution>
+    <!-- Smart task decomposition -->
+  </execution>
+  <completion>
+    <!-- Learning capture for future intelligence -->
+  </completion>
+</task>
 ```
 
-### Task Lifecycle
-- `prepared` → `em-andamento` → `paused` → `completed`
-- Files: `*.ACTIVE.xml` → `*.paused.xml` → `*.done.xml`
-- Location: `.cappy/tasks/` → `.cappy/history/`
+### Prevention Rule Intelligence
+```xml
+<rule id="jwt-null-check" 
+      category="auth" 
+      severity="high" 
+      auto_apply="true">
+  Always validate JWT token existence before decode operations
+</rule>
+```
 
----
-
-## 🛡️ Prevention Rules
-
-Cappy automatically learns from your mistakes. When you encounter issues, they become prevention rules:
-
-```markdown
-# 🛡️ Prevention Rules
-
-## [AUTH] JWT Storage
-**Problem:** Tokens stored in localStorage vulnerable to XSS
-**Solution:** Use httpOnly cookies for secure storage
-**Example:** `Set-Cookie: token=...; HttpOnly; Secure; SameSite=Strict`
-
-## [REACT] Component Props
-**Problem:** Passing too many props creates tight coupling
-**Solution:** Use context or composition patterns
-**Example:** `useAuth()` hook instead of passing auth props
+### Context Discovery API
+```typescript
+interface ContextDiscovery {
+  findRelevantDocs(keywords: string[]): DocReference[];
+  getPreventionRules(category: TaskCategory): PreventionRule[];
+  findSimilarTasks(context: TaskContext): RelatedTask[];
+  inferCategory(description: string): TaskCategory;
+}
 ```
 
 ---
 
-## 🧠 KnowStack: Project Knowledge Base
+## License & Community
 
-The KnowStack (`.cappy/stack.md`) contains your project's complete technical context:
+**MIT License** - Build amazing things with CAPPY's foundation.
 
-- **Languages & Frameworks**: What you're using and versions
-- **Architecture**: How your project is structured
-- **Dependencies**: Key libraries and their purposes
-- **Standards**: Coding conventions and patterns
-- **Environment**: Build, test, and deployment setup
-- **Constraints**: Known limitations and non-goals
+**Community Driven** - Join developers creating the future of intelligent development tools.
 
-This becomes the foundation for all LLM interactions.
+**Open Source** - Transparent development, collaborative innovation.
 
 ---
 
-## ⚙️ Configuration
+## Ready to Transform Your Development?
 
-The `.cappy/config.yaml` file contains project settings:
+**Install CAPPY 2.0** and experience development that gets smarter with every task.
 
-```yaml
-# Cappy Configuration
-version: "2.6.20"
-project:
-    name: "your-project"
-    type: "node-app"
-    languages:
-        - "javascript"
-        - "typescript"
-    frameworks:
-        - "react"
+**Join Our Community** of developers building the future of context-aware development tools.
 
-cappy:
-    initialized_at: "2025-08-15T10:30:00Z"
-    last_updated: "2025-08-15T10:30:00Z"
-
-tasks:
-    directory: "tasks"
-    history_directory: "history"
-```
+**Contribute Code** and help create the most intelligent development assistant ever built.
 
 ---
 
-## 🎯 Key Principles
+<div align="center">
 
-### 1. **Atomic Tasks**
-- Maximum 3 hours per task
-- Clear, measurable completion criteria
-- Single responsibility focus
+**CAPPY 2.0 - Where Every Task Makes You Smarter**
 
-### 2. **LLM Runtime**
-- Commands prefixed with `cappy:` have priority
-- All outputs go to `.cappy/output.txt`
-- GitHub Copilot reads this file for context
+[Get Started Today](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy) • [View Source](https://github.com/cecon/cappy) • [Join Discord](https://discord.gg/cappy)
 
-### 3. **Continuous Learning**
-- Every mistake becomes a prevention rule
-- Rules are automatically included in future context
-- Project knowledge grows over time
-
-### 4. **Single Focus**
-- One active task at a time
-- Clear status tracking
-- Minimize context switching
-
----
-
-## 🔧 Advanced Usage
-
-### Custom Task Templates
-You can customize task templates by editing the instruction files in the extension.
-
-### Integration with CI/CD
-Prevention rules and task history can be used to improve automated workflows.
-
-### Team Adaptation
-While optimized for solo developers, Cappy can be adapted for small teams by sharing the `.cappy/` structure.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Focus areas:
-- Improving LLM command responses
-- Better task template generation
-- Enhanced prevention rule detection
-- Bug fixes and stability improvements
-
----
-
-## 📄 License
-
-MIT License - feel free to use in your projects!
-
----
-
-## 🦫 About Cappy
-
-Cappy methodology is designed for solo developers who want structure without complexity. Like the capybara, it's calm, methodical, and gets things done efficiently.
-
-The extension provides the infrastructure; you provide the intelligence. Together, you build better software, faster.
-
-**Happy coding!** 🚀
+</div>

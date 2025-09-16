@@ -11,6 +11,9 @@ import completeTask from "./commands/completeTask";
 import workOnCurrentTask from "./commands/workOnCurrentTask";
 import { AddPreventionRuleCommand } from "./commands/addPreventionRule";
 import { RemovePreventionRuleCommand } from "./commands/removePreventionRule";
+import { FileManager } from "./utils/fileManager";
+import * as path from 'path';
+import * as fs from 'fs';
 
 export function activate(context: vscode.ExtensionContext) {
   try {
@@ -284,10 +287,48 @@ export function activate(context: vscode.ExtensionContext) {
       removePreventionRuleCommand,
       workOnCurrentTaskCommand
     );
+
+    // Auto-copy XSD schemas when extension loads (if .cappy/schemas exists)
+    checkAndCopyXsdSchemas();
+
   } catch (error) {
     vscode.window.showErrorMessage(
       `🦫 Cappy Memory activation failed: ${error}`
     );
+  }
+}
+
+/**
+ * Check if .cappy/schemas directory exists and copy XSD files automatically
+ */
+async function checkAndCopyXsdSchemas(): Promise<void> {
+  try {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      return; // No workspace, nothing to do
+    }
+
+    const schemasPath = path.join(workspaceFolder.uri.fsPath, '.cappy', 'schemas');
+    
+    // Check if .cappy/schemas directory exists
+    try {
+      await fs.promises.access(schemasPath, fs.constants.F_OK);
+      
+      // Directory exists, copy XSD schemas
+      const fileManager = new FileManager();
+      await fileManager.copyXsdSchemas();
+      
+      console.log('Cappy: XSD schemas copied automatically on startup');
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        // .cappy/schemas doesn't exist, no action needed
+        return;
+      }
+      // Other errors should be logged but not interrupt extension
+      console.warn('Cappy: Failed to auto-copy XSD schemas:', error);
+    }
+  } catch (error) {
+    console.warn('Cappy: Auto-copy XSD schemas check failed:', error);
   }
 }
 

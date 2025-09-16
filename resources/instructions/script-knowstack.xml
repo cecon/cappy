@@ -1,68 +1,278 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<cappy:script xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
- xsi:noNamespaceSchemaLocation="script-knowstack.xsd" name="knowstack" version="2">
+<cappy:script xmlns:cappy="https://schemas.cappy.dev" name="knowstack" version="2.0">
   <about>
-    <summary>Descobrir a stack e registrá-la em .cappy/stack.md; configurar .cappy/config.yaml.</summary>
+    <summary>Discover project stack and build foundational context for intelligent task management</summary>
     <command>cappy:knowstack</command>
+    <notes>
+      <note>Natural language interpretation supported ("analyze project", "know stack", "analisar projeto")</note>
+      <note>Creates stack.md as single source of truth for context orchestration</note>
+      <note>Builds context indices for automatic task discovery</note>
+      <note>Enables category inference and prevention rule mapping</note>
+      <note>One question at a time for clarity</note>
+    </notes>
   </about>
 
   <steps>
-    <step id="1.analyze">
-      <goal>Elicitar e resolver dúvidas sobre a stack, uma pergunta por vez, até não restarem dúvidas materiais.</goal>
-      <rules>
-        <rule>Pergunte uma questão por vez; aguarde a resposta do usuário.</rule>
-        <rule>Após cada resposta, refine entendimento e liste dúvidas restantes.</rule>
-        <rule>Pare quando unanswered_doubts == 0.</rule>
-      </rules>
-      <output>internal_context.stack_understanding</output>
+    <step id="validate-cappy-init">
+      <goal>Ensure CAPPY 2.0 structure is properly initialized</goal>
+      <logic>
+        1 - Check if .cappy/ directory exists
+          1.1 - If missing, suggest running initialization first
+        2 - Verify context orchestration directories exist:
+          2.1 - .cappy/index/ for context indices
+          2.2 - docs/ for documentation structure
+        3 - Check if previous stack.md exists
+          3.1 - If exists, ask if user wants to update or recreate
+        4 - If structure valid, proceed to stack analysis
+      </logic>
     </step>
 
-    <step id="2.write_stack_md">
-      <goal>Escrever .cappy/stack.md em inglês como single source of truth da stack.</goal>
-      <fields>
-        <field>LanguagesFrameworks</field>
-        <field>ProjectStructure</field>
-        <field>DependenciesVersions</field>
-        <field>CodingStandards</field>
-        <field>BuildTestCICD</field>
-        <field>RuntimeDeployEnvs</field>
-        <field>ObservabilityTooling</field>
-        <field>ConstraintsNonGoals</field>
-      </fields>
-      <validate>Peça aprovação do usuário antes de gravar.</validate>
+    <step id="analyze-project-structure">
+      <goal>Automatically analyze project structure and identify components</goal>
+      <logic>
+        1 - Scan project directory structure
+        2 - Identify primary languages and frameworks
+        3 - Detect package managers and dependency files
+        4 - Identify architectural patterns (frontend/backend/fullstack)
+        5 - Map component relationships and boundaries
+        6 - Generate preliminary stack understanding
+        7 - Present findings to user for validation
+      </logic>
+      <o>preliminary_stack_analysis</o>
     </step>
 
-    <step id="3.write_cappy_config">
-      <goal>Criar/atualizar .cappy/config.yaml como fonte de configuração do Cappy.</goal>
-      <yaml>
-        version: 1
-        language: pt-BR
-        stack:
-          source: ".cappy/stack.md"
-          validated: true
-          validated-at: "{{ now_utc_iso }}"
-          validated-by: "user-confirmation"
-        preferences:
-          task:
-            requireTitle: false
-            defaultArea: fullstack
-            maxHours: 3
-      </yaml>
-      <rules>
-        <rule>Se existir .cappy/config.json, manter em YAML (migrar campos equivalentes quando possível).</rule>
-      </rules>
+    <step id="elicit-stack-knowledge">
+      <goal>One-by-one questions to complete stack understanding</goal>
+      <logic>
+        1 - Present preliminary analysis to user
+        2 - Ask clarifying questions one at a time:
+          2.1 - Primary use case and business domain
+          2.2 - Deployment and runtime environments
+          2.3 - Testing strategies and frameworks
+          2.4 - Coding standards and conventions
+          2.5 - Build and CI/CD processes
+          2.6 - External dependencies and services
+          2.7 - Performance and scaling considerations
+          2.8 - Known constraints and non-goals
+        3 - After each answer, refine understanding
+        4 - Continue until no material doubts remain
+        5 - Summarize complete stack understanding
+      </logic>
+      <o>complete_stack_understanding</o>
     </step>
 
-    <step id="4.commit">
-      <goal>Commitar mudanças com mensagens claras.</goal>
-      <commands>
-        <cmd>git add .cappy/stack.md .cappy/config.yaml</cmd>
-        <cmd>git commit -m "docs(cappy): add/update stack.md and config.yaml"</cmd>
-      </commands>
+    <step id="identify-task-categories">
+      <goal>Map stack components to probable task categories</goal>
+      <logic>
+        1 - Analyze stack components and identify task categories:
+          1.1 - Authentication system → "auth" category
+          1.2 - Database operations → "database" category
+          1.3 - API endpoints → "api" category
+          1.4 - Frontend components → "ui" category
+          1.5 - Test infrastructure → "testing" category
+          1.6 - Deployment pipeline → "deployment" category
+          1.7 - Performance optimization → "performance" category
+        2 - Map component relationships for context discovery
+        3 - Identify common patterns for prevention rule application
+        4 - Create category mapping for automatic task inference
+      </logic>
+      <o>category_mapping, component_relationships</o>
     </step>
 
-    <step id="5.next_flow">
-      <goal>Prosseguir com os fluxos Cappy usando a stack aprovada como base.</goal>
+    <step id="create-stack-md">
+      <goal>Generate comprehensive stack.md for context orchestration</goal>
+      <logic><![CDATA[
+        stack_content = generate_stack_md({
+          // Core Technical Stack
+          languages_frameworks: complete_stack_understanding.tech_stack,
+          project_structure: complete_stack_understanding.architecture,
+          dependencies_versions: complete_stack_understanding.dependencies,
+          
+          // Development Process
+          coding_standards: complete_stack_understanding.conventions,
+          build_test_cicd: complete_stack_understanding.processes,
+          runtime_deploy_envs: complete_stack_understanding.deployment,
+          
+          // Context Orchestration Specific
+          component_mapping: category_mapping,
+          task_categories: identified_categories,
+          prevention_contexts: common_patterns,
+          
+          // Observability and Constraints
+          observability_tooling: complete_stack_understanding.monitoring,
+          constraints_non_goals: complete_stack_understanding.limitations
+        });
+        
+        // Present to user for approval
+        present_stack_for_approval(stack_content);
+        
+        // Wait for user confirmation before writing
+        if (user_approves) {
+          write_file(".cappy/stack.md", stack_content);
+        } else {
+          // Iterate based on user feedback
+          refine_stack_based_on_feedback();
+        }
+      ]]></logic>
+      <o>stack_md_path</o>
+    </step>
+
+    <step id="build-context-indices">
+      <goal>Create context orchestration indices from stack knowledge</goal>
+      <logic><![CDATA[
+        // Build context indices for task discovery
+        context_indices = {
+          // Component to category mapping
+          component_categories: map_components_to_categories(component_relationships),
+          
+          // Keywords for semantic search
+          semantic_keywords: extract_domain_keywords(complete_stack_understanding),
+          
+          // Prevention rule contexts
+          prevention_contexts: identify_common_error_patterns(stack_components),
+          
+          // Dependency relationships
+          dependency_graph: build_dependency_relationships(component_relationships)
+        };
+        
+        // Write context indices
+        write_file(".cappy/index/context.json", JSON.stringify(context_indices));
+        write_file(".cappy/index/tasks.json", "[]"); // Empty initially
+        write_file(".cappy/index/prevention.json", "[]"); // Empty initially
+        
+        // Create docs structure with initial component docs
+        create_docs_structure(component_relationships);
+      ]]></logic>
+      <o>context_indices_created</o>
+    </step>
+
+    <step id="update-cappy-config">
+      <goal>Create/update CAPPY 2.0 configuration</goal>
+      <logic><![CDATA[
+        config_yaml = generate_cappy_config({
+          version: "2.0.0",
+          methodology: "context-orchestration",
+          
+          stack: {
+            source: ".cappy/stack.md",
+            validated: true,
+            validated_at: now_iso(),
+            validated_by: "user-confirmation",
+            context_system: "enabled"
+          },
+          
+          context_orchestration: {
+            semantic_search: true,
+            category_inference: true,
+            prevention_rules: true,
+            task_relationships: true
+          },
+          
+          task_defaults: {
+            namespace: "https://cappy-methodology.dev/task/1.0",
+            max_main_steps: 5,
+            require_context: true,
+            auto_category_inference: true
+          },
+          
+          indices: {
+            tasks_index: ".cappy/index/tasks.json",
+            prevention_index: ".cappy/index/prevention.json", 
+            context_index: ".cappy/index/context.json"
+          }
+        });
+        
+        // Migrate from legacy config.json if exists
+        if (file_exists(".cappy/config.json")) {
+          legacy_config = read_json(".cappy/config.json");
+          config_yaml = merge_legacy_config(config_yaml, legacy_config);
+          // Archive legacy config
+          move_file(".cappy/config.json", ".cappy/config.json.legacy");
+        }
+        
+        write_file(".cappy/config.yaml", config_yaml);
+      ]]></logic>
+      <o>config_updated</o>
+    </step>
+
+    <step id="validate-context-system">
+      <goal>Verify context orchestration system is fully operational</goal>
+      <logic>
+        1 - Test semantic search capabilities
+          1.1 - Verify docs/ structure is searchable
+          1.2 - Test keyword extraction from stack.md
+        2 - Validate category inference
+          2.1 - Test category mapping against component types
+          2.2 - Verify fallback to "feature" category works
+        3 - Check context indices integrity
+          3.1 - Validate JSON structure of all indices
+          3.2 - Ensure indices are writable for future updates
+        4 - Test XSD compliance preparation
+          4.1 - Verify namespace configuration
+          4.2 - Check task template generation readiness
+        5 - Report context system status to user
+      </logic>
+      <o>context_system_status</o>
+    </step>
+
+    <step id="finalize-setup">
+      <goal>Complete CAPPY 2.0 setup with success feedback</goal>
+      <logic><![CDATA[
+        // Provide comprehensive success feedback
+        success_summary = {
+          stack_documented: stack_md_path,
+          context_system: "fully operational",
+          categories_mapped: Object.keys(category_mapping).length,
+          components_identified: component_relationships.length,
+          ready_for_intelligent_tasks: true
+        };
+        
+        success_message = `🧠 CAPPY 2.0 Knowledge Stack Complete
+        
+        📋 Project Analysis:
+        • Stack documented in .cappy/stack.md
+        • ${success_summary.components_identified} components mapped
+        • ${success_summary.categories_mapped} task categories identified
+        
+        🔍 Context Orchestration Ready:
+        • Semantic search enabled
+        • Category inference operational  
+        • Prevention rule system prepared
+        • Task relationship mapping active
+        
+        ✅ Next Steps:
+        • Use 'new task' for intelligent task creation
+        • System will automatically discover relevant context
+        • Prevention rules will apply based on task category
+        • Documentation will be linked automatically
+        
+        🚀 Your development environment is now intelligent!`;
+        
+        say(success_message);
+      ]]></logic>
     </step>
   </steps>
+
+  <context_orchestration>
+    <stack_analysis>
+      <component_identification>Scan project structure for architectural components</component_identification>
+      <category_mapping>Map components to task categories for inference</category_mapping>
+      <relationship_discovery>Identify dependencies between components</relationship_discovery>
+      <pattern_recognition>Detect common architectural patterns</pattern_recognition>
+    </stack_analysis>
+    
+    <knowledge_extraction>
+      <semantic_keywords>Extract domain-specific terms for search</semantic_keywords>
+      <prevention_contexts>Identify common error-prone areas</prevention_contexts>
+      <dependency_mapping>Map external and internal dependencies</dependency_mapping>
+      <constraint_identification>Document known limitations and non-goals</constraint_identification>
+    </knowledge_extraction>
+    
+    <index_building>
+      <context_graph>Build relationships between components</context_graph>
+      <category_inference>Create patterns for automatic categorization</category_inference>
+      <search_preparation>Prepare semantic search capabilities</search_preparation>
+      <prevention_scaffolding>Set up prevention rule application system</prevention_scaffolding>
+    </index_building>
+  </context_orchestration>
 </cappy:script>

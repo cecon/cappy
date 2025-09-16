@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { writeOutputForced } from '../utils/outputWriter';
+import { FileManager } from '../utils/fileManager';
 
 export class InitCappyCommand {
     constructor(        
@@ -80,6 +81,19 @@ export class InitCappyCommand {
 
                 // 6.2 Garantir .cappy/stack.md existe
                 await this.ensureStackFile(cappyDir);
+
+                // 6.3 Copiar XSD schemas para .cappy/schemas/
+                progress.report({ increment: 95, message: 'Copiando schemas XSD...' });
+                try {
+                    console.log('[initCappy] Starting XSD copy process...');
+                    const fileManager = new FileManager();
+                    console.log('[initCappy] FileManager created, calling copyXsdSchemas...');
+                    await fileManager.copyXsdSchemas();
+                    console.log('[initCappy] XSD copy completed successfully');
+                } catch (xsdError) {
+                    console.error('[initCappy] Error copying XSD schemas during init:', xsdError);
+                    // Don't fail the entire init process if XSD copy fails
+                }
 
                 progress.report({ increment: 100, message: 'Finalizado!' });
 
