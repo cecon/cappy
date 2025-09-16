@@ -1,0 +1,12 @@
+version: 1
+language: pt-BR
+stack:
+  source: ".cappy/stack.md"
+  validated: true
+  validated-at: "2025-09-16T12:00:00.000Z"
+  validated-by: "user-confirmation"
+preferences:
+  task:
+    requireTitle: false
+    defaultArea: fullstack
+    maxHours: 3
