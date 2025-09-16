@@ -7,7 +7,7 @@
 <img src="assets/icon.png" alt="CAPPY Logo" width="128" height="128">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/Version-3.0.0-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
+[![Version](https://img.shields.io/badge/Version-2.7.8-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
 [![Context Orchestration](https://img.shields.io/badge/Powered%20by-Context%20Orchestration-green.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
 
 [**Install**](#installation) • [**Quick Start**](#quick-start) • [**How It Works**](#how-it-works) • [**Contribute**](#become-a-contributor) • [**GitHub**](https://github.com/cecon/cappy)
@@ -259,6 +259,21 @@ All tasks follow rigorous XML schema validation:
     <!-- Learning capture for future intelligence -->
   </completion>
 </task>
+```
+
+### Automatic Schema Management
+CAPPY 2.7.8+ automatically manages XSD schemas for optimal development experience:
+
+- **Auto-Sync on Init**: All XSD schemas from `resources/` are copied to `.cappy/schemas/` during project initialization
+- **Startup Synchronization**: Schemas are updated automatically when VS Code loads projects with existing `.cappy/schemas/` directories  
+- **Version Control Ready**: Schemas stay current with extension updates, ensuring consistency across development environments
+- **IntelliSense Support**: Local schemas provide better XML validation and autocompletion for task definitions
+
+```xml
+<!-- Available schemas after initialization -->
+.cappy/schemas/
+├── task-template.xsd      # Task structure validation
+└── (additional schemas)   # Future schema extensions
 ```
 
 ### Prevention Rule Intelligence
