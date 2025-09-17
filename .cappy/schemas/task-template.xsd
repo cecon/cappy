@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="https://cappy-methodology.dev/task/1.0"
+           xmlns:cappy="https://cappy-methodology.dev/task/1.0"
+           elementFormDefault="qualified">
+
+  <!-- Root Element -->
+  <xs:element name="task" type="cappy:TaskType"/>
+
+  <!-- Main Task Type -->
+  <xs:complexType name="TaskType">
+    <xs:sequence>
+      <xs:element name="context" type="cappy:ContextType"/>
+      <xs:element name="execution" type="cappy:ExecutionType"/>
+      <xs:element name="completion" type="cappy:CompletionType" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" use="required"/>
+    <xs:attribute name="category" type="cappy:CategoryType" use="required"/>
+    <xs:attribute name="priority" type="cappy:PriorityType" default="normal"/>
+    <xs:attribute name="created" type="xs:dateTime"/>
+    <xs:attribute name="status" type="cappy:StatusType" default="pending"/>
+  </xs:complexType>
+
+  <!-- Context Section -->
+  <xs:complexType name="ContextType">
+    <xs:sequence>
+      <xs:element name="description" type="xs:string" minOccurs="0"/>
+      <xs:element name="keywords" type="cappy:KeywordsType" minOccurs="0"/>
+      <xs:element name="docs_refs" type="cappy:DocsReferencesType" minOccurs="0"/>
+      <xs:element name="prevention_rules" type="cappy:PreventionRulesType" minOccurs="0"/>
+      <xs:element name="related_tasks" type="cappy:RelatedTasksType" minOccurs="0"/>
+      <xs:element name="dependencies" type="cappy:DependenciesType" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="discovery_timestamp" type="xs:dateTime"/>
+  </xs:complexType>
+
+  <!-- Keywords for context search -->
+  <xs:complexType name="KeywordsType">
+    <xs:sequence>
+      <xs:element name="keyword" type="xs:string" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Documentation References -->
+  <xs:complexType name="DocsReferencesType">
+    <xs:sequence>
+      <xs:element name="doc" type="cappy:DocReferenceType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="DocReferenceType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="path" type="xs:string" use="required"/>
+        <xs:attribute name="section" type="xs:string"/>
+        <xs:attribute name="relevance" type="cappy:RelevanceType" default="medium"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Prevention Rules -->
+  <xs:complexType name="PreventionRulesType">
+    <xs:sequence>
+      <xs:element name="rule" type="cappy:PreventionRuleType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="PreventionRuleType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="id" type="xs:ID" use="required"/>
+        <xs:attribute name="category" type="cappy:CategoryType" use="required"/>
+        <xs:attribute name="severity" type="cappy:SeverityType" default="medium"/>
+        <xs:attribute name="auto_apply" type="xs:boolean" default="true"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Related Tasks -->
+  <xs:complexType name="RelatedTasksType">
+    <xs:sequence>
+      <xs:element name="task" type="cappy:RelatedTaskType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="RelatedTaskType">
+    <xs:attribute name="id" type="xs:IDREF" use="required"/>
+    <xs:attribute name="relationship" type="cappy:RelationshipType" use="required"/>
+    <xs:attribute name="impact" type="cappy:ImpactType" default="medium"/>
+  </xs:complexType>
+
+  <!-- Dependencies -->
+  <xs:complexType name="DependenciesType">
+    <xs:sequence>
+      <xs:element name="dependency" type="cappy:DependencyType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="DependencyType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="type" type="cappy:DependencyTypeEnum" use="required"/>
+        <xs:attribute name="critical" type="xs:boolean" default="false"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Execution Section -->
+  <xs:complexType name="ExecutionType">
+    <xs:sequence>
+      <xs:element name="step" type="cappy:StepType" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="estimated_duration" type="xs:duration"/>
+  </xs:complexType>
+
+  <xs:complexType name="StepType">
+    <xs:sequence>
+      <xs:element name="description" type="xs:string" minOccurs="0"/>
+      <xs:element name="substep" type="cappy:SubStepType" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:string" use="required"/>
+    <xs:attribute name="validation" type="xs:string" use="required"/>
+    <xs:attribute name="status" type="cappy:StepStatusType" default="pending"/>
+    <xs:attribute name="depends_on" type="xs:string"/>
+    <xs:attribute name="atomic" type="xs:boolean" default="true"/>
+    <xs:attribute name="estimated_time" type="xs:duration"/>
+  </xs:complexType>
+
+  <xs:complexType name="SubStepType">
+    <xs:sequence>
+      <xs:element name="description" type="xs:string" minOccurs="0"/>
+      <xs:element name="action" type="cappy:ActionType" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:string" use="required"/>
+    <xs:attribute name="validation" type="xs:string" use="required"/>
+    <xs:attribute name="status" type="cappy:StepStatusType" default="pending"/>
+    <xs:attribute name="depends_on" type="xs:string"/>
+    <xs:attribute name="atomic" type="xs:boolean" default="true"/>
+    <xs:attribute name="estimated_time" type="xs:duration"/>
+  </xs:complexType>
+
+  <xs:complexType name="ActionType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="type" type="cappy:ActionTypeEnum" use="required"/>
+        <xs:attribute name="expected_result" type="xs:string" use="required"/>
+        <xs:attribute name="command" type="xs:string"/>
+        <xs:attribute name="file_path" type="xs:string"/>
+        <xs:attribute name="verification" type="xs:string"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Completion Section -->
+  <xs:complexType name="CompletionType">
+    <xs:sequence>
+      <xs:element name="validation_checklist" type="cappy:ValidationChecklistType"/>
+      <xs:element name="knowledge_capture" type="cappy:KnowledgeCaptureType" minOccurs="0"/>
+      <xs:element name="metrics" type="cappy:MetricsType" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="completed_at" type="xs:dateTime"/>
+    <xs:attribute name="success" type="xs:boolean"/>
+  </xs:complexType>
+
+  <!-- Validation Checklist -->
+  <xs:complexType name="ValidationChecklistType">
+    <xs:sequence>
+      <xs:element name="item" type="cappy:ValidationItemType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ValidationItemType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="checked" type="xs:boolean" default="false"/>
+        <xs:attribute name="critical" type="xs:boolean" default="false"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Knowledge Capture -->
+  <xs:complexType name="KnowledgeCaptureType">
+    <xs:sequence>
+      <xs:element name="new_learnings" type="cappy:NewLearningsType" minOccurs="0"/>
+      <xs:element name="docs_updated" type="cappy:DocsUpdatedType" minOccurs="0"/>
+      <xs:element name="new_prevention_rules" type="cappy:NewPreventionRulesType" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="NewLearningsType">
+    <xs:sequence>
+      <xs:element name="learning" type="xs:string" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="DocsUpdatedType">
+    <xs:sequence>
+      <xs:element name="doc" type="xs:string" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="NewPreventionRulesType">
+    <xs:sequence>
+      <xs:element name="rule" type="cappy:NewPreventionRuleType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="NewPreventionRuleType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="category" type="cappy:CategoryType" use="required"/>
+        <xs:attribute name="severity" type="cappy:SeverityType" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Metrics -->
+  <xs:complexType name="MetricsType">
+    <xs:sequence>
+      <xs:element name="metric" type="cappy:MetricType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="MetricType">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+    <xs:attribute name="value" type="xs:decimal" use="required"/>
+    <xs:attribute name="unit" type="xs:string"/>
+    <xs:attribute name="category" type="xs:string"/>
+    <xs:attribute name="timestamp" type="xs:dateTime"/>
+  </xs:complexType>
+
+  <!-- Enumerations -->
+  <xs:simpleType name="CategoryType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="auth"/>
+      <xs:enumeration value="database"/>
+      <xs:enumeration value="api"/>
+      <xs:enumeration value="ui"/>
+      <xs:enumeration value="testing"/>
+      <xs:enumeration value="deployment"/>
+      <xs:enumeration value="security"/>
+      <xs:enumeration value="performance"/>
+      <xs:enumeration value="refactor"/>
+      <xs:enumeration value="feature"/>
+      <xs:enumeration value="bugfix"/>
+      <xs:enumeration value="maintenance"/>
+      <xs:enumeration value="documentation"/>
+      <xs:enumeration value="infrastructure"/>
+      <xs:enumeration value="integration"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="PriorityType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="critical"/>
+      <xs:enumeration value="high"/>
+      <xs:enumeration value="normal"/>
+      <xs:enumeration value="low"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="StatusType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="pending"/>
+      <xs:enumeration value="in_progress"/>
+      <xs:enumeration value="blocked"/>
+      <xs:enumeration value="completed"/>
+      <xs:enumeration value="cancelled"/>
+      <xs:enumeration value="failed"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="StepStatusType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="pending"/>
+      <xs:enumeration value="in_progress"/>
+      <xs:enumeration value="completed"/>
+      <xs:enumeration value="skipped"/>
+      <xs:enumeration value="failed"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="RelevanceType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="critical"/>
+      <xs:enumeration value="high"/>
+      <xs:enumeration value="medium"/>
+      <xs:enumeration value="low"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="SeverityType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="critical"/>
+      <xs:enumeration value="high"/>
+      <xs:enumeration value="medium"/>
+      <xs:enumeration value="low"/>
+      <xs:enumeration value="info"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="RelationshipType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="depends-on"/>
+      <xs:enumeration value="blocks"/>
+      <xs:enumeration value="affects"/>
+      <xs:enumeration value="relates-to"/>
+      <xs:enumeration value="parent-of"/>
+      <xs:enumeration value="child-of"/>
+      <xs:enumeration value="conflicts-with"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="ImpactType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="high"/>
+      <xs:enumeration value="medium"/>
+      <xs:enumeration value="low"/>
+      <xs:enumeration value="none"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="DependencyTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="library"/>
+      <xs:enumeration value="service"/>
+      <xs:enumeration value="api"/>
+      <xs:enumeration value="database"/>
+      <xs:enumeration value="tool"/>
+      <xs:enumeration value="other"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="ActionTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="create_file"/>
+      <xs:enumeration value="edit_file"/>
+      <xs:enumeration value="delete_file"/>
+      <xs:enumeration value="run_command"/>
+      <xs:enumeration value="test_function"/>
+      <xs:enumeration value="verify_output"/>
+      <xs:enumeration value="check_syntax"/>
+      <xs:enumeration value="validate_config"/>
+      <xs:enumeration value="start_service"/>
+      <xs:enumeration value="stop_service"/>
+      <xs:enumeration value="make_request"/>
+      <xs:enumeration value="check_response"/>
+      <xs:enumeration value="install_dependency"/>
+      <xs:enumeration value="run_migration"/>
+      <xs:enumeration value="backup_data"/>
+      <xs:enumeration value="restore_data"/>
+      <xs:enumeration value="update_documentation"/>
+      <xs:enumeration value="commit_changes"/>
+      <xs:enumeration value="deploy"/>
+      <xs:enumeration value="rollback"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>

@@ -102,7 +102,14 @@ export async function getNewTaskInstruction(context?: vscode.ExtensionContext, a
     const templatePath = path.join(extRoot, 'resources', 'instructions', 'script-newtask.xml');
     let template: string;
     try {
-        template = await fs.promises.readFile(templatePath, 'utf8');
+        // Try reading with different encoding and methods
+        const buffer = await fs.promises.readFile(templatePath);
+        template = buffer.toString('utf8');
+        
+        // Debug: Check if template contains escapes immediately after reading
+        console.log('DEBUG: Template contains &lt;?', template.includes('&lt;'));
+        console.log('DEBUG: Template first 150 chars:', template.slice(0, 150));
+        
     } catch (e) {
         const fallback = `<?xml version="1.0" encoding="UTF-8"?>
 <newtask>
@@ -111,11 +118,15 @@ export async function getNewTaskInstruction(context?: vscode.ExtensionContext, a
         template = fallback;
     }
 
-    // Para o comando newtask, retornamos o XML diretamente sem template substitution
+    // Para o comando newtask, retornamos o XML diretamente sem escape HTML
     const xmlOutput = `<?xml version="1.0" encoding="UTF-8"?>
 <newtask>
-  <template>${template.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</template>
+  <template><![CDATA[${template}]]></template>
 </newtask>`;
+
+    // Debug: Log what we're writing
+    console.log('DEBUG: Template content first 100 chars:', template.slice(0, 100));
+    console.log('DEBUG: XMLOutput first 200 chars:', xmlOutput.slice(0, 200));
 
     // Write result to .cappy/output.txt
     writeOutput(xmlOutput);

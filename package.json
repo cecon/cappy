@@ -1,7 +1,7 @@
 {
   "name": "cappy",
   "displayName": "Cappy",
-  "description": "Your calm and wise AI coding companion with Single-Focus Workflow that learns from your mistakes automatically",
+  "description": "AI coding companion with Single-Focus Workflow and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task.",
   "icon": "assets/icon.png",
   "version": "2.7.8",
   "publisher": "eduardocecon",

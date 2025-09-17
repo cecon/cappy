@@ -4,7 +4,7 @@
     <summary>Create atomic task with automatic context orchestration - CAPPY 2.0</summary>
     <command>cappy:new</command>
     <notes>
-      <note>LLM creates XSD-compliant .cappy/schemas/*.xsd task with context discovery</note>
+      <note>LLM creates XSD-compliant task with context discovery</note>
       <note>Natural language interpretation supported ("new task", "nova tarefa")</note>
       <note>Context orchestration automatically finds docs, rules, related tasks</note>
       <note>Requires .cappy/stack.md and context indices</note>
@@ -141,63 +141,8 @@
           keywords: extracted_keywords,
           created: now_iso()
         });
-      ]]></logic>      
+      ]]></logic>
       <output>created_task_id, outpath</output>
-    </step>
-
-    <step id="scope-validation">
-      <goal>Read each step of the created task and validate its atomicity and subjectivity</goal>
-      <logic>
-        1 - If the task is too complex, break it down into smaller steps with subtasks.
-         1.1 - Each step must have a clear and unique objective.
-         1.2 - Each step must have measurable validation criteria.
-        3 - Check for subjectivity and ambiguity
-        4 - Verify clear validation criteria can be defined      
-      </logic>
-    </step>
-    
-    <step id="scope-error-handling">
-      <goal>Error HANDLING</goal>
-      <logic>
-        1 - Para cada step principal, leia as prevention rules aplicáveis do contexto (por categoria e severidade) e injete recomendações relevantes para evitar erros durante a execução.
-        2 - Se .cappy/config.yaml tiver unit tests habilitados, gere steps para criar testes unitários para cada step principal, incluindo critérios de validação baseados nas prevention rules.
-        3 - Se houver dúvidas sobre o que testar ou como aplicar as regras de prevenção, pergunte ao usuário para esclarecer—uma pergunta por vez.
-        4 - Garanta que cada teste unitário e step tenha objetivo claro, critérios mensuráveis e recomendações de prevenção explícitas.
-        5 - Sugira boas práticas para cobertura de testes e edge cases relevantes ao contexto e às prevention rules.
-      </logic>
-    </step>
-    <step id="scope-unit-tests">
-      <goal>Unit TESTS</goal>
-      <logic>
-        1 - If .cappy/config.yaml has unit tests enabled, generate steps to create unit tests for each main step of the task.
-        2 - If there are uncertainties about what to test, ask the user for clarification—one question at a time.
-        3 - Ensure each unit test has a clear objective and measurable validation criteria.
-        4 - Suggest best practices for test coverage and edge cases relevant to the task context.        
-      </logic>
-    </step>
-
-    <step id="scope-documentation">
-      <goal>Documentation</goal>
-      <logic>
-        1 - Consult .cappy/index/ and docs/index/ to search for existing documentation related to the task context and main steps.
-        2 - If relevant documentation exists, determine whether to update the existing docs or create new documentation.
-        3 - If there are uncertainties about what to document or which docs to update, ask the user for clarification—one question at a time.
-        4 - Ensure each documentation step has a clear objective and measurable validation criteria.
-        5 - Suggest best practices for documentation coverage and edge cases relevant to the task context.
-        6 - Create a dedicated step in the generated XSD task under `executrons` for producing or updating documentation, with clear validation criteria (e.g., "Documentation updated for all new features", "All public APIs documented with usage examples").
-      </logic>
-    </step>
-    
-    <step id="scope-mistakes">
-      <goal>Mistake Analysis</goal>
-      <logic>
-        1 - For each error or manual intervention that occurred during task execution, record the error type, context, and corrective action taken.
-        2 - Analyze the root causes of errors, looking for patterns or recurrences related to the context, category, or task steps.
-        3 - Ask the user, if necessary, for details about manual decisions or unforeseen exceptions—one question at a time for clarity.
-        4 - For each analyzed error, propose a new prevention rule or adjustment to existing rules, detailing category, severity, and application criteria.
-        5 - Update the prevention rules index (.cappy/index/prevention.json) with the newly suggested rules.
-        6 - Generate a summary of lessons learned and created prevention rules, including recommendations to avoid similar errors in future tasks.
-      </logic>
     </step>
 
     <step id="finalize-task">
