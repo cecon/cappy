@@ -34,7 +34,8 @@ export function run(): Promise<void> {
                 { compiled: 'languageDetectionFix.test.js', source: 'languageDetectionFix.test.ts' },
                 { compiled: 'getNewTaskInstruction.test.js', source: 'getNewTaskInstruction.test.ts' },
                 { compiled: 'knowStack.test.js', source: 'knowStack.test.ts' },
-                { compiled: 'workOnCurrentTask.test.js', source: 'workOnCurrentTask.test.ts' }
+                { compiled: 'workOnCurrentTask.test.js', source: 'workOnCurrentTask.test.ts' },
+                { compiled: 'copyXsdSchemas.test.js', source: 'copyXsdSchemas.test.ts' }
             ];
 
             const srcSuiteRoot = path.resolve(__dirname, '../../../src/test/suite');

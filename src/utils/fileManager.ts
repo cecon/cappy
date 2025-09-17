@@ -230,15 +230,23 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
     }
 
     /**
-     * Copy all XSD files from resources/ to .cappy/schemas/
+     * Copy all XSD files from extension resources/ to .cappy/schemas/
      * Replaces existing files completely
      */
     async copyXsdSchemas(): Promise<void> {
         const workspaceRoot = this.ensureWorkspace();
-        const resourcesPath = path.join(workspaceRoot, 'resources');
+        
+        // Get extension path - try multiple methods to find it
+        const extensionPath = this.getExtensionPath();
+        if (!extensionPath) {
+            console.warn('[copyXsdSchemas] Could not determine extension path');
+            return;
+        }
+        
+        const resourcesPath = path.join(extensionPath, 'resources');
         const schemasPath = path.join(workspaceRoot, '.cappy', 'schemas');
 
-        console.log(`[copyXsdSchemas] workspaceRoot: ${workspaceRoot}`);
+        console.log(`[copyXsdSchemas] extensionPath: ${extensionPath}`);
         console.log(`[copyXsdSchemas] resourcesPath: ${resourcesPath}`);
         console.log(`[copyXsdSchemas] schemasPath: ${schemasPath}`);
 
@@ -251,7 +259,7 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
         }
 
         try {
-            // Find all XSD files in resources/
+            // Find all XSD files in extension resources/
             console.log(`[copyXsdSchemas] Looking for XSD files in: ${resourcesPath}`);
             const xsdFiles = await this.findXsdFiles(resourcesPath);
             console.log(`[copyXsdSchemas] Found ${xsdFiles.length} XSD files:`, xsdFiles);
@@ -275,6 +283,44 @@ lastUpdated: "${(config as any).lastUpdated || ''}"
             console.error('Error copying XSD schemas:', error);
             throw error;
         }
+    }
+
+    /**
+     * Try to determine the extension path using various methods
+     */
+    private getExtensionPath(): string | null {
+        // Method 1: From __dirname (compiled extension)
+        let candidates = [
+            path.resolve(__dirname, '../..'), // from out/utils/ -> extension root
+            path.resolve(__dirname, '../../..'), // alternative path
+        ];
+
+        // Method 2: Check current working directory
+        candidates.push(process.cwd());
+
+        // Method 3: Check if we're in development
+        candidates.push(path.resolve(__dirname, '..', '..', '..'));
+
+        for (const candidate of candidates) {
+            const packageJsonPath = path.join(candidate, 'package.json');
+            const resourcesPath = path.join(candidate, 'resources');
+            
+            try {
+                if (fs.existsSync(packageJsonPath) && fs.existsSync(resourcesPath)) {
+                    // Verify it's the Cappy extension by checking package.json
+                    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+                    if (packageJson.name === 'cappy' && packageJson.publisher === 'eduardocecon') {
+                        console.log(`[getExtensionPath] Found extension at: ${candidate}`);
+                        return candidate;
+                    }
+                }
+            } catch (error) {
+                // Continue to next candidate
+            }
+        }
+
+        console.warn('[getExtensionPath] Could not find extension resources directory');
+        return null;
     }
 
     /**

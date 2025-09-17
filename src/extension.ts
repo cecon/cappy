@@ -288,7 +288,7 @@ export function activate(context: vscode.ExtensionContext) {
       workOnCurrentTaskCommand
     );
 
-    // Auto-copy XSD schemas when extension loads (if .cappy/schemas exists)
+    // Auto-copy XSD schemas when extension loads (if .cappy exists)
     checkAndCopyXsdSchemas();
 
   } catch (error) {
@@ -299,7 +299,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 /**
- * Check if .cappy/schemas directory exists and copy XSD files automatically
+ * Check if .cappy directory exists and copy XSD files automatically
  */
 async function checkAndCopyXsdSchemas(): Promise<void> {
   try {
@@ -308,20 +308,20 @@ async function checkAndCopyXsdSchemas(): Promise<void> {
       return; // No workspace, nothing to do
     }
 
-    const schemasPath = path.join(workspaceFolder.uri.fsPath, '.cappy', 'schemas');
+    const cappyPath = path.join(workspaceFolder.uri.fsPath, '.cappy');
     
-    // Check if .cappy/schemas directory exists
+    // Check if .cappy directory exists (project is initialized)
     try {
-      await fs.promises.access(schemasPath, fs.constants.F_OK);
+      await fs.promises.access(cappyPath, fs.constants.F_OK);
       
-      // Directory exists, copy XSD schemas
+      // Project is initialized, copy XSD schemas
       const fileManager = new FileManager();
       await fileManager.copyXsdSchemas();
       
       console.log('Cappy: XSD schemas copied automatically on startup');
     } catch (error: any) {
       if (error.code === 'ENOENT') {
-        // .cappy/schemas doesn't exist, no action needed
+        // .cappy doesn't exist, project not initialized yet
         return;
       }
       // Other errors should be logged but not interrupt extension
