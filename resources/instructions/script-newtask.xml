@@ -9,8 +9,10 @@
 
   <context discovery_timestamp="{NOW}">
     <description>
-      Script detalhado do comando cappy:new, newtask etc. Para orientar a criação de tasks,
-      extrapolando limite de 5 steps para fins de instrução.
+      Script detalhado do comando cappy:new. Para orientar a criação de tasks.
+      Esse script de apenas gerar o arquivo XML da task, não deve executar a task.
+      Deve preencher o template com as informações do escopo
+      deve seguir rigorosamente o passo a passo e na ordem correta.
     </description>
     <keywords>
       <keyword>cappy:new</keyword>

@@ -66,13 +66,9 @@ docs/
  ├─ prevention/
  └─ index/
 ```
-
-**Observação:**  
-Os arquivos XSD dentro de `.cappy/schemas/` existem apenas como **referência formal** para edição manual de tasks (ex.: marcar steps como concluídos, validar conformidade). Não é necessário conhecê-los em detalhe no dia a dia.
-
 ---
 
-## Fluxo CAPPY 2.0
+## Comandos CAPPY (esses comando preisam ser executados no VSCode pallet e não no console)
 1. `cappy.init` → cria estrutura base + índices de contexto  
 2. `cappy.knowstack` → analisa workspace e gera `stack.md`  
 3. `cappy.reindex` → **reconstrói índices semânticos** (executar após mudanças em docs/rules)
@@ -82,15 +78,6 @@ Os arquivos XSD dentro de `.cappy/schemas/` existem apenas como **referência fo
 7. `cappy.completeTask` → finaliza, captura aprendizados e atualiza índices
 
 ---
-
-## Estruturas XSD da Task
-- As tasks devem sempre obedecer ao namespace:  
-  `xmlns="https://cappy-methodology.dev/task/1.0"`
-
-- A conformidade XSD é validada automaticamente pelo CAPPY, mas o diretório `.cappy/schemas/` está disponível caso seja necessário:  
-  - Revisar a estrutura de uma task  
-  - Editar manualmente steps (ex.: marcar como concluído)  
-  - Validar campos obrigatórios
 
 - **Regras obrigatórias de conformidade:**
   1. Namespace correto  

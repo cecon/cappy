@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "AI coding companion with Single-Focus Workflow and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task.",
   "icon": "assets/icon.png",
-  "version": "2.9.0",
+  "version": "2.9.2",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0"
