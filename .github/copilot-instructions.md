@@ -62,6 +62,7 @@ O usuário pode falar naturalmente. O LLM interpreta e mapeia para:
 **Setup de Projeto**  
 - "setup cappy" / "initialize" / "inicializar" → `cappy:init`  
 - "analyze project" / "know stack" / "analisar projeto" → `cappy:knowstack`
+- "reindex" / "rebuild index" / "atualizar índices" → `cappy:reindex` (**reconstrói índices semânticos**)
 
 **Informação**  
 - "cappy version" / "version" / "versão" → `cappy:version`
@@ -80,10 +81,10 @@ O usuário pode falar naturalmente. O LLM interpreta e mapeia para:
  ├─ stack.md                # KnowStack do projeto
  ├─ output.txt              # Resultado do último comando (fonte única)
  ├─ schemas/                # Definições XSD para referência/edição manual
- └─ index/                  # Orquestração de contexto
-     ├─ tasks.json
-     ├─ prevention.json
-     └─ context.json
+ └─ indexes/                # Índices semânticos (gerados por cappy:reindex)
+     ├─ tasks.json          # Índice de todas as tasks
+     ├─ docs.json           # Índice da documentação
+     └─ rules.json          # Índice das regras de prevenção
 docs/
  ├─ components/
  ├─ prevention/
@@ -98,10 +99,11 @@ Os arquivos XSD dentro de `.cappy/schemas/` existem apenas como **referência fo
 ## Fluxo CAPPY 2.0
 1. `cappy.init` → cria estrutura base + índices de contexto  
 2. `cappy.knowstack` → analisa workspace e gera `stack.md`  
-3. `cappy.new` → **gera o roteiro (script) de criação de task passo a passo**  
-4. `cappy.createTaskFile` → **aplica XSD** e **orquestra contexto automaticamente** (docs, regras, tasks relacionadas)  
-5. `cappy.workOnCurrentTask` → executa com **contexto e prevenção**  
-6. `cappy.completeTask` → finaliza, captura aprendizados e atualiza índices
+3. `cappy.reindex` → **reconstrói índices semânticos** (executar após mudanças em docs/rules)
+4. `cappy.new` → **gera o roteiro (script) de criação de task passo a passo**  
+5. `cappy.createTaskFile` → **aplica XSD** e **orquestra contexto automaticamente** (docs, regras, tasks relacionadas)  
+6. `cappy.workOnCurrentTask` → executa com **contexto e prevenção**  
+7. `cappy.completeTask` → finaliza, captura aprendizados e atualiza índices
 
 ---
 
@@ -131,6 +133,7 @@ Os arquivos XSD dentro de `.cappy/schemas/` existem apenas como **referência fo
 - **taskstatus (inativo)** → `No active task. Use 'new task' to get the step-by-step script`  
 - **workcurrent** → `Executing context-aware: [step]. [X] rules verified`  
 - **taskcomplete** → `Task completed. [X] learnings captured, context metrics updated`  
+- **reindex** → `Semantic indexes rebuilt: [X] tasks, [Y] docs, [Z] rules indexed`
 - **erro genérico** → `No output in .cappy/output.txt. Re-execute in VS Code`
 
 ---
