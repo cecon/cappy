@@ -98,6 +98,11 @@
         "command": "cappy.workOnCurrentTask",
         "title": "🎯 Cappy: Work on Current Task",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.reindex",
+        "title": "🔄 Cappy: Reindex Files",
+        "category": "Cappy"
       }
     ],
     "configuration": {

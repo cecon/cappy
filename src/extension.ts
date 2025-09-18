@@ -11,6 +11,7 @@ import completeTask from "./commands/completeTask";
 import workOnCurrentTask from "./commands/workOnCurrentTask";
 import { AddPreventionRuleCommand } from "./commands/addPreventionRule";
 import { RemovePreventionRuleCommand } from "./commands/removePreventionRule";
+import { ReindexCommand } from "./commands/reindexCommand";
 import { FileManager } from "./utils/fileManager";
 import * as path from 'path';
 import * as fs from 'fs';
@@ -270,6 +271,22 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
+    // Register: reindex command (rebuilds semantic indexes for docs, tasks and rules)
+    const reindexCommand = vscode.commands.registerCommand(
+      "cappy.reindex",
+      async () => {
+        try {
+          const cmd = new ReindexCommand(context);
+          const result = await cmd.execute();
+          return result;
+        } catch (error) {
+          console.error("Cappy reindex error:", error);
+          vscode.window.showErrorMessage(`Cappy reindex failed: ${error}`);
+          return "";
+        }
+      }
+    );
+
     // Register all commands
     context.subscriptions.push(
       initCommand,
@@ -285,7 +302,8 @@ export function activate(context: vscode.ExtensionContext) {
       completeTaskCommand,
       addPreventionRuleCommand,
       removePreventionRuleCommand,
-      workOnCurrentTaskCommand
+      workOnCurrentTaskCommand,
+      reindexCommand
     );
 
     // Auto-copy XSD schemas when extension loads (if .cappy exists)

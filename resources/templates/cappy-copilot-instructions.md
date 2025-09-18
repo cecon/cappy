@@ -23,9 +23,6 @@ Padronizar como LLM e desenvolvedor interagem com o CAPPY 2.0 para:
 ## Regras de Ouro
 1. **Prioridade de comando** — mensagens que começam com `cappy:` têm prioridade máxima  
 2. **Fonte única da verdade** — após executar o comando, **ler apenas** `.cappy/output.txt`  
-3. **Contexto primeiro** — a orquestração de contexto ocorre **ao criar/operar a task**, não no “new”  
-4. **Conformidade XSD** — tasks usam namespace `https://cappy-methodology.dev/task/1.0`  
-5. **Atomicidade inteligente** — máximo **5** passos principais por tarefa  
 
 ---
 
@@ -103,25 +100,9 @@ Os arquivos XSD dentro de `.cappy/schemas/` existem apenas como **referência fo
 
 ---
 
-## Comandos CAPPY 2.0
-*(mantém o ajuste do `cappy:new` como **roteiro de criação** e não descoberta de contexto)*
-
----
-
-## Orquestração Automática de Contexto
-Executada **no `cappy:createTaskFile`** e durante **`workOnCurrentTask`**:
-1. Extração de keywords  
-2. Busca semântica em `docs/`  
-3. Inferência de categoria (se ausente)  
-4. Aplicação de regras de prevenção (criticidade alta/alta auto-aplicadas)  
-5. Tarefas relacionadas por similaridade  
-6. Dependências a partir do `stack.md`
-
----
-
 ## Templates de Resposta CAPPY 2.0
 - **new** → `Task creation script generated. Review, answer prompts, then run cappy:createTaskFile`  
-- **createtaskfile** → `XSD task created: [ID] category [cat]. Rich context injected automatically`  
+- **createtaskfile** → `XML task created: [ID] category [cat]. Rich context injected automatically`  
 - **taskstatus (ativo)** → `Active [category] task. [X] prevention rules applied. Next: [step]`  
 - **taskstatus (inativo)** → `No active task. Use 'new task' to get the step-by-step script`  
 - **workcurrent** → `Executing context-aware: [step]. [X] rules verified`  
@@ -129,11 +110,5 @@ Executada **no `cappy:createTaskFile`** e durante **`workOnCurrentTask`**:
 - **erro genérico** → `No output in .cappy/output.txt. Re-execute in VS Code`
 
 ---
-
-## Notas de Migração
-- Tasks legadas continuam válidas  
-- “New” agora **gera roteiro**  
-- Contexto é orquestrado apenas no `createTaskFile` e execução  
-- XSDs ficam disponíveis em `.cappy/schemas/` apenas para **edição manual e validação**  
 
 <!-- CAPPY END -->
