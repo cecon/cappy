@@ -317,7 +317,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 /**
- * Check if .cappy directory exists and copy XSD files automatically
+ * Check if .cappy directory exists, copy XSD files and update copilot-instructions.md automatically
  */
 async function checkAndCopyXsdSchemas(): Promise<void> {
   try {
@@ -336,17 +336,96 @@ async function checkAndCopyXsdSchemas(): Promise<void> {
       const fileManager = new FileManager();
       await fileManager.copyXsdSchemas();
       
-      console.log('Cappy: XSD schemas copied automatically on startup');
+      // Also update copilot-instructions.md automatically
+      await updateCopilotInstructions(workspaceFolder.uri.fsPath);
+      
+      console.log('Cappy: XSD schemas copied and copilot-instructions.md updated automatically on startup');
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         // .cappy doesn't exist, project not initialized yet
         return;
       }
       // Other errors should be logged but not interrupt extension
-      console.warn('Cappy: Failed to auto-copy XSD schemas:', error);
+      console.warn('Cappy: Failed to auto-copy XSD schemas or update copilot instructions:', error);
     }
   } catch (error) {
     console.warn('Cappy: Auto-copy XSD schemas check failed:', error);
+  }
+}
+
+/**
+ * Update .github/copilot-instructions.md with latest template content
+ */
+async function updateCopilotInstructions(workspaceRoot: string): Promise<void> {
+  try {
+    const githubDir = path.join(workspaceRoot, '.github');
+    const targetPath = path.join(githubDir, 'copilot-instructions.md');
+    
+    // Find extension root to get template
+    const extension = vscode.extensions.getExtension('eduardocecon.cappy-memory');
+    if (!extension) {
+      console.warn('Cappy: Extension not found, cannot update copilot instructions');
+      return;
+    }
+    
+    const templatePath = path.join(extension.extensionPath, 'resources', 'templates', 'cappy-copilot-instructions.md');
+
+    await fs.promises.mkdir(githubDir, { recursive: true });
+
+    try {
+      const tpl = await fs.promises.readFile(templatePath, 'utf8');
+      const start = '<!-- CAPPY INI -->';
+      const end = '<!-- CAPPY END -->';
+
+      // If target doesn't exist, create with template
+      let existing = '';
+      try {
+        existing = await fs.promises.readFile(targetPath, 'utf8');
+      } catch (e: any) {
+        if (e?.code === 'ENOENT') {
+          await fs.promises.writeFile(targetPath, tpl, 'utf8');
+          return;
+        }
+        throw e;
+      }
+
+      const hasStart = existing.includes(start);
+      const hasEnd = existing.includes(end);
+      
+      if (!hasStart || !hasEnd) {
+        // No markers; overwrite entire file to align with template once
+        await fs.promises.writeFile(targetPath, tpl, 'utf8');
+        return;
+      }
+
+      // Replace only the marked block
+      const pattern = new RegExp(`${start}[\\s\\S]*?${end}`);
+      
+      // Extract content between markers from template
+      const templatePattern = new RegExp(`${start}([\\s\\S]*?)${end}`);
+      const templateMatch = tpl.match(templatePattern);
+      const templateContent = templateMatch ? templateMatch[1].trim() : tpl.trim();
+      
+      // Replace with markers preserved
+      const replacement = `${start}\n${templateContent}\n${end}`;
+      const updated = existing.replace(pattern, replacement);
+      await fs.promises.writeFile(targetPath, updated, 'utf8');
+      
+      console.log('Cappy: copilot-instructions.md updated successfully');
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') {
+        // If template is missing, keep existing file or create a minimal header
+        try {
+          await fs.promises.access(targetPath, fs.constants.F_OK);
+        } catch {
+          await fs.promises.writeFile(targetPath, '# Cappy Copilot Instructions\n', 'utf8');
+        }
+      } else {
+        throw err;
+      }
+    }
+  } catch (error) {
+    console.warn('Cappy: Failed to update copilot-instructions.md:', error);
   }
 }
 

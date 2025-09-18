@@ -35,7 +35,8 @@ export function run(): Promise<void> {
                 { compiled: 'getNewTaskInstruction.test.js', source: 'getNewTaskInstruction.test.ts' },
                 { compiled: 'knowStack.test.js', source: 'knowStack.test.ts' },
                 { compiled: 'workOnCurrentTask.test.js', source: 'workOnCurrentTask.test.ts' },
-                { compiled: 'copyXsdSchemas.test.js', source: 'copyXsdSchemas.test.ts' }
+                { compiled: 'copyXsdSchemas.test.js', source: 'copyXsdSchemas.test.ts' },
+                { compiled: 'autoUpdateCopilotInstructions.test.js', source: 'autoUpdateCopilotInstructions.test.ts' }
             ];
 
             const srcSuiteRoot = path.resolve(__dirname, '../../../src/test/suite');

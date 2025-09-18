@@ -5,6 +5,21 @@ All notable changes to the Cappy extension will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2025-09-18
+
+### Added
+- **Auto-Update Copilot Instructions**: Extensão agora atualiza automaticamente o arquivo `.github/copilot-instructions.md` na ativação
+- **Smart Content Preservation**: Preserva conteúdo personalizado existente, atualizando apenas a seção CAPPY
+- **Comprehensive Test Suite**: Testes unitários completos para validar funcionalidade de atualização automática
+- **Graceful Error Handling**: Tratamento robusto de cenários como template ausente ou arquivos sem marcadores
+
+### Changed
+- **Extension Activation**: Modificada função `checkAndCopyXsdSchemas` para incluir atualização automática das instruções do Copilot
+- **Template Processing**: Melhoria na lógica de processamento de templates com marcadores `<!-- CAPPY INI -->` e `<!-- CAPPY END -->`
+
+### Fixed
+- **Missing Auto-Update**: Corrigido problema onde `.github/copilot-instructions.md` não era atualizado automaticamente na ativação da extensão
+
 ## [2.8.0] - 2025-09-18
 
 ### Added
