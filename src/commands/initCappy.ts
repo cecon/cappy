@@ -142,7 +142,7 @@ export class InitCappyCommand {
         await fs.promises.mkdir(cappyDir, { recursive: true });
         await fs.promises.mkdir(path.join(cappyDir, 'tasks'), { recursive: true });
         await fs.promises.mkdir(path.join(cappyDir, 'history'), { recursive: true });
-        await fs.promises.mkdir(path.join(cappyDir, 'instructions'), { recursive: true });
+        await fs.promises.mkdir(path.join(cappyDir, 'schemas'), { recursive: true });
         
         // Criar arquivo prevention-rules.xml se não existir
         await this.ensurePreventionRulesFile(cappyDir);

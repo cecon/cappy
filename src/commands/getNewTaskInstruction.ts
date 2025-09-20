@@ -131,14 +131,7 @@ export async function getNewTaskInstruction(context?: vscode.ExtensionContext, a
     // Write result to .cappy/output.txt
     writeOutput(xmlOutput);
 
-    // Also persist under .cappy/instructions for local reference
-    try {
-        const cappyDir = path.join(root, '.cappy', 'instructions');
-        await fs.promises.mkdir(cappyDir, { recursive: true });
-        await fs.promises.writeFile(path.join(cappyDir, 'newtask-script.xml'), template, 'utf8');
-    } catch (e) {
-        // Non-fatal
-    }
+    // Note: .cappy/instructions folder no longer used - removed local file persistence
 
     return xmlOutput;
 }

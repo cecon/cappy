@@ -307,7 +307,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Auto-copy XSD schemas when extension loads (if .cappy exists)
-    checkAndCopyXsdSchemas();
+    checkAndCopyXsdSchemasAndCleanup();
 
   } catch (error) {
     vscode.window.showErrorMessage(
@@ -317,9 +317,9 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 /**
- * Check if .cappy directory exists, copy XSD files and update copilot-instructions.md automatically
+ * Check if .cappy directory exists, copy XSD files and clean up legacy folders
  */
-async function checkAndCopyXsdSchemas(): Promise<void> {
+async function checkAndCopyXsdSchemasAndCleanup(): Promise<void> {
   try {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
@@ -336,20 +336,44 @@ async function checkAndCopyXsdSchemas(): Promise<void> {
       const fileManager = new FileManager();
       await fileManager.copyXsdSchemas();
       
+      // Clean up legacy instructions folder
+      await cleanupLegacyInstructionsFolder(cappyPath);
+      
       // Also update copilot-instructions.md automatically
       await updateCopilotInstructions(workspaceFolder.uri.fsPath);
       
-      console.log('Cappy: XSD schemas copied and copilot-instructions.md updated automatically on startup');
+      console.log('Cappy: XSD schemas copied, legacy folders cleaned and copilot-instructions.md updated automatically on startup');
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         // .cappy doesn't exist, project not initialized yet
         return;
       }
       // Other errors should be logged but not interrupt extension
-      console.warn('Cappy: Failed to auto-copy XSD schemas or update copilot instructions:', error);
+      console.warn('Cappy: Failed to auto-copy XSD schemas, cleanup legacy folders or update copilot instructions:', error);
     }
   } catch (error) {
     console.warn('Cappy: Auto-copy XSD schemas check failed:', error);
+  }
+}
+
+/**
+ * Clean up legacy instructions folder that is no longer needed
+ */
+async function cleanupLegacyInstructionsFolder(cappyPath: string): Promise<void> {
+  try {
+    // Remove .cappy/instructions folder if it exists (no longer needed)
+    const instructionsPath = path.join(cappyPath, 'instructions');
+    try {
+      await fs.promises.access(instructionsPath, fs.constants.F_OK);
+      await fs.promises.rmdir(instructionsPath, { recursive: true });
+      console.log('Cappy: Removed legacy instructions folder');
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') {
+        console.warn('Cappy: Failed to remove instructions folder:', error);
+      }
+    }
+  } catch (error) {
+    console.warn('Cappy: Failed to cleanup legacy instructions folder:', error);
   }
 }
 
@@ -362,7 +386,7 @@ async function updateCopilotInstructions(workspaceRoot: string): Promise<void> {
     const targetPath = path.join(githubDir, 'copilot-instructions.md');
     
     // Find extension root to get template
-    const extension = vscode.extensions.getExtension('eduardocecon.cappy-memory');
+    const extension = vscode.extensions.getExtension('eduardocecon.cappy');
     if (!extension) {
       console.warn('Cappy: Extension not found, cannot update copilot instructions');
       return;
