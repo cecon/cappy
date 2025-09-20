@@ -92,7 +92,7 @@ suite('🦫 Cappy Extension Test Suite', () => {
             
             assert.strictEqual(pkg.name, 'cappy');
             assert.strictEqual(pkg.displayName, 'Cappy');
-            assert.ok(pkg.description.includes('calm and wise'));
+            assert.ok(pkg.description.includes('AI coding companion'), 'Description should mention AI coding companion');
             assert.ok(/^2\.\d+\.\d+/.test(pkg.version), 'Extension version should be 2.x.x');
             
             console.log('✅ Package.json structure valid');

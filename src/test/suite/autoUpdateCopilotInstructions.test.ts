@@ -169,7 +169,7 @@ More custom content at the end.`;
         // Should update CAPPY content
         assert.ok(updatedContent.includes('<!-- CAPPY INI -->'), 'Should contain CAPPY start marker');
         assert.ok(updatedContent.includes('<!-- CAPPY END -->'), 'Should contain CAPPY end marker');
-        assert.ok(updatedContent.includes('CAPPY — Manual de Comandos v2.0'), 'Should contain updated CAPPY content');
+        assert.ok(updatedContent.includes('CAPPY — Manual de Comandos (Orquestração de Contexto)'), 'Should contain updated CAPPY content');
         assert.ok(!updatedContent.includes('Old CAPPY content that should be replaced'), 'Should replace old CAPPY content');
         
         console.log('✅ Existing file update test passed');

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<script 
+<cappy:script 
+  xmlns:cappy="https://schemas.cappy.dev" 
+  name="knowstack" 
+  version="2.0"
   id="ai-instructions-integration"
   category="documentation"
   priority="normal">
@@ -7,7 +10,7 @@
   <context discovery_timestamp="2025-09-19T10:00:00Z">
     <description>
       1. Generate or update AI coding agent instructions within .cappy/stack.md for immediate productivity.
-      2. Leverages existing stack knowledge to create project-specific AI guidance that focuses on non-obvious patterns, critical workflows, and unique architectural decisions.
+      2. Leverages existing stack knowledge to create project-specific AI guidance that focuses on non-obvious patterns, critical workflows, and unique architectural decisions.      
       3. Toda pergunta feita ao dev no chat deve ser no padrão pergunta a pergunta, nunca uma lista de perguntas.
       4. Não desenvolver ou editar arquivos exceto o stack.md
     </description>
@@ -15,6 +18,7 @@
     <keywords>
       <keyword>ai-agent-instructions</keyword>
       <keyword>stack-documentation</keyword>
+      <keyword>cappy:knowstack</keyword>
       <keyword>context-orchestration</keyword>
       <keyword>codebase-analysis</keyword>
       <keyword>development-workflows</keyword>
@@ -330,4 +334,4 @@
     </metrics>
   </completion>
 
-</script>
+</cappy:script>

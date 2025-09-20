@@ -7,7 +7,7 @@
 <img src="assets/icon.png" alt="CAPPY Logo" width="128" height="128">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/Version-2.7.8-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
+[![Version](https://img.shields.io/badge/Version-2.9.5-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
 [![Context Orchestration](https://img.shields.io/badge/Powered%20by-Context%20Orchestration-green.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
 
 [**Install**](#installation) • [**Quick Start**](#quick-start) • [**How It Works**](#how-it-works) • [**Contribute**](#become-a-contributor) • [**GitHub**](https://github.com/cecon/cappy)
@@ -96,6 +96,8 @@ code --install-extension eduardocecon.cappy
 # In VS Code Command Palette (Ctrl+Shift+P)
 > CAPPY: Initialize Project
 ```
+
+> **⚠️ Important**: All CAPPY commands must be executed via VS Code Command Palette or API calls (`vscode.commands.executeCommand`). Never run CAPPY commands directly in terminal.
 
 ### Build Project Intelligence
 ```
@@ -262,7 +264,7 @@ All tasks follow rigorous XML schema validation:
 ```
 
 ### Automatic Schema Management
-CAPPY 2.7.8+ automatically manages XSD schemas for optimal development experience:
+CAPPY 2.9.5+ automatically manages XSD schemas for optimal development experience:
 
 - **Auto-Sync on Init**: All XSD schemas from `resources/` are copied to `.cappy/schemas/` during project initialization
 - **Startup Synchronization**: Schemas are updated automatically when VS Code loads projects with existing `.cappy/schemas/` directories  
@@ -275,6 +277,8 @@ CAPPY 2.7.8+ automatically manages XSD schemas for optimal development experienc
 ├── task-template.xsd      # Task structure validation
 └── (additional schemas)   # Future schema extensions
 ```
+
+> **Note**: Schemas are automatically updated on VS Code startup and extension activation, ensuring your development environment stays synchronized with the latest CAPPY improvements.
 
 ### Prevention Rule Intelligence
 ```xml

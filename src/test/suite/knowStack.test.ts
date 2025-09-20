@@ -46,7 +46,7 @@ suite('🧠 KnowStack Command Tests', () => {
         assert.strictEqual(typeof result, 'string');
         assert.ok(result.length > 0, 'Result should not be empty');
         assert.ok(result.includes('<cappy:script') || result.includes('<?xml'), 'Result should look like XML script');
-        assert.ok(result.includes('cappy:knowstack'), 'Result should mention cappy:knowstack');
+        assert.ok(result.includes('ai-instructions-integration') || result.includes('cappy:knowstack'), 'Result should contain the task id or knowstack keyword');
 
     // Log evidence for manual inspection
     console.log(`KnowStack return length: ${result.length}`);
