@@ -7,6 +7,11 @@
       xmlns="https://cappy-methodology.dev/task/1.0">
     
     <context>
+        <go>
+            Criar um todo list na memoria do chat para cada passo e seguir ele a risca.
+            Sempre que concluir um passo marque ele como concluído na lista e informe o progresso.
+            No final, quando todos os passos estiverem concluídos, finalize a tarefa e preencha a data de criação nesse arquivo de task.            
+        </go>
         <docs_refs>
             <!-- Documentações relevantes serão injetadas automaticamente -->
             <!-- Exemplo: <doc path="docs/{{AREA}}/overview.md" relevance="medium">Documentação base</doc> -->

@@ -90,7 +90,7 @@ Falas naturais do usuário → mapeamento determinístico para **commandId** do 
 * "new task" / "create task" / "nova tarefa" → `cappy.new`
 * "current task" / "active task" / "tarefa ativa" → `cappy.taskstatus`
 * "work on task" / "continue" / "trabalhar na tarefa" → `cappy.workcurrent`
-* "complete task" / "finish" / "concluir tarefa" → `cappy.taskcomplete`
+* "complete task" / "finish" / "concluir tarefa" → `cappy.completeTask`
 
 ### Setup de Projeto
 
@@ -173,7 +173,7 @@ docs/
 * **taskstatus (ativo)** → `Active [category] task. [X] prevention rules applied. Next: [step]`
 * **taskstatus (inativo)** → `No active task. Use 'new task' to get the step-by-step script`
 * **workcurrent** → `Executing context-aware: [step]. [X] rules verified`
-* **taskcomplete** → `Task completed. [X] learnings captured, context metrics updated`
+* **completetask** → `Task completed. [X] learnings captured, context metrics updated`
 * **reindex** → `Semantic indexes rebuilt: [X] tasks, [Y] docs, [Z] rules indexed`
 * **erro genérico** →
 

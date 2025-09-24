@@ -2,11 +2,12 @@
 <script
   id="" name="newtask-script-expanded"
   category="documentation"
-  priority="high"  
+  priority="high"
   created="{NOW}">
 
-  <context discovery_timestamp="{NOW}">
+  <context discovery_timestamp="{NOW}">          
     <description>
+      - Criar um todo list na memoria do chat para cada passo e seguir ele a risca.
       1. Script detalhado do comando cappy:new. Para orientar a criação do arquivo da tasks.
       2. Esse script apenas gera o arquivo XML da task, não deve executar a task.
       3. Deve preencher o template com as informações do escopo.
@@ -95,9 +96,9 @@
       <description>
         Execute the VS Code extension command `cappy.createTaskFile` programmatically
         (using vscode.commands.executeCommand), then read the file `.cappy/output.txt`.
-      </description>      
+      </description>
     </step>
-    
+
     <step id="4" name="update-task-file-template-root"
       validation="Arquivo template atualizado com novos atributos no root element">
       <description>
@@ -113,16 +114,19 @@
     <step id="5" name="update-task-file-template-context"
       validation="Arquivo template atualizado com conteúdo de contexto">
       <description>
-        1. Se o usuário não informou um contexto no momento de solicitar a criação da task solicitar.
-        2. Atualizar o arquivo template criado com conteúdo de contexto.        
-        3. Clarificar o texto se necessário com perguntas no formato pergunta a pergunta.        
+        1. Se o usuário não informou um contexto no momento de solicitar a criação da task
+        solicitar.
+        2. Atualizar o arquivo template criado com conteúdo de contexto.
+        3. Clarificar o texto se necessário com perguntas no formato pergunta a pergunta.
       </description>
       <substep id="1" name="keywords-extraction" validation="keywords extraidos">
         <description>Extrair keywords da descrição da task</description>
       </substep>
-      <substep id="2" name="relevant-documents-extraction" validation="documentos relevantes e keywords extraidos">
+      <substep id="2" name="relevant-documents-extraction"
+        validation="documentos relevantes e keywords extraidos">
         <description>
-          1. Ler se disponível os arquivo .cappy/indexes/docs.json, .cappy/indexes/tasks.json, .cappy/indexes/rules.json.
+          1. Ler se disponível os arquivo .cappy/indexes/docs.json, .cappy/indexes/tasks.json,
+          .cappy/indexes/rules.json.
           1.1 Se os arquivos não existirem, continue para o proximo passo.
           1.2 Se os arquivos existirem, ler o conteúdo e extrair informações relevantes.
           1.2.1 Preencher a seção docs e keywords do contexto com os documentos relevantes.
@@ -166,17 +170,18 @@
       <substep id="5" name="s6.5" validation="Steps e substeps preenchidos no arquivo da task">
         <description>Preencher as steps e substeps no arquivo da task.</description>
       </substep>
-    </step>    
+    </step>
     <step id="6" name="task-review"
       validation="Cada passo foi refinado para clareza de como a llm deve proceder; critérios de validação mensuráveis definidos; subjetividade e ambiguidade minimizadas">
       <description>
-        1. Ler cada step da task criada e refinar para que uma llm possa compreendê-la facilmente sem ambiguidade.
+        1. Ler cada step da task criada e refinar para que uma llm possa compreendê-la facilmente
+        sem ambiguidade.
         2. Garantir que cada step tem um objetivo claro e único.
         3. Garantir que cada step tem critérios mensuráveis de validação.
         4. Verificar subjetividade e ambiguidade em cada step.
         5. Se necessário crie substeps.
         6. Atualize o arquivo da task com as melhorias.
-      </description>      
+      </description>
     </step>
 
     <step id="7" name="generate-unit-tests"
@@ -186,22 +191,24 @@
         1. Gerar testes unitários se habilitado ou se a categoria da task não for de testes.
         1.1 Verificar em .cappy/config.yaml se unit tests estão habilitados.
         2. Criar steps de teste para cada step principal da task.
-        3. Definir objetivo claro e critérios mensuráveis para cada teste.        
+        3. Definir objetivo claro e critérios mensuráveis para cada teste.
         4. Atualize o arquivo da task com as melhorias.
-      </description>      
+      </description>
     </step>
 
     <step id="8" name="generate-documentation"
       validation="Índices consultados; documentação existente verificada; step dedicado criado; critérios de validação definidos"
       status="pending" atomic="true" estimated_time="PT15M">
       <description>
-        1. Gerar uma step na task atual para criar ou atualizar documentação exceto se a categoria da task for de documentação.
-        2. Consultar os índices .cappy/index/ e docs/index/ para verificar se já existe documentação relevante.
+        1. Gerar uma step na task atual para criar ou atualizar documentação exceto se a categoria
+        da task for de documentação.
+        2. Consultar os índices .cappy/index/ e docs/index/ para verificar se já existe documentação
+        relevante.
         3. Determinar se deve atualizar a documentação existente ou criar uma nova.
         4. Criar um step dedicado em execution para a documentação.
         5. Definir critérios de validação claros para a documentação.
-        6. Atualize o arquivo da task com as melhorias.        
-      </description>      
+        6. Atualize o arquivo da task com as melhorias.
+      </description>
     </step>
 
     <step id="9" name="analyze-mistakes"
@@ -212,8 +219,8 @@
         2. Analisar erros comuns e intervenções manuais feitas durante a criação da task.
         3. Propor novas prevention rules para evitar esses erros no futuro.
         4. Atualizar o índice de prevention rules com as novas regras propostas.
-        5. Atualize a seção execution da task com os steps de teste gerados.                
-      </description>      
+        5. Atualize a seção execution da task com os steps de teste gerados.
+      </description>
     </step>
 
     <step id="10" name="finalize-task"
