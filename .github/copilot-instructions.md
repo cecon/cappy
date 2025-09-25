@@ -1,5 +1,10 @@
 ## 🚀 Build & Publicação
-- Se eu pedir para publicar rode o comando package bump para alterar a versão e compile e publique
+- 1 Se eu pedir para publicar 
+ - Rode o comando package patch para alterar a versão, 
+ - compile
+ - publique
+ - Instale a extensão no VS Code
+ 
 ### Processo de Release
 
 1. **Incrementar versão** no `package.json`:
