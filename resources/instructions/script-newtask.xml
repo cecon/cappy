@@ -1,267 +1,88 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<script
-  id="" name="newtask-script-expanded"
-  category="documentation"
-  priority="high"
-  created="{NOW}">
+<script>
+  <about>
+    <summary>      
+      Carregue cada passo desse arquivo no plano e siga ele a risca.      
+    </summary>    
+  </about>
 
-  <context discovery_timestamp="{NOW}">          
+  <context>
     <description>
-      - Criar um todo list na memoria do chat para cada passo e seguir ele a risca.
-      1. Script detalhado do comando cappy:new. Para orientar a criação do arquivo da tasks.
-      2. Esse script apenas gera o arquivo XML da task, não deve executar a task.
-      3. Deve preencher o template com as informações do escopo.
-      3.1. Se o escopo não for fornecido, deve perguntar ao usuário.
-      4. Deve sempre perguntar ao usuario quando houver dúvida. Nunca assuma nada. Sempre no padrão
-      pergunta por pergunta.
-      5. Deve seguir rigorosamente o passo a passo e na ordem correta.
-      6. Deve garantir que a task gerada esteja em conformidade com o XSD.
-      7. A llm que ira executar a tarefa só terá acesso as informações presentes no arquivo XML da
-      task.
-      7.1 Portanto, é crucial que todas as informações relevantes sejam incluídas no arquivo.
-    </description>
-    <keywords>
-      <keyword>cappy:new</keyword>
-      <keyword>cappy:newtask</keyword>
-      <keyword>script</keyword>
-      <keyword>task-creation</keyword>
-      <keyword>documentation</keyword>
-    </keywords>
+      Você é um analista de sistemas experiente e um especialista em automação de tarefas.
+      Seu papel é criar um arquivo XML de task seguindo a metodologia Cappy, baseado no conteúdo do arquivo .cappy/stack.md.
+      O arquivo de task deve conter metadados, contexto, regras de prevenção, referências a documentação relevante e passos detalhados para completar a tarefa.
+      Siga rigorosamente o formato XML e as diretrizes da metodologia Cappy.
+      Certifique-se de que o arquivo XML esteja bem estruturado, com todos os elementos necessários preenchidos corretamente.
+      Utilize o template de task padrão como referência para a estrutura do arquivo (O template será gerado no passo 3).
+    </description>    
     <docs_refs>
-      <doc path=".cappy/stack.md" relevance="high">Projeto/stack conhecido para inferir dependências</doc>
-      <doc path=".cappy/index/" relevance="high">Índices do sistema de contexto</doc>
-      <doc path="docs/index/" relevance="medium">Índice de documentação para busca semântica</doc>
-      <doc path=".cappy/schemas/" relevance="medium">Schemas para referência/edição manual</doc>
+      <doc path=".cappy/stack.md"/>
     </docs_refs>
-    <prevention_rules>
-      <rule id="" name="allow-exceed-steps" category="documentation" severity="high"
-        auto_apply="true"> Esta task é um roteiro de instrução e pode ultrapassar 5 passos. <note>Certifique-se
-        de
-          documentar qualquer passo adicional.</note>
-      </rule>
-    </prevention_rules>
-    <dependencies>
-      <dependency type="tool">VS Code</dependency>
-      <dependency type="library">XSD Validator</dependency>
-    </dependencies>
   </context>
 
-  <execution estimated_duration="PT90M">
-
-    <step id="1" name="validate-stack"
-      validation="Confirma que .cappy/stack.md existe e não está vazio."
-      status="pending" atomic="true" estimated_time="PT10M">
-      <description>
-        1. Validar através das substeps se o arquivo .cappy/stack.md existe e não está vazio.
-      </description>
-      <substep id="1" name="s1.1" validation="Mensagem exibida no chat">
-        <description>
-          1. Se for vazio ou não existir, abortar e sugerir comando cappy.knowstack para criar o
-          arquivo.
-          1.1 Explicar que o arquivo é crucial para entender o contexto do projeto.
-          1.2 Sugerir que o usuário preencha o arquivo com informações relevantes.
-          1.3 abortar a execução do script.
-          2. Se existir e não estiver vazio, prosseguir para o próximo passo.
-        </description>
-      </substep>
+  <execution>
+    <step id="1" name="Validar .cappy/stack.md">
+      <checklist>
+        <item>.cappy/stack.md existe e não está vazio.</item>
+        <item>Conteúdo do stack.md compreendido e analisado.</item>
+        <item>Marque esse passo como concluído, informe no chat e siga para o próximo.</item>
+      </checklist>
     </step>
-
-    <step id="2" name="check-active-tasks"
-      validation="Tarefa ativa verificada"
-      status="pending" atomic="true" estimated_time="PT1M">
-      <description>
-        1. Garantir que não há tasks ativas.
-        2. Siga as substeps para validar o status.
-      </description>
-      <substep id="1" name="s2.1" validation="resultado lido do output.txt">
-        <description>
-          Execute the VS Code extension command `cappy.getActiveTask` programmatically
-          (using vscode.commands.executeCommand), then read the file `.cappy/output.txt`.
-        </description>
-      </substep>
-      <substep id="2" name="s2.2"
-        validation="
-        1. Análise realizada; 
-        1.1 Se task ativa
-        1.1.1 Status e sugestão de conclusão fornecidos
-        1.2 Se não houver task ativa
-        1.2.1 Prosseguir com a criação da nova task">
-        <description>Análisar resultado e verificar se tem ou não task ativa</description>
-      </substep>
+    <step id="2" name="Checar task ativa e liberar criação">
+      <checklist>
+        <item>Verificar se há uma task ativa no momento.</item>
+        <item>Se houver uma task ativa, informe que não é possível criar uma nova task até que a atual seja concluída. Aborte a criação da nova task.</item>
+        <item>Se não houver uma task ativa, informe que a criação da nova task pode prosseguir.</item>
+        <item>Marque esse passo como concluído, informe no chat e siga para o próximo.</item>
+      </checklist>
     </step>
-
-    <step id="3" name="create-task-file-template"
-      validation="Arquivo template criado"
-      status="pending" atomic="true" estimated_time="PT1M">
-      <description>
-        Execute the VS Code extension command `cappy.createTaskFile` programmatically
-        (using vscode.commands.executeCommand), then read the file `.cappy/output.txt`.
-      </description>
+    <step id="3" name="Criar template XML e metadados mínimos">
+      <checklist>
+        <item>
+          Gerar o arquivo XML da task utilizando o template padrão.
+          O comando para gerar o arquivo é `cappy.createTaskFile` disparar programaticamente via VS Code API.
+        </item>
+        <item>Preencher os metadados mínimos necessários, como ID da tarefa, categoria, prioridade, status e timestamp de criação.</item>        
+        <item>Marque esse passo como concluído, informe no chat e siga para o próximo.</item>
+      </checklist>
     </step>
-
-    <step id="4" name="update-task-file-template-root"
-      validation="Arquivo template atualizado com novos atributos no root element">
-      <description>
-        Atualizar o arquivo template criado com novos atributos no root element.
-        1. id: adicionar o id unico da task.
-        2. category: deixar em branco pq ainda não temos a categoria.
-        3. priority: perguntar para o usuario qual a prioridade (low, medium, high).
-        4. status: "preparing" porque ainda não está em andamento.
-        5. created: colocar data e hora atual.
-      </description>
+    <step id="4" name="Preencher contexto (summary, description, keywords, docs)">
+      <checklist>
+        <item>Como analista de sistemas, você precisa coletar o escopo da tarefa,</item>
+        <item>definir os objetivos e entregáveis esperados.</item>
+        <item>
+          Nem sempre o desenvolvedor tem uma visão clara do que precisa ser feito, então é seu papel ajudar a esclarecer isso.
+          Faça perguntas, peça exemplos e colete o máximo de informações possível.
+          Qualquer pergunta que você fizer precisa ser no padrão pergunta a pergunta.          
+          Use o seguinte formato para cada pergunta:          
+          <example>
+            <pergunta>Qual é o objetivo principal da tarefa?</pergunta>
+            <pergunta>Quais são os entregáveis esperados?</pergunta>
+            <pergunta>Quais são os critérios de sucesso para a tarefa?</pergunta>
+          </example>
+        </item>
+        <item>Preencher o contexto da task no XML, incluindo resumo, descrição detalhada, palavras-chave relevantes e referências a documentação útil.</item>
+        <item>Adicionar exemplos práticos ou casos de uso que ajudem a ilustrar a tarefa. Pois quem vai executar não terá acesso ao contexto completo.</item>
+        <item>Marque esse passo como concluído, informe no chat e diga que o contexto foi preenchido.</item>
+      </checklist>
     </step>
-
-    <step id="5" name="update-task-file-template-context"
-      validation="Arquivo template atualizado com conteúdo de contexto">
-      <description>
-        1. Se o usuário não informou um contexto no momento de solicitar a criação da task
-        solicitar.
-        2. Atualizar o arquivo template criado com conteúdo de contexto.
-        3. Clarificar o texto se necessário com perguntas no formato pergunta a pergunta.
-      </description>
-      <substep id="1" name="keywords-extraction" validation="keywords extraidos">
-        <description>Extrair keywords da descrição da task</description>
-      </substep>
-      <substep id="2" name="relevant-documents-extraction"
-        validation="documentos relevantes e keywords extraidos">
-        <description>
-          1. Ler se disponível os arquivo .cappy/indexes/docs.json, .cappy/indexes/tasks.json,
-          .cappy/indexes/rules.json.
-          1.1 Se os arquivos não existirem, continue para o proximo passo.
-          1.2 Se os arquivos existirem, ler o conteúdo e extrair informações relevantes.
-          1.2.1 Preencher a seção docs e keywords do contexto com os documentos relevantes.
-          1.3 Atualizar o atributto categoria da task pois nesse ponto já temos keywords.
-        </description>
-      </substep>
+    <step id="5" name="Definir até 5 steps finais e checklist">
+      <checklist>
+        <item>Decompor a tarefa em até 5 passos principais (steps) que sejam atômicos e fáceis de seguir.</item>
+        <item>Para cada step, definir um checklist claro com critérios de validação que indiquem quando o passo foi concluído com sucesso.</item>
+        <item>Incluir ações específicas, comandos ou verificações que precisam ser realizadas em cada step.</item>
+        <item>Adicionar um item de checklist para cada critério de sucesso identificado.</item>
+        <item>Adicionar ao final de cada checklist um item para revisar e validar o passo antes de considerá-lo concluído.</item>
+        <item>Marque esse passo como concluído, informe no chat e diga que os steps foram definidos.</item>
+      </checklist>
     </step>
-
-    <step id="6" name="scope-validation"
-      validation="Escopo analisado para atomicidade; subjetividade verificada; critérios de validação definidos; estimativa de tempo aplicada">
-      <description>
-        Validar escopo atômico com análise expert.
-      </description>
-      <substep id="1" name="s6.1"
-        validation="Análise de escopo para atomicidade (≤5 steps principais)">
-        <description>
-          1. Dividir escopo em steps realizaveis.
-          2. Verificar se vai precisar de mais de 5 passos.
-          2.1 Quando tiver mais de 5 passos, dividir em passos e subpassos.
-          2.1.1 Quando mesmo assim não for possível, sugerir ao usuário diminuir o escopo.
-        </description>
-      </substep>
-      <substep id="2" name="s6.2" validation="Verificação de subjetividade e ambiguidade">
-        <description>
-          1. Reformular escopo para clareza quando necessário.
-          1.1 Sempre consultando o usuario com perguntas no padrão pergunta a pergunta.
-          1.1.2 Quando possível gere alternativas para reduzir erros na interpretação do usuário.
-        </description>
-      </substep>
-      <substep id="3" name="s6.3" validation="Critérios de validação claros definidos">
-        <description>
-          1. Definir critérios de validação claros para cada step.
-        </description>
-      </substep>
-      <substep id="4" name="s6.4" validation="Estimativa de tempo baseada em complexidade">
-        <description>Aplicar estimativa de tempo para cada step baseado em complexidade</description>
-      </substep>
-      <substep id="5" name="s6.5" validation="Critérios mensuráveis de conclusão definidos">
-        <description>Definir critérios mensuráveis de conclusão para a task</description>
-      </substep>
-      <substep id="5" name="s6.5" validation="Steps e substeps preenchidos no arquivo da task">
-        <description>Preencher as steps e substeps no arquivo da task.</description>
-      </substep>
-    </step>
-    <step id="6" name="task-review"
-      validation="Cada passo foi refinado para clareza de como a llm deve proceder; critérios de validação mensuráveis definidos; subjetividade e ambiguidade minimizadas">
-      <description>
-        1. Ler cada step da task criada e refinar para que uma llm possa compreendê-la facilmente
-        sem ambiguidade.
-        2. Garantir que cada step tem um objetivo claro e único.
-        3. Garantir que cada step tem critérios mensuráveis de validação.
-        4. Verificar subjetividade e ambiguidade em cada step.
-        5. Se necessário crie substeps.
-        6. Atualize o arquivo da task com as melhorias.
-      </description>
-    </step>
-
-    <step id="7" name="generate-unit-tests"
-      validation="Config.yaml verificado; steps de teste gerados; objetivos claros definidos; melhores práticas sugeridas"
-      status="pending" atomic="true" estimated_time="PT15M">
-      <description>
-        1. Gerar testes unitários se habilitado ou se a categoria da task não for de testes.
-        1.1 Verificar em .cappy/config.yaml se unit tests estão habilitados.
-        2. Criar steps de teste para cada step principal da task.
-        3. Definir objetivo claro e critérios mensuráveis para cada teste.
-        4. Atualize o arquivo da task com as melhorias.
-      </description>
-    </step>
-
-    <step id="8" name="generate-documentation"
-      validation="Índices consultados; documentação existente verificada; step dedicado criado; critérios de validação definidos"
-      status="pending" atomic="true" estimated_time="PT15M">
-      <description>
-        1. Gerar uma step na task atual para criar ou atualizar documentação exceto se a categoria
-        da task for de documentação.
-        2. Consultar os índices .cappy/index/ e docs/index/ para verificar se já existe documentação
-        relevante.
-        3. Determinar se deve atualizar a documentação existente ou criar uma nova.
-        4. Criar um step dedicado em execution para a documentação.
-        5. Definir critérios de validação claros para a documentação.
-        6. Atualize o arquivo da task com as melhorias.
-      </description>
-    </step>
-
-    <step id="9" name="analyze-mistakes"
-      validation="Tipos de erro registrados; causas raiz analisadas; novas prevention rules propostas; índice atualizado"
-      status="pending" atomic="true" estimated_time="PT10M">
-      <description>
-        1. Criar uma step dedicada para analisar erros e propor novas prevention rules.
-        2. Analisar erros comuns e intervenções manuais feitas durante a criação da task.
-        3. Propor novas prevention rules para evitar esses erros no futuro.
-        4. Atualizar o índice de prevention rules com as novas regras propostas.
-        5. Atualize a seção execution da task com os steps de teste gerados.
-      </description>
-    </step>
-
-    <step id="10" name="finalize-task"
-      validation="Task XML lida; atributos atualizados; seção completion inicializada; mensagem de sucesso fornecida"
-      status="pending" atomic="true" estimated_time="PT10M">
-      <description>
-        Verificar o arquivo XML da task, atualizar atributos, inicializar seção completion e
-        fornecer mensagem de sucesso.
-      </description>
-      <substep id="1" name="s10.1" validation="Arquivo da task lido e validado">
-        <description>Verificar se o arquivo da task foi lido e validado corretamente</description>
-      </substep>
-      <substep id="2" name="s10.2" validation="Compliance XSD garantido">
-        <description>Garantir que a task está em conformidade com o XSD</description>
-      </substep>
-      <substep id="3" name="s10.3" validation="Atributos da task atualizados">
-        <description>Atualizar os atributos da task com as informações mais recentes</description>
-      </substep>
-      <substep id="4" name="s10.4" validation="Seção completion inicializada">
-        <description>Inicializar a seção de completion da task</description>
-      </substep>
-      <substep id="5" name="s10.5" validation="Mensagem de sucesso com resumo fornecida">
-        <description>Fornecer uma mensagem de sucesso com um resumo da task</description>
-      </substep>
-    </step>
-
   </execution>
 
   <completion>
     <validation_checklist>
-      <item critical="true">Script preserva lógica do comando cappy:new</item>
-      <item critical="true">Exceder limite de 5 steps permitido apenas por ser roteiro</item>
-      <item>Saída confirmada em .cappy/output.txt</item>
+      <item>stack.md existe e não vazio</item>
+      <item>sem task ativa</item>
+      <item>XML criado, contexto preenchido, steps e checklists definidos.</item>
     </validation_checklist>
-    <knowledge_capture>
-      <new_learnings>
-        <learning>Scripts de instrução podem ter exceções às regras normais</learning>
-      </new_learnings>
-    </knowledge_capture>
-    <metrics>
-      <metric name="steps_total" value="10" unit="count" category="execution" />
-    </metrics>
   </completion>
 </script>
