@@ -53,12 +53,12 @@
         <item>
           Nem sempre o desenvolvedor tem uma visão clara do que precisa ser feito, então é seu papel ajudar a esclarecer isso.
           Faça perguntas, peça exemplos e colete o máximo de informações possível.
-          Qualquer pergunta que você fizer precisa ser no padrão pergunta a pergunta.          
+          Qualquer pergunta que você fizer precisa ser no padrão uma a uma, ou seja, uma pergunta por vez.
           Use o seguinte formato para cada pergunta:          
           <example>
-            <pergunta>Qual é o objetivo principal da tarefa?</pergunta>
-            <pergunta>Quais são os entregáveis esperados?</pergunta>
-            <pergunta>Quais são os critérios de sucesso para a tarefa?</pergunta>
+            1. Qual é o objetivo principal da tarefa?
+            2. Quais são os entregáveis esperados?
+            3. Quais são os critérios de sucesso para a tarefa?
           </example>
         </item>
         <item>Preencher o contexto da task no XML, incluindo resumo, descrição detalhada, palavras-chave relevantes e referências a documentação útil.</item>
