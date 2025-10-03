@@ -13,13 +13,16 @@ import { AddPreventionRuleCommand } from "./commands/addPreventionRule";
 import { RemovePreventionRuleCommand } from "./commands/removePreventionRule";
 import { ReindexCommand } from "./commands/reindexCommand";
 import { FileManager } from "./utils/fileManager";
+import { EnvironmentDetector } from "./utils/environmentDetector";
 import * as path from 'path';
 import * as fs from 'fs';
 
 export function activate(context: vscode.ExtensionContext) {
   try {
-    // Show immediate activation message
-    vscode.window.showInformationMessage("🦫 Cappy Memory: Activating...");
+    // Show immediate activation message with environment detection
+    const welcomeMessage = EnvironmentDetector.getWelcomeMessage();
+    vscode.window.showInformationMessage(welcomeMessage);
+    console.log(`Cappy: Running in ${EnvironmentDetector.getEnvironmentName()}`);
 
   // Shared output channel for surfaced internal scripts / diagnostics
   const cappyOutput = vscode.window.createOutputChannel('Cappy');
@@ -386,9 +389,10 @@ async function updateCopilotInstructions(workspaceRoot: string): Promise<void> {
     const targetPath = path.join(githubDir, 'copilot-instructions.md');
     
     // Find extension root to get template
+    // Try to get extension regardless of environment (Cursor or VS Code)
     const extension = vscode.extensions.getExtension('eduardocecon.cappy');
     if (!extension) {
-      console.warn('Cappy: Extension not found, cannot update copilot instructions');
+      console.warn(`Cappy: Extension not found in ${EnvironmentDetector.getEnvironmentName()}, cannot update copilot instructions`);
       return;
     }
     

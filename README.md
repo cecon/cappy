@@ -7,8 +7,9 @@
 <img src="assets/icon.png" alt="CAPPY Logo" width="128" height="128">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/Version-2.9.5-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
+[![Version](https://img.shields.io/badge/Version-2.9.9-blue.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
 [![Context Orchestration](https://img.shields.io/badge/Powered%20by-Context%20Orchestration-green.svg)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
+[![Cursor Compatible](https://img.shields.io/badge/Cursor-Compatible-blueviolet.svg)](https://cursor.sh/)
 
 [**Install**](#installation) • [**Quick Start**](#quick-start) • [**How It Works**](#how-it-works) • [**Contribute**](#become-a-contributor) • [**GitHub**](https://github.com/cecon/cappy)
 
@@ -89,6 +90,8 @@ Every task follows a rigorous schema ensuring:
 ## Quick Start
 
 ### Install & Initialize
+
+#### VS Code
 ```bash
 # Install from VS Code Marketplace
 code --install-extension eduardocecon.cappy
@@ -96,6 +99,15 @@ code --install-extension eduardocecon.cappy
 # In VS Code Command Palette (Ctrl+Shift+P)
 > CAPPY: Initialize Project
 ```
+
+#### Cursor
+```bash
+# Install from VSIX file or Extensions Marketplace
+# In Cursor Command Palette (Ctrl+Shift+P)
+> CAPPY: Initialize Project
+```
+
+> **✨ Cursor Support**: CAPPY é totalmente compatível com Cursor! Todas as funcionalidades funcionam perfeitamente no Cursor, incluindo integração com IA e gerenciamento de contexto.
 
 > **⚠️ Important**: All CAPPY commands must be executed via VS Code Command Palette or API calls (`vscode.commands.executeCommand`). Never run CAPPY commands directly in terminal.
 
@@ -312,6 +324,20 @@ interface ContextDiscovery {
 
 ---
 
+## Compatibilidade com Cursor
+
+CAPPY é totalmente compatível com [Cursor](https://cursor.sh/)! 🎉
+
+Todas as funcionalidades funcionam perfeitamente no Cursor, incluindo:
+- ✅ Context Orchestration completo
+- ✅ Integração com IA do Cursor (Composer, Chat, Inline Edits)
+- ✅ Todos os comandos e recursos
+- ✅ Prevention Rules e gerenciamento de tarefas
+
+Para instruções específicas de instalação e uso no Cursor, consulte a [Documentação de Compatibilidade com Cursor](docs/cursor-compatibility.md).
+
+---
+
 ## Ready to Transform Your Development?
 
 **Install CAPPY 2.0** and experience development that gets smarter with every task.
@@ -325,6 +351,8 @@ interface ContextDiscovery {
 <div align="center">
 
 **CAPPY 2.0 - Where Every Task Makes You Smarter**
+
+Compatible with VS Code and Cursor 🦫🚀
 
 [Get Started Today](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy) • [View Source](https://github.com/cecon/cappy) • [Join Discord](https://discord.gg/cappy)
 

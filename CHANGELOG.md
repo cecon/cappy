@@ -5,6 +5,27 @@ All notable changes to the Cappy extension will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.9] - 2025-09-30
+
+### Added
+- **Cursor Compatibility**: Extensão agora é totalmente compatível com o editor Cursor
+- **Environment Detection**: Novo utilitário `EnvironmentDetector` para identificar o ambiente de execução (VS Code ou Cursor)
+- **Cursor Documentation**: Documentação completa para usuários do Cursor em `docs/cursor-compatibility.md`
+- **Enhanced Welcome Messages**: Mensagens de ativação agora mostram o ambiente detectado
+
+### Changed
+- **package.json**: Adicionado engine `cursor: >=0.1.0` para suporte oficial
+- **Keywords**: Incluído "cursor" e "cursor-compatible" nas palavras-chave
+- **Description**: Atualizada para mencionar compatibilidade com VS Code e Cursor
+- **README**: Seção de instalação expandida com instruções específicas para Cursor
+- **Version Badge**: Atualizado badge de versão para 2.9.9 com badge de compatibilidade Cursor
+
+### Technical Details
+- API do VS Code é totalmente compatível com Cursor
+- Detecção automática do ambiente baseada em `vscode.env.appName` e `vscode.env.uriScheme`
+- Todos os comandos funcionam identicamente em ambos os editores
+- Prevention Rules e Context Orchestration totalmente funcionais no Cursor
+
 ## [2.9.0] - 2025-09-18
 
 ### Added

@@ -1,12 +1,13 @@
 {
   "name": "cappy",
   "displayName": "Cappy",
-  "description": "AI coding companion with Single-Focus Workflow and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task.",
+  "description": "AI coding companion with Single-Focus Workflow and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
   "icon": "assets/icon.png",
-  "version": "2.9.8",
+  "version": "2.9.9",
   "publisher": "eduardocecon",
   "engines": {
-    "vscode": "^1.75.0"
+    "vscode": "^1.75.0",
+    "cursor": ">=0.1.0"
   },
   "categories": [
     "Other",
@@ -17,11 +18,13 @@
   "keywords": [
     "ai",
     "copilot",
+    "cursor",
     "learning",
     "productivity",
     "automation",
     "prevention",
-    "task-management"
+    "task-management",
+    "cursor-compatible"
   ],
   "activationEvents": [
     "onStartupFinished"
