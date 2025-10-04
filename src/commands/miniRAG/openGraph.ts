@@ -36,9 +36,11 @@ export async function openGraph(context?: vscode.ExtensionContext): Promise<void
         const panel = vscode.window.createWebviewPanel('miniRAGGraph', 'Mini-LightRAG Graph', vscode.ViewColumn.One, { enableScripts: true });
         console.log('[openGraph] Panel created');
         
+        // 🎯 Limites mais agressivos para melhor performance
         const config = vscode.workspace.getConfiguration('miniRAG');
-        const maxNodes = config.get<number>('maxNodes', 1000);
-        console.log('[openGraph] Max nodes:', maxNodes);
+        const maxNodes = config.get<number>('maxNodes', 100); // Reduzido de 1000 para 100
+        const maxEdges = config.get<number>('maxEdges', 200); // Reduzido de 5000 para 200
+        console.log('[openGraph] Limits: nodes=', maxNodes, ', edges=', maxEdges);
         
         panel.webview.html = getGraphHTML();
         console.log('[openGraph] HTML set');
@@ -47,7 +49,7 @@ export async function openGraph(context?: vscode.ExtensionContext): Promise<void
             console.log('[openGraph] Message received:', msg.command);
             if (msg.command === 'ready') {
                 console.log('[openGraph] Webview ready, loading data...');
-                const data = await loadGraphData(context, maxNodes, 5000);
+                const data = await loadGraphData(context, maxNodes, maxEdges);
                 console.log('[openGraph] Data loaded:', data.nodes.length, 'nodes,', data.edges.length, 'edges');
                 console.log('[openGraph] Sending to webview...');
                 panel.webview.postMessage({ command: 'loadGraph', data });
@@ -68,25 +70,31 @@ async function loadGraphData(context: vscode.ExtensionContext | undefined, maxNo
     const empty: GraphData = { nodes: [], edges: [], stats: { totalNodes: 0, totalEdges: 0, nodesByType: {}, edgesByType: {} } };
     
     console.log('[loadGraphData] Starting...');
-    if (!context) {
-        console.log('[loadGraphData] No context provided');
+    
+    // Buscar workspace folder
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+        console.log('[loadGraphData] No workspace folder');
+        vscode.window.showWarningMessage('Nenhum workspace aberto!');
         return empty;
     }
     
     try {
-        const base = path.join(context.globalStorageUri.fsPath, 'mini-lightrag');
-        console.log('[loadGraphData] Base path:', base);
+        // 📂 Usar .cappy/data/ LOCAL ao workspace
+        const base = path.join(workspaceFolder.uri.fsPath, '.cappy', 'data', 'mini-lightrag', 'backup');
+        console.log('[loadGraphData] Base path (LOCAL):', base);
         console.log('[loadGraphData] Directory exists:', fs.existsSync(base));
         
         if (!fs.existsSync(base)) {
-            console.log('[loadGraphData] Directory does not exist');
+            console.log('[loadGraphData] Directory does not exist. Run "cappy.reindex" first.');
+            vscode.window.showWarningMessage('Dados não encontrados. Execute "CAPPY: Reindex Workspace" primeiro!');
             return empty;
         }
         
         let nodes: GraphNode[] = [];
         let edges: GraphEdge[] = [];
-        const np = path.join(base, 'nodes', 'nodes.json');
-        const ep = path.join(base, 'edges', 'edges.json');
+        const np = path.join(base, 'nodes.json');
+        const ep = path.join(base, 'edges.json');
         
         console.log('[loadGraphData] Nodes file:', np);
         console.log('[loadGraphData] Nodes exists:', fs.existsSync(np));
