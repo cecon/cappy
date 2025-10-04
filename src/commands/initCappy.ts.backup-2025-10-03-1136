@@ -83,7 +83,7 @@ export class InitCappyCommand {
                 await this.ensureStackFile(cappyDir);
 
                 // 6.3 Copiar XSD schemas para .cappy/schemas/
-                progress.report({ increment: 85, message: 'Copiando schemas XSD...' });
+                progress.report({ increment: 95, message: 'Copiando schemas XSD...' });
                 try {
                     console.log('[initCappy] Starting XSD copy process...');
                     const fileManager = new FileManager();
@@ -93,17 +93,6 @@ export class InitCappyCommand {
                 } catch (xsdError) {
                     console.error('[initCappy] Error copying XSD schemas during init:', xsdError);
                     // Don't fail the entire init process if XSD copy fails
-                }
-
-                // 6.4 Configurar estrutura Mini-LightRAG
-                progress.report({ increment: 92, message: 'Configurando Mini-LightRAG...' });
-                try {
-                    console.log('[initCappy] Starting Mini-LightRAG setup...');
-                    await this.setupMiniLightRAG();
-                    console.log('[initCappy] Mini-LightRAG setup completed successfully');
-                } catch (lightragError) {
-                    console.error('[initCappy] Error setting up Mini-LightRAG:', lightragError);
-                    // Don't fail the entire init process if Mini-LightRAG setup fails
                 }
 
                 progress.report({ increment: 100, message: 'Finalizado!' });
@@ -419,105 +408,5 @@ export class InitCappyCommand {
         if (changed) {
             await fs.promises.writeFile(gitignorePath, content, 'utf8');
         }
-    }
-
-    /**
-     * Configura estrutura Mini-LightRAG para busca híbrida
-     * Cria diretórios para LanceDB, embeddings e UI de grafo
-     */
-    private async setupMiniLightRAG(): Promise<void> {
-        if (!this.extensionContext) {
-            console.log('[setupMiniLightRAG] ExtensionContext not available, skipping Mini-LightRAG setup');
-            return;
-        }
-
-        // Verificar se estrutura já existe
-        const globalStoragePath = this.extensionContext.globalStorageUri.fsPath;
-        const miniLightRagPath = path.join(globalStoragePath, 'mini-lightrag');
-        
-        try {
-            await fs.promises.access(miniLightRagPath, fs.constants.F_OK);
-            console.log('[setupMiniLightRAG] Mini-LightRAG structure already exists, skipping creation');
-            return;
-        } catch {
-            // Não existe, vamos criar
-        }
-
-        // Criar estrutura de diretórios para Mini-LightRAG
-        const directories = [
-            miniLightRagPath,
-            path.join(miniLightRagPath, 'chunks'),    // Coleção principal de chunks  
-            path.join(miniLightRagPath, 'nodes'),     // Nós do grafo
-            path.join(miniLightRagPath, 'edges'),     // Arestas do grafo
-            path.join(miniLightRagPath, 'indexes'),   // Índices HNSW/IVF
-            path.join(miniLightRagPath, 'models'),    // Cache de modelos de embedding
-            path.join(miniLightRagPath, 'temp')       // Arquivos temporários
-        ];
-
-        for (const dir of directories) {
-            await fs.promises.mkdir(dir, { recursive: true });
-            console.log(`[setupMiniLightRAG] Created directory: ${dir}`);
-        }
-
-        // Criar arquivo de configuração inicial
-        const configPath = path.join(miniLightRagPath, 'config.json');
-        const config = {
-            version: "1.0.0",
-            created: new Date().toISOString(),
-            embedding: {
-                model: "all-MiniLM-L6-v2",
-                dimensions: 384,
-                normalize: true
-            },
-            lancedb: {
-                collections: {
-                    chunks: "chunks",
-                    nodes: "nodes", 
-                    edges: "edges"
-                }
-            },
-            graph: {
-                maxNodes: 5000,
-                maxEdges: 10000,
-                expandHops: 1
-            },
-            query: {
-                defaultTopK: 20,
-                maxResults: 200,
-                timeout: 2000
-            }
-        };
-
-        await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
-        console.log(`[setupMiniLightRAG] Created config: ${configPath}`);
-
-        // Criar arquivo README.md explicativo
-        const readmePath = path.join(miniLightRagPath, 'README.md');
-        const readmeContent = `# Mini-LightRAG Storage
-
-Esta pasta contém os dados do sistema de busca híbrida Mini-LightRAG.
-
-## Estrutura
-
-- \`chunks/\` - Dados principais de chunks indexados (LanceDB)
-- \`nodes/\` - Nós do grafo de conhecimento
-- \`edges/\` - Arestas/relacionamentos do grafo  
-- \`indexes/\` - Índices vetoriais HNSW/IVF
-- \`models/\` - Cache de modelos de embedding
-- \`temp/\` - Arquivos temporários de processamento
-
-## Configuração
-
-Veja \`config.json\` para parâmetros do sistema.
-
-## Gerado em
-
-${new Date().toISOString()} pela extensão Cappy v${vscode.extensions.getExtension('eduardocecon.cappy-memory')?.packageJSON?.version || '0.0.0'}
-`;
-
-        await fs.promises.writeFile(readmePath, readmeContent, 'utf8');
-        console.log(`[setupMiniLightRAG] Created README: ${readmePath}`);
-
-        console.log('[setupMiniLightRAG] Mini-LightRAG setup completed successfully');
     }   
 }
