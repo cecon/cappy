@@ -1,7 +1,18 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getLightRAGDatabase, LightRAGDocument } from '../store/lightragDb';
+import { getLightRAGLanceDatabase, LightRAGDocument, LightRAGLanceDatabase } from '../store/lightragLanceDb';
+
+/**
+ * Helper to get database instance with workspace path
+ */
+function getDatabase(): LightRAGLanceDatabase {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+        throw new Error('No workspace folder open');
+    }
+    return getLightRAGLanceDatabase(workspaceFolders[0].uri.fsPath);
+}
 
 /**
  * LightRAG Main Dashboard with Navigation and Document Management
@@ -20,15 +31,21 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
     );
 
     // Initialize database
-    const db = getLightRAGDatabase();
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+        vscode.window.showErrorMessage('No workspace folder open');
+        return;
+    }
+    const db = getLightRAGLanceDatabase(workspaceFolders[0].uri.fsPath);
+    await db.initialize();
 
     // Set the webview HTML content
     panel.webview.html = getWebviewContent(panel.webview);
 
     // Send initial data and initial tab
     try {
-        const documents = db.getDocuments();
-        const stats = db.getStatistics();
+        const documents = await db.getDocumentsAsync();
+        const stats = await db.getStatisticsAsync();
         
         panel.webview.postMessage({
             command: 'documentsLoaded',
@@ -98,9 +115,15 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
 
 async function handleLoadDocuments(panel: vscode.WebviewPanel) {
     try {
-        const db = getLightRAGDatabase();
-        const documents = db.getDocuments();
-        const stats = db.getStatistics();
+        const db = getDatabase();
+        await db.initialize();
+        const documents = await db.getDocumentsAsync();
+        const stats = {
+            documents: documents.length,
+            entities: (await db.getEntitiesAsync()).length,
+            relationships: (await db.getRelationshipsAsync()).length,
+            chunks: (await db.getChunksAsync()).length
+        };
 
         panel.webview.postMessage({
             command: 'documentsLoaded',
@@ -119,7 +142,8 @@ async function handleLoadDocuments(panel: vscode.WebviewPanel) {
 
 async function handleDocumentUpload(data: any, panel: vscode.WebviewPanel) {
     try {
-        const db = getLightRAGDatabase();
+        const db = getDatabase();
+        await db.initialize();
         
         // Create document object
         const newDocument: LightRAGDocument = {
@@ -138,15 +162,72 @@ async function handleDocumentUpload(data: any, panel: vscode.WebviewPanel) {
         };
 
         // Add document to database
-        db.addDocument(newDocument);
+        await db.addDocument(newDocument);
 
-        // Simulate processing
-        setTimeout(() => {
+        // Simulate processing and create graph entities
+        setTimeout(async () => {
             newDocument.status = 'completed';
+            
+            // Extract simple entities from content (words that appear frequently)
+            const words = data.content.split(/\W+/).filter((w: string) => w.length > 5);
+            const wordFreq: { [key: string]: number } = {};
+            words.forEach((word: string) => {
+                const lower = word.toLowerCase();
+                wordFreq[lower] = (wordFreq[lower] || 0) + 1;
+            });
+            
+            // Get top entities
+            const topEntities = Object.entries(wordFreq)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10)
+                .map(([word]) => word);
+            
+            // Create entities
+            const createdEntities: string[] = [];
+            for (const entity of topEntities) {
+                const entityId = await db.addEntity({
+                    name: entity.charAt(0).toUpperCase() + entity.slice(1),
+                    type: 'keyword',
+                    description: 'Extracted from ' + newDocument.title,
+                    documentIds: [newDocument.id]
+                });
+                createdEntities.push(entityId);
+            }
+            
+            // Create relationships between entities
+            const createdRelationships = Math.floor(createdEntities.length / 2);
+            for (let i = 0; i < createdRelationships; i++) {
+                const sourceIdx = i;
+                const targetIdx = (i + 1) % createdEntities.length;
+                await db.addRelationship({
+                    source: createdEntities[sourceIdx],
+                    target: createdEntities[targetIdx],
+                    type: 'co-occurs',
+                    description: 'Found together in document',
+                    weight: 1.0,
+                    documentIds: [newDocument.id]
+                });
+            }
+            
+            // Create chunks
+            const chunkSize = 1000;
+            const chunks = Math.ceil(data.content.length / chunkSize);
+            for (let i = 0; i < chunks; i++) {
+                await db.addChunk({
+                    documentId: newDocument.id,
+                    content: data.content.substring(i * chunkSize, (i + 1) * chunkSize),
+                    startPosition: i * chunkSize,
+                    endPosition: Math.min((i + 1) * chunkSize, data.content.length),
+                    chunkIndex: i,
+                    entities: createdEntities.slice(0, 3),
+                    relationships: []
+                });
+            }
+            
             newDocument.processingResults = {
-                entities: Math.floor(Math.random() * 50) + 10,
-                relationships: Math.floor(Math.random() * 30) + 5,
-                chunks: Math.floor(data.content.length / 1000) + 1,
+                entities: createdEntities.length,
+                relationships: createdRelationships,
+                chunks: chunks,
                 processingTime: '00:02:15'
             };
             newDocument.updated = new Date().toISOString();
@@ -174,8 +255,9 @@ async function handleDocumentUpload(data: any, panel: vscode.WebviewPanel) {
 
 async function handleDocumentDelete(documentId: string, panel: vscode.WebviewPanel) {
     try {
-        const db = getLightRAGDatabase();
-        db.deleteDocument(documentId);
+        const db = getDatabase();
+        await db.initialize();
+        await db.deleteDocument(documentId);
 
         panel.webview.postMessage({
             command: 'documentDeleted',
@@ -194,13 +276,14 @@ async function handleDocumentDelete(documentId: string, panel: vscode.WebviewPan
 
 async function handleClearAllDocuments(panel: vscode.WebviewPanel) {
     try {
-        const db = getLightRAGDatabase();
-        const documents = db.getDocuments();
+        const db = getDatabase();
+        await db.initialize();
+        const documents = await db.getDocumentsAsync();
         
         // Delete all documents
-        documents.forEach(doc => {
-            db.deleteDocument(doc.id);
-        });
+        for (const doc of documents) {
+            await db.deleteDocument(doc.id);
+        }
 
         panel.webview.postMessage({
             command: 'documentsCleared'
@@ -214,18 +297,22 @@ async function handleClearAllDocuments(panel: vscode.WebviewPanel) {
 
 async function handleGetGraphData(panel: vscode.WebviewPanel) {
     try {
-        const db = getLightRAGDatabase();
-        const documents = db.getDocuments();
-        const entities = db.getEntities();
-        const relationships = db.getRelationships();
-        const chunks = db.getChunks();
+        console.log('[Backend] Getting graph data...');
+        const db = getDatabase();
+        await db.initialize();
+        const documents = await db.getDocumentsAsync();
+        const entities = await db.getEntitiesAsync();
+        const relationships = await db.getRelationshipsAsync();
+        const chunks = await db.getChunksAsync();
+        
+        console.log(`[Backend] Found: ${documents.length} docs, ${entities.length} entities, ${relationships.length} rels, ${chunks.length} chunks`);
 
         // Build graph data structure
         const nodes: any[] = [];
         const edges: any[] = [];
 
         // Add document nodes
-        documents.forEach(doc => {
+        documents.forEach((doc: LightRAGDocument) => {
             nodes.push({
                 id: doc.id,
                 label: doc.title,
@@ -242,7 +329,7 @@ async function handleGetGraphData(panel: vscode.WebviewPanel) {
         });
 
         // Add entity nodes
-        entities.forEach(entity => {
+        entities.forEach((entity: any) => {
             nodes.push({
                 id: entity.id,
                 label: entity.name,
@@ -257,7 +344,7 @@ async function handleGetGraphData(panel: vscode.WebviewPanel) {
 
             // Connect entity to its documents
             if (entity.documentIds && entity.documentIds.length > 0) {
-                entity.documentIds.forEach(docId => {
+                entity.documentIds.forEach((docId: string) => {
                     edges.push({
                         source: docId,
                         target: entity.id,
@@ -270,7 +357,7 @@ async function handleGetGraphData(panel: vscode.WebviewPanel) {
         });
 
         // Add relationship edges
-        relationships.forEach(rel => {
+        relationships.forEach((rel: any) => {
             edges.push({
                 source: rel.source,
                 target: rel.target,
@@ -282,7 +369,7 @@ async function handleGetGraphData(panel: vscode.WebviewPanel) {
         });
 
         // Add chunk nodes (smaller, connected to documents)
-        chunks.slice(0, 50).forEach(chunk => { // Limit to 50 chunks for performance
+        chunks.slice(0, 50).forEach((chunk: any) => { // Limit to 50 chunks for performance
             nodes.push({
                 id: chunk.id,
                 label: `Chunk ${chunk.chunkIndex}`,
@@ -309,6 +396,7 @@ async function handleGetGraphData(panel: vscode.WebviewPanel) {
             }
         });
 
+        console.log(`[Backend] Sending graph data: ${nodes.length} nodes, ${edges.length} edges`);
         panel.webview.postMessage({
             command: 'graphData',
             data: {
@@ -318,7 +406,7 @@ async function handleGetGraphData(panel: vscode.WebviewPanel) {
         });
 
     } catch (error) {
-        console.error('Error loading graph data:', error);
+        console.error('[Backend] Error loading graph data:', error);
         panel.webview.postMessage({
             command: 'graphData',
             data: { nodes: [], edges: [] }
@@ -1306,10 +1394,6 @@ function getWebviewContent(webview: vscode.Webview): string {
             transition: width 0.3s ease;
         }
     </style>
-    
-    <!-- Sigma.js and Graphology Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-beta.20/build/sigma.min.js"></script>
 </head>
 <body>
     <!-- Toast Container -->
@@ -1541,13 +1625,33 @@ function getWebviewContent(webview: vscode.Webview): string {
                 <p>Upload a document to be processed by LightRAG</p>
             </div>
             
-            <div class="upload-area" onclick="document.getElementById('file-input').click()">
+            <!-- Upload Area - Initial State -->
+            <div id="upload-area" class="upload-area" onclick="document.getElementById('file-input').click()">
                 <svg style="width: 48px; height: 48px; color: #6b7280; margin-bottom: 16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 <p style="font-size: 16px; margin-bottom: 8px;">Drop files here or click to select</p>
                 <p style="font-size: 14px; color: #6b7280;">Supports: PDF, TXT, MD, DOC, DOCX</p>
                 <input type="file" id="file-input" style="display: none;" accept=".pdf,.txt,.md,.doc,.docx" onchange="handleFileSelect(event)">
+            </div>
+
+            <!-- File Preview - Hidden by default -->
+            <div id="file-preview" style="display: none; padding: 16px; border: 2px dashed #10b981; border-radius: 8px; background: #f0fdf4; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <svg style="width: 40px; height: 40px; color: #10b981;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;" id="preview-filename">document.pdf</div>
+                        <div style="font-size: 13px; color: #059669;" id="preview-filesize">2.5 MB</div>
+                    </div>
+                    <button type="button" onclick="removeFile()" style="padding: 8px; background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Remove file">
+                        <svg style="width: 16px; height: 16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Remove
+                    </button>
+                </div>
             </div>
 
             <div class="form-group">
@@ -1648,6 +1752,13 @@ function getWebviewContent(webview: vscode.Webview): string {
             });
             event.target.classList.add('active');
 
+            // Auto-load graph when switching to Knowledge Graph tab
+            if (tabName === 'knowledge-graph') {
+                setTimeout(function() {
+                    loadGraph();
+                }, 100);
+            }
+
             // Send navigation event to VS Code
             vscode.postMessage({
                 command: 'navigate' + tabName.charAt(0).toUpperCase() + tabName.slice(1).replace('-', ''),
@@ -1696,11 +1807,17 @@ function getWebviewContent(webview: vscode.Webview): string {
 
         function closeUploadModal() {
             document.getElementById('upload-modal').style.display = 'none';
+            
             // Reset form
             document.getElementById('file-input').value = '';
             document.getElementById('document-title').value = '';
             document.getElementById('document-description').value = '';
             document.getElementById('document-category').value = '';
+            
+            // Reset file preview state
+            document.getElementById('upload-area').style.display = 'flex';
+            document.getElementById('file-preview').style.display = 'none';
+            
             // Hide chunk info
             const chunkInfo = document.getElementById('chunk-info');
             if (chunkInfo) {
@@ -1711,11 +1828,45 @@ function getWebviewContent(webview: vscode.Webview): string {
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (file) {
+                showFilePreview(file);
+                
                 // Auto-fill title if empty
                 if (!document.getElementById('document-title').value) {
                     document.getElementById('document-title').value = file.name.replace(/\.[^/.]+$/, '');
                 }
             }
+        }
+
+        function showFilePreview(file) {
+            // Hide upload area, show preview
+            document.getElementById('upload-area').style.display = 'none';
+            document.getElementById('file-preview').style.display = 'block';
+            
+            // Update preview info
+            document.getElementById('preview-filename').textContent = file.name;
+            document.getElementById('preview-filesize').textContent = formatFileSize(file.size);
+        }
+
+        function removeFile() {
+            // Clear file input
+            document.getElementById('file-input').value = '';
+            
+            // Show upload area, hide preview
+            document.getElementById('upload-area').style.display = 'flex';
+            document.getElementById('file-preview').style.display = 'none';
+            
+            // Clear title if it was auto-filled
+            document.getElementById('document-title').value = '';
+            
+            showToast('info', 'File Removed', 'You can now select another file');
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
         }
 
         async function askCopilotForDescription() {
@@ -1840,7 +1991,7 @@ function getWebviewContent(webview: vscode.Webview): string {
                 return;
             }
 
-            filteredDocs.forEach(doc => {
+            filteredDocs.forEach((doc: LightRAGDocument) => {
                 const row = document.createElement('tr');
                 row.innerHTML = \`
                     <td>
@@ -1907,30 +2058,67 @@ function getWebviewContent(webview: vscode.Webview): string {
 
         // Drag and drop support - Initialize when modal opens
         function initDragAndDrop() {
-            const uploadArea = document.querySelector('.upload-area');
-            if (!uploadArea) return;
+            const uploadArea = document.getElementById('upload-area');
+            const modal = document.getElementById('upload-modal');
             
+            if (!uploadArea || !modal) return;
+            
+            // Prevent default drag behavior on entire document
             const preventDefaults = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
             };
 
+            // Prevent VS Code from opening files when dropped anywhere
+            ['dragenter', 'dragover', 'drop'].forEach(eventName => {
+                document.body.addEventListener(eventName, preventDefaults, true);
+                modal.addEventListener(eventName, preventDefaults, true);
+            });
+
             const highlight = () => {
                 uploadArea.classList.add('dragover');
+                uploadArea.style.borderColor = '#10b981';
+                uploadArea.style.background = '#f0fdf4';
             };
 
             const unhighlight = () => {
                 uploadArea.classList.remove('dragover');
+                uploadArea.style.borderColor = '#e5e7eb';
+                uploadArea.style.background = '#ffffff';
             };
 
             const handleDrop = (e) => {
+                unhighlight();
+                
                 const dt = e.dataTransfer;
                 const files = dt?.files;
 
                 if (files && files.length > 0) {
+                    const file = files[0];
+                    
+                    // Validate file type
+                    const validTypes = ['.pdf', '.txt', '.md', '.doc', '.docx'];
+                    const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+                    
+                    if (!validTypes.includes(fileExt)) {
+                        showToast('error', 'Invalid File Type', 'Please upload PDF, TXT, MD, DOC, or DOCX files');
+                        return;
+                    }
+                    
+                    // Create a new FileList-like object
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    
                     const fileInput = document.getElementById('file-input');
-                    fileInput.files = files;
-                    handleFileSelect({ target: { files: files } });
+                    fileInput.files = dataTransfer.files;
+                    
+                    // Show preview and populate title
+                    showFilePreview(file);
+                    if (!document.getElementById('document-title').value) {
+                        document.getElementById('document-title').value = file.name.replace(/\.[^/.]+$/, '');
+                    }
+                    
+                    showToast('success', 'File Loaded', file.name + ' is ready to upload');
                 }
             };
             
@@ -2072,9 +2260,15 @@ function getWebviewContent(webview: vscode.Webview): string {
 
         // Load and display the knowledge graph
         async function loadGraph() {
+            console.log('[Graph] Loading graph data...');
             const container = document.getElementById('graph-container');
             const loading = document.getElementById('graph-loading');
             const empty = document.getElementById('graph-empty');
+            
+            if (!container || !loading || !empty) {
+                console.error('[Graph] Required DOM elements not found');
+                return;
+            }
             
             // Show loading state
             loading.style.display = 'flex';
@@ -2082,26 +2276,30 @@ function getWebviewContent(webview: vscode.Webview): string {
             container.innerHTML = '';
 
             try {
+                console.log('[Graph] Requesting graph data from extension...');
                 // Request graph data from extension
                 vscode.postMessage({ command: 'getGraphData' });
             } catch (error) {
-                console.error('Error loading graph:', error);
+                console.error('[Graph] Error loading graph:', error);
                 showToast('error', 'Graph Error', 'Failed to load knowledge graph: ' + error.message);
                 loading.style.display = 'none';
                 empty.style.display = 'flex';
             }
         }
 
-        // Render the graph with Sigma.js
+        // Render the graph with Canvas (native implementation)
         function renderGraph(data) {
+            console.log('[Graph] Rendering graph with data:', data);
             const container = document.getElementById('graph-container');
             const loading = document.getElementById('graph-loading');
             const empty = document.getElementById('graph-empty');
 
             if (!data || (!data.nodes || data.nodes.length === 0)) {
+                console.log('[Graph] No data to render, showing empty state');
                 loading.style.display = 'none';
                 empty.style.display = 'flex';
                 container.innerHTML = '';
+                showToast('info', 'No Graph Data', 'Upload documents to generate the knowledge graph');
                 return;
             }
 
@@ -2112,56 +2310,123 @@ function getWebviewContent(webview: vscode.Webview): string {
             empty.style.display = 'none';
 
             try {
-                // Create a new graph using Graphology
-                const graph = new graphology.Graph();
-
-                // Add nodes
-                data.nodes.forEach(node => {
-                    graph.addNode(node.id, {
-                        label: node.label,
-                        size: node.size || 10,
-                        color: node.color || getNodeColor(node.type),
-                        x: Math.random() * 100,
-                        y: Math.random() * 100,
-                        type: node.type,
-                        metadata: node.metadata || {}
-                    });
+                // Prepare nodes with positions
+                const width = container.clientWidth || 800;
+                const height = container.clientHeight || 600;
+                
+                // Apply layout to calculate positions
+                const nodes = data.nodes.map((node, i) => {
+                    return {
+                        ...node,
+                        x: width / 2 + Math.cos(i * 2 * Math.PI / data.nodes.length) * 200,
+                        y: height / 2 + Math.sin(i * 2 * Math.PI / data.nodes.length) * 200,
+                        vx: 0,
+                        vy: 0
+                    };
                 });
 
-                // Add edges
-                data.edges.forEach(edge => {
-                    try {
-                        graph.addEdge(edge.source, edge.target, {
-                            label: edge.label || '',
-                            type: edge.type || 'line',
-                            size: edge.size || 2,
-                            color: '#94a3b8'
-                        });
-                    } catch (e) {
-                        console.warn('Failed to add edge:', edge, e);
+                // Apply force-directed layout if selected
+                if (currentLayout === 'force') {
+                    applyForceLayout(nodes, data.edges, 50);
+                }
+
+                // Create canvas
+                container.innerHTML = '<canvas id="graph-canvas" width="' + width + '" height="' + height + '" style="cursor: grab;"></canvas>';
+                const canvas = document.getElementById('graph-canvas');
+                const ctx = canvas.getContext('2d');
+
+                let offsetX = 0, offsetY = 0, scale = 1;
+                let isDragging = false, dragStart = { x: 0, y: 0 };
+
+                // Draw function
+                function draw() {
+                    ctx.clearRect(0, 0, width, height);
+                    ctx.save();
+                    ctx.translate(offsetX, offsetY);
+                    ctx.scale(scale, scale);
+
+                    // Draw edges
+                    ctx.strokeStyle = '#94a3b8';
+                    ctx.lineWidth = 2;
+                    data.edges.forEach(edge => {
+                        const source = nodes.find(n => n.id === edge.source);
+                        const target = nodes.find(n => n.id === edge.target);
+                        if (source && target) {
+                            ctx.beginPath();
+                            ctx.moveTo(source.x, source.y);
+                            ctx.lineTo(target.x, target.y);
+                            ctx.stroke();
+                        }
+                    });
+
+                    // Draw nodes
+                    nodes.forEach(node => {
+                        ctx.fillStyle = node.color || getNodeColor(node.type);
+                        ctx.beginPath();
+                        ctx.arc(node.x, node.y, node.size || 10, 0, 2 * Math.PI);
+                        ctx.fill();
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Draw label
+                        ctx.fillStyle = '#1f2937';
+                        ctx.font = 'bold 12px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(node.label || node.id, node.x, node.y + (node.size || 10) + 15);
+                    });
+
+                    ctx.restore();
+                }
+
+                // Mouse interactions
+                canvas.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    dragStart = { x: e.clientX - offsetX, y: e.clientY - offsetY };
+                    canvas.style.cursor = 'grabbing';
+                });
+
+                canvas.addEventListener('mousemove', (e) => {
+                    if (isDragging) {
+                        offsetX = e.clientX - dragStart.x;
+                        offsetY = e.clientY - dragStart.y;
+                        draw();
                     }
                 });
 
-                // Apply layout
-                applyGraphLayout(graph, currentLayout);
-
-                // Clear container and create Sigma renderer
-                container.innerHTML = '';
-                graphRenderer = new Sigma(graph, container, {
-                    renderLabels: true,
-                    renderEdgeLabels: false,
-                    labelSize: 12,
-                    labelWeight: 'bold',
-                    defaultNodeColor: '#64748b',
-                    defaultEdgeColor: '#94a3b8',
-                    minCameraRatio: 0.1,
-                    maxCameraRatio: 10
+                canvas.addEventListener('mouseup', () => {
+                    isDragging = false;
+                    canvas.style.cursor = 'grab';
                 });
 
-                // Add interaction handlers
-                graphRenderer.on('clickNode', function(event) {
-                    showNodeDetails(event.node, graph.getNodeAttributes(event.node));
+                canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                    scale *= delta;
+                    scale = Math.max(0.1, Math.min(5, scale));
+                    draw();
                 });
+
+                canvas.addEventListener('click', (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = (e.clientX - rect.left - offsetX) / scale;
+                    const y = (e.clientY - rect.top - offsetY) / scale;
+
+                    // Find clicked node
+                    const clicked = nodes.find(n => {
+                        const dx = n.x - x;
+                        const dy = n.y - y;
+                        return Math.sqrt(dx * dx + dy * dy) < (n.size || 10);
+                    });
+
+                    if (clicked) {
+                        showNodeDetails(clicked.id, clicked);
+                    }
+                });
+
+                // Initial draw
+                draw();
+                graphRenderer = { canvas, draw, nodes, edges: data.edges };
 
                 // Update legend counts
                 updateGraphLegend(data);
@@ -2169,9 +2434,55 @@ function getWebviewContent(webview: vscode.Webview): string {
                 showToast('success', 'Graph Loaded', 'Knowledge graph rendered with ' + data.nodes.length + ' nodes and ' + data.edges.length + ' relationships');
 
             } catch (error) {
-                console.error('Error rendering graph:', error);
+                console.error('[Graph] Error rendering graph:', error);
                 showToast('error', 'Rendering Error', 'Failed to render graph: ' + error.message);
                 empty.style.display = 'flex';
+            }
+        }
+
+        // Simple force-directed layout
+        function applyForceLayout(nodes, edges, iterations) {
+            const k = 50; // Spring constant
+            
+            for (let iter = 0; iter < iterations; iter++) {
+                // Repulsion between all nodes
+                for (let i = 0; i < nodes.length; i++) {
+                    nodes[i].vx = 0;
+                    nodes[i].vy = 0;
+                    
+                    for (let j = 0; j < nodes.length; j++) {
+                        if (i !== j) {
+                            const dx = nodes[i].x - nodes[j].x;
+                            const dy = nodes[i].y - nodes[j].y;
+                            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                            const force = k * k / dist;
+                            nodes[i].vx += (dx / dist) * force * 0.1;
+                            nodes[i].vy += (dy / dist) * force * 0.1;
+                        }
+                    }
+                }
+                
+                // Attraction along edges
+                edges.forEach(edge => {
+                    const source = nodes.find(n => n.id === edge.source);
+                    const target = nodes.find(n => n.id === edge.target);
+                    if (source && target) {
+                        const dx = target.x - source.x;
+                        const dy = target.y - source.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const force = dist / k;
+                        source.vx += (dx / dist) * force * 0.1;
+                        source.vy += (dy / dist) * force * 0.1;
+                        target.vx -= (dx / dist) * force * 0.1;
+                        target.vy -= (dy / dist) * force * 0.1;
+                    }
+                });
+                
+                // Apply velocities
+                nodes.forEach(node => {
+                    node.x += node.vx;
+                    node.y += node.vy;
+                });
             }
         }
 
@@ -2187,73 +2498,6 @@ function getWebviewContent(webview: vscode.Webview): string {
             return colors[type] || '#64748b';
         }
 
-        // Apply different graph layouts
-        function applyGraphLayout(graph, layoutType) {
-            const nodes = graph.nodes();
-            const nodeCount = nodes.length;
-
-            if (layoutType === 'force') {
-                // Simple force-directed layout simulation
-                const iterations = 50;
-                const k = Math.sqrt(100 / nodeCount);
-                
-                for (let i = 0; i < iterations; i++) {
-                    // Repulsion between all nodes
-                    nodes.forEach(v => {
-                        const vAttr = graph.getNodeAttributes(v);
-                        let dx = 0, dy = 0;
-                        
-                        nodes.forEach(u => {
-                            if (v !== u) {
-                                const uAttr = graph.getNodeAttributes(u);
-                                const deltaX = vAttr.x - uAttr.x;
-                                const deltaY = vAttr.y - uAttr.y;
-                                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY) || 1;
-                                const force = k * k / distance;
-                                dx += (deltaX / distance) * force;
-                                dy += (deltaY / distance) * force;
-                            }
-                        });
-                        
-                        graph.setNodeAttribute(v, 'x', vAttr.x + dx);
-                        graph.setNodeAttribute(v, 'y', vAttr.y + dy);
-                    });
-                    
-                    // Attraction along edges
-                    graph.forEachEdge((edge, attributes, source, target) => {
-                        const sourceAttr = graph.getNodeAttributes(source);
-                        const targetAttr = graph.getNodeAttributes(target);
-                        const deltaX = targetAttr.x - sourceAttr.x;
-                        const deltaY = targetAttr.y - sourceAttr.y;
-                        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY) || 1;
-                        const force = distance * distance / k;
-                        
-                        const dx = (deltaX / distance) * force * 0.5;
-                        const dy = (deltaY / distance) * force * 0.5;
-                        
-                        graph.setNodeAttribute(source, 'x', sourceAttr.x + dx);
-                        graph.setNodeAttribute(source, 'y', sourceAttr.y + dy);
-                        graph.setNodeAttribute(target, 'x', targetAttr.x - dx);
-                        graph.setNodeAttribute(target, 'y', targetAttr.y - dy);
-                    });
-                }
-            } else if (layoutType === 'circular') {
-                // Circular layout
-                const radius = 40;
-                const angleStep = (2 * Math.PI) / nodeCount;
-                nodes.forEach((node, i) => {
-                    graph.setNodeAttribute(node, 'x', radius * Math.cos(i * angleStep));
-                    graph.setNodeAttribute(node, 'y', radius * Math.sin(i * angleStep));
-                });
-            } else if (layoutType === 'random') {
-                // Random layout
-                nodes.forEach(node => {
-                    graph.setNodeAttribute(node, 'x', (Math.random() - 0.5) * 100);
-                    graph.setNodeAttribute(node, 'y', (Math.random() - 0.5) * 100);
-                });
-            }
-        }
-
         // Change graph layout
         function changeLayout() {
             const select = document.getElementById('layout-select');
@@ -2266,9 +2510,14 @@ function getWebviewContent(webview: vscode.Webview): string {
 
         // Reset graph view to initial state
         function resetGraphView() {
-            if (graphRenderer) {
-                graphRenderer.getCamera().setState({ x: 0.5, y: 0.5, ratio: 1 });
-                showToast('info', 'View Reset', 'Graph view has been reset to default');
+            if (graphRenderer && graphRenderer.draw) {
+                // Reset zoom and pan
+                const container = document.getElementById('graph-container');
+                const canvas = document.getElementById('graph-canvas');
+                if (canvas) {
+                    renderGraph(graphData);
+                    showToast('info', 'View Reset', 'Graph view has been reset to default');
+                }
             }
         }
 
@@ -2281,31 +2530,17 @@ function getWebviewContent(webview: vscode.Webview): string {
                 return;
             }
 
-            const graph = graphRenderer.getGraph();
             let found = false;
-
-            graph.forEachNode((node, attributes) => {
-                if (attributes.label.toLowerCase().includes(query)) {
-                    // Highlight found node
-                    graph.setNodeAttribute(node, 'highlighted', true);
-                    graph.setNodeAttribute(node, 'color', '#ef4444'); // Red highlight
+            graphRenderer.nodes.forEach(node => {
+                if (node.label.toLowerCase().includes(query)) {
+                    node.color = '#ef4444'; // Red highlight
                     found = true;
-                    
-                    // Center camera on first match
-                    if (!found) {
-                        graphRenderer.getCamera().setState({
-                            x: attributes.x,
-                            y: attributes.y,
-                            ratio: 0.5
-                        });
-                    }
                 } else {
-                    graph.setNodeAttribute(node, 'highlighted', false);
-                    graph.setNodeAttribute(node, 'color', getNodeColor(attributes.type));
+                    node.color = getNodeColor(node.type);
                 }
             });
 
-            graphRenderer.refresh();
+            graphRenderer.draw();
 
             if (found) {
                 showToast('success', 'Search Results', 'Found nodes matching: ' + query);
@@ -2369,8 +2604,10 @@ function getWebviewContent(webview: vscode.Webview): string {
         // Handle messages from extension
         window.addEventListener('message', function(event) {
             const message = event.data;
+            console.log('[Graph] Message received:', message.command, message.data);
             
             if (message.command === 'graphData') {
+                console.log('[Graph] Graph data received, rendering...');
                 renderGraph(message.data);
             }
         });
