@@ -80,6 +80,9 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
                 case 'navigateToMcpDocs':
                     await handleNavigateToMcpDocs(context);
                     break;
+                case 'getGraphData':
+                    await handleGetGraphData(panel);
+                    break;
                 case 'showError':
                     vscode.window.showErrorMessage(message.data.message);
                     break;
@@ -209,12 +212,148 @@ async function handleClearAllDocuments(panel: vscode.WebviewPanel) {
     }
 }
 
+async function handleGetGraphData(panel: vscode.WebviewPanel) {
+    try {
+        const db = getLightRAGDatabase();
+        const documents = db.getDocuments();
+        const entities = db.getEntities();
+        const relationships = db.getRelationships();
+        const chunks = db.getChunks();
+
+        // Build graph data structure
+        const nodes: any[] = [];
+        const edges: any[] = [];
+
+        // Add document nodes
+        documents.forEach(doc => {
+            nodes.push({
+                id: doc.id,
+                label: doc.title,
+                type: 'document',
+                size: 15,
+                color: '#10b981',
+                metadata: {
+                    category: doc.category,
+                    status: doc.status,
+                    created: doc.created,
+                    fileName: doc.fileName
+                }
+            });
+        });
+
+        // Add entity nodes
+        entities.forEach(entity => {
+            nodes.push({
+                id: entity.id,
+                label: entity.name,
+                type: 'entity',
+                size: 10,
+                color: '#3b82f6',
+                metadata: {
+                    type: entity.type,
+                    documentIds: entity.documentIds
+                }
+            });
+
+            // Connect entity to its documents
+            if (entity.documentIds && entity.documentIds.length > 0) {
+                entity.documentIds.forEach(docId => {
+                    edges.push({
+                        source: docId,
+                        target: entity.id,
+                        label: 'contains',
+                        type: 'line',
+                        size: 2
+                    });
+                });
+            }
+        });
+
+        // Add relationship edges
+        relationships.forEach(rel => {
+            edges.push({
+                source: rel.source,
+                target: rel.target,
+                label: rel.type,
+                type: 'line',
+                size: 3,
+                color: '#f97316'
+            });
+        });
+
+        // Add chunk nodes (smaller, connected to documents)
+        chunks.slice(0, 50).forEach(chunk => { // Limit to 50 chunks for performance
+            nodes.push({
+                id: chunk.id,
+                label: `Chunk ${chunk.chunkIndex}`,
+                type: 'chunk',
+                size: 5,
+                color: '#8b5cf6',
+                metadata: {
+                    contentLength: chunk.content.length,
+                    documentId: chunk.documentId,
+                    entities: chunk.entities.length,
+                    relationships: chunk.relationships.length
+                }
+            });
+
+            // Connect chunk to its document
+            if (chunk.documentId) {
+                edges.push({
+                    source: chunk.documentId,
+                    target: chunk.id,
+                    label: 'chunk',
+                    type: 'line',
+                    size: 1
+                });
+            }
+        });
+
+        panel.webview.postMessage({
+            command: 'graphData',
+            data: {
+                nodes,
+                edges
+            }
+        });
+
+    } catch (error) {
+        console.error('Error loading graph data:', error);
+        panel.webview.postMessage({
+            command: 'graphData',
+            data: { nodes: [], edges: [] }
+        });
+    }
+}
+
 async function handleGenerateDescription(data: any, panel: vscode.WebviewPanel) {
     try {
-        const { fileName, fileExtension, fileSize, contentPreview, title } = data;
+        const { fileName, fileExtension, fileSize, contentPreview, title, generateAll } = data;
         
-        // Create a prompt for generating description
-        const prompt = `Analyze this file and generate a concise, informative description (2-3 sentences max):
+        // Enhanced prompt for complete metadata generation
+        const prompt = generateAll 
+            ? `Analyze this document and generate complete metadata in JSON format:
+
+File: ${fileName}
+Type: ${fileExtension}
+Size: ${(fileSize / 1024).toFixed(2)} KB
+${title ? `Title: ${title}` : ''}
+Lines: ${contentPreview.split('\n').length}
+Words: ~${contentPreview.split(/\s+/).length}
+
+Content preview (first 3000 chars):
+${contentPreview}
+
+Generate a JSON response with:
+{
+  "description": "2-3 sentence professional description of the document's purpose and content",
+  "category": "single word category (e.g., Documentation, Code, Research, Tutorial, API, Configuration, Guide, Report)",
+  "suggestedChunkSize": number (recommended chunk size for RAG: 500-2000 tokens based on content type),
+  "reasoning": "brief explanation of chunking strategy for this document type"
+}
+
+Be concise and accurate. Choose chunk size based on content structure and density.`
+            : `Analyze this file and generate a concise, informative description (2-3 sentences max):
 
 File: ${fileName}
 Type: ${fileExtension}
@@ -226,8 +365,7 @@ ${contentPreview}
 
 Generate a professional description focusing on the file's purpose, main topics, and key information.`;
 
-        // Try to use GitHub Copilot Chat API
-        let description = '';
+        let result: any = { description: '' };
         
         try {
             // Use VS Code's language model API if available
@@ -244,21 +382,50 @@ Generate a professional description focusing on the file's purpose, main topics,
                 
                 const response = await model.sendRequest(messages, {});
                 
+                let fullResponse = '';
                 for await (const part of response.text) {
-                    description += part;
+                    fullResponse += part;
+                }
+
+                if (generateAll) {
+                    // Try to parse JSON response
+                    try {
+                        // Extract JSON from markdown code blocks if present
+                        const jsonMatch = fullResponse.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) || 
+                                         fullResponse.match(/(\{[\s\S]*\})/);
+                        if (jsonMatch) {
+                            result = JSON.parse(jsonMatch[1]);
+                        } else {
+                            throw new Error('No JSON found in response');
+                        }
+                    } catch (parseError) {
+                        // Fallback if JSON parsing fails
+                        result = {
+                            description: fullResponse.trim(),
+                            category: inferCategory(fileExtension, contentPreview),
+                            suggestedChunkSize: calculateOptimalChunkSize(fileSize, contentPreview)
+                        };
+                    }
+                } else {
+                    result.description = fullResponse.trim();
                 }
             } else {
                 throw new Error('No language model available');
             }
         } catch (error) {
-            // Fallback: Generate a basic description based on file info
-            description = generateFallbackDescription(fileName, fileExtension, contentPreview, title);
+            // Fallback: Generate metadata based on file analysis
+            result = generateFallbackMetadata(fileName, fileExtension, contentPreview, title, fileSize);
         }
 
-        // Send the generated description back to the webview
+        // Send the generated metadata back to the webview
         panel.webview.postMessage({
             command: 'descriptionGenerated',
-            data: { description: description.trim() }
+            data: { 
+                description: result.description || result,
+                category: result.category,
+                suggestedChunkSize: result.suggestedChunkSize,
+                reasoning: result.reasoning
+            }
         });
 
     } catch (error) {
@@ -269,7 +436,66 @@ Generate a professional description focusing on the file's purpose, main topics,
     }
 }
 
-function generateFallbackDescription(fileName: string, fileExtension: string, contentPreview: string, title: string): string {
+function inferCategory(fileExtension: string, contentPreview: string): string {
+    const ext = fileExtension.toLowerCase();
+    const content = contentPreview.toLowerCase();
+    
+    // Code files
+    if (['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'go', 'rs', 'rb', 'php'].includes(ext)) {
+        return 'Code';
+    }
+    
+    // Documentation
+    if (['md', 'mdx'].includes(ext) || content.includes('# ') || content.includes('## ')) {
+        return 'Documentation';
+    }
+    
+    // Configuration
+    if (['json', 'yaml', 'yml', 'toml', 'ini', 'conf', 'config'].includes(ext)) {
+        return 'Configuration';
+    }
+    
+    // API/OpenAPI
+    if (content.includes('openapi') || content.includes('swagger') || content.includes('"paths"')) {
+        return 'API';
+    }
+    
+    // Research/Academic
+    if (content.includes('abstract:') || content.includes('references:') || content.includes('bibliography')) {
+        return 'Research';
+    }
+    
+    // Tutorial/Guide
+    if (content.includes('step ') || content.includes('tutorial') || content.includes('how to')) {
+        return 'Tutorial';
+    }
+    
+    return 'Documentation';
+}
+
+function calculateOptimalChunkSize(fileSize: number, contentPreview: string): number {
+    const avgLineLength = contentPreview.split('\n')
+        .filter(l => l.trim().length > 0)
+        .reduce((sum, line) => sum + line.length, 0) / 
+        Math.max(1, contentPreview.split('\n').filter(l => l.trim().length > 0).length);
+    
+    // Heuristics for optimal chunk size
+    if (avgLineLength > 200) {
+        // Dense content (long sentences, technical docs)
+        return 1500;
+    } else if (avgLineLength > 100) {
+        // Medium density (normal paragraphs)
+        return 1000;
+    } else if (avgLineLength > 50) {
+        // Code or structured content
+        return 800;
+    } else {
+        // Short lines (lists, configs)
+        return 500;
+    }
+}
+
+function generateFallbackMetadata(fileName: string, fileExtension: string, contentPreview: string, title: string, fileSize: number): any {
     const ext = fileExtension.toLowerCase();
     const lines = contentPreview.split('\n').filter(l => l.trim().length > 0);
     const wordCount = contentPreview.split(/\s+/).length;
@@ -288,7 +514,14 @@ function generateFallbackDescription(fileName: string, fileExtension: string, co
     const firstLine = lines[0] || '';
     const hasTitle = title && title.trim().length > 0;
     
-    return `This is a ${typeDescription} ${hasTitle ? `titled "${title}"` : `named "${fileName}"`}. It contains approximately ${wordCount} words across ${lines.length} lines. ${firstLine ? `The content begins with: "${firstLine.substring(0, 100)}..."` : ''}`;
+    const description = `This is a ${typeDescription} ${hasTitle ? `titled "${title}"` : `named "${fileName}"`}. It contains approximately ${wordCount} words across ${lines.length} lines. ${firstLine ? `The content begins with: "${firstLine.substring(0, 100)}..."` : ''}`;
+    
+    return {
+        description,
+        category: inferCategory(fileExtension, contentPreview),
+        suggestedChunkSize: calculateOptimalChunkSize(fileSize, contentPreview),
+        reasoning: `Based on ${typeDescription} structure with average line length of ~${Math.round(firstLine.length)} characters`
+    };
 }
 
 async function handleNavigateToGraph(context: vscode.ExtensionContext) {
@@ -958,9 +1191,129 @@ function getWebviewContent(webview: vscode.Webview): string {
             gap: 8px;
             justify-content: flex-end;
         }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            min-width: 300px;
+            max-width: 400px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: start;
+            gap: 12px;
+            animation: slideInRight 0.3s ease;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--success);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--destructive);
+        }
+
+        .toast.info {
+            border-left: 4px solid #3b82f6;
+        }
+
+        .toast-icon {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+        }
+
+        .toast-icon.success {
+            color: var(--success);
+        }
+
+        .toast-icon.error {
+            color: var(--destructive);
+        }
+
+        .toast-icon.info {
+            color: #3b82f6;
+        }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .toast-message {
+            font-size: 13px;
+            color: var(--muted-foreground);
+        }
+
+        .toast-close {
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+
+        .toast-close:hover {
+            opacity: 1;
+        }
+
+        /* Upload Progress */
+        .upload-progress {
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--muted);
+        }
+
+        .upload-progress-bar {
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .upload-progress-fill {
+            height: 100%;
+            background: var(--success);
+            transition: width 0.3s ease;
+        }
     </style>
+    
+    <!-- Sigma.js and Graphology Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-beta.20/build/sigma.min.js"></script>
 </head>
 <body>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
     <main class="main-container">
         <div class="content-wrapper">
             <!-- Header -->
@@ -1078,9 +1431,86 @@ function getWebviewContent(webview: vscode.Webview): string {
 
                 <!-- Knowledge Graph Tab -->
                 <div id="knowledge-graph-tab" class="tab-content hidden">
-                    <div style="padding: 24px; text-align: center;">
-                        <h2>Knowledge Graph Visualization</h2>
-                        <p>Graph visualization will be implemented here.</p>
+                    <div style="display: flex; flex-direction: column; height: 100%; padding: 16px; gap: 16px;">
+                        <!-- Graph Controls -->
+                        <div style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <button class="btn btn-secondary" onclick="loadGraph()">
+                                        <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        Reload Graph
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="resetGraphView()">
+                                        <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                        </svg>
+                                        Reset View
+                                    </button>
+                                    <div style="border-left: 1px solid var(--border); height: 24px; margin: 0 4px;"></div>
+                                    <label style="font-size: 14px; font-weight: 500; margin-right: 8px;">Layout:</label>
+                                    <select id="graph-layout" class="form-input" style="width: 140px; padding: 6px 10px; height: 36px;" onchange="changeLayout()">
+                                        <option value="force">Force-Directed</option>
+                                        <option value="circular">Circular</option>
+                                        <option value="random">Random</option>
+                                    </select>
+                                </div>
+                                <div style="display: flex; gap: 12px; align-items: center; font-size: 13px; color: var(--muted-foreground);">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <div style="width: 12px; height: 12px; background: #10b981; border-radius: 50%;"></div>
+                                        <span>Documents (<span id="doc-count">0</span>)</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <div style="width: 12px; height: 12px; background: #3b82f6; border-radius: 50%;"></div>
+                                        <span>Entities (<span id="entity-count">0</span>)</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <div style="width: 12px; height: 12px; background: #f59e0b; border-radius: 50%;"></div>
+                                        <span>Relationships (<span id="rel-count">0</span>)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 12px;">
+                                <input type="text" id="graph-search" class="form-input" placeholder="Search nodes..." style="width: 100%;" oninput="searchGraph(this.value)">
+                            </div>
+                        </div>
+
+                        <!-- Graph Container -->
+                        <div style="flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 8px; position: relative; overflow: hidden;">
+                            <div id="graph-container" style="width: 100%; height: 100%;"></div>
+                            <div id="graph-loading" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.9);">
+                                <div style="text-align: center;">
+                                    <svg style="width: 48px; height: 48px; color: #10b981; animation: spin 1s linear infinite;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle style="opacity: 0.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path style="opacity: 0.75;" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <p style="margin-top: 16px; color: var(--muted-foreground);">Loading knowledge graph...</p>
+                                </div>
+                            </div>
+                            <div id="graph-empty" style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center;">
+                                <div style="text-align: center; color: var(--muted-foreground);">
+                                    <svg style="width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                    </svg>
+                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">No Knowledge Graph Data</h3>
+                                    <p>Upload documents to build your knowledge graph</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Node Details Panel -->
+                        <div id="node-details" style="display: none; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                            <div style="display: flex; justify-content: between; align-items: start; margin-bottom: 12px;">
+                                <h3 style="font-size: 16px; font-weight: 600; flex: 1;" id="node-title">Node Details</h3>
+                                <button onclick="closeNodeDetails()" style="border: none; background: none; cursor: pointer; opacity: 0.5; padding: 0;">
+                                    <svg style="width: 20px; height: 20px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div id="node-info" style="font-size: 14px;"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -1143,6 +1573,18 @@ function getWebviewContent(webview: vscode.Webview): string {
                 <input type="text" id="document-category" class="form-input" placeholder="e.g., Documentation, Code, Research">
             </div>
 
+            <div id="chunk-info" style="display: none; padding: 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: start; gap: 8px;">
+                    <svg style="width: 16px; height: 16px; color: #0284c7; flex-shrink: 0; margin-top: 2px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 13px; color: #0c4a6e; margin-bottom: 4px;">Copilot Chunking Suggestion</div>
+                        <div id="chunk-info-text" style="font-size: 12px; color: #075985;"></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="modal-actions">
                 <button class="btn" onclick="closeUploadModal()">Cancel</button>
                 <button class="btn btn-primary" onclick="uploadDocument()">Upload</button>
@@ -1154,6 +1596,39 @@ function getWebviewContent(webview: vscode.Webview): string {
         const vscode = acquireVsCodeApi();
         let documents = [];
         let currentFilter = 'all';
+
+        // Toast notification system
+        function showToast(type, title, message, duration = 5000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            
+            const iconSvg = type === 'success' 
+                ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />'
+                : type === 'error'
+                ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />'
+                : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />';
+            
+            toast.innerHTML = '<svg class="toast-icon ' + type + '" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">' +
+                    iconSvg +
+                '</svg>' +
+                '<div class="toast-content">' +
+                    '<div class="toast-title">' + title + '</div>' +
+                    (message ? '<div class="toast-message">' + message + '</div>' : '') +
+                '</div>' +
+                '<svg class="toast-close" width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" onclick="this.parentElement.remove()">' +
+                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />' +
+                '</svg>';
+            
+            container.appendChild(toast);
+            
+            if (duration > 0) {
+                setTimeout(function() {
+                    toast.style.animation = 'slideOutRight 0.3s ease';
+                    setTimeout(function() { toast.remove(); }, 300);
+                }, duration);
+            }
+        }
 
         // Tab switching
         function switchTab(tabName) {
@@ -1215,6 +1690,8 @@ function getWebviewContent(webview: vscode.Webview): string {
         // Upload modal functions
         function openUploadModal() {
             document.getElementById('upload-modal').style.display = 'flex';
+            // Initialize drag and drop after modal is visible
+            setTimeout(() => initDragAndDrop(), 100);
         }
 
         function closeUploadModal() {
@@ -1224,6 +1701,11 @@ function getWebviewContent(webview: vscode.Webview): string {
             document.getElementById('document-title').value = '';
             document.getElementById('document-description').value = '';
             document.getElementById('document-category').value = '';
+            // Hide chunk info
+            const chunkInfo = document.getElementById('chunk-info');
+            if (chunkInfo) {
+                chunkInfo.style.display = 'none';
+            }
         }
 
         function handleFileSelect(event) {
@@ -1240,9 +1722,10 @@ function getWebviewContent(webview: vscode.Webview): string {
             const fileInput = document.getElementById('file-input');
             const titleInput = document.getElementById('document-title');
             const descriptionTextarea = document.getElementById('document-description');
+            const categoryInput = document.getElementById('document-category');
             
             if (!fileInput.files[0]) {
-                alert('Please select a file first');
+                showToast('error', 'No File Selected', 'Please select a file first');
                 return;
             }
 
@@ -1250,19 +1733,24 @@ function getWebviewContent(webview: vscode.Webview): string {
             const fileName = file.name;
             const fileExtension = fileName.split('.').pop().toLowerCase();
             
-            // Show loading state
-            const originalText = descriptionTextarea.value;
-            descriptionTextarea.value = '⏳ Asking Copilot to analyze the file...';
+            // Show loading state for all fields
+            const originalDesc = descriptionTextarea.value;
+            const originalCategory = categoryInput.value;
+            descriptionTextarea.value = '⏳ Asking Copilot to analyze...';
             descriptionTextarea.disabled = true;
+            categoryInput.value = '⏳ Analyzing...';
+            categoryInput.disabled = true;
+            
+            showToast('info', 'Analyzing Document', 'Copilot is analyzing your file...');
             
             try {
-                // Read file content (first 2000 chars for analysis)
+                // Read file content (first 3000 chars for better analysis)
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const content = e.target.result;
-                    const preview = content.substring(0, 2000);
+                    const preview = content.substring(0, 3000);
                     
-                    // Send request to backend to generate description
+                    // Send request to backend to generate all metadata
                     vscode.postMessage({
                         command: 'generateDescription',
                         data: {
@@ -1270,15 +1758,18 @@ function getWebviewContent(webview: vscode.Webview): string {
                             fileExtension: fileExtension,
                             fileSize: file.size,
                             contentPreview: preview,
-                            title: titleInput.value
+                            title: titleInput.value,
+                            generateAll: true
                         }
                     });
                 };
                 reader.readAsText(file);
             } catch (error) {
-                descriptionTextarea.value = originalText;
+                descriptionTextarea.value = originalDesc;
                 descriptionTextarea.disabled = false;
-                alert('Error reading file: ' + error.message);
+                categoryInput.value = originalCategory;
+                categoryInput.disabled = false;
+                showToast('error', 'Analysis Failed', error.message);
             }
         }
 
@@ -1289,16 +1780,20 @@ function getWebviewContent(webview: vscode.Webview): string {
             const category = document.getElementById('document-category').value;
 
             if (!fileInput.files[0]) {
-                alert('Please select a file');
+                showToast('error', 'No File Selected', 'Please select a file to upload');
                 return;
             }
 
             if (!title.trim()) {
-                alert('Please enter a title');
+                showToast('error', 'Title Required', 'Please enter a document title');
                 return;
             }
 
             const file = fileInput.files[0];
+            
+            // Show upload progress toast
+            showToast('info', 'Uploading...', 'Uploading "' + file.name + '"', 0);
+            
             const reader = new FileReader();
             
             reader.onload = function(e) {
@@ -1315,6 +1810,10 @@ function getWebviewContent(webview: vscode.Webview): string {
                     }
                 });
                 closeUploadModal();
+            };
+            
+            reader.onerror = function() {
+                showToast('error', 'Upload Failed', 'Failed to read file content');
             };
             
             reader.readAsText(file);
@@ -1406,44 +1905,48 @@ function getWebviewContent(webview: vscode.Webview): string {
             return date.toLocaleDateString() + ', ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         }
 
-        // Drag and drop support
-        const uploadArea = document.querySelector('.upload-area');
-        
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            uploadArea?.addEventListener(eventName, preventDefaults, false);
-        });
+        // Drag and drop support - Initialize when modal opens
+        function initDragAndDrop() {
+            const uploadArea = document.querySelector('.upload-area');
+            if (!uploadArea) return;
+            
+            const preventDefaults = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            };
 
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+            const highlight = () => {
+                uploadArea.classList.add('dragover');
+            };
 
-        ['dragenter', 'dragover'].forEach(eventName => {
-            uploadArea?.addEventListener(eventName, highlight, false);
-        });
+            const unhighlight = () => {
+                uploadArea.classList.remove('dragover');
+            };
 
-        ['dragleave', 'drop'].forEach(eventName => {
-            uploadArea?.addEventListener(eventName, unhighlight, false);
-        });
+            const handleDrop = (e) => {
+                const dt = e.dataTransfer;
+                const files = dt?.files;
 
-        function highlight(e) {
-            uploadArea?.classList.add('dragover');
-        }
+                if (files && files.length > 0) {
+                    const fileInput = document.getElementById('file-input');
+                    fileInput.files = files;
+                    handleFileSelect({ target: { files: files } });
+                }
+            };
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, preventDefaults, false);
+            });
 
-        function unhighlight(e) {
-            uploadArea?.classList.remove('dragover');
-        }
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, highlight, false);
+            });
 
-        uploadArea?.addEventListener('drop', handleDrop, false);
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, unhighlight, false);
+            });
 
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-
-            if (files.length > 0) {
-                document.getElementById('file-input').files = files;
-                handleFileSelect({ target: { files: files } });
-            }
+            uploadArea.addEventListener('drop', handleDrop, false);
         }
 
         // Message handling from VS Code
@@ -1481,6 +1984,7 @@ function getWebviewContent(webview: vscode.Webview): string {
                 case 'documentAdded':
                     documents.push(message.data);
                     renderDocuments();
+                    showToast('success', 'Document Uploaded', '"' + message.data.title + '" is now being processed');
                     break;
                     
                 case 'documentUpdated':
@@ -1503,18 +2007,37 @@ function getWebviewContent(webview: vscode.Webview): string {
                     
                 case 'descriptionGenerated':
                     const descTextarea = document.getElementById('document-description');
+                    const categoryInput = document.getElementById('document-category');
+                    const chunkInfo = document.getElementById('chunk-info');
+                    const chunkInfoText = document.getElementById('chunk-info-text');
+                    
                     if (descTextarea) {
                         descTextarea.value = message.data.description;
                         descTextarea.disabled = false;
                     }
+                    if (categoryInput && message.data.category) {
+                        categoryInput.value = message.data.category;
+                        categoryInput.disabled = false;
+                    }
+                    if (chunkInfo && chunkInfoText && message.data.suggestedChunkSize) {
+                        const chunkSize = message.data.suggestedChunkSize;
+                        const reasoning = message.data.reasoning || 'Optimized for RAG processing';
+                        chunkInfoText.innerHTML = '<strong>Suggested chunk size:</strong> ' + chunkSize + ' tokens. ' + reasoning;
+                        chunkInfo.style.display = 'block';
+                    }
+                    showToast('success', 'Analysis Complete', 'Document metadata generated by Copilot');
                     break;
                     
                 case 'descriptionGenerationError':
                     const errorTextarea = document.getElementById('document-description');
+                    const errorCategory = document.getElementById('document-category');
                     if (errorTextarea) {
                         errorTextarea.disabled = false;
-                        alert('Failed to generate description: ' + message.data.message);
                     }
+                    if (errorCategory) {
+                        errorCategory.disabled = false;
+                    }
+                    showToast('error', 'Analysis Failed', message.data.message);
                     break;
                     
                 case 'loadError':
@@ -1541,6 +2064,318 @@ function getWebviewContent(webview: vscode.Webview): string {
         document.addEventListener('DOMContentLoaded', function() {
             refreshDocuments();
         });
+
+        // ================== KNOWLEDGE GRAPH VISUALIZATION (SIGMA.JS) ==================
+        let graphRenderer = null;
+        let graphData = null;
+        let currentLayout = 'force';
+
+        // Load and display the knowledge graph
+        async function loadGraph() {
+            const container = document.getElementById('graph-container');
+            const loading = document.getElementById('graph-loading');
+            const empty = document.getElementById('graph-empty');
+            
+            // Show loading state
+            loading.style.display = 'flex';
+            empty.style.display = 'none';
+            container.innerHTML = '';
+
+            try {
+                // Request graph data from extension
+                vscode.postMessage({ command: 'getGraphData' });
+            } catch (error) {
+                console.error('Error loading graph:', error);
+                showToast('error', 'Graph Error', 'Failed to load knowledge graph: ' + error.message);
+                loading.style.display = 'none';
+                empty.style.display = 'flex';
+            }
+        }
+
+        // Render the graph with Sigma.js
+        function renderGraph(data) {
+            const container = document.getElementById('graph-container');
+            const loading = document.getElementById('graph-loading');
+            const empty = document.getElementById('graph-empty');
+
+            if (!data || (!data.nodes || data.nodes.length === 0)) {
+                loading.style.display = 'none';
+                empty.style.display = 'flex';
+                container.innerHTML = '';
+                return;
+            }
+
+            graphData = data;
+            
+            // Hide loading/empty states
+            loading.style.display = 'none';
+            empty.style.display = 'none';
+
+            try {
+                // Create a new graph using Graphology
+                const graph = new graphology.Graph();
+
+                // Add nodes
+                data.nodes.forEach(node => {
+                    graph.addNode(node.id, {
+                        label: node.label,
+                        size: node.size || 10,
+                        color: node.color || getNodeColor(node.type),
+                        x: Math.random() * 100,
+                        y: Math.random() * 100,
+                        type: node.type,
+                        metadata: node.metadata || {}
+                    });
+                });
+
+                // Add edges
+                data.edges.forEach(edge => {
+                    try {
+                        graph.addEdge(edge.source, edge.target, {
+                            label: edge.label || '',
+                            type: edge.type || 'line',
+                            size: edge.size || 2,
+                            color: '#94a3b8'
+                        });
+                    } catch (e) {
+                        console.warn('Failed to add edge:', edge, e);
+                    }
+                });
+
+                // Apply layout
+                applyGraphLayout(graph, currentLayout);
+
+                // Clear container and create Sigma renderer
+                container.innerHTML = '';
+                graphRenderer = new Sigma(graph, container, {
+                    renderLabels: true,
+                    renderEdgeLabels: false,
+                    labelSize: 12,
+                    labelWeight: 'bold',
+                    defaultNodeColor: '#64748b',
+                    defaultEdgeColor: '#94a3b8',
+                    minCameraRatio: 0.1,
+                    maxCameraRatio: 10
+                });
+
+                // Add interaction handlers
+                graphRenderer.on('clickNode', function(event) {
+                    showNodeDetails(event.node, graph.getNodeAttributes(event.node));
+                });
+
+                // Update legend counts
+                updateGraphLegend(data);
+
+                showToast('success', 'Graph Loaded', 'Knowledge graph rendered with ' + data.nodes.length + ' nodes and ' + data.edges.length + ' relationships');
+
+            } catch (error) {
+                console.error('Error rendering graph:', error);
+                showToast('error', 'Rendering Error', 'Failed to render graph: ' + error.message);
+                empty.style.display = 'flex';
+            }
+        }
+
+        // Get color based on node type
+        function getNodeColor(type) {
+            const colors = {
+                'document': '#10b981',  // Green
+                'entity': '#3b82f6',    // Blue
+                'relationship': '#f97316', // Orange
+                'chunk': '#8b5cf6',     // Purple
+                'keyword': '#ec4899'    // Pink
+            };
+            return colors[type] || '#64748b';
+        }
+
+        // Apply different graph layouts
+        function applyGraphLayout(graph, layoutType) {
+            const nodes = graph.nodes();
+            const nodeCount = nodes.length;
+
+            if (layoutType === 'force') {
+                // Simple force-directed layout simulation
+                const iterations = 50;
+                const k = Math.sqrt(100 / nodeCount);
+                
+                for (let i = 0; i < iterations; i++) {
+                    // Repulsion between all nodes
+                    nodes.forEach(v => {
+                        const vAttr = graph.getNodeAttributes(v);
+                        let dx = 0, dy = 0;
+                        
+                        nodes.forEach(u => {
+                            if (v !== u) {
+                                const uAttr = graph.getNodeAttributes(u);
+                                const deltaX = vAttr.x - uAttr.x;
+                                const deltaY = vAttr.y - uAttr.y;
+                                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY) || 1;
+                                const force = k * k / distance;
+                                dx += (deltaX / distance) * force;
+                                dy += (deltaY / distance) * force;
+                            }
+                        });
+                        
+                        graph.setNodeAttribute(v, 'x', vAttr.x + dx);
+                        graph.setNodeAttribute(v, 'y', vAttr.y + dy);
+                    });
+                    
+                    // Attraction along edges
+                    graph.forEachEdge((edge, attributes, source, target) => {
+                        const sourceAttr = graph.getNodeAttributes(source);
+                        const targetAttr = graph.getNodeAttributes(target);
+                        const deltaX = targetAttr.x - sourceAttr.x;
+                        const deltaY = targetAttr.y - sourceAttr.y;
+                        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY) || 1;
+                        const force = distance * distance / k;
+                        
+                        const dx = (deltaX / distance) * force * 0.5;
+                        const dy = (deltaY / distance) * force * 0.5;
+                        
+                        graph.setNodeAttribute(source, 'x', sourceAttr.x + dx);
+                        graph.setNodeAttribute(source, 'y', sourceAttr.y + dy);
+                        graph.setNodeAttribute(target, 'x', targetAttr.x - dx);
+                        graph.setNodeAttribute(target, 'y', targetAttr.y - dy);
+                    });
+                }
+            } else if (layoutType === 'circular') {
+                // Circular layout
+                const radius = 40;
+                const angleStep = (2 * Math.PI) / nodeCount;
+                nodes.forEach((node, i) => {
+                    graph.setNodeAttribute(node, 'x', radius * Math.cos(i * angleStep));
+                    graph.setNodeAttribute(node, 'y', radius * Math.sin(i * angleStep));
+                });
+            } else if (layoutType === 'random') {
+                // Random layout
+                nodes.forEach(node => {
+                    graph.setNodeAttribute(node, 'x', (Math.random() - 0.5) * 100);
+                    graph.setNodeAttribute(node, 'y', (Math.random() - 0.5) * 100);
+                });
+            }
+        }
+
+        // Change graph layout
+        function changeLayout() {
+            const select = document.getElementById('layout-select');
+            currentLayout = select.value;
+            
+            if (graphRenderer && graphData) {
+                renderGraph(graphData);
+            }
+        }
+
+        // Reset graph view to initial state
+        function resetGraphView() {
+            if (graphRenderer) {
+                graphRenderer.getCamera().setState({ x: 0.5, y: 0.5, ratio: 1 });
+                showToast('info', 'View Reset', 'Graph view has been reset to default');
+            }
+        }
+
+        // Search for nodes in the graph
+        function searchGraph() {
+            const searchInput = document.getElementById('graph-search');
+            const query = searchInput.value.toLowerCase().trim();
+            
+            if (!graphRenderer || !query) {
+                return;
+            }
+
+            const graph = graphRenderer.getGraph();
+            let found = false;
+
+            graph.forEachNode((node, attributes) => {
+                if (attributes.label.toLowerCase().includes(query)) {
+                    // Highlight found node
+                    graph.setNodeAttribute(node, 'highlighted', true);
+                    graph.setNodeAttribute(node, 'color', '#ef4444'); // Red highlight
+                    found = true;
+                    
+                    // Center camera on first match
+                    if (!found) {
+                        graphRenderer.getCamera().setState({
+                            x: attributes.x,
+                            y: attributes.y,
+                            ratio: 0.5
+                        });
+                    }
+                } else {
+                    graph.setNodeAttribute(node, 'highlighted', false);
+                    graph.setNodeAttribute(node, 'color', getNodeColor(attributes.type));
+                }
+            });
+
+            graphRenderer.refresh();
+
+            if (found) {
+                showToast('success', 'Search Results', 'Found nodes matching: ' + query);
+            } else {
+                showToast('info', 'No Results', 'No nodes found matching: ' + query);
+            }
+        }
+
+        // Show node details panel
+        function showNodeDetails(nodeId, attributes) {
+            const panel = document.getElementById('node-details');
+            const title = document.getElementById('node-title');
+            const type = document.getElementById('node-type');
+            const meta = document.getElementById('node-metadata');
+
+            title.textContent = attributes.label || nodeId;
+            type.textContent = 'Type: ' + (attributes.type || 'unknown');
+            
+            // Format metadata
+            let metaHtml = '';
+            if (attributes.metadata && Object.keys(attributes.metadata).length > 0) {
+                metaHtml = '<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">';
+                Object.keys(attributes.metadata).forEach(key => {
+                    metaHtml += '<div style="margin-bottom: 8px;"><strong>' + key + ':</strong> ' + attributes.metadata[key] + '</div>';
+                });
+                metaHtml += '</div>';
+            }
+            meta.innerHTML = metaHtml;
+
+            panel.classList.add('visible');
+        }
+
+        // Close node details panel
+        function closeNodeDetails() {
+            document.getElementById('node-details').classList.remove('visible');
+        }
+
+        // Update legend counts
+        function updateGraphLegend(data) {
+            const counts = {
+                document: 0,
+                entity: 0,
+                relationship: 0
+            };
+
+            data.nodes.forEach(node => {
+                if (counts.hasOwnProperty(node.type)) {
+                    counts[node.type]++;
+                }
+            });
+
+            const docCount = document.getElementById('doc-count');
+            const entityCount = document.getElementById('entity-count');
+            const relCount = document.getElementById('rel-count');
+
+            if (docCount) docCount.textContent = 'Documents: ' + counts.document;
+            if (entityCount) entityCount.textContent = 'Entities: ' + counts.entity;
+            if (relCount) relCount.textContent = 'Relationships: ' + counts.relationship;
+        }
+
+        // Handle messages from extension
+        window.addEventListener('message', function(event) {
+            const message = event.data;
+            
+            if (message.command === 'graphData') {
+                renderGraph(message.data);
+            }
+        });
+
+        // ================== END KNOWLEDGE GRAPH ==================
     </script>
 </body>
 </html>`;
