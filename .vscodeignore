@@ -21,8 +21,15 @@ SINGLE_ACTIVITY_IMPLEMENTATION.md
 SOLO_DEVELOPMENT_CHANGES.md
 IMPLEMENTATION_COMPLETE.md
 
-# Dependencies - only include what's really needed at runtime
-node_modules/**
+# Dependencies - exclude dev dependencies only
+node_modules/**/@types
+node_modules/**/test
+node_modules/**/tests
+node_modules/**/*.ts
+node_modules/**/*.md
+node_modules/**/LICENSE*
+node_modules/**/README*
+node_modules/**/.github
 
 # Tests
 **/test/**

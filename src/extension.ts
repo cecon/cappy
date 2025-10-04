@@ -15,6 +15,7 @@ import { ReindexCommand } from "./commands/reindexCommand";
 import { registerLightRAGCommands } from "./commands/lightragCommands";
 import { FileManager } from "./utils/fileManager";
 import { EnvironmentDetector } from "./utils/environmentDetector";
+import { registerLanguageModelTools } from "./utils/languageModelTools";
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -32,6 +33,9 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(cappyOutput);
 
     console.log('🦫 Cappy: Output channel created...');
+
+    // Register Language Model Tools for Copilot
+    registerLanguageModelTools(context);
 
     // Telemetry consent gating (one-time and on updates)
     ensureTelemetryConsent(context)

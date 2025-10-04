@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "AI coding companion with Single-Focus Workflow, Mini-LightRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
   "icon": "assets/icon.png",
-  "version": "2.9.10",
+  "version": "2.9.14",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0",
@@ -30,7 +30,8 @@
     "vector-search",
     "graph-database",
     "semantic-search",
-    "mini-lightrag"
+    "mini-lightrag",
+    "language-model-tools"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -168,6 +169,71 @@
         "language": "cappy-task-xml",
         "scopeName": "text.xml.cappy.task",
         "path": "./syntaxes/cappy-task-xml.tmLanguage.json"
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "cappy_init",
+        "displayName": "Cappy: Initialize",
+        "modelDescription": "Initialize Cappy structure in the workspace (.cappy folder, config files, copilot-instructions.md)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "cappy_knowstack",
+        "displayName": "Cappy: Know Stack",
+        "modelDescription": "Analyze the workspace and generate stack.md documentation with project structure and technology stack",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "cappy_new_task",
+        "displayName": "Cappy: New Task",
+        "modelDescription": "Generate step-by-step script for creating a new Cappy task with category, description, and steps",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "cappy_create_task",
+        "displayName": "Cappy: Create Task File",
+        "modelDescription": "Create XML task file with rich context injection and automatic prevention rules",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "cappy_work_on_task",
+        "displayName": "Cappy: Work on Current Task",
+        "modelDescription": "Execute current task step with context-aware assistance and prevention rules verification",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "cappy_complete_task",
+        "displayName": "Cappy: Complete Task",
+        "modelDescription": "Complete current task, capture learnings, update context metrics and move to history",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "cappy_reindex",
+        "displayName": "Cappy: Reindex",
+        "modelDescription": "Rebuild semantic indexes for tasks, documentation and prevention rules",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
       }
     ]
   },

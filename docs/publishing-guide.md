@@ -23,7 +23,12 @@ Isso significa:
    - Token de acesso para publicação
    - Criado no Azure DevOps
 
-3. **Publisher Verificado**
+3. **Tag de descoberta no Marketplace**
+   - Para aparecer no filtro `@tag:language-model-tools`
+   - Garanta que `package.json` contenha o keyword `"language-model-tools"`
+   - Ajuda a destacar a extensão entre as ferramentas de Language Model
+
+4. **Publisher Verificado**
    - Você já tem: `eduardocecon`
    - Listado no `package.json`
 
