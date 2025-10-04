@@ -1,304 +1,201 @@
-# 🔨 FORGE Framework - Instruções para LLM (Solo Development)
+## 🚀 Build & Publicação
+- 1 Se eu pedir para publicar 
+ - Rode o comando package patch para alterar a versão, 
+ - compile
+ - publique
+ - Instale a extensão no VS Code
+ 
+### Processo de Release
 
-## 📋 **VISÃO GERAL DO PROJETO**
+1. **Incrementar versão** no `package.json`:
+   - Patch (2.5.12 → 2.5.13): bugs/melhorias menores
+   - Minor (2.5.13 → 2.6.0): novas funcionalidades
+   - Major (2.6.0 → 3.0.0): breaking changes
 
-O **FORGE Framework** é uma extensão do VS Code que transforma o GitHub Copilot em um assistente de IA que aprende com os erros e padrões específicos do **desenvolvedor solo**. 
+2. **Compilar e testar:**
+   ```bash
+   npm run compile    # Compilação TypeScript
+   npm run test      # Executar todos os testes
+   ```
 
-**FORGE** significa: **F**ocus **O**rganize **R**ecord **G**row **E**volve
+3. **Gerar pacote VSIX:**
+   ```bash
+   npm run package   # Cria arquivo .vsix
+   ```
 
-### 🎯 **OBJETIVO PRINCIPAL**
-Permitir que o AI assistant aprenda progressivamente com:
-- Erros documentados (Prevention Rules) **apenas os que realmente importam**
-- Padrões específicos do projeto **sem overhead desnecessário**
-- Contexto técnico acumulado **de forma leve e prática**
-- Tarefas atômicas bem definidas (≤2 horas) **com visão macro preservada**
+4. **Publicar na VS Code Marketplace:**
+   ```bash
+   npm run publish   # Publica automaticamente
+   ```
+   
+<!-- CAPPY INI -->
+# CAPPY — Manual de Comandos (Orquestração de Contexto)
 
-### 🏅 **PRINCÍPIOS PARA DESENVOLVIMENTO SOLO**
-1. **Instrução privada**: `.github/copilot-instructions.md` vai para `.gitignore` (desenvolvimento pessoal)
-2. **Contexto enxuto**: Máximo 4000 chars para evitar que Copilot ignore
-3. **Prevention rules focadas**: Máximo 15 regras - apenas o essencial
-4. **Atomicidade balanceada**: 2h por STEP, mas sempre linkando ao objetivo macro
-5. **Documentação mínima**: Só documenta o que realmente economiza tempo futuro
+## Proibições Absolutas
 
----
+* **Nunca** executar comandos CAPPY no terminal, shell, cmd, bash ou PowerShell.
+* Todos os comandos CAPPY são disparados **exclusivamente** via VS Code API:
 
-## 🏗️ **ESTRUTURA DO PROJETO**
+  ```ts
+  vscode.commands.executeCommand('<commandId>')
+  ```
+* **Nunca** ler arquivos além de `.cappy/output.txt`.
+* `.cappy/output.txt` é **a única fonte da verdade** para saídas.
 
-### **Diretórios Principais:**
-```
-forge-framework/
-├── src/                     # Código TypeScript da extensão
-│   ├── extension.ts         # Ponto de entrada principal
-│   ├── commands/           # Comandos da extensão (init, create, complete)
-│   ├── models/             # Modelos de dados (Task, PreventionRule, Config)
-│   ├── providers/          # Provedores de dados para VS Code
-│   ├── utils/              # Utilitários (Context Manager, File Manager)
-│   └── webview/           # Interface web (Dashboard)
-├── resources/              # Templates e instruções
-│   ├── instructions/      # Metodologia FORGE
-│   └── templates/         # Templates para arquivos
-├── examples/              # Exemplos de uso
-├── docs/                  # Documentação adicional
-└── syntaxes/             # Syntax highlighting para arquivos FORGE
-```
+  * Se o arquivo **não existir** ou estiver **vazio**, **pare imediatamente** e responda em **1 linha**:
 
-### **Arquivos Chave:**
-- `package.json`: Configuração da extensão VS Code
-- `src/extension.ts`: Ativação e registro de comandos
-- `resources/instructions/forge-methodology.md`: Metodologia completa
-- `src/utils/contextManager.ts`: Gerenciamento do contexto do Copilot
-
----
-
-## 🔄 **FLUXOS DE TRABALHO PRINCIPAIS**
-
-### **1. Inicialização (`forge.init`)**
-```typescript
-// Cria estrutura básica:
-.forge/
-├── config.json           # Configurações do projeto
-├── copilot-instructions.md # Instruções para Copilot
-└── prevention-rules.md   # Regras acumuladas
-```
-
-### **2. Criação de Tarefas (`forge.createTask` ou `forge.createSmartTask`)**
-```
-steps/STEP_XXXX_[NOME]/
-├── STEP_XXXX_DESCRIPTION.md      # Descrição detalhada
-├── STEP_XXXX_DONE.md             # Critérios de conclusão  
-├── STEP_XXXX_DIFFICULTIES_FACED.md # Problemas encontrados
-└── artifacts/                     # Arquivos relacionados
-```
-
-### **3. Documentação de Erros (`forge.addPreventionRule`)**
-- Cada erro vira uma regra reutilizável
-- Integra automaticamente ao contexto do Copilot
-- Herança entre tarefas relacionadas
+    ```
+    No output in .cappy/output.txt. Re-execute in VS Code.
+    ```
 
 ---
 
-## 🤖 **INTEGRAÇÃO COM COPILOT**
+## Objetivo
 
-### **Context Manager (`src/utils/contextManager.ts`):**
-- Injeta instruções personalizadas no Copilot
-- Atualiza contexto com prevention rules ativas
-- Mantém memória de padrões do projeto
+Padronizar como LLM e desenvolvedor interagem com o CAPPY para:
 
-### **Fluxo de Contextualização:**
-1. **Lê** configurações do `.forge/config.json`
-2. **Carrega** prevention rules ativas
-3. **Injeta** no contexto do Copilot via VS Code API
-4. **Atualiza** automaticamente conforme novas regras
+* Criar/gerenciar **tarefas atômicas**
+* Orquestrar **contexto automaticamente** no momento certo
+* Registrar progresso no arquivo da Task
+* Aplicar **regras de prevenção** automaticamente por categoria
 
 ---
 
-## 📝 **CONCEITOS ESSENCIAIS**
+## Regras de Ouro
 
-### **🔨 Tarefas Atômicas (STEPs)**
-- **Limite:** ≤3 horas de trabalho
-- **Numeração:** 4 dígitos (STEP_0001, STEP_0002...)
-- **Estrutura:** Description → Implementation → Difficulties → Rules
-- **Objetivo:** Manter foco e permitir rastreamento granular
-
-### **🛡️ Prevention Rules**
-- **Origem:** Problemas documentados em `DIFFICULTIES_FACED.md`
-- **Formato:** Regra + Contexto + Solução
-- **Propagação:** Herança automática entre STEPs relacionadas
-- **Integração:** Automática no contexto do Copilot
-
-### **📈 Aprendizado Progressivo**
-- Cada erro vira conhecimento reutilizável
-- AI assistant fica mais inteligente a cada projeto
-- Padrões específicos do stack são preservados
+1. **Execução exclusiva via API** — use sempre `vscode.commands.executeCommand`.
+2. **Prioridade de comando** — mensagens que começam com `cappy:` têm prioridade máxima.
+3. **Fonte única da verdade** — após qualquer execução, ler somente `.cappy/output.txt`.
 
 ---
 
-## 🛠️ **COMANDOS PRINCIPAIS**
+## Execução de Comandos (programática)
 
-### **Comandos da Extensão:**
-```typescript
-// Inicialização
-forge.init                  // Setup básico
-forge.initComplete          // Setup completo com templates
+* Todos os comandos CAPPY devem ser disparados programaticamente via VS Code:
 
-// Gestão de Tarefas  
-forge.createTask            // Criar STEP manual
-forge.createSmartTask       // Criar STEP com AI
-forge.completeTask          // Marcar STEP como concluída
+  ```ts
+  vscode.commands.executeCommand('<commandId>')
+  ```
+* É **proibido** executar comandos CAPPY no terminal.
+* Após cada execução, ler `.cappy/output.txt`.
+* Se não houver saída, responder:
 
-// Gestão de Conhecimento
-forge.addPreventionRule     // Adicionar regra de prevenção
-forge.updateCopilotContext  // Atualizar contexto do Copilot
-forge.exportRules           // Exportar regras
+  ```
+  No output in .cappy/output.txt. Re-execute in VS Code.
+  ```
+
+---
+
+## Interpretação Natural de Comandos
+
+Falas naturais do usuário → mapeamento determinístico para **commandId** do VS Code:
+
+### Gerenciamento de Tarefas
+
+* "new task" / "create task" / "nova tarefa" → `cappy.new`
+* "current task" / "active task" / "tarefa ativa" → `cappy.taskstatus`
+* "work on task" / "continue" / "trabalhar na tarefa" → `cappy.workcurrent`
+* "complete task" / "finish" / "concluir tarefa" → `cappy.completeTask`
+
+### Setup de Projeto
+
+* "setup cappy" / "initialize" / "inicializar" → `cappy.init`
+* "analyze project" / "know stack" / "analisar projeto" → `cappy.knowstack`
+* "reindex" / "rebuild index" / "atualizar índices" → `cappy.reindex`
+
+### Informação
+
+* "cappy version" / "version" / "versão" → `cappy.version`
+
+**Sempre confirmar a interpretação antes de executar.**
+Exemplo:
+
 ```
-
-### **Estrutura de Comandos TypeScript:**
-```typescript
-// Padrão dos comandos:
-export class CommandClass {
-    async execute(): Promise<boolean> {
-        // 1. Validar precondições
-        // 2. Executar lógica principal  
-        // 3. Atualizar contexto do Copilot
-        // 4. Notificar providers
-        return success;
-    }
-}
+Interpretando como cappy.new — gerar roteiro passo a passo para criar uma task
 ```
 
 ---
 
-## 🎯 **METODOLOGIA DE DESENVOLVIMENTO**
+## Estrutura de Arquivos
 
-### **Duas Modalidades Distintas:**
-
-#### **🔨 "Criar Nova STEP"**
-Quando usuário diz: *"vamos desenvolver uma nova atividade"*
-1. **Questionário interativo** para coletar requisitos
-2. **Análise de atomicidade** com verificação de confiança da LLM
-3. **Auto-criação da estrutura** apenas quando confiante
-4. **Herança de erros** da STEP anterior (respeitando maxRules)
-
-#### **🚀 "Iniciar Desenvolvimento"** 
-Quando usuário diz: *"vamos iniciar o desenvolvimento da STEP_XXXX"*
-1. **Seguir execução passo-a-passo**
-2. **Ler DESCRIPTION.md existente**
-3. **Executar workflow de implementação**
-
-### **Análise de Confiança da LLM:**
 ```
-Autoavaliação da LLM:
-- Nível de Confiança: [1-10] (criar apenas se ≥8)
-- Score de Atomicidade: [ATÔMICA/PRECISA_DECOMPOSIÇÃO]
-- Informações Faltantes: [Lista gaps se confiança <8]
+.cappy/
+ ├─ tasks/                  # Tasks ativas (.ACTIVE.xml)
+ ├─ history/                # Tasks concluídas
+ ├─ config.yaml             # Configuração do Cappy
+ ├─ stack.md                # KnowStack do projeto
+ ├─ output.txt              # Resultado do último comando (fonte única)
+ ├─ schemas/                # Definições XSD para referência/edição manual
+ └─ indexes/                # Índices semânticos (gerados por cappy.reindex)
+     ├─ tasks.json
+     ├─ docs.json
+     └─ rules.json
+docs/
+ ├─ components/
+ ├─ prevention/
+ └─ index/
 ```
 
 ---
 
-## 🔧 **CONFIGURAÇÕES E CUSTOMIZAÇÃO**
+## Documentação do Projeto
 
-### **`.forge/config.json` - Estrutura:**
-```json
-{
-  "version": "1.0.0",
-  "projectName": "Nome do Projeto",
-  "maxRules": 10,
-  "autoInheritRules": true,
-  "contextUpdateFrequency": "onTaskComplete",
-  "stackRules": {
-    "language": "typescript",
-    "framework": "vscode-extension",
-    "environment": "windows-powershell"
-  }
-}
-```
+1. `docs/` → Documentação do projeto (Markdown, HTML, etc.)
 
-### **Prevention Rules - Formato:**
-```markdown
-## [CATEGORIA] Título da Regra
-
-**Context:** Quando/onde o problema ocorre
-**Problem:** Descrição do erro/problema  
-**Solution:** Como resolver corretamente
-**Example:** Código de exemplo (se aplicável)
-**Tags:** #typescript #vscode #extension
-```
+   * Todas as documentações devem ser registradas aqui.
+   * Após mudanças, rodar `cappy.reindex` para reconstruir índices semânticos.
 
 ---
 
-## 🚦 **DIRETRIZES DE IMPLEMENTAÇÃO**
+## Comandos CAPPY
 
-### **Para LLMs Trabalhando no Projeto:**
-
-1. **SEMPRE** verificar se `.forge/` existe antes de sugerir criação de tarefas
-2. **SEMPRE** ler prevention rules ativas antes de sugerir código
-3. **NUNCA** sugerir tarefas >3 horas - decompor primeiro
-4. **SEMPRE** documentar problemas encontrados
-5. **PRIORITIZAR** reutilização de patterns já estabelecidos
-
-### **Padrões de Código TypeScript:**
-```typescript
-// Imports organizados
-import * as vscode from 'vscode';
-import { ModelClass } from './models/modelClass';
-
-// Classes com responsabilidade única
-export class FeatureHandler {
-    constructor(private context: vscode.ExtensionContext) {}
-    
-    async handle(): Promise<boolean> {
-        try {
-            // Implementação
-            return true;
-        } catch (error) {
-            vscode.window.showErrorMessage(`Error: ${error}`);
-            return false;
-        }
-    }
-}
-```
-
-### **Padrões de Arquivo:**
-- **Nomenclatura:** PascalCase para classes, camelCase para métodos
-- **Estrutura:** Uma responsabilidade por arquivo
-- **Error Handling:** Try/catch com mensagens para usuário
-- **Logging:** Console.log para debug, showInformationMessage para usuário
+* `cappy.init` → cria estrutura base + índices de contexto
+* `cappy.knowstack` → analisa workspace e gera `stack.md`
+* `cappy.reindex` → reconstrói índices semânticos (rodar após mudanças em docs/rules)
+* `cappy.new` → gera roteiro step-by-step para criação de task
+* `cappy.createTaskFile` → aplica XSD e orquestra contexto automaticamente
+* `cappy.workOnCurrentTask` → executa step atual com contexto e regras de prevenção
+* `cappy.completeTask` → finaliza, captura aprendizados e atualiza índices
+* `cappy.version` → exibe versão atual da extensão
 
 ---
 
-## 📚 **RECURSOS DE REFERÊNCIA**
+## Regras Obrigatórias de Conformidade
 
-### **Arquivos de Documentação:**
-- `resources/instructions/forge-methodology.md` - Metodologia completa
-- `docs/extension-structure.md` - Estrutura técnica detalhada
-- `examples/` - Exemplos práticos de uso
-- `README.md` - Visão geral e quick start
-
-### **Templates Disponíveis:**
-- `resources/templates/copilot-instructions-template.md`
-- `resources/templates/environment-rules-templates.md`
-
-### **Sintaxe Highlighting:**
-- `syntaxes/forge-task.tmLanguage.json` - Para arquivos `.forge-task`
+1. Namespace correto
+2. Categoria dentro do enum válido
+3. Máx. 5 steps principais
+4. `<context>` sempre presente nas tasks
+5. Timestamps em ISO-8601
+6. Critérios de validação mensuráveis por step
 
 ---
 
-## ⚡ **AÇÕES RÁPIDAS PARA LLM**
+## Templates de Resposta CAPPY 2.0
 
-### **Se usuário quer inicializar FORGE:**
-```typescript
-// Usar: forge.init ou forge.initComplete
-// Verificar: Se workspace tem .forge/
-// Criar: Estrutura básica + templates
-```
+* **new** → `Task creation script generated. Review, answer prompts, then run cappy.createTaskFile`
+* **createtaskfile** → `XML task created: [ID] category [cat]. Rich context injected automatically`
+* **taskstatus (ativo)** → `Active [category] task. [X] prevention rules applied. Next: [step]`
+* **taskstatus (inativo)** → `No active task. Use 'new task' to get the step-by-step script`
+* **workcurrent** → `Executing context-aware: [step]. [X] rules verified`
+* **completetask** → `Task completed. [X] learnings captured, context metrics updated`
+* **reindex** → `Semantic indexes rebuilt: [X] tasks, [Y] docs, [Z] rules indexed`
+* **erro genérico** →
 
-### **Se usuário quer criar nova tarefa:**
-```typescript
-// 1. Questionário de requisitos
-// 2. Verificar atomicidade (≤3h)
-// 3. Auto-análise de confiança
-// 4. Criar estrutura STEP_XXXX
-// 5. Herdar prevention rules relevantes
-```
-
-### **Se usuário quer documentar problema:**
-```typescript
-// 1. Capturar contexto do erro
-// 2. Criar prevention rule
-// 3. Adicionar a .forge/prevention-rules.md
-// 4. Atualizar contexto do Copilot
-```
+  ```
+  No output in .cappy/output.txt. Re-execute in VS Code
+  ```
 
 ---
 
-## 🎖️ **PRINCÍPIOS FUNDAMENTAIS**
+## Política de Erros
 
-1. **Atomicidade:** Tarefas pequenas e focadas
-2. **Rastreabilidade:** Histórico completo de decisões
-3. **Aprendizado:** Cada erro vira conhecimento
-4. **Automação:** Máximo de automação possível
-5. **Contexto:** AI sempre informada do estado atual
+* **Nunca** tentar adivinhar saídas.
+* Se `.cappy/output.txt` estiver ausente ou vazio:
+
+  ```
+  No output in .cappy/output.txt. Re-execute in VS Code.
+  ```
 
 ---
-
-*Esta extensão foi projetada para maximizar a eficiência da parceria humano-AI no desenvolvimento de software, criando um ciclo virtuoso de aprendizado contínuo.*
+<!-- CAPPY END -->

@@ -1,11 +1,13 @@
 {
-  "name": "forge-framework",
-  "displayName": "FORGE Framework",
-  "description": "Transform your AI coding assistant into a learning partner that remembers your mistakes and prevents them automatically",
-  "version": "1.0.3",
+  "name": "cappy",
+  "displayName": "Cappy",
+  "description": "AI coding companion with Single-Focus Workflow and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
+  "icon": "assets/icon.png",
+  "version": "2.9.9",
   "publisher": "eduardocecon",
   "engines": {
-    "vscode": "^1.74.0"
+    "vscode": "^1.75.0",
+    "cursor": ">=0.1.0"
   },
   "categories": [
     "Other",
@@ -16,197 +18,150 @@
   "keywords": [
     "ai",
     "copilot",
+    "cursor",
     "learning",
     "productivity",
     "automation",
     "prevention",
-    "task-management"
+    "task-management",
+    "cursor-compatible"
   ],
   "activationEvents": [
-    "*"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "forge.initSolo",
-        "title": "Initialize FORGE Framework",
-        "category": "FORGE",
-        "icon": "$(rocket)"
+        "command": "cappy.init",
+        "title": "🦫 Initialize Cappy",
+        "category": "Cappy"
       },
       {
-        "command": "forge.initComplete",
-        "title": "Initialize FORGE Complete Setup",
-        "category": "FORGE", 
-        "icon": "$(settings-gear)"
+        "command": "cappy.knowstack",
+        "title": "🧠 Cappy: KnowStack",
+        "category": "Cappy"
       },
       {
-        "command": "forge.startActivity",
-        "title": "Start Activity",
-        "category": "FORGE",
-        "icon": "$(play)"
+        "command": "cappy.runknowstack",
+        "title": "🧠 Cappy: KnowStack (alias)",
+        "category": "Cappy"
       },
       {
-        "command": "forge.completeActivity",
-        "title": "Complete Activity",
-        "category": "FORGE",
-        "icon": "$(check)"
+        "command": "cappy.knowtask",
+        "title": "🧠 Cappy: KnowStack (typo alias)",
+        "category": "Cappy"
       },
       {
-        "command": "forge.viewHistory",
-        "title": "View Activity History",
-        "category": "FORGE",
-        "icon": "$(history)"
+        "command": "cappy.viewTelemetryTerms",
+        "title": "📄 Cappy: Ver Termos de Telemetria",
+        "category": "Cappy"
       },
       {
-        "command": "forge.addPreventionRule",
-        "title": "Add Prevention Rule",
-        "category": "FORGE",
-        "icon": "$(shield)"
+        "command": "cappy.new",
+        "title": "🧩 Cappy: New Task",
+        "category": "Cappy"
       },
       {
-        "command": "forge.openDashboard",
-        "title": "Open Dashboard",
-        "category": "FORGE",
-        "icon": "$(dashboard)"
+        "command": "cappy.getActiveTask",
+        "title": "📄 Cappy: Get Active Task (XML content)",
+        "category": "Cappy"
       },
       {
-        "command": "forge.updateCopilotContext",
-        "title": "Update Copilot Context",
-        "category": "FORGE",
-        "icon": "$(sync)"
+        "command": "cappy.version",
+        "title": "📦 Cappy: Get Version",
+        "category": "Cappy"
       },
       {
-        "command": "forge.exportRules",
-        "title": "Export Prevention Rules",
-        "category": "FORGE",
-        "icon": "$(export)"
+        "command": "cappy.createTaskFile",
+        "title": "📝 Cappy: Create Task File",
+        "category": "Cappy"
       },
       {
-        "command": "forge.refreshTasks",
-        "title": "Refresh",
-        "icon": "$(refresh)"
+        "command": "cappy.changeTaskStatus",
+        "title": "🔄 Cappy: Change Task Status",
+        "category": "Cappy"
       },
       {
-        "command": "forge.openTask",
-        "title": "Open Task",
-        "icon": "$(go-to-file)"
-      }
-    ],
-    "views": {
-      "explorer": [
-        {
-          "id": "forgeExplorer",
-          "name": "FORGE Tasks",
-          "when": "workspaceContains:.forge"
-        },
-        {
-          "id": "forgePreventionRules",
-          "name": "Prevention Rules",
-          "when": "workspaceContains:.forge"
-        }
-      ]
-    },
-    "viewsWelcome": [
-      {
-        "view": "forgeExplorer",
-        "contents": "No FORGE tasks found.\n[Initialize FORGE](command:forge.init)\n[Create New Task](command:forge.createTask)"
-      }
-    ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "forge.createTask",
-          "when": "view == forgeExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "forge.refreshTasks",
-          "when": "view == forgeExplorer",
-          "group": "navigation"
-        },
-        {
-          "command": "forge.addPreventionRule",
-          "when": "view == forgePreventionRules",
-          "group": "navigation"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "forge.openTask",
-          "when": "view == forgeExplorer && viewItem == task",
-          "group": "navigation"
-        },
-        {
-          "command": "forge.completeTask",
-          "when": "view == forgeExplorer && viewItem == activeTask",
-          "group": "inline"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "forge.refreshTasks",
-          "when": "false"
-        },
-        {
-          "command": "forge.openTask",
-          "when": "false"
-        }
-      ]
-    },
-    "keybindings": [
-      {
-        "command": "forge.createTask",
-        "key": "ctrl+shift+f ctrl+n",
-        "when": "workspaceContains:.forge"
+        "command": "cappy.completeTask",
+        "title": "✅ Cappy: Complete Task",
+        "category": "Cappy"
       },
       {
-        "command": "forge.completeTask",
-        "key": "ctrl+shift+f ctrl+c",
-        "when": "workspaceContains:.forge"
+        "command": "cappy.addPreventionRule",
+        "title": "➕ Cappy: Add Prevention Rule",
+        "category": "Cappy"
       },
       {
-        "command": "forge.openDashboard",
-        "key": "ctrl+shift+f ctrl+d",
-        "when": "workspaceContains:.forge"
+        "command": "cappy.removePreventionRule",
+        "title": "➖ Cappy: Remove Prevention Rule",
+        "category": "Cappy"
+      },
+      {
+        "command": "cappy.workOnCurrentTask",
+        "title": "🎯 Cappy: Work on Current Task",
+        "category": "Cappy"
+      },
+      {
+        "command": "cappy.reindex",
+        "title": "🔄 Cappy: Reindex Files",
+        "category": "Cappy"
       }
     ],
     "configuration": {
-      "title": "FORGE Framework",
+      "title": "Cappy",
       "properties": {
-        "forge.autoUpdateCopilotContext": {
+        "cappy.autoUpdateCopilotContext": {
           "type": "boolean",
           "default": true,
           "description": "Automatically update Copilot context when prevention rules change"
         },
-        "forge.maxPreventionRules": {
+        "cappy.maxPreventionRules": {
           "type": "number",
           "default": 50,
           "description": "Maximum number of prevention rules to include in Copilot context"
         },
-        "forge.taskTimeEstimation": {
+        "cappy.taskTimeEstimation": {
           "type": "boolean",
           "default": true,
           "description": "Enable automatic task time estimation and atomicity analysis"
         },
-        "forge.showNotifications": {
+        "cappy.showNotifications": {
           "type": "boolean",
           "default": true,
-          "description": "Show notifications for FORGE events"
+          "description": "Show notifications for Cappy events"
         }
       }
     },
     "snippets": [
       {
         "language": "markdown",
-        "path": "./snippets/forge.json"
+        "path": "./snippets/capybara.json"
+      }
+    ],
+    "languages": [
+      {
+        "id": "cappy-task-xml",
+        "aliases": [
+          "Cappy Task XML",
+          "cappy-task"
+        ],
+        "extensions": [
+          ".task.xml"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
         "language": "markdown",
-        "scopeName": "text.html.markdown.forge",
+        "scopeName": "text.html.markdown.cappy",
         "path": "./syntaxes/forge-task.tmLanguage.json"
+      },
+      {
+        "language": "cappy-task-xml",
+        "scopeName": "text.xml.cappy.task",
+        "path": "./syntaxes/cappy-task-xml.tmLanguage.json"
       }
     ]
   },
@@ -214,40 +169,41 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js",
-    "package": "vsce package",
+    "test": "npm run compile && node ./out/test/runTest.js",
+    "test-simple": "npm run compile && echo 'Simple tests compiled successfully - check VS Code test output'",
+    "test-watch": "npm run test -- --watch",
+    "test-folder-structure": "npm run compile && echo 'Teste de estrutura de pastas compilado com sucesso'",
+    "package": "vsce package --dependencies",
     "publish": "vsce publish"
   },
   "devDependencies": {
-    "@types/fs-extra": "^11.0.4",
     "@types/glob": "^8.0.0",
     "@types/mocha": "^10.0.0",
     "@types/node": "16.x",
+    "@types/sinon": "^17.0.4",
     "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^5.45.0",
     "@typescript-eslint/parser": "^5.45.0",
     "@vscode/test-electron": "^2.2.0",
-    "@vscode/vsce": "^2.15.0",
+    "@vscode/vsce": "^3.6.0",
     "eslint": "^8.28.0",
     "glob": "^8.0.3",
     "mocha": "^10.1.0",
+    "sinon": "^21.0.0",
     "typescript": "^4.9.4"
   },
   "dependencies": {
-    "date-fns": "^2.29.3",
-    "fs-extra": "^11.1.1",
-    "yaml": "^2.3.4"
+    "date-fns": "^2.29.3"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cecon/forge-framework.git"
+    "url": "git+https://github.com/cecon/cappy.git"
   },
   "bugs": {
-    "url": "https://github.com/cecon/forge-framework/issues"
+    "url": "https://github.com/cecon/cappy/issues"
   },
-  "homepage": "https://github.com/cecon/forge-framework#readme",
+  "homepage": "https://github.com/cecon/cappy#readme",
   "license": "MIT",
   "author": "",
   "type": "commonjs"

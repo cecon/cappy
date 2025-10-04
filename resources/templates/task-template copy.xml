@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<task
+  id="newtask-script-expanded"
+  category="documentation"
+  priority="high"
+  status="pending"
+  created="{NOW}"
+  xmlns="https://cappy-methodology.dev/task/1.0">
+
+  <context discovery_timestamp="{NOW}">
+    <description>
+      Script detalhado do comando cappy:new, newtask etc. Para orientar a criação de tasks,
+      extrapolando limite de 5 steps para fins de instrução.
+    </description>
+    <keywords>
+      <keyword>cappy:new</keyword>
+      <keyword>cappy:newtask</keyword>
+      <keyword>script</keyword>
+      <keyword>task-creation</keyword>
+      <keyword>documentation</keyword>
+    </keywords>
+    <docs_refs>
+      <doc path=".cappy/stack.md" relevance="high">Projeto/stack conhecido para inferir dependências</doc>
+      <doc path=".cappy/index/" relevance="high">Índices do sistema de contexto</doc>
+      <doc path="docs/index/" relevance="medium">Índice de documentação para busca semântica</doc>
+      <doc path=".cappy/schemas/" relevance="medium">Schemas para referência/edição manual</doc>
+    </docs_refs>
+    <prevention_rules>
+      <rule id="allow-exceed-steps" category="documentation" severity="high" auto_apply="true"> Esta
+        task é um roteiro de instrução e pode ultrapassar 5 passos. <note>Certifique-se de
+          documentar qualquer passo adicional.</note>
+      </rule>
+    </prevention_rules>
+    <dependencies>
+      <dependency type="tool">VS Code</dependency>
+      <dependency type="library">XSD Validator</dependency>
+    </dependencies>
+  </context>
+
+  <execution estimated_duration="PT90M">
+
+    <step id="validate-stack"
+      validation="Confirma que .cappy/stack.md existe e não está vazio."
+      status="pending" atomic="true" estimated_time="PT10M">
+      <description>
+        Validar se o arquivo .cappy/stack.md existe e não está vazio.
+      </description>
+      <substep id="s1.1" validation="Mensagem exibida no chat">
+        <description>Se for vazio abortar e sugerir comando cappy.knowstack para criar o arquivo</description>
+      </substep>
+    </step>
+
+    <step id="check-active-tasks"
+      validation="Comando cappy.getActiveTask executado via API do VS Code;"
+      status="pending" atomic="true" estimated_time="PT1M">
+      <description>
+        Garantir que não há tasks ativas usando o comando de status cappy.getActiveTask.
+      </description>
+      <substep id="s2.1" validation="resultado lido do output.txt">
+        <description>Ler resultado do comando cappy.getActiveTask</description>
+      </substep>
+      <substep id="s2.2"
+        validation="Analise realizada; se task ativa, status e sugestão de conclusão fornecidos">
+        <description>Análisar resultado e fornecer status e sugestão de conclusão se necessário</description>
+      </substep>
+    </step>
+
+    <step id="context-discovery"
+      validation="Coleta descrição da task; executa pipeline de contexto; apresenta resumo de descoberta"
+      status="pending" atomic="true" estimated_time="PT15M">
+      <description>
+        Coletar escopo com o usuário caso não fornecido junto ao comando de criar task.
+      </description>
+      <substep id="s3.1" validation="keywords extraidos">
+        <description>Extrair keywords da descrição da task</description>
+      </substep>
+      <substep id="s3.2" validation="Contexto de documentos relevantes descobertos">
+        <description>Realizar busca semântica em documentos por relevância</description>
+      </substep>
+      <substep id="s3.3" validation="Categoria inferida">
+        <description>Inferir categoria da task baseada em patterns de keywords</description>
+      </substep>
+      <substep id="s3.4" validation="Prevention rules aplicáveis identificadas">
+        <description>Ler prevention rules aplicáveis por categoria</description>
+      </substep>
+      <substep id="s3.5" validation="Resumo de descoberta apresentado ao usuário">
+        <description>Apresentar resumo de contexto descoberto para validação</description>
+      </substep>            
+    </step>
+
+    <step id="scope-validation"
+      validation="Escopo analisado para atomicidade; subjetividade verificada; critérios de validação definidos; estimativa de tempo aplicada"
+      status="pending" atomic="true" estimated_time="PT10M">
+      <description>
+        Validar escopo atômico com análise expert.
+      </description>
+      <substep id="s4.1" validation="Análise de escopo para atomicidade (≤5 steps principais)">
+        <description>Dividir escopo em steps atômicos se necessário validando se vai precisar de mais de 5 passos.</description>
+      </substep>
+      <substep id="s4.2" validation="Verificação de subjetividade e ambiguidade">
+        <description>Reformular escopo para clareza se necessário sempre consultando o usuario com perguntas no padrão uma a uma, se possível gere alternativas para reduzir erros na interpretação do usuário</description>
+      </substep>
+      <substep id="s4.3" validation="Critérios de validação claros definidos">
+        <description>Definir critérios mensuráveis para cada step principal</description>
+      </substep>
+      <substep id="s4.4" validation="Estimativa de tempo baseada em complexidade" >
+        <description>Aplicar estimativa de tempo para cada step baseado em complexidade</description>
+      </substep>
+      <substep id="s4.5" validation="Critérios mensuráveis de conclusão definidos">
+        <description>Definir critérios mensuráveis de conclusão para a task</description>
+      </substep>
+    </step>
+
+    <step id="generate-xml-task-template"
+      validation="Arquivo xml da tarefa gerado; contexto injetado; estrutura validada; template retornado"
+      status="pending" atomic="true" estimated_time="PT10M">
+      <description>
+        Gerar template XML da tarefa, atualizar o contexto e todas as datas e dependencias necessárias.
+      </description>
+      <substep id="s5.1" validation="Arquivo XML da tarefa gerado conforme analisado .cappy/output.txt">
+        <description>Criar arquivo XML da tarefa com ID único com o comando do VSCode cappy.createTaskFile</description>
+      </substep>
+      <substep id="s5.2" validation="Arquivo da tarefa atualizado com contexto descoberto">
+        <description>Injetar contexto descoberto na seção context do XML, incluindo kewords, dependency e docs, cuidando para manter a estrutura correta conforme consta na pasta .cappy/schemas/task-template.xsd</description>
+      </substep>
+      <substep id="s5.3" validation="Data de criação e modificação atualizada" >
+        <description>Atualizar data de criação e modificação para a data atual</description>
+      </substep>
+      <substep id="s5.4" validation="Estrutura execution com step principal definida" >
+        <description>Preencher a seção execution com os steps principais definidos</description>
+      </substep>      
+      <substep id="s5.5" validation="Índices de task atualizados com nova task">
+        <description>Atualizar .cappy/index/ com metadados da nova task</description>
+      </substep>
+    </step>    
+
+    <step id="validate-task-atomicity"
+      validation="Cada step tem objetivo claro; critérios mensuráveis definidos; subjetividade verificada"
+      status="pending" atomic="true" estimated_time="PT10M">
+      <description>
+        Ler cada step da task criada e validar atomicidade e subjetividade. se necessário faça perguntas ao usuário para reformular.
+      </description>
+      <substep id="s6.1" validation="Task decomposta em steps com objetivos únicos">
+        <description>
+          Ler cada step e garantir que tem um objetivo claro e único.
+          Se necessário crie substeps.          
+        </description>
+      </substep>
+      <substep id="s6.2" validation="Cada step tem critérios mensuráveis de validação">
+        <description>
+          Garantir que cada step tem critérios mensuráveis de validação.
+          Se necessário divida em substeps.          
+        </description>
+      </substep>      
+      <substep id="s6.3" validation="Subjetividade e ambiguidade verificadas" >
+        <description>
+          Verificar subjetividade e ambiguidade em cada step.
+          Se necessário faça perguntas ao usuário para reformular.
+          Se fizer mais perguntas lembre de ajustar o contexto, as dependências e as steps.
+        </description>
+      </substep>
+    </step>    
+
+    <step id="generate-unit-tests"
+      validation="Config.yaml verificado; steps de teste gerados; objetivos claros definidos; melhores práticas sugeridas"
+      status="pending" atomic="true" estimated_time="PT15M">
+      <description>
+        Gerar testes unitários se habilitado. 
+        Essa step não deve ser somada ao total de steps principais, sendo assim, se existir 5 steps principais, essa step será a 6ª. sem ferir a regra de máximo 5 steps.
+      </description>
+      <substep id="s7.1" validation="Verificação se unit tests estão habilitados" >
+        <description>Ler .cappy/config.yaml para verificar se unit tests estão habilitados</description>
+      </substep>
+      <substep id="s7.2" validation="Steps para criar testes para cada step principal" >
+        <description>
+          Criar steps de teste para cada step principal da task.
+        </description>
+      </substep>
+      <substep id="s7.3" validation="Objetivo claro e critérios mensuráveis para cada teste" >
+        <description>
+          Definir objetivo claro e critérios mensuráveis para cada teste.
+        </description>
+      </substep>
+      <substep id="s7.4" validation="Melhores práticas para cobertura sugeridas" >
+        <description>
+          Sugerir melhores práticas para garantir cobertura adequada dos testes.
+        </description>
+      </substep>
+      <substep id="s7.5" validation="Atualização da seção execution com steps de teste" >
+        <description>
+          Atualizar a seção execution da task com os steps de teste gerados.
+        </description>
+      </substep>
+    </step>
+
+    <step id="generate-documentation"
+      validation="Índices consultados; documentação existente verificada; step dedicado criado; critérios de validação definidos"
+      status="pending" atomic="true" estimated_time="PT15M">
+      <description>
+        Gerar uma step para criar ou atualizar documentação.        
+        Essa step não deve ser somada ao total de steps principais, sendo assim, se existir 5 steps principais, essa step será a 6ª. sem ferir a regra de máximo 5 steps.
+      </description>
+      <substep id="s8.1" validation="Consulta .cappy/index/ e docs/index/ para docs existentes">
+        <description>A task deve verificar se já existe documentação relevante para a task</description>
+      </substep>
+      <substep id="s8.2" validation="Determinação entre atualizar docs existentes ou criar novos">
+        <description>A task deve determinar se deve atualizar a documentação existente ou criar uma nova</description>
+      </substep>
+      <substep id="s8.3" validation="Step dedicado criado em execution para documentação">
+        <description>A task deve criar um step dedicado em execution para a documentação</description>
+      </substep>
+      <substep id="s8.4" validation="Critérios de validação claros definidos">
+        <description>A task deve definir critérios de validação claros para a documentação</description>
+      </substep>
+      <substep id="s8.5" validation="Atualização da seção execution com steps de teste" >
+        <description>
+          Atualizar a seção execution da task com os steps de teste gerados.
+        </description>
+      </substep>
+    </step>
+
+    <step id="analyze-mistakes"
+      validation="Tipos de erro registrados; causas raiz analisadas; novas prevention rules propostas; índice atualizado"
+      status="pending" atomic="true" estimated_time="PT10M">
+      <description>
+        Criar uma step para analisar erros, verificar se não deveriam ser cometidos novamente e criar prevention rules.
+        Essa step não deve ser somada ao total de steps principais, sendo assim, se existir 5 steps principais, essa step será a 6ª. sem ferir a regra de máximo 5 steps.
+      </description>
+      <substep id="s9.1" validation="Erros e intervenções manuais registrados">
+        <description>Registrar tipos de erro e intervenções manuais feitas durante a criação da task</description>
+      </substep>
+      <substep id="s9.2" validation="Análise de causas raiz e padrões">
+        <description>Analisar causas raiz dos erros e identificar padrões</description>
+      </substep>
+      <substep id="s9.3" validation="Novas prevention rules propostas">
+        <description>Propor novas prevention rules com base na análise de erros</description>
+      </substep>
+      <substep id="s9.4" validation="Índice de prevention rules atualizado">
+        <description>Atualizar o índice de prevention rules com as novas regras propostas</description>
+      </substep>
+      <substep id="s9.5" validation="Atualização da seção execution com steps de teste" >
+        <description>
+          Atualizar a seção execution da task com os steps de teste gerados.
+        </description>
+      </substep>
+    </step>
+
+    <step id="finalize-task"
+      validation="Task XML lida; atributos atualizados; seção completion inicializada; mensagem de sucesso fornecida"
+      status="pending" atomic="true" estimated_time="PT10M">
+      <description>
+        Verificar o arquivo XML da task, atualizar atributos, inicializar seção completion e fornecer mensagem de sucesso.
+      </description>
+      <substep id="s10.1" validation="Arquivo da task lido e validado">
+        <description>Verificar se o arquivo da task foi lido e validado corretamente</description>
+      </substep>
+      <substep id="s10.2" validation="Compliance XSD garantido">
+        <description>Garantir que a task está em conformidade com o XSD</description>
+      </substep>
+      <substep id="s10.3" validation="Atributos da task atualizados">
+        <description>Atualizar os atributos da task com as informações mais recentes</description>
+      </substep>
+      <substep id="s10.4" validation="Seção completion inicializada">
+        <description>Inicializar a seção de completion da task</description>
+      </substep>
+      <substep id="s10.5" validation="Mensagem de sucesso com resumo fornecida">
+        <description>Fornecer uma mensagem de sucesso com um resumo da task</description>
+      </substep>
+    </step>
+
+  </execution>
+
+  <completion>
+    <validation_checklist>
+      <item critical="true">Script preserva lógica do comando cappy:new</item>
+      <item critical="true">Exceder limite de 5 steps permitido apenas por ser roteiro</item>      
+      <item>Saída confirmada em .cappy/output.txt</item>
+    </validation_checklist>
+    <knowledge_capture>
+      <new_learnings>
+        <learning>Scripts de instrução podem ter exceções às regras normais</learning>
+      </new_learnings>
+    </knowledge_capture>
+    <metrics>
+      <metric name="steps_total" value="10" unit="count" category="execution" />
+    </metrics>
+  </completion>
+
+</task>

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<task id="{{TASK_ID}}"
+    category="{{CATEGORY}}"
+    priority="normal"
+    status="pending"
+    created="{{CREATED_TIMESTAMP}}"
+    completedAt=""
+    xmlns="https://cappy-methodology.dev/task/1.0">
+
+    <about>
+        <summary>
+            Você é um desenvolvedor experiente e um especialista.
+            Seu papel é seguir cada passo desse arquivo no plano e seguir ele a risca.
+            Sempre que concluir um passo, marque ele como concluído na lista e informe o progresso.
+            No final, quando todos os passos estiverem concluídos, finalize a tarefa e preencha a
+            data de finalização completedAt=""  nesse arquivo de task.
+            use seus recursos de todo list para gerenciar o progresso.
+        </summary>
+    </about>
+
+    <context>
+        <description>
+            <!-- Escopo da tarefa -->
+        </description>
+        <docs_refs>
+            <doc path=".cappy/stack.md" />
+            <doc path=".cappy/indexes/**.json" />
+            <!-- Documentações relevantes serão injetadas automaticamente -->
+            <!-- Exemplo: <doc path="docs/{{AREA}}/overview.md" relevance="medium">Documentação
+            base</doc> -->
+        </docs_refs>
+
+        <prevention_rules>
+            <!-- Prevention rules aplicáveis serão injetadas do índice -->
+            <!-- Sistema automaticamente busca por categoria e contexto -->
+            <rule id="basic-verification" category="{{CATEGORY}}" severity="medium"
+                auto_apply="true">
+                Verificar sintaxe antes de executar comandos
+                Verificar ambiente (ferramentas, versões, variáveis)
+                Verificar dependências do projeto
+            </rule>
+            <rule id="data-validation" category="general" severity="high" auto_apply="true">
+                Verificar se precisa navegar para a pasta correta antes de executar um comando <example>
+                Em alguns casos pode haver subprojetos como um monorepo, então é importante garantir
+                que o comando seja executado na pasta certa.
+                </example>
+            </rule>
+            <rule id="scope-validation" category="general" severity="high" auto_apply="true">
+                Manter tarefa atômica - máximo 5 steps principais
+            </rule>
+        </prevention_rules>
+
+        <related_tasks>
+            <!-- Tasks relacionadas poderão ser citadas aqui -->
+        </related_tasks>
+
+        <dependencies>
+            <!-- Dependências do ambiente/projeto -->
+            <dependency type="tool" critical="false">{{PRIMARY_TOOL}}</dependency>
+        </dependencies>
+    </context>
+
+    <execution>
+        <!-- Exemplo
+         id sequencial de steps
+         name descritivo curto
+        <step id="1" name="Validar .cappy/stack.md">
+        <checklist>
+            <item>.cappy/stack.md existe e não está vazio.</item>
+            <item>Conteúdo do stack.md compreendido e analisado.</item>
+            <item>Marque esse passo como concluído, informe no chat e siga para o próximo.</item>
+        </checklist>
+        </step>
+        
+        -->
+    </execution>
+
+    <!-- Completion section é preenchida apenas após execução -->
+    <!-- Exemplo
+    <completion>
+        <validation_checklist>
+            <item>stack.md existe e não vazio</item>
+            <item>sem task ativa</item>
+            <item>XML criado, contexto preenchido, steps e checklists definidos.</item>
+        </validation_checklist>
+    </completion>
+    -->
+</task>

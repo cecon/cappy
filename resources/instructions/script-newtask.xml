@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<script>
+  <about>
+    <summary>      
+      Carregue cada passo desse arquivo no plano e siga ele a risca.      
+    </summary>    
+  </about>
+
+  <context>
+    <description>
+      Você é um analista de sistemas experiente e um especialista em automação de tarefas.
+      Seu papel é criar um arquivo XML de task seguindo a metodologia Cappy, baseado no conteúdo do arquivo .cappy/stack.md.
+      O arquivo de task deve conter metadados, contexto, regras de prevenção, referências a documentação relevante e passos detalhados para completar a tarefa.
+      Siga rigorosamente o formato XML e as diretrizes da metodologia Cappy.
+      Certifique-se de que o arquivo XML esteja bem estruturado, com todos os elementos necessários preenchidos corretamente.
+      Utilize o template de task padrão como referência para a estrutura do arquivo (O template será gerado no passo 3).
+    </description>    
+    <docs_refs>
+      <doc path=".cappy/stack.md"/>
+    </docs_refs>
+  </context>
+
+  <execution>
+    <step id="1" name="Validar .cappy/stack.md">
+      <checklist>
+        <item>.cappy/stack.md existe e não está vazio.</item>
+        <item>Conteúdo do stack.md compreendido e analisado.</item>
+        <item>Marque esse passo como concluído, informe no chat e siga para o próximo.</item>
+      </checklist>
+    </step>
+    <step id="2" name="Checar task ativa e liberar criação">
+      <checklist>
+        <item>Verificar se há uma task ativa no momento.</item>
+        <item>Se houver uma task ativa, informe que não é possível criar uma nova task até que a atual seja concluída. Aborte a criação da nova task.</item>
+        <item>Se não houver uma task ativa, informe que a criação da nova task pode prosseguir.</item>
+        <item>Marque esse passo como concluído, informe no chat e siga para o próximo.</item>
+      </checklist>
+    </step>
+    <step id="3" name="Criar template XML e metadados mínimos">
+      <checklist>
+        <item>
+          Gerar o arquivo XML da task utilizando o template padrão.
+          O comando para gerar o arquivo é `cappy.createTaskFile` disparar programaticamente via VS Code API.
+        </item>
+        <item>Preencher os metadados mínimos necessários, como ID da tarefa, categoria, prioridade, status e timestamp de criação.</item>        
+        <item>Marque esse passo como concluído, informe no chat e siga para o próximo.</item>
+      </checklist>
+    </step>
+    <step id="4" name="Preencher contexto (summary, description, keywords, docs)">
+      <checklist>
+        <item>Como analista de sistemas, você precisa coletar o escopo da tarefa,</item>
+        <item>definir os objetivos e entregáveis esperados.</item>
+        <item>
+          Nem sempre o desenvolvedor tem uma visão clara do que precisa ser feito, então é seu papel ajudar a esclarecer isso.
+          Faça perguntas, peça exemplos e colete o máximo de informações possível.
+          Qualquer pergunta que você fizer precisa ser no padrão uma a uma, ou seja, uma pergunta por vez.
+          Use o seguinte formato para cada pergunta:          
+          <example>
+            1. Qual é o objetivo principal da tarefa?
+            2. Quais são os entregáveis esperados?
+            3. Quais são os critérios de sucesso para a tarefa?
+          </example>
+        </item>
+        <item>Preencher o contexto da task no XML, incluindo resumo, descrição detalhada, palavras-chave relevantes e referências a documentação útil.</item>
+        <item>Adicionar exemplos práticos ou casos de uso que ajudem a ilustrar a tarefa. Pois quem vai executar não terá acesso ao contexto completo.</item>
+        <item>Marque esse passo como concluído, informe no chat e diga que o contexto foi preenchido.</item>
+      </checklist>
+    </step>
+    <step id="5" name="Definir até 5 steps finais e checklist">
+      <checklist>
+        <item>Decompor a tarefa em até 5 passos principais (steps) que sejam atômicos e fáceis de seguir.</item>
+        <item>Para cada step, definir um checklist claro com critérios de validação que indiquem quando o passo foi concluído com sucesso.</item>
+        <item>Incluir ações específicas, comandos ou verificações que precisam ser realizadas em cada step.</item>
+        <item>Adicionar um item de checklist para cada critério de sucesso identificado.</item>
+        <item>Adicionar ao final de cada checklist um item para revisar e validar o passo antes de considerá-lo concluído.</item>
+        <item>Marque esse passo como concluído, informe no chat e diga que os steps foram definidos.</item>
+      </checklist>
+    </step>
+  </execution>
+
+  <completion>
+    <validation_checklist>
+      <item>stack.md existe e não vazio</item>
+      <item>sem task ativa</item>
+      <item>XML criado, contexto preenchido, steps e checklists definidos.</item>
+    </validation_checklist>
+  </completion>
+</script>

@@ -1,182 +1,355 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs-extra';
-import * as yaml from 'yaml';
-import { ForgeConfig } from '../models/forgeConfig';
-import { Task } from '../models/task';
-import { PreventionRule } from '../models/preventionRule';
+import * as fs from 'fs';
+import { CappyConfig } from '../models/cappyConfig';
 
 export class FileManager {
-    private workspaceRoot: string;
+    private workspaceRoot: string | null = null;
 
     constructor() {
-        if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+        // Don't throw in constructor - initialize safely
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            this.workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        }
+    }
+
+    private ensureWorkspace(): string {
+        if (!this.workspaceRoot) {
             throw new Error('No workspace folder found');
         }
-        this.workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        return this.workspaceRoot;
     }
 
-    async ensureForgeStructure(): Promise<void> {
-        const forgePath = path.join(this.workspaceRoot, '.forge');
-        const tasksPath = path.join(this.workspaceRoot, 'tasks');
-        const vscodePath = path.join(this.workspaceRoot, '.vscode');
-        const templatesPath = path.join(forgePath, 'templates');
-
-        await fs.ensureDir(forgePath);
-        await fs.ensureDir(tasksPath);
-        await fs.ensureDir(vscodePath);
-        await fs.ensureDir(templatesPath);
-    }
-
-    async writeForgeConfig(config: ForgeConfig): Promise<void> {
-        const configPath = path.join(this.workspaceRoot, '.forge', 'config.yml');
-        const yamlContent = yaml.stringify(config);
-        await fs.writeFile(configPath, yamlContent, 'utf8');
-    }
-
-    async readForgeConfig(): Promise<ForgeConfig | null> {
-        const configPath = path.join(this.workspaceRoot, '.forge', 'config.yml');
-        
-        try {
-            const yamlContent = await fs.readFile(configPath, 'utf8');
-            return yaml.parse(yamlContent) as ForgeConfig;
-        } catch (error) {
-            return null;
+    async writeCappyConfig(config: CappyConfig): Promise<void> {
+        const configPath = path.join(this.ensureWorkspace(), '.cappy', 'config.yaml');
+        // Ensure .cappy directory exists
+        const cappyDir = path.dirname(configPath);
+        if (!fs.existsSync(cappyDir)) {
+            await fs.promises.mkdir(cappyDir, { recursive: true });
         }
+        // NOTE: For now, we store minimal YAML. Full mapping can be added when needed.
+        const yaml = `version: "${config.version}"
+createdAt: "${(config as any).createdAt || ''}"
+lastUpdated: "${(config as any).lastUpdated || ''}"
+`;
+        await fs.promises.writeFile(configPath, yaml, 'utf8');
     }
 
-    async createTaskFolder(taskId: string): Promise<string> {
-        const taskPath = path.join(this.workspaceRoot, 'tasks', taskId);
-        const artifactsPath = path.join(taskPath, 'artifacts');
-
-        await fs.ensureDir(taskPath);
-        await fs.ensureDir(artifactsPath);
-
-        return taskPath;
-    }
-
-    async writeTaskFile(taskPath: string, filename: string, content: string): Promise<void> {
-        const filePath = path.join(taskPath, filename);
-        await fs.writeFile(filePath, content, 'utf8');
-    }
-
-    async readTaskFile(taskPath: string, filename: string): Promise<string | null> {
-        const filePath = path.join(taskPath, filename);
+    async readCappyConfig(): Promise<CappyConfig | null> {
+        const configPath = path.join(this.ensureWorkspace(), '.cappy', 'config.yaml');
         
         try {
-            return await fs.readFile(filePath, 'utf8');
+            const content = await fs.promises.readFile(configPath, 'utf8');
+            // Minimal parse: extract version if present
+            const m = content.match(/version:\s*"?([\d.]+)"?/);
+            const version = m ? m[1] : '0.0.0';
+            return {
+                version,
+                instructionsVersion: '',
+                project: { name: '', language: [], framework: [] },
+                stack: { primary: 'typescript', secondary: [], patterns: [], conventions: { codeStyle: [], testing: [], architecture: [] } },
+                environment: { os: 'windows', shell: 'powershell', editor: 'vscode', packageManager: 'npm', containerization: 'docker' },
+                context: { maxRules: 0, autoPrioritize: false, languageSpecific: false, projectPatterns: false, autoUpdateCopilot: false },
+                tasks: { maxAtomicHours: 0, defaultTemplate: '', autoTimeEstimation: false, atomicityWarning: false, requireUnitTests: false, testFramework: '', testCoverage: 0, nextTaskNumber: 1, workflowMode: 'single-focus' },
+                ai: { provider: 'copilot', copilotIntegration: true, contextFile: '.github/copilot-instructions.md', maxContextSize: 4000 },
+                analytics: { enabled: false, trackTime: false, trackEffectiveness: false },
+                createdAt: new Date(),
+                lastUpdated: new Date(),
+            } as CappyConfig;
         } catch (error) {
             return null;
         }
     }
 
     async getCopilotInstructionsPath(): Promise<string> {
-        return path.join(this.workspaceRoot, '.vscode', 'copilot-instructions.md');
+        return path.join(this.ensureWorkspace(), '.github', 'copilot-instructions.md');
     }
 
     async writeCopilotInstructions(content: string): Promise<void> {
         const instructionsPath = await this.getCopilotInstructionsPath();
-        await fs.writeFile(instructionsPath, content, 'utf8');
-    }
-
-    async getTaskFolders(): Promise<string[]> {
-        const tasksPath = path.join(this.workspaceRoot, 'tasks');
-        
-        try {
-            const items = await fs.readdir(tasksPath, { withFileTypes: true });
-            return items
-                .filter((item: fs.Dirent) => item.isDirectory())
-                .map((item: fs.Dirent) => item.name)
-                .sort();
-        } catch (error) {
-            return [];
+        // Ensure .github directory exists
+        const githubDir = path.dirname(instructionsPath);
+        if (!fs.existsSync(githubDir)) {
+            await fs.promises.mkdir(githubDir, { recursive: true });
         }
+        await fs.promises.writeFile(instructionsPath, content, 'utf8');
     }
 
-    async taskExists(taskId: string): Promise<boolean> {
-        const taskPath = path.join(this.workspaceRoot, 'tasks', taskId);
-        return fs.pathExists(taskPath);
+    /**
+     * Update or inject Cappy instructions in copilot-instructions.md with version control
+     */
+    async updateCappyInstructions(cappyContent: string, version: string): Promise<void> {
+        const instructionsPath = await this.getCopilotInstructionsPath();
+        const startMarker = `=====================START CAPYBARA MEMORY v${version}=====================`;
+        const endMarker = `======================END CAPYBARA MEMORY v${version}======================`;
+        
+        let existingContent = '';
+        if (fs.existsSync(instructionsPath)) {
+            existingContent = await fs.promises.readFile(instructionsPath, 'utf8');
+        }
+
+        // Remove any existing Cappy sections (any version)
+        const cleanedContent = this.removeExistingCappySection(existingContent);
+        
+        // Add new Cappy section
+        const newContent = cleanedContent.trim() 
+            ? `${cleanedContent}\n\n${cappyContent}`
+            : cappyContent;
+
+        // Ensure .github directory exists
+        const githubDir = path.dirname(instructionsPath);
+        if (!fs.existsSync(githubDir)) {
+            await fs.promises.mkdir(githubDir, { recursive: true });
+        }
+
+        await fs.promises.writeFile(instructionsPath, newContent, 'utf8');
+    }
+
+    /**
+     * Remove existing Cappy section from content
+     */
+    private removeExistingCappySection(content: string): string {
+        const startPattern = /=+START CAPYBARA MEMORY v[\d.]+={20,}/;
+        const endPattern = /=+END CAPYBARA MEMORY v[\d.]+={20,}/;
+        
+        const lines = content.split('\n');
+        const result: string[] = [];
+        let inCappySection = false;
+        
+        for (const line of lines) {
+            if (startPattern.test(line)) {
+                inCappySection = true;
+                continue;
+            }
+            
+            if (endPattern.test(line)) {
+                inCappySection = false;
+                continue;
+            }
+            
+            if (!inCappySection) {
+                result.push(line);
+            }
+        }
+        
+        return result.join('\n').trim();
+    }
+
+    /**
+     * Get current Cappy version from instructions file
+     */
+    async getCurrentCappyVersion(): Promise<string | null> {
+        const instructionsPath = await this.getCopilotInstructionsPath();
+        
+        if (!fs.existsSync(instructionsPath)) {
+            return null;
+        }
+        
+        const content = await fs.promises.readFile(instructionsPath, 'utf8');
+        const versionMatch = content.match(/START CAPYBARA MEMORY v([\d.]+)/);
+        
+        return versionMatch ? versionMatch[1] : null;
     }
 
     async getProjectLanguages(): Promise<string[]> {
         const languages: Set<string> = new Set();
 
         // Check package.json for JavaScript/TypeScript projects
-        const packageJsonPath = path.join(this.workspaceRoot, 'package.json');
-        if (await fs.pathExists(packageJsonPath)) {
+        const packageJsonPath = path.join(this.ensureWorkspace(), 'package.json');
+        try {
+            await fs.promises.access(packageJsonPath, fs.constants.F_OK);
             languages.add('javascript');
             
             // Check for TypeScript
-            const packageJson = await fs.readJson(packageJsonPath);
+            const packageJsonContent = await fs.promises.readFile(packageJsonPath, 'utf8');
+            const packageJson = JSON.parse(packageJsonContent);
             if (packageJson.devDependencies?.typescript || packageJson.dependencies?.typescript) {
                 languages.add('typescript');
+            }
+        } catch (error: any) {
+            if (error.code !== 'ENOENT') {
+                console.error('Error reading package.json:', error);
             }
         }
 
         // Check for Python files
-        const pythonFiles = await vscode.workspace.findFiles('**/*.py', '**/node_modules/**', 1);
-        if (pythonFiles.length > 0) {
+        if (await this.hasFilesWithExtension('.py')) {
             languages.add('python');
         }
 
-        // Check for Java files
-        const javaFiles = await vscode.workspace.findFiles('**/*.java', '**/node_modules/**', 1);
-        if (javaFiles.length > 0) {
-            languages.add('java');
-        }
-
         // Check for C# files
-        const csharpFiles = await vscode.workspace.findFiles('**/*.cs', '**/node_modules/**', 1);
-        if (csharpFiles.length > 0) {
+        if (await this.hasFilesWithExtension('.cs')) {
             languages.add('csharp');
         }
 
-        // Check for Rust files
-        const rustFiles = await vscode.workspace.findFiles('**/*.rs', '**/node_modules/**', 1);
-        if (rustFiles.length > 0) {
-            languages.add('rust');
+        // Check for Java files
+        if (await this.hasFilesWithExtension('.java')) {
+            languages.add('java');
         }
 
         return Array.from(languages);
     }
 
-    async getProjectFrameworks(): Promise<string[]> {
-        const frameworks: Set<string> = new Set();
+    private async hasFilesWithExtension(extension: string): Promise<boolean> {
+        const workspaceRoot = this.ensureWorkspace();
+        
+        try {
+            const files = await this.findFilesRecursively(workspaceRoot, extension);
+            return files.length > 0;
+        } catch (error) {
+            console.error(`Error searching for ${extension} files:`, error);
+            return false;
+        }
+    }
 
-        // Check package.json for web frameworks
-        const packageJsonPath = path.join(this.workspaceRoot, 'package.json');
-        if (await fs.pathExists(packageJsonPath)) {
+    private async findFilesRecursively(dir: string, extension: string, maxDepth: number = 3): Promise<string[]> {
+        if (maxDepth <= 0) {
+            return [];
+        }
+
+        const files: string[] = [];
+        
+        try {
+            const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+            
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                
+                if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+                    const subFiles = await this.findFilesRecursively(fullPath, extension, maxDepth - 1);
+                    files.push(...subFiles);
+                } else if (entry.isFile() && entry.name.endsWith(extension)) {
+                    files.push(fullPath);
+                }
+            }
+        } catch (error) {
+            // Ignore directory access errors
+        }
+        
+        return files;
+    }
+
+    /**
+     * Copy all XSD files from extension resources/ to .cappy/schemas/
+     * Replaces existing files completely
+     */
+    async copyXsdSchemas(): Promise<void> {
+        const workspaceRoot = this.ensureWorkspace();
+        
+        // Get extension path - try multiple methods to find it
+        const extensionPath = this.getExtensionPath();
+        if (!extensionPath) {
+            console.warn('[copyXsdSchemas] Could not determine extension path');
+            return;
+        }
+        
+        const resourcesPath = path.join(extensionPath, 'resources');
+        const schemasPath = path.join(workspaceRoot, '.cappy', 'schemas');
+
+        console.log(`[copyXsdSchemas] extensionPath: ${extensionPath}`);
+        console.log(`[copyXsdSchemas] resourcesPath: ${resourcesPath}`);
+        console.log(`[copyXsdSchemas] schemasPath: ${schemasPath}`);
+
+        // Ensure .cappy/schemas directory exists
+        if (!fs.existsSync(schemasPath)) {
+            console.log(`[copyXsdSchemas] Creating schemas directory: ${schemasPath}`);
+            await fs.promises.mkdir(schemasPath, { recursive: true });
+        } else {
+            console.log(`[copyXsdSchemas] Schemas directory already exists: ${schemasPath}`);
+        }
+
+        try {
+            // Find all XSD files in extension resources/
+            console.log(`[copyXsdSchemas] Looking for XSD files in: ${resourcesPath}`);
+            const xsdFiles = await this.findXsdFiles(resourcesPath);
+            console.log(`[copyXsdSchemas] Found ${xsdFiles.length} XSD files:`, xsdFiles);
+            
+            // Copy each XSD file to .cappy/schemas/
+            for (const xsdFile of xsdFiles) {
+                const fileName = path.basename(xsdFile);
+                const destPath = path.join(schemasPath, fileName);
+                
+                console.log(`[copyXsdSchemas] Copying ${xsdFile} -> ${destPath}`);
+                await fs.promises.copyFile(xsdFile, destPath);
+                console.log(`Copied XSD: ${fileName} to .cappy/schemas/`);
+            }
+            
+            if (xsdFiles.length > 0) {
+                console.log(`Successfully copied ${xsdFiles.length} XSD file(s) to .cappy/schemas/`);
+            } else {
+                console.log('No XSD files found to copy');
+            }
+        } catch (error) {
+            console.error('Error copying XSD schemas:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Try to determine the extension path using various methods
+     */
+    private getExtensionPath(): string | null {
+        // Method 1: From __dirname (compiled extension)
+        let candidates = [
+            path.resolve(__dirname, '../..'), // from out/utils/ -> extension root
+            path.resolve(__dirname, '../../..'), // alternative path
+        ];
+
+        // Method 2: Check current working directory
+        candidates.push(process.cwd());
+
+        // Method 3: Check if we're in development
+        candidates.push(path.resolve(__dirname, '..', '..', '..'));
+
+        for (const candidate of candidates) {
+            const packageJsonPath = path.join(candidate, 'package.json');
+            const resourcesPath = path.join(candidate, 'resources');
+            
             try {
-                const packageJson = await fs.readJson(packageJsonPath);
-                const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-
-                if (deps.react) frameworks.add('react');
-                if (deps.vue) frameworks.add('vue');
-                if (deps.angular) frameworks.add('angular');
-                if (deps.svelte) frameworks.add('svelte');
-                if (deps.next) frameworks.add('nextjs');
-                if (deps.nuxt) frameworks.add('nuxtjs');
-                if (deps.express) frameworks.add('express');
-                if (deps.fastify) frameworks.add('fastify');
-                if (deps.nest) frameworks.add('nestjs');
+                if (fs.existsSync(packageJsonPath) && fs.existsSync(resourcesPath)) {
+                    // Verify it's the Cappy extension by checking package.json
+                    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+                    if (packageJson.name === 'cappy' && packageJson.publisher === 'eduardocecon') {
+                        console.log(`[getExtensionPath] Found extension at: ${candidate}`);
+                        return candidate;
+                    }
+                }
             } catch (error) {
-                // Ignore JSON parsing errors
+                // Continue to next candidate
             }
         }
 
-        // Check for Python frameworks
-        const requirementsPath = path.join(this.workspaceRoot, 'requirements.txt');
-        if (await fs.pathExists(requirementsPath)) {
-            try {
-                const requirements = await fs.readFile(requirementsPath, 'utf8');
-                if (requirements.includes('django')) frameworks.add('django');
-                if (requirements.includes('flask')) frameworks.add('flask');
-                if (requirements.includes('fastapi')) frameworks.add('fastapi');
-            } catch (error) {
-                // Ignore file read errors
+        console.warn('[getExtensionPath] Could not find extension resources directory');
+        return null;
+    }
+
+    /**
+     * Find all XSD files recursively in a directory
+     */
+    private async findXsdFiles(dir: string): Promise<string[]> {
+        const xsdFiles: string[] = [];
+        
+        try {
+            const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+            
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                
+                if (entry.isDirectory()) {
+                    // Recursively search subdirectories
+                    const subXsdFiles = await this.findXsdFiles(fullPath);
+                    xsdFiles.push(...subXsdFiles);
+                } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.xsd')) {
+                    xsdFiles.push(fullPath);
+                }
+            }
+        } catch (error) {
+            // If resources directory doesn't exist, just return empty array
+            if ((error as any).code !== 'ENOENT') {
+                console.error(`Error reading directory ${dir}:`, error);
             }
         }
-
-        return Array.from(frameworks);
+        
+        return xsdFiles;
     }
 }

@@ -81,9 +81,7 @@ Thumbs.db
 test-results/
 coverage/
 
-# FORGE Framework specific (Personal Development)
-.forge/
-.github/copilot-instructions.md
-.github/stack-instructions.md
-*.forge.lock
-.forge-context/
+# Cappy specific - ignore only runtime files
+.cappy/history/
+.cappy/tasks/
+.cappy/output.txt

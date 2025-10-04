@@ -1,0 +1,19 @@
+# Cappy Configuration
+version: "0.0.0"
+
+cappy:
+  initialized_at: "2025-10-03T11:37:28.645Z"
+  last_updated: "2025-10-03T11:37:28.645Z"
+
+stack:
+  source: ".cappy/stack.md"
+  validated: false
+  validated_at:
+
+
+tasks:
+  directory: "tasks"
+  history_directory: "history"
+
+instructions:
+  directory: "instructions"
