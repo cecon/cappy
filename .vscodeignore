@@ -28,6 +28,13 @@ node_modules/**
 **/test/**
 **/*.test.*
 **/*.spec.*
+test-workspace/**
+.vscode-test/**
+
+# Development files that shouldn't be packaged
+mini-lightrag-steps.zip
+simple-test.js
+test-chunking.js
 
 # Source control
 .git/**

@@ -20,6 +20,8 @@ import * as fs from 'fs';
 
 export function activate(context: vscode.ExtensionContext) {
   try {
+    console.log('🦫 Cappy: Starting activation...');
+    
     // Show immediate activation message with environment detection
     const welcomeMessage = EnvironmentDetector.getWelcomeMessage();
     vscode.window.showInformationMessage(welcomeMessage);
@@ -28,6 +30,8 @@ export function activate(context: vscode.ExtensionContext) {
   // Shared output channel for surfaced internal scripts / diagnostics
   const cappyOutput = vscode.window.createOutputChannel('Cappy');
   context.subscriptions.push(cappyOutput);
+
+    console.log('🦫 Cappy: Output channel created...');
 
     // Telemetry consent gating (one-time and on updates)
     ensureTelemetryConsent(context)
@@ -180,7 +184,7 @@ export function activate(context: vscode.ExtensionContext) {
       async () => {
         try {
           const mod = await import("./commands/getVersion");
-          const version = await mod.getVersion();
+          const version = mod.getVersion();
           return version;
         } catch (error) {
           vscode.window.showErrorMessage(`Cappy version command failed: ${error}`);

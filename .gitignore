@@ -85,3 +85,5 @@ coverage/
 .cappy/history/
 .cappy/tasks/
 .cappy/output.txt
+
+test-workspace/
