@@ -133,8 +133,8 @@ suite('🦫 Cappy Extension Test Suite', () => {
             try {
                 await fs.promises.rmdir(cappyDir, { recursive: true });
                 console.log('🧪 Existing .cappy folder removed from test workspace');
-            } catch (error) {
-                console.log('🧪 No existing .cappy folder to remove');
+            } catch (error: any) {
+                console.log('🧪 No existing .cappy folder to remove:', error.message);
             }
         } else {
             console.log('🧪 Running in production workspace - skipping .cappy cleanup');

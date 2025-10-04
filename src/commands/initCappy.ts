@@ -139,21 +139,23 @@ export class InitCappyCommand {
                 return;
             } catch (error: any) {
                 if (error.code === 'ENOENT') {
-                    // Não tem config.yaml, remover pasta toda e recriar (API moderna)
-                    await fs.promises.rm(cappyDir, { recursive: true, force: true });
+                    // Se não tem config.yaml, apenas criar os diretórios necessários
+                    // NÃO remove a pasta inteira para preservar dados do usuário
+                    await fs.promises.mkdir(path.join(cappyDir, 'tasks'), { recursive: true });
+                    await fs.promises.mkdir(path.join(cappyDir, 'history'), { recursive: true });
+                    await fs.promises.mkdir(path.join(cappyDir, 'schemas'), { recursive: true });
                 }
             }
         } catch (error: any) {
             if (error.code !== 'ENOENT') {
                 throw error;
             }
+            // Criar estrutura completa apenas se .cappy não existir
+            await fs.promises.mkdir(cappyDir, { recursive: true });
+            await fs.promises.mkdir(path.join(cappyDir, 'tasks'), { recursive: true });
+            await fs.promises.mkdir(path.join(cappyDir, 'history'), { recursive: true });
+            await fs.promises.mkdir(path.join(cappyDir, 'schemas'), { recursive: true });
         }
-
-        // Criar estrutura completa
-        await fs.promises.mkdir(cappyDir, { recursive: true });
-        await fs.promises.mkdir(path.join(cappyDir, 'tasks'), { recursive: true });
-        await fs.promises.mkdir(path.join(cappyDir, 'history'), { recursive: true });
-        await fs.promises.mkdir(path.join(cappyDir, 'schemas'), { recursive: true });
         
         // Criar arquivo prevention-rules.xml se não existir
         await this.ensurePreventionRulesFile(cappyDir);
