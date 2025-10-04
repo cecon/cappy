@@ -3,6 +3,33 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
+ * Simple output writer for VS Code
+ */
+export class OutputWriter {
+  private readonly outputChannel: vscode.OutputChannel;
+
+  constructor(channelName: string = 'Cappy LightRAG') {
+    this.outputChannel = vscode.window.createOutputChannel(channelName);
+  }
+
+  writeLine(message: string): void {
+    this.outputChannel.appendLine(message);
+  }
+
+  show(): void {
+    this.outputChannel.show();
+  }
+
+  clear(): void {
+    this.outputChannel.clear();
+  }
+
+  dispose(): void {
+    this.outputChannel.dispose();
+  }
+}
+
+/**
  * Writes content to .cappy/output.txt, clearing previous content
  * Only writes if .cappy directory already exists (project is initialized)
  */

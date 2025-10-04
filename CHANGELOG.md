@@ -5,6 +5,38 @@ All notable changes to the Cappy extension will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.11] - 2025-10-03
+
+### Added - Mini-LightRAG Data Schemas
+- **Complete Data Contracts**: Implemented detailed schemas for Chunk, Node, and Edge structures
+- **LanceDB Mapping**: Full SQL schema definitions for `chunks`, `nodes`, and `edges` collections
+- **Vector Flexibility**: Support for both 384d (MiniLM-L6-v2) and 1024d (BGE-M3) embeddings
+- **Graph Relationships**: 6 edge types with hierarchical weights (REFERS_TO: 1.0 → SIMILAR_TO: 0.2)
+- **HNSW Configuration**: Optimized vector index settings (M=16, efConstruction=200)
+
+### Enhanced - SPEC.md Documentation
+- **Structured Data Section**: Comprehensive TypeScript interfaces with detailed field descriptions
+- **LanceDB Integration**: Complete mapping between TypeScript types and LanceDB schemas
+- **Practical Examples**: Real-world usage examples for all schema types
+- **Compatibility Matrix**: TypeScript ↔ LanceDB type conversions documented
+- **Performance Guidelines**: Index configurations and optimization recommendations
+
+### Technical Implementation
+- **Chunk Schema**: 16 fields supporting incremental indexing with BLAKE3 hashing
+- **Node Types**: Document, Section, Keyword, Symbol with standardized ID formats
+- **Edge Weights**: Semantic relationship strengths for hybrid ranking algorithm
+- **Storage Structure**: Organized globalStorage layout with collection separation
+- **Field Validation**: Mandatory vs optional fields clearly specified
+
+### Development Status
+- ✅ **Step 3/15 Complete**: Data contracts and persistence layer schemas finalized
+- 🔄 **Next**: Step 4 - Hashing and identity management (BLAKE3 implementation)
+
+### Task Management
+- **Context Orchestration**: Successfully completed TASK_20251003230603 (documentation category)
+- **Validation**: 100% criteria from step_03.md met with comprehensive examples
+- **Learning Capture**: Schema design patterns captured for future tasks
+
 ## [2.9.10] - 2025-10-03
 
 ### Added - Mini-LightRAG Infrastructure

@@ -4,6 +4,9 @@
  - compile
  - publique
  - Instale a extensão no VS Code
+
+## Rules
+- Sempre grave as documentações na pasta docs/
  
 ### Processo de Release
 

@@ -12,6 +12,7 @@ import workOnCurrentTask from "./commands/workOnCurrentTask";
 import { AddPreventionRuleCommand } from "./commands/addPreventionRule";
 import { RemovePreventionRuleCommand } from "./commands/removePreventionRule";
 import { ReindexCommand } from "./commands/reindexCommand";
+import { registerLightRAGCommands } from "./commands/lightragCommands";
 import { FileManager } from "./utils/fileManager";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 import * as path from 'path';
@@ -309,6 +310,9 @@ export function activate(context: vscode.ExtensionContext) {
       reindexCommand
     );
 
+    // Register LightRAG commands
+    registerLightRAGCommands(context);
+
     // Auto-copy XSD schemas when extension loads (if .cappy exists)
     checkAndCopyXsdSchemasAndCleanup();
 
@@ -431,7 +435,7 @@ async function updateCopilotInstructions(workspaceRoot: string): Promise<void> {
       
       // Extract content between markers from template
       const templatePattern = new RegExp(`${start}([\\s\\S]*?)${end}`);
-      const templateMatch = tpl.match(templatePattern);
+      const templateMatch = templatePattern.exec(tpl);
       const templateContent = templateMatch ? templateMatch[1].trim() : tpl.trim();
       
       // Replace with markers preserved
