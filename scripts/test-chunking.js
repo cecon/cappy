@@ -1,4 +1,4 @@
-const { testChunking } = require('./out/core/chunking-test');
+const { testChunking } = require('../out/core/chunking-test');
 
 // Execute the chunking test
 testChunking().then(results => {

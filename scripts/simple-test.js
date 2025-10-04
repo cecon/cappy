@@ -1,5 +1,5 @@
-const { ChunkingService } = require('./out/core/chunking');
-const { DEFAULT_CHUNKING_CONFIG } = require('./out/core/schemas');
+const { ChunkingService } = require('../out/core/chunking');
+const { DEFAULT_CHUNKING_CONFIG } = require('../out/core/schemas');
 
 async function runTest() {
     try {

@@ -1,6 +1,7 @@
 ﻿import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { openDocumentUploadUI } from '../documentUpload';
 
 interface GraphNode {
     id: string;
@@ -30,6 +31,18 @@ interface GraphData {
 
 export async function openGraph(context?: vscode.ExtensionContext): Promise<void> {
     try {
+        console.log('[openGraph] Opening LightRAG Dashboard with Knowledge Graph tab...');
+        
+        // Open the new unified dashboard directly on the Knowledge Graph tab
+        if (context) {
+            await openDocumentUploadUI(context, 'knowledge-graph');
+        } else {
+            vscode.window.showWarningMessage('Context not available for openGraph');
+        }
+        
+        return;
+        
+        // OLD CODE BELOW - kept for reference but not executed
         console.log('[openGraph] Starting...');
         console.log('[openGraph] Context available:', !!context);
         

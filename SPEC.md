@@ -5,39 +5,189 @@
 
 ## Visão Geral
 
-Sistema de recuperação híbrida 100% local que combina busca vetorial (LanceDB) com expansão de grafo (LightGraph) para busca precisa em símbolos/documentação com abertura direta no arquivo/linha.
+Sistema RAG baseado em grafo 100% local que implementa a arquitetura LightRAG para recuperação de informação contextual. Combina extração de entidades/relacionamentos via LLM com dual-level retrieval (específico + abstrato) para respostas precisas e abrangentes.
 
 ### Objetivos Principais
-- **Busca precisa** em símbolos/docs com abertura direta no arquivo/linha
-- **Subgrafo explicativo** mostrando "por que apareceu" (caminho, arestas)
-- **Indexação incremental** rápida (só o que mudou)
+- **Dual-Level Retrieval** para queries específicas (entidades) e abstratas (temas/conceitos)
+- **Graph-Enhanced Indexing** com extração automática de entidades e relacionamentos via LLM
+- **Inserção Manual Controlada** de documentos um por vez para máxima qualidade
+- **Interface LightRAG-compatível** para visualização e exploração do grafo
 - **100% local** - sem dependências externas de rede
 
 ## Decisões Arquiteturais
 
-### Armazenamento Vetorial
-- **Tecnologia**: LanceDB in-process
+### Armazenamento LightRAG
+- **Tecnologia**: LanceDB in-process (compatível com LightRAG)
 - **Localização**: `context.globalStorageUri.fsPath + '/mini-lightrag'`
 - **Estrutura**:
   ```
   globalStorage/mini-lightrag/
-  ├── chunks/          # Coleção principal de chunks
-  ├── nodes/           # Nós do grafo
-  ├── edges/           # Arestas do grafo
+  ├── entities/        # Entidades extraídas via LLM
+  ├── relationships/   # Relacionamentos extraídas via LLM
+  ├── key_values/      # Key-value pairs para busca eficiente
+  ├── documents/       # Texto original dos documentos
   └── indexes/         # Índices HNSW/IVF
   ```
 
-### Estratégia de Grafo
-- **Abordagem**: LightGraph integrado no próprio LanceDB
-- **Tipos de Nós**: Document, Section, Keyword, Symbol
-- **Tipos de Arestas**: CONTAINS, HAS_KEYWORD, REFERS_TO, MEMBER_OF, SIMILAR_TO
-- **Armazenamento**: Tabelas separadas `nodes` e `edges` no LanceDB
+### Estratégia LightRAG Graph-Enhanced
+- **Abordagem**: Graph-based indexing como estrutura principal
+- **Extração**: LLM identifica entidades e relacionamentos automaticamente
+- **Profiling**: Key-value pairs gerados via LLM para busca eficiente
+- **Deduplicação**: Merge automático de entidades/relacionamentos idênticos
+- **Dual-Level**: Low-level (entidades específicas) + High-level (temas abstratos)
 
-### Modelos de Embedding
-- **Principal**: all-MiniLM-L6-v2 (384 dimensões)
-- **Runtime**: transformers.js local (46.6MB aceitável)
+### Modelos LightRAG
+- **LLM para Extração**: Configurável (Ollama local, OpenAI, etc.)
+- **Embedding**: all-MiniLM-L6-v2 (384 dimensões) via transformers.js
+- **Runtime**: 100% local - transformers.js (46.6MB aceitável)
 - **Normalização**: L2 normalization
-- **Futuro**: BGE-M3 (fase 2, maior qualidade)
+- **Upgrade Path**: BGE-M3 (1024d) para maior qualidade quando necessário
+
+## Arquitetura LightRAG Detalhada
+
+### 1. Graph-Enhanced Entity and Relationship Extraction
+
+O sistema segue o paradigma LightRAG de indexação baseada em grafo:
+
+#### Função R(·): Extração de Entidades e Relacionamentos
+```typescript
+interface ExtractionFunction {
+  extractEntitiesAndRelationships(text: string): Promise<{
+    entities: Entity[];
+    relationships: Relationship[];
+  }>;
+}
+
+interface Entity {
+  id: string;              // Nome único da entidade
+  name: string;            // Nome legível
+  type: string;            // Tipo: "Person", "Organization", "Concept", etc.
+  description: string;     // Descrição extraída do texto
+  sourceChunks: string[];  // Chunks de onde foi extraída
+}
+
+interface Relationship {
+  id: string;              // ID único do relacionamento
+  source: string;          // ID da entidade origem
+  target: string;          // ID da entidade destino
+  type: string;            // Tipo: "WORKS_FOR", "PART_OF", "SIMILAR_TO", etc.
+  description: string;     // Descrição do relacionamento
+  weight: number;          // Força do relacionamento (0-1)
+  sourceChunks: string[];  // Chunks de onde foi extraída
+}
+```
+
+#### Função P(·): LLM Profiling para Key-Value Pairs
+```typescript
+interface ProfilingFunction {
+  generateKeyValuePairs(entity: Entity | Relationship): Promise<KeyValuePair[]>;
+}
+
+interface KeyValuePair {
+  key: string;             // Palavra-chave para busca eficiente
+  value: string;           // Parágrafo resumindo informações relevantes
+  type: 'entity' | 'relationship';
+  sourceId: string;        // ID da entidade/relacionamento origem
+  themes?: string[];       // Temas globais conectados (para relationships)
+}
+```
+
+#### Função D(·): Deduplicação para Otimizar Operações
+```typescript
+interface DeduplicationFunction {
+  mergeIdenticalEntities(entities: Entity[]): Promise<Entity[]>;
+  mergeIdenticalRelationships(relationships: Relationship[]): Promise<Relationship[]>;
+}
+
+// Critérios de merge:
+// - Entidades: mesmo nome normalizado + tipo similar
+// - Relacionamentos: mesmo source + target + tipo similar
+// - Algoritmo: similarity > 0.85 via embedding
+```
+
+### 2. Fast Adaptation to Incremental Knowledge Base
+
+#### Integração Seamless de Novos Dados
+```typescript
+interface IncrementalUpdate {
+  processNewDocument(document: Document): Promise<{
+    newEntities: Entity[];
+    newRelationships: Relationship[];
+    mergedEntities: Entity[];
+    mergedRelationships: Relationship[];
+  }>;
+}
+
+// Estratégia:
+// 1. Extrair entidades/relacionamentos do novo documento
+// 2. Comparar com grafo existente via embeddings
+// 3. Merge automático quando similarity > threshold
+// 4. Preservar integridade do grafo existente
+```
+
+#### Redução de Overhead Computacional
+- **Processamento**: Só novos documentos passam por extração LLM
+- **Merge**: Algoritmo O(log n) via índices vetoriais
+- **Preservação**: Grafo existente permanece intacto
+- **Cache**: Key-value pairs reutilizadas quando possível
+
+### 3. Dual-Level Retrieval Paradigm
+
+#### Low-Level Retrieval (Queries Específicas)
+```typescript
+interface LowLevelRetrieval {
+  // Para queries específicas como "Quem escreveu Pride and Prejudice?"
+  retrieveSpecificEntities(query: string): Promise<{
+    entities: Entity[];
+    relationships: Relationship[];
+    confidence: number;
+  }>;
+}
+
+// Estratégia:
+// - Identificar entidades mencionadas na query
+// - Buscar nós específicos no grafo
+// - Retornar atributos e relacionamentos diretos
+```
+
+#### High-Level Retrieval (Queries Abstratas)
+```typescript
+interface HighLevelRetrieval {
+  // Para queries conceituais como "Como IA influencia educação moderna?"
+  retrieveAbstractConcepts(query: string): Promise<{
+    concepts: Entity[];
+    relationships: Relationship[];
+    themes: string[];
+    confidence: number;
+  }>;
+}
+
+// Estratégia:
+// - Agregar informações de múltiples entidades relacionadas
+// - Identificar temas e conceitos overarching
+// - Subgrafos multi-hop para insights globais
+```
+
+### 4. Retrieval-Augmented Answer Generation
+
+```typescript
+interface AnswerGeneration {
+  generateAnswer(query: string, context: RetrievalContext): Promise<{
+    answer: string;
+    sources: Source[];
+    confidence: number;
+    usedEntities: string[];
+    usedRelationships: string[];
+  }>;
+}
+
+interface RetrievalContext {
+  lowLevelResults: LowLevelRetrievalResult;
+  highLevelResults: HighLevelRetrievalResult;
+  keyValuePairs: KeyValuePair[];
+  originalText: string[];
+}
+```
 
 ### Sistema de Hash
 - **Algoritmo**: BLAKE3 (8.6kB, nativo + WebAssembly)
@@ -433,72 +583,1326 @@ graph TD
 }
 ```
 
-### Fonte de Documentos
-- **Prioridade 1**: JSDoc/TypeDoc JSON (estruturado)
-- **Prioridade 2**: Arquivos .md (quando houver)
-- **Detecção**: Automática por extensão e conteúdo
+### Fonte de Documentos (Inserção Manual)
+- **Estratégia**: Inserção controlada um documento por vez
+- **Interface**: Upload manual com validação de qualidade
+- **Processamento**: LLM extrai entidades/relacionamentos + validação humana
+- **Feedback**: Progress real-time + sumário de entidades descobertas
 
-## Estrutura de Dados
+## Estrutura de Dados LightRAG
 
-### Chunk (Unidade Buscável)
+### Entity (Entidade Principal)
 ```typescript
-interface Chunk {
-  id: string;              // hash(path + startLine + endLine + textHash)
-  path: string;            // Caminho relativo do arquivo
-  lang: string;            // Linguagem do código (js, ts, md, etc)
-  startLine: number;       // 1-based - linha inicial do chunk
-  endLine: number;         // 1-based - linha final do chunk
-  startChar?: number;      // Opcional - caractere inicial no arquivo
-  endChar?: number;        // Opcional - caractere final no arquivo
-  textHash: string;        // BLAKE3 do texto normalizado do chunk
-  fileHash: string;        // BLAKE3 do arquivo completo
-  keywords?: string[];     // Opcional - palavras-chave extraídas
-  symbolId?: string;       // Opcional - ID do símbolo para JSDoc/TypeDoc
-  vector: number[];        // Embedding vetorial: 384d (MiniLM-L6-v2) ou 1024d (BGE-M3)
-  indexedAt: string;       // ISO datetime de quando foi indexado
-  model: string;           // Modelo usado: "all-MiniLM-L6-v2" ou "BGE-M3"
-  dim: number;             // Dimensões do vetor: 384 ou 1024
+interface Entity {
+  id: string;              // Nome único normalizado (ex: "python_programming")
+  name: string;            // Nome legível (ex: "Python Programming")
+  type: string;            // Tipo: "Person", "Technology", "Concept", "Organization"
+  description: string;     // Descrição extraída via LLM
+  properties: Record<string, any>; // Propriedades específicas do tipo
+  vector: number[];        // Embedding vetorial (384d MiniLM ou 1024d BGE-M3)
+  keyValuePairs: KeyValuePair[]; // Pares chave-valor para busca eficiente
+  sourceDocuments: string[]; // IDs dos documentos fonte
+  sourceChunks: string[];  // Chunks específicos de onde foi extraída
+  confidence: number;      // Confiança da extração (0-1)
+  createdAt: string;       // ISO datetime de criação
+  updatedAt: string;       // ISO datetime de última atualização
+  mergedFrom?: string[];   // IDs de entidades que foram merged nesta
 }
 ```
 
-**Campos Obrigatórios:**
-- `id`, `path`, `lang`, `startLine`, `endLine`, `textHash`, `fileHash`, `vector`, `indexedAt`, `model`, `dim`
+### Relationship (Relacionamento)
+```typescript
+interface Relationship {
+  id: string;              // ID único hash(source + target + type)
+  source: string;          // ID da entidade origem
+  target: string;          // ID da entidade destino
+  type: string;            // Tipo: "WORKS_FOR", "PART_OF", "INFLUENCES", etc.
+  description: string;     // Descrição do relacionamento extraída via LLM
+  properties: Record<string, any>; // Propriedades específicas
+  weight: number;          // Força do relacionamento (0-1)
+  bidirectional: boolean;  // Se o relacionamento é bidirecional
+  keyValuePairs: KeyValuePair[]; // Pares para busca (com temas globais)
+  sourceDocuments: string[]; // IDs dos documentos fonte
+  sourceChunks: string[];  // Chunks específicos de onde foi extraída
+  confidence: number;      // Confiança da extração (0-1)
+  createdAt: string;       // ISO datetime de criação
+  updatedAt: string;       // ISO datetime de última atualização
+  mergedFrom?: string[];   // IDs de relacionamentos que foram merged
+}
+```
 
-**Campos Opcionais:**
-- `startChar`, `endChar` (para chunks precisos dentro de linhas)
-- `keywords` (extraídas automaticamente ou manualmente)
-- `symbolId` (para documentação estruturada JSDoc/TypeDoc)
+### KeyValuePair (Busca Eficiente)
+```typescript
+interface KeyValuePair {
+  key: string;             // Palavra-chave para busca (indexada)
+  value: string;           // Parágrafo resumindo informações relevantes
+  type: 'entity' | 'relationship';
+  sourceId: string;        // ID da entidade/relacionamento origem
+  themes?: string[];       // Temas globais conectados (para relationships)
+  vector: number[];        // Embedding do valor para similarity search
+  indexedAt: string;       // ISO datetime de indexação
+}
+```
+
+### Document (Documento Original)
+```typescript
+interface Document {
+  id: string;              // hash(path + content) ou UUID para uploads
+  path?: string;           // Caminho original (se aplicável)
+  filename: string;        // Nome do arquivo
+  content: string;         // Texto completo do documento
+  contentType: string;     // MIME type ou extensão
+  metadata: {
+    title?: string;        // Título extraído ou fornecido
+    author?: string;       // Autor se identificado
+    tags?: string[];       // Tags manuais ou automáticas
+    language?: string;     // Idioma detectado
+    size: number;          // Tamanho em bytes
+  };
+  chunks: DocumentChunk[]; // Chunks para processamento
+  entities: string[];      // IDs das entidades extraídas
+  relationships: string[]; // IDs dos relacionamentos extraídos
+  status: 'processing' | 'completed' | 'error'; // Status do processamento
+  processingLog?: ProcessingLogEntry[]; // Log de processamento
+  uploadedAt: string;      // ISO datetime de upload
+  processedAt?: string;    // ISO datetime de conclusão
+}
+```
+
+### DocumentChunk (Unidade de Processamento)
+```typescript
+interface DocumentChunk {
+  id: string;              // hash(documentId + startChar + endChar)
+  documentId: string;      // ID do documento pai
+  startChar: number;       // Posição inicial no documento
+  endChar: number;         // Posição final no documento
+  text: string;            // Texto do chunk
+  entities: string[];      // IDs das entidades extraídas deste chunk
+  relationships: string[]; // IDs dos relacionamentos extraídos
+  vector: number[];        // Embedding do chunk
+  processingStatus: 'pending' | 'completed' | 'error';
+  extractedAt?: string;    // ISO datetime de extração
+}
+```
+
+### ProcessingLogEntry (Auditoria)
+```typescript
+interface ProcessingLogEntry {
+  timestamp: string;       // ISO datetime
+  step: 'chunking' | 'extraction' | 'deduplication' | 'indexing';
+  status: 'started' | 'completed' | 'error';
+  message: string;         // Mensagem descritiva
+  details?: any;           // Detalhes específicos do step
+  entitiesFound?: number;  // Quantas entidades foram encontradas
+  relationshipsFound?: number; // Quantos relacionamentos foram encontrados
+  duration?: number;       // Duração em ms
+}
+```
+
+**Diferenças Principais vs. Chunk-based:**
+1. **Entities como primeira classe** - não são derivadas de chunks
+2. **Relationships explícitos** - com tipos e propriedades
+3. **Key-Value pairs** - otimização para busca textual
+4. **Deduplicação nativa** - merge automático via similarity
+5. **Document-centric** - chunks são apenas para processamento
+6. **Dual indexing** - entity-level + relationship-level search
 
 **Compatibilidade LanceDB:**
-- `number[]` (TypeScript) → `vector(384)` ou `vector(1024)` (LanceDB)
-- `string` (TypeScript) → `utf8` (LanceDB)
-- `number` (TypeScript) → `int64` (LanceDB)
+- `Entity` → tabela `entities` 
+- `Relationship` → tabela `relationships`
+- `KeyValuePair` → tabela `key_values` (com full-text search)
+- `Document` → tabela `documents`
+- `DocumentChunk` → tabela `chunks` (temporária, para processamento)
+## Estratégia de Inserção Manual de Documentos
 
-### Node (Grafo)
+### Filosofia: Qualidade sobre Quantidade
+
+Em contraste com sistemas RAG tradicionais que processam centenas de documentos automaticamente, optamos por **inserção manual controlada** para garantir máxima qualidade:
+
+- **Um documento por vez**: Foco total na extração precisa de entidades/relacionamentos
+- **Validação humana**: Revisão das entidades extraídas antes da inserção final
+- **Feedback imediato**: Progresso real-time e possibilidade de ajustes
+- **Controle de qualidade**: Cada documento passa por validação antes de integrar ao grafo
+
+### Interface de Upload de Documentos
+
+#### 1. Document Upload Panel
 ```typescript
-interface Node {
-  id: string;              // Formato: "doc:hash", "sym:fqn", "kw:word", "sec:hash"
-  type: "Document" | "Section" | "Keyword" | "Symbol";
-  label: string;           // Nome legível do nó
-  path?: string;           // Opcional - caminho do arquivo (para Document/Section)
-  lang?: string;           // Opcional - linguagem do código
-  score?: number;          // Opcional - pontuação de relevância
-  tags?: string[];         // Opcional - tags categóricas
-  updatedAt: string;       // ISO datetime de última atualização
+interface DocumentUploadUI {
+  // Drag & Drop ou File Picker
+  supportedFormats: ['.txt', '.md', '.pdf', '.docx', '.json'];
+  maxFileSize: '10MB';
+  preview: boolean;        // Preview do conteúdo antes do upload
+  metadata: {
+    title?: string;        // Título customizável
+    author?: string;       // Autor (opcional)
+    tags?: string[];       // Tags manuais
+    language?: string;     // Idioma (auto-detectado)
+  };
 }
 ```
 
-**Tipos de Node:**
-- `Document`: Representa um arquivo completo
-- `Section`: Seção dentro de um documento (classe, função, módulo)
-- `Keyword`: Palavra-chave ou termo importante
-- `Symbol`: Símbolo de código (função, classe, variável)
+#### 2. Processing Progress Panel
+```typescript
+interface ProcessingProgressUI {
+  steps: [
+    { name: 'Upload', status: 'completed' | 'processing' | 'pending' },
+    { name: 'Chunking', status: 'completed' | 'processing' | 'pending' },
+    { name: 'Entity Extraction', status: 'completed' | 'processing' | 'pending' },
+    { name: 'Relationship Extraction', status: 'completed' | 'processing' | 'pending' },
+    { name: 'Deduplication', status: 'completed' | 'processing' | 'pending' },
+    { name: 'Indexing', status: 'completed' | 'processing' | 'pending' }
+  ];
+  realTimeLog: ProcessingLogEntry[];
+  estimatedTime: string;
+  entitiesFound: number;
+  relationshipsFound: number;
+}
+```
 
-**Formato de IDs:**
-- Document: `doc:${blake3(path)}`
-- Section: `sec:${blake3(path + sectionName)}`
-- Keyword: `kw:${normalizedKeyword}`
-- Symbol: `sym:${fullyQualifiedName}`
+### Fluxo de Processamento Detalhado
+
+#### Step 1: Upload e Validação
+```typescript
+async function uploadDocument(file: File): Promise<UploadResult> {
+  // 1. Validar formato e tamanho
+  if (!SUPPORTED_FORMATS.includes(getExtension(file.name))) {
+    throw new Error(`Formato não suportado: ${getExtension(file.name)}`);
+  }
+  
+  // 2. Extrair texto baseado no tipo
+  const content = await extractTextContent(file);
+  
+  // 3. Detectar idioma e encoding
+  const metadata = await analyzeDocument(content);
+  
+  // 4. Criar preview para o usuário
+  return {
+    documentId: generateUUID(),
+    content,
+    metadata,
+    preview: content.substring(0, 1000) + '...',
+    estimatedProcessingTime: estimateProcessingTime(content.length)
+  };
+}
+```
+
+#### Step 2: Chunking Inteligente
+```typescript
+async function chunkDocument(document: Document): Promise<DocumentChunk[]> {
+  // Chunking específico por tipo de documento
+  const strategy = selectChunkingStrategy(document.contentType);
+  
+  switch (strategy) {
+    case 'markdown':
+      return chunkByHeaders(document.content);
+    case 'academic':
+      return chunkByParagraphsAndSections(document.content);
+    case 'code':
+      return chunkByFunctions(document.content);
+    default:
+      return chunkBySentences(document.content, { 
+        maxTokens: 512, 
+        overlap: 50 
+      });
+  }
+}
+```
+
+#### Step 3: Entity Extraction via LLM
+```typescript
+async function extractEntities(chunk: DocumentChunk): Promise<Entity[]> {
+  const prompt = `
+Analise o seguinte texto e extraia todas as entidades importantes:
+
+TEXTO:
+${chunk.text}
+
+Identifique:
+1. Pessoas (nomes, profissões, papéis)
+2. Organizações (empresas, instituições)
+3. Conceitos (teorias, metodologias, tecnologias)
+4. Locais (países, cidades, lugares específicos)
+5. Eventos (acontecimentos importantes)
+
+Para cada entidade, forneça:
+- Nome normalizado
+- Tipo
+- Descrição contextual
+- Confiança (0-1)
+
+Formato JSON:
+{
+  "entities": [
+    {
+      "name": "Python Programming",
+      "type": "Technology",
+      "description": "Linguagem de programação de alto nível...",
+      "confidence": 0.95
+    }
+  ]
+}
+`;
+
+  const response = await callLLM(prompt);
+  return parseAndValidateEntities(response);
+}
+```
+
+#### Step 4: Relationship Extraction via LLM
+```typescript
+async function extractRelationships(
+  chunk: DocumentChunk, 
+  entities: Entity[]
+): Promise<Relationship[]> {
+  const prompt = `
+Baseado no texto e nas entidades identificadas, extraia os relacionamentos:
+
+TEXTO:
+${chunk.text}
+
+ENTIDADES ENCONTRADAS:
+${entities.map(e => `- ${e.name} (${e.type})`).join('\n')}
+
+Identifique relacionamentos como:
+- WORKS_FOR, PART_OF, INFLUENCES, CREATED_BY
+- LOCATED_IN, HAPPENED_AT, CAUSED_BY
+- SIMILAR_TO, OPPOSITE_OF, DEPENDS_ON
+
+Para cada relacionamento, forneça:
+- Entidade origem
+- Entidade destino  
+- Tipo de relacionamento
+- Descrição contextual
+- Peso/força (0-1)
+- Se é bidirecional
+
+Formato JSON:
+{
+  "relationships": [
+    {
+      "source": "Python Programming",
+      "target": "Data Science",
+      "type": "ENABLES",
+      "description": "Python é amplamente usado em Data Science...",
+      "weight": 0.9,
+      "bidirectional": false
+    }
+  ]
+}
+`;
+
+  const response = await callLLM(prompt);
+  return parseAndValidateRelationships(response, entities);
+}
+```
+
+### Validação e Feedback Humano
+
+#### Entity Validation Panel
+```typescript
+interface EntityValidationUI {
+  extractedEntities: Entity[];
+  actions: {
+    approve: (entityId: string) => void;
+    edit: (entityId: string, changes: Partial<Entity>) => void;
+    reject: (entityId: string, reason: string) => void;
+    merge: (entityIds: string[], into: string) => void;
+  };
+  
+  similarEntitiesWarning: {
+    entity: Entity;
+    similarTo: Entity[];
+    suggestedAction: 'merge' | 'keep_separate';
+  }[];
+  
+  qualityMetrics: {
+    confidenceAverage: number;
+    lowConfidenceCount: number;
+    duplicatePotential: number;
+  };
+}
+```
+
+#### Relationship Validation Panel
+```typescript
+interface RelationshipValidationUI {
+  extractedRelationships: Relationship[];
+  actions: {
+    approve: (relationshipId: string) => void;
+    edit: (relationshipId: string, changes: Partial<Relationship>) => void;
+    reject: (relationshipId: string, reason: string) => void;
+    adjustWeight: (relationshipId: string, newWeight: number) => void;
+  };
+  
+  graphPreview: {
+    nodes: Entity[];
+    edges: Relationship[];
+    layout: 'force' | 'hierarchical' | 'circular';
+  };
+  
+  qualityMetrics: {
+    relationshipDensity: number;
+    isolatedEntities: number;
+    strongConnections: number; // weight > 0.7
+  };
+}
+```
+
+### Integração ao Grafo Existente
+
+#### Step 5: Deduplication Intelligence
+```typescript
+async function deduplicateWithExistingGraph(
+  newEntities: Entity[],
+  newRelationships: Relationship[]
+): Promise<DeduplicationResult> {
+  const results = {
+    entitiesToMerge: [],
+    relationshipsToMerge: [],
+    newEntities: [],
+    newRelationships: []
+  };
+  
+  // Para cada nova entidade
+  for (const newEntity of newEntities) {
+    // Buscar similares no grafo existente
+    const similarEntities = await findSimilarEntities(newEntity, 0.85);
+    
+    if (similarEntities.length > 0) {
+      // Sugerir merge com mais similar
+      results.entitiesToMerge.push({
+        newEntity,
+        mergeWith: similarEntities[0],
+        confidence: similarEntities[0].similarity
+      });
+    } else {
+      results.newEntities.push(newEntity);
+    }
+  }
+  
+  // Lógica similar para relacionamentos
+  return results;
+}
+```
+
+### Finalização e Indexação
+
+#### Step 6: Graph Integration
+```typescript
+async function integrateToGraph(
+  document: Document,
+  validatedEntities: Entity[],
+  validatedRelationships: Relationship[]
+): Promise<IntegrationResult> {
+  
+  // 1. Inserir no LanceDB
+  await insertEntities(validatedEntities);
+  await insertRelationships(validatedRelationships);
+  
+  // 2. Gerar key-value pairs
+  const keyValuePairs = await generateKeyValuePairs([
+    ...validatedEntities,
+    ...validatedRelationships
+  ]);
+  await insertKeyValuePairs(keyValuePairs);
+  
+  // 3. Atualizar índices vetoriais
+  await rebuildVectorIndexes();
+  
+  // 4. Atualizar métricas do grafo
+  const graphMetrics = await calculateGraphMetrics();
+  
+  return {
+    entitiesAdded: validatedEntities.length,
+    relationshipsAdded: validatedRelationships.length,
+    graphSize: graphMetrics.totalNodes,
+    avgConnectivity: graphMetrics.avgConnectivity,
+    processingTime: Date.now() - document.uploadedAt
+  };
+}
+```
+
+### Monitoramento de Qualidade
+
+```typescript
+interface QualityMetrics {
+  documentQuality: {
+    extractionAccuracy: number;    // % entidades aprovadas vs extraídas
+    relationshipAccuracy: number;  // % relacionamentos aprovados
+    processingTime: number;        // ms total
+    humanReviewTime: number;       // ms gastos em validação
+  };
+  
+  graphQuality: {
+    entityDiversity: number;       // Tipos únicos de entidades
+    relationshipDiversity: number; // Tipos únicos de relacionamentos
+    connectivityIndex: number;     // Quão bem conectado está o grafo
+    isolatedNodes: number;         // Entidades sem relacionamentos
+  };
+  
+  userSatisfaction: {
+    rejectionRate: number;         // % entidades/relacionamentos rejeitados
+    editRate: number;             // % que precisaram edição
+    overallRating?: number;       // 1-5 rating opcional do usuário
+  };
+}
+```
+
+**Benefícios da Inserção Manual:**
+1. **Qualidade garantida**: Validação humana em cada etapa
+2. **Controle total**: Usuário decide o que entra no grafo
+3. **Aprendizado**: Sistema aprende com as correções do usuário
+4. **Transparência**: Processo completamente auditável
+5. **Flexibilidade**: Diferentes estratégias por tipo de documento
+
+## Interface de Visualização LightRAG-Compatible
+
+### Arquitetura da WebUI
+
+Seguindo o padrão **LightRAG WebUI**, implementamos uma interface **React + Sigma.js** totalmente compatível:
+
+#### Main Application Structure
+```typescript
+// Estrutura principal baseada em LightRAG WebUI
+interface CappyWebUI {
+  components: {
+    GraphViewer: React.FC;           // Visualizador principal do grafo
+    DocumentManager: React.FC;       // Gerenciador de uploads
+    RetrievalTesting: React.FC;      // Interface de teste de queries
+    ApiSite: React.FC;              // Documentação da API
+  };
+  
+  layout: {
+    TabsLayout: 'graph' | 'documents' | 'retrieval' | 'api';
+    SidePanel: 'properties' | 'search' | 'settings' | 'legend';
+    MainArea: 'graph-canvas' | 'upload-interface' | 'query-interface';
+  };
+}
+```
+
+### Graph Viewer (Painel Principal)
+
+#### 1. Graph Canvas com Sigma.js
+```typescript
+interface GraphCanvas {
+  // Baseado em @react-sigma/core
+  sigmaInstance: Sigma;
+  graphData: {
+    nodes: SigmaNode[];
+    edges: SigmaEdge[];
+  };
+  
+  // Layouts interativos (igual LightRAG)
+  layouts: {
+    'force': ForceAtlas2;
+    'circular': CircularLayout;
+    'hierarchical': HierarchicalLayout;
+    'noverlap': NoverlapLayout;
+    'random': RandomLayout;
+  };
+  
+  // Controles de visualização
+  controls: {
+    zoomToFit: () => void;
+    resetCamera: () => void;
+    toggleFullscreen: () => void;
+    exportImage: (format: 'png' | 'svg') => void;
+  };
+}
+
+interface SigmaNode {
+  id: string;                    // Entity ID
+  label: string;                 // Entity name
+  type: string;                  // Entity type
+  size: number;                  // Node size (based on connections)
+  color: string;                 // Color by type
+  x?: number;                    // Position X
+  y?: number;                    // Position Y
+  highlighted: boolean;          // Search highlight state
+  selected: boolean;             // Selection state
+  properties: Record<string, any>; // Entity properties for detail panel
+}
+
+interface SigmaEdge {
+  id: string;                    // Relationship ID
+  source: string;                // Source entity ID
+  target: string;                // Target entity ID
+  label: string;                 // Relationship type
+  size: number;                  // Edge weight visualization
+  color: string;                 // Color by relationship type
+  curvature?: number;            // Curve for better visualization
+  properties: Record<string, any>; // Relationship properties
+}
+```
+
+#### 2. Graph Search Interface
+```typescript
+interface GraphSearch {
+  // Dual-level search (como LightRAG)
+  searchTypes: {
+    'entity': EntitySearch;      // Low-level: busca entidades específicas
+    'concept': ConceptSearch;    // High-level: busca conceitos abstratos
+    'full-text': FullTextSearch; // Busca em key-value pairs
+  };
+  
+  searchBar: {
+    placeholder: "Search entities, concepts, or content...";
+    autocomplete: EntitySuggestion[];
+    filters: {
+      entityType: string[];      // Filtrar por tipo de entidade
+      relationshipType: string[]; // Filtrar por tipo de relacionamento
+      confidence: [number, number]; // Range de confiança
+    };
+  };
+  
+  results: {
+    entities: SearchResultEntity[];
+    relationships: SearchResultRelationship[];
+    subgraph: SubgraphResult;    // Subgrafo relevante
+    explanation: string;         // Por que esses resultados apareceram
+  };
+}
+
+interface EntitySearch {
+  query: string;
+  maxResults: number;
+  similarityThreshold: number;
+  includeRelated: boolean;       // Incluir entidades relacionadas
+}
+
+interface ConceptSearch {
+  query: string;
+  maxDepth: number;             // Profundidade do subgrafo
+  maxNodes: number;             // Máximo de nós retornados
+  aggregationLevel: 'local' | 'global'; // Escopo da busca
+}
+```
+
+#### 3. Properties Panel (Inspeção Detalhada)
+```typescript
+interface PropertiesPanel {
+  selectedItem: Entity | Relationship | null;
+  
+  // Para Entity selecionada
+  entityView: {
+    basicInfo: {
+      name: string;
+      type: string;
+      description: string;
+      confidence: number;
+    };
+    
+    properties: Record<string, any>;  // Propriedades customizáveis
+    
+    connections: {
+      incoming: RelationshipSummary[];
+      outgoing: RelationshipSummary[];
+      count: number;
+    };
+    
+    sources: {
+      documents: DocumentReference[];
+      chunks: ChunkReference[];
+    };
+    
+    // Edição inline (como LightRAG WebUI)
+    editMode: boolean;
+    actions: {
+      edit: () => void;
+      delete: () => void;
+      merge: (targetEntityId: string) => void;
+      addProperty: (key: string, value: any) => void;
+    };
+  };
+  
+  // Para Relationship selecionado
+  relationshipView: {
+    basicInfo: {
+      type: string;
+      source: EntitySummary;
+      target: EntitySummary;
+      description: string;
+      weight: number;
+      bidirectional: boolean;
+    };
+    
+    context: {
+      sourceDocuments: DocumentReference[];
+      sourceChunks: ChunkReference[];
+      extractionContext: string; // Texto original onde foi extraído
+    };
+    
+    actions: {
+      edit: () => void;
+      delete: () => void;
+      adjustWeight: (newWeight: number) => void;
+      toggleDirection: () => void;
+    };
+  };
+}
+```
+
+#### 4. Settings Panel (Configurações Avançadas)
+```typescript
+interface SettingsPanel {
+  // Visualização do grafo
+  graphSettings: {
+    showNodeLabels: boolean;
+    showEdgeLabels: boolean;
+    nodeSize: {
+      min: number;
+      max: number;
+      scaleBy: 'degree' | 'betweenness' | 'pagerank' | 'fixed';
+    };
+    edgeSize: {
+      min: number;
+      max: number;
+      scaleBy: 'weight' | 'fixed';
+    };
+    colors: {
+      nodeColorBy: 'type' | 'cluster' | 'centrality';
+      edgeColorBy: 'type' | 'weight' | 'fixed';
+      theme: 'light' | 'dark' | 'auto';
+    };
+  };
+  
+  // Query e retrieval
+  querySettings: {
+    maxQueryDepth: number;        // Profundidade máxima do subgrafo
+    maxNodes: number;            // Máximo de nós retornados
+    similarityThreshold: number;  // Threshold para similaridade
+    enableLowLevel: boolean;     // Habilitar low-level retrieval
+    enableHighLevel: boolean;    // Habilitar high-level retrieval
+  };
+  
+  // Performance
+  performanceSettings: {
+    renderOnlyVisible: boolean;   // Render só nós visíveis (performance)
+    labelCullingDistance: number; // Distância de culling para labels
+    enableClustering: boolean;    // Clustering para grafos grandes
+    maxRenderNodes: number;      // Máximo de nós renderizados
+  };
+}
+```
+
+#### 5. Legend e Filtros
+```typescript
+interface LegendPanel {
+  // Legend de tipos de entidades
+  entityTypes: {
+    type: string;
+    color: string;
+    count: number;
+    visible: boolean;
+    icon?: string;
+  }[];
+  
+  // Legend de tipos de relacionamentos
+  relationshipTypes: {
+    type: string;
+    color: string;
+    count: number;
+    visible: boolean;
+    lineStyle: 'solid' | 'dashed' | 'dotted';
+  }[];
+  
+  // Filtros interativos
+  filters: {
+    entityTypeFilter: string[];
+    relationshipTypeFilter: string[];
+    confidenceRange: [number, number];
+    dateRange?: [Date, Date];
+    sourceDocument?: string[];
+  };
+  
+  actions: {
+    toggleEntityType: (type: string) => void;
+    toggleRelationshipType: (type: string) => void;
+    resetFilters: () => void;
+    saveFilterPreset: (name: string) => void;
+    loadFilterPreset: (name: string) => void;
+  };
+}
+```
+
+### Layout System (Baseado em LightRAG WebUI)
+
+#### 1. Tab-based Navigation
+```typescript
+interface TabLayout {
+  tabs: {
+    'graph': {
+      component: GraphViewer;
+      label: "Knowledge Graph";
+      icon: "🕸️";
+    };
+    'documents': {
+      component: DocumentManager;
+      label: "Document Upload";
+      icon: "📄";
+    };
+    'retrieval': {
+      component: RetrievalTesting;
+      label: "Query Testing";
+      icon: "🔍";
+    };
+    'api': {
+      component: ApiDocs;
+      label: "API Reference";
+      icon: "⚙️";
+    };
+  };
+  
+  activeTab: keyof typeof tabs;
+  tabSwitching: {
+    preserveState: boolean;      // Manter estado ao trocar tabs
+    lazyLoading: boolean;        // Carregar tabs sob demanda
+  };
+}
+```
+
+#### 2. Responsive Panels
+```typescript
+interface PanelLayout {
+  // Layout principal (igual LightRAG)
+  structure: {
+    leftSidebar: {
+      width: number;             // 300px padrão
+      collapsible: boolean;
+      panels: ['search', 'legend', 'filters'];
+    };
+    
+    mainArea: {
+      flexGrow: 1;
+      component: 'graph-canvas' | 'document-upload' | 'query-interface';
+    };
+    
+    rightSidebar: {
+      width: number;             // 400px padrão
+      collapsible: boolean;
+      panels: ['properties', 'settings', 'metrics'];
+    };
+  };
+  
+  // Responsividade
+  breakpoints: {
+    mobile: '< 768px';           // Stack vertical
+    tablet: '768px - 1024px';    // Collapse sidebars
+    desktop: '> 1024px';         // Layout completo
+  };
+}
+```
+
+### Integration com VS Code
+
+#### 1. Webview Implementation
+```typescript
+interface CappyWebview {
+  // VS Code webview integration
+  webviewPanel: vscode.WebviewPanel;
+  
+  // Comunicação VS Code <-> WebUI
+  messaging: {
+    sendToWebview: (message: WebviewMessage) => void;
+    receiveFromWebview: (handler: (message: WebviewMessage) => void) => void;
+  };
+  
+  // Context integration
+  vsCodeContext: {
+    workspaceFolder: string;
+    activeDocument?: string;
+    selection?: vscode.Range;
+    currentTask?: TaskContext;
+  };
+  
+  // Actions triggered from webview
+  actions: {
+    openFile: (path: string, line?: number) => void;
+    insertSnippet: (code: string) => void;
+    showNotification: (message: string, type: 'info' | 'warning' | 'error') => void;
+    runCappyCommand: (command: string, args?: any[]) => void;
+  };
+}
+
+interface WebviewMessage {
+  type: 'graph-node-selected' | 'entity-edited' | 'document-uploaded' | 'query-executed';
+  payload: any;
+  timestamp: string;
+}
+```
+
+**Compatibilidade Total com LightRAG WebUI:**
+- ✅ **Sigma.js Graph Viewer** com layouts idênticos
+- ✅ **Dual-Level Search** (entity + concept queries)  
+- ✅ **Properties Panel** com edição inline
+- ✅ **Settings Panel** com controles granulares
+- ✅ **Legend e Filtros** interativos
+- ✅ **Responsive Layout** com sidebars colapsáveis
+- ✅ **Tab Navigation** para diferentes funcionalidades
+- ✅ **Theme Support** (light/dark/auto)
+
+**Extensões específicas para VS Code:**
+- 🆕 **File Integration**: Click no nó abre arquivo no editor
+- 🆕 **Task Context**: Integração com sistema de tasks Cappy
+- 🆕 **Selection Sync**: Seleção no editor reflete no grafo
+- 🆕 **Command Integration**: Comandos Cappy via webview
+
+## Sistema de Storage LightRAG-Compatible
+
+### Arquitetura de Armazenamento
+
+Mantemos **LanceDB** como base, mas ajustamos completamente a estrutura para ser compatível com LightRAG:
+
+#### LanceDB Schema Design
+```typescript
+// Tabela principal: entities (substitui chunks)
+interface EntitiesTable {
+  id: string;                    // Primary key: entity name normalizado
+  name: string;                  // Nome legível da entidade
+  type: string;                  // Tipo: "Person", "Technology", etc.
+  description: string;           // Descrição extraída via LLM
+  properties_json: string;       // JSON serializado das propriedades
+  vector: Float32Array;          // Embedding 384d (MiniLM) ou 1024d (BGE-M3)
+  source_documents: string;      // JSON array dos document IDs
+  source_chunks: string;         // JSON array dos chunk IDs
+  confidence: number;            // Confiança da extração (0-1)
+  created_at: string;           // ISO datetime
+  updated_at: string;           // ISO datetime
+  merged_from: string;          // JSON array de entidades merged
+  status: string;               // 'active' | 'deleted' | 'merged'
+}
+
+// Tabela: relationships  
+interface RelationshipsTable {
+  id: string;                    // Primary key: hash(source + target + type)
+  source_id: string;            // Foreign key -> entities.id
+  target_id: string;            // Foreign key -> entities.id
+  type: string;                 // Tipo: "WORKS_FOR", "INFLUENCES", etc.
+  description: string;          // Descrição do relacionamento
+  properties_json: string;      // JSON serializado das propriedades
+  weight: number;               // Força do relacionamento (0-1)
+  bidirectional: boolean;       // Se é bidirecional
+  source_documents: string;     // JSON array dos document IDs
+  source_chunks: string;        // JSON array dos chunk IDs
+  confidence: number;           // Confiança da extração (0-1)
+  created_at: string;          // ISO datetime
+  updated_at: string;          // ISO datetime
+  merged_from: string;         // JSON array de relacionamentos merged
+  status: string;              // 'active' | 'deleted' | 'merged'
+}
+
+// Tabela: key_value_pairs (busca eficiente como LightRAG)
+interface KeyValuePairsTable {
+  id: string;                   // Primary key: hash(key + source_id)
+  key: string;                  // Palavra-chave para busca (indexada)
+  value: string;                // Parágrafo resumindo informações
+  type: 'entity' | 'relationship'; // Tipo do objeto origem
+  source_id: string;            // Foreign key -> entities.id ou relationships.id
+  themes: string;               // JSON array de temas globais
+  vector: Float32Array;         // Embedding do value para similarity
+  indexed_at: string;           // ISO datetime
+  status: string;               // 'active' | 'deleted'
+}
+
+// Tabela: documents (arquivo original)
+interface DocumentsTable {
+  id: string;                   // Primary key: UUID ou hash
+  filename: string;             // Nome do arquivo
+  path: string;                 // Caminho original (nullable)
+  content: string;              // Texto completo
+  content_type: string;         // MIME type
+  metadata_json: string;        // JSON serializado dos metadados
+  entities: string;             // JSON array de entity IDs extraídas
+  relationships: string;        // JSON array de relationship IDs
+  status: string;              // 'processing' | 'completed' | 'error'
+  processing_log: string;       // JSON array de ProcessingLogEntry
+  uploaded_at: string;         // ISO datetime
+  processed_at: string;        // ISO datetime (nullable)
+}
+
+// Tabela: chunks (temporária, só para processamento)
+interface ChunksTable {
+  id: string;                   // Primary key: hash(document_id + position)
+  document_id: string;          // Foreign key -> documents.id
+  start_char: number;           // Posição inicial
+  end_char: number;             // Posição final
+  text: string;                 // Texto do chunk
+  entities: string;             // JSON array de entity IDs extraídas
+  relationships: string;        // JSON array de relationship IDs
+  vector: Float32Array;         // Embedding do chunk
+  processing_status: string;    // 'pending' | 'completed' | 'error'
+  extracted_at: string;        // ISO datetime (nullable)
+}
+```
+
+### LanceDB Operations
+
+#### 1. Entity Storage & Retrieval
+```typescript
+class EntityStorage {
+  private table: LanceTable;
+  
+  async insertEntity(entity: Entity): Promise<void> {
+    await this.table.add([{
+      id: entity.id,
+      name: entity.name,
+      type: entity.type,
+      description: entity.description,
+      properties_json: JSON.stringify(entity.properties),
+      vector: entity.vector,
+      source_documents: JSON.stringify(entity.sourceDocuments),
+      source_chunks: JSON.stringify(entity.sourceChunks),
+      confidence: entity.confidence,
+      created_at: entity.createdAt,
+      updated_at: entity.updatedAt,
+      merged_from: JSON.stringify(entity.mergedFrom || []),
+      status: 'active'
+    }]);
+  }
+  
+  async findSimilarEntities(
+    entity: Entity, 
+    threshold: number = 0.85
+  ): Promise<EntityWithSimilarity[]> {
+    // Vector similarity search
+    const results = await this.table
+      .search(entity.vector)
+      .limit(10)
+      .where(`status = 'active' AND type = '${entity.type}'`)
+      .toArray();
+    
+    return results
+      .filter(r => r.distance < (1 - threshold))
+      .map(r => ({
+        entity: this.parseEntityFromRow(r),
+        similarity: 1 - r.distance
+      }));
+  }
+  
+  async searchEntitiesByText(
+    query: string,
+    filters?: EntityFilters
+  ): Promise<Entity[]> {
+    let sqlWhere = "status = 'active'";
+    
+    if (filters?.types?.length) {
+      const typeList = filters.types.map(t => `'${t}'`).join(',');
+      sqlWhere += ` AND type IN (${typeList})`;
+    }
+    
+    if (filters?.confidenceRange) {
+      const [min, max] = filters.confidenceRange;
+      sqlWhere += ` AND confidence BETWEEN ${min} AND ${max}`;
+    }
+    
+    // FTS search em name e description
+    sqlWhere += ` AND (name LIKE '%${query}%' OR description LIKE '%${query}%')`;
+    
+    const results = await this.table
+      .filter(sqlWhere)
+      .limit(filters?.maxResults || 50)
+      .toArray();
+    
+    return results.map(r => this.parseEntityFromRow(r));
+  }
+}
+```
+
+#### 2. Relationship Storage & Graph Operations
+```typescript
+class RelationshipStorage {
+  private table: LanceTable;
+  
+  async insertRelationship(relationship: Relationship): Promise<void> {
+    await this.table.add([{
+      id: relationship.id,
+      source_id: relationship.source,
+      target_id: relationship.target,
+      type: relationship.type,
+      description: relationship.description,
+      properties_json: JSON.stringify(relationship.properties),
+      weight: relationship.weight,
+      bidirectional: relationship.bidirectional,
+      source_documents: JSON.stringify(relationship.sourceDocuments),
+      source_chunks: JSON.stringify(relationship.sourceChunks),
+      confidence: relationship.confidence,
+      created_at: relationship.createdAt,
+      updated_at: relationship.updatedAt,
+      merged_from: JSON.stringify(relationship.mergedFrom || []),
+      status: 'active'
+    }]);
+  }
+  
+  async getSubgraph(
+    startingEntityId: string,
+    maxDepth: number = 3,
+    maxNodes: number = 1000
+  ): Promise<SubgraphResult> {
+    // Implementa busca BFS no grafo
+    const visited = new Set<string>();
+    const queue: Array<{entityId: string, depth: number}> = 
+      [{entityId: startingEntityId, depth: 0}];
+    
+    const entities: Entity[] = [];
+    const relationships: Relationship[] = [];
+    
+    while (queue.length > 0 && entities.length < maxNodes) {
+      const {entityId, depth} = queue.shift()!;
+      
+      if (visited.has(entityId) || depth > maxDepth) continue;
+      visited.add(entityId);
+      
+      // Buscar entidade
+      const entity = await this.getEntityById(entityId);
+      if (entity) entities.push(entity);
+      
+      if (depth < maxDepth) {
+        // Buscar relacionamentos conectados
+        const connectedRels = await this.table
+          .filter(`(source_id = '${entityId}' OR target_id = '${entityId}') AND status = 'active'`)
+          .toArray();
+        
+        for (const relRow of connectedRels) {
+          const rel = this.parseRelationshipFromRow(relRow);
+          relationships.push(rel);
+          
+          // Adicionar entidades conectadas à queue
+          const nextEntityId = rel.source === entityId ? rel.target : rel.source;
+          if (!visited.has(nextEntityId)) {
+            queue.push({entityId: nextEntityId, depth: depth + 1});
+          }
+        }
+      }
+    }
+    
+    return {
+      entities,
+      relationships,
+      startingEntity: startingEntityId,
+      maxDepth,
+      actualDepth: Math.max(...entities.map(e => this.calculateDepthFromStart(e.id, startingEntityId))),
+      isTruncated: entities.length >= maxNodes
+    };
+  }
+}
+```
+
+#### 3. Key-Value Storage (LightRAG Profile System)
+```typescript
+class KeyValueStorage {
+  private table: LanceTable;
+  
+  async generateKeyValuePairs(
+    entities: Entity[],
+    relationships: Relationship[]
+  ): Promise<KeyValuePair[]> {
+    const pairs: KeyValuePair[] = [];
+    
+    // Gerar pairs para entidades
+    for (const entity of entities) {
+      const entityPairs = await this.generateEntityKeyValuePairs(entity);
+      pairs.push(...entityPairs);
+    }
+    
+    // Gerar pairs para relacionamentos (com temas globais)
+    for (const relationship of relationships) {
+      const relPairs = await this.generateRelationshipKeyValuePairs(relationship);
+      pairs.push(...relPairs);
+    }
+    
+    return pairs;
+  }
+  
+  private async generateEntityKeyValuePairs(entity: Entity): Promise<KeyValuePair[]> {
+    // Implementa o profiling P(·) do LightRAG
+    const prompt = `
+Gere palavras-chave e resumos para busca eficiente da entidade:
+
+ENTIDADE: ${entity.name}
+TIPO: ${entity.type}
+DESCRIÇÃO: ${entity.description}
+
+Gere 3-5 pares chave-valor onde:
+- Chave: palavra ou frase curta para busca
+- Valor: parágrafo resumindo informações relevantes
+
+Formato JSON:
+{
+  "pairs": [
+    {
+      "key": "python programming",
+      "value": "Python é uma linguagem de programação de alto nível..."
+    }
+  ]
+}
+`;
+    
+    const llmResponse = await this.callLLM(prompt);
+    const parsed = JSON.parse(llmResponse);
+    
+    return parsed.pairs.map((pair: any) => ({
+      id: this.generatePairId(pair.key, entity.id),
+      key: pair.key.toLowerCase(),
+      value: pair.value,
+      type: 'entity' as const,
+      sourceId: entity.id,
+      themes: [],
+      vector: this.generateEmbedding(pair.value),
+      indexedAt: new Date().toISOString(),
+      status: 'active'
+    }));
+  }
+  
+  async searchByKeyValue(query: string): Promise<KeyValueSearchResult[]> {
+    // Busca híbrida: FTS + vector similarity
+    const queryVector = await this.generateEmbedding(query);
+    
+    // Vector search
+    const vectorResults = await this.table
+      .search(queryVector)
+      .where("status = 'active'")
+      .limit(20)
+      .toArray();
+    
+    // FTS search
+    const ftsResults = await this.table
+      .filter(`status = 'active' AND (key LIKE '%${query}%' OR value LIKE '%${query}%')`)
+      .limit(20)
+      .toArray();
+    
+    // Combinar e deduplificar resultados
+    const combined = this.combineAndRankResults(vectorResults, ftsResults, query);
+    
+    return combined.map(row => ({
+      keyValuePair: this.parseKeyValuePairFromRow(row),
+      relevanceScore: row.score,
+      matchType: row.matchType
+    }));
+  }
+}
+```
+
+#### 4. Deduplication Engine
+```typescript
+class DeduplicationEngine {
+  async deduplicateEntities(newEntities: Entity[]): Promise<DeduplicationResult> {
+    const results: DeduplicationResult = {
+      entitiesToMerge: [],
+      newEntities: [],
+      mergeConfidences: []
+    };
+    
+    for (const newEntity of newEntities) {
+      // Buscar entidades similares
+      const similarEntities = await this.entityStorage.findSimilarEntities(
+        newEntity, 
+        0.85 // threshold de similaridade
+      );
+      
+      if (similarEntities.length > 0) {
+        const bestMatch = similarEntities[0];
+        
+        if (bestMatch.similarity > 0.95) {
+          // Merge automático (alta confiança)
+          await this.mergeEntities(newEntity, bestMatch.entity);
+        } else {
+          // Sugerir merge (confiança média)
+          results.entitiesToMerge.push({
+            newEntity,
+            targetEntity: bestMatch.entity,
+            confidence: bestMatch.similarity,
+            suggestedAction: 'merge'
+          });
+        }
+      } else {
+        results.newEntities.push(newEntity);
+      }
+    }
+    
+    return results;
+  }
+  
+  private async mergeEntities(source: Entity, target: Entity): Promise<Entity> {
+    // Implementa merge inteligente
+    const mergedEntity: Entity = {
+      ...target,
+      description: this.mergeTe,xts(target.description, source.description),
+      properties: { ...target.properties, ...source.properties },
+      sourceDocuments: [...new Set([...target.sourceDocuments, ...source.sourceDocuments])],
+      sourceChunks: [...new Set([...target.sourceChunks, ...source.sourceChunks])],
+      confidence: Math.max(target.confidence, source.confidence),
+      updatedAt: new Date().toISOString(),
+      mergedFrom: [...(target.mergedFrom || []), source.id]
+    };
+    
+    // Atualizar entity
+    await this.entityStorage.updateEntity(mergedEntity);
+    
+    // Marcar source como merged
+    await this.entityStorage.markAsMerged(source.id, target.id);
+    
+    // Atualizar relacionamentos que referenciam source
+    await this.relationshipStorage.updateEntityReferences(source.id, target.id);
+    
+    return mergedEntity;
+  }
+}
+```
+
+### Performance Optimizations
+
+#### 1. Indexing Strategy
+```sql
+-- Índices LanceDB para performance otimizada
+CREATE INDEX entities_vector_idx ON entities USING HNSW (vector);
+CREATE INDEX entities_type_idx ON entities (type);
+CREATE INDEX entities_status_idx ON entities (status);
+CREATE INDEX entities_name_fts ON entities USING FTS (name, description);
+
+CREATE INDEX relationships_vector_idx ON relationships USING HNSW (vector);
+CREATE INDEX relationships_source_idx ON relationships (source_id);
+CREATE INDEX relationships_target_idx ON relationships (target_id);
+CREATE INDEX relationships_type_idx ON relationships (type);
+
+CREATE INDEX kv_vector_idx ON key_value_pairs USING HNSW (vector);
+CREATE INDEX kv_key_fts ON key_value_pairs USING FTS (key, value);
+CREATE INDEX kv_type_idx ON key_value_pairs (type);
+```
+
+#### 2. Caching Strategy
+```typescript
+interface CacheStrategy {
+  // Entity cache (LRU)
+  entityCache: LRUCache<string, Entity>;
+  
+  // Subgraph cache (comum para queries repetidas)
+  subgraphCache: LRUCache<string, SubgraphResult>;
+  
+  // Vector embedding cache
+  embeddingCache: LRUCache<string, Float32Array>;
+  
+  // Key-value search cache
+  searchCache: LRUCache<string, KeyValueSearchResult[]>;
+  
+  // Cache invalidation
+  invalidation: {
+    onEntityUpdate: (entityId: string) => void;
+    onRelationshipUpdate: (relationshipId: string) => void;
+    onDocumentProcessed: (documentId: string) => void;
+  };
+}
+```
+
+**Benefícios da Arquitetura LightRAG-Compatible:**
+- ✅ **Entity-First**: Entidades como primeira classe, não chunks
+- ✅ **Graph Native**: Relacionamentos explícitos com propriedades
+- ✅ **Key-Value Optimization**: Busca textual eficiente como LightRAG
+- ✅ **Automatic Deduplication**: Merge inteligente via similarity
+- ✅ **Dual-Level Ready**: Estrutura preparada para low/high-level retrieval
+- ✅ **Performance Optimized**: Índices vetoriais e FTS combinados
+- ✅ **Incremental Updates**: Inserção eficiente de novos documentos
+- ✅ **LanceDB Native**: Aproveitamento máximo das capacidades do LanceDB
 
 **Compatibilidade LanceDB:**
 - `string[]` (TypeScript) → `list<utf8>` (LanceDB)

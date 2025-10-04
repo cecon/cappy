@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "AI coding companion with Single-Focus Workflow, Mini-LightRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
   "icon": "assets/icon.png",
-  "version": "2.9.17",
+  "version": "2.9.19",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0",
@@ -143,6 +143,11 @@
         "command": "miniRAG.populateSampleData",
         "title": "🔨 Mini-LightRAG: Populate Sample Data",
         "category": "Mini-LightRAG"
+      },
+      {
+        "command": "cappy.lightrag.uploadUI",
+        "title": "📄 LightRAG: Upload Documents",
+        "category": "LightRAG"
       }
     ],
     "configuration": {
@@ -170,7 +175,10 @@
         },
         "miniRAG.model": {
           "type": "string",
-          "enum": ["fast", "quality"],
+          "enum": [
+            "fast",
+            "quality"
+          ],
           "default": "fast",
           "description": "Model type for embeddings: fast (lightweight) or quality (better accuracy)"
         },

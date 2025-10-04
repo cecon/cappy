@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "out"
+  },
+  "include": [
+    "src/extension.mcp.ts",
+    "src/commands/telemetryConsent.ts",
+    "src/commands/documentUpload.ts",
+    "src/models/lightragTypes.ts",
+    "src/tools/**/*",
+    "src/core/simpleLightragProcessor.ts",
+    "src/utils/environmentDetector.ts",
+    "src/utils/fileManager.ts"
+  ]
+}

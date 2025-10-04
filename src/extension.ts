@@ -11,13 +11,15 @@ import completeTask from "./commands/completeTask";
 import workOnCurrentTask from "./commands/workOnCurrentTask";
 import { AddPreventionRuleCommand } from "./commands/addPreventionRule";
 import { RemovePreventionRuleCommand } from "./commands/removePreventionRule";
-import { ReindexCommand } from "./commands/reindexCommand";
+// import { ReindexCommand } from "./commands/reindexCommand";
 import { registerLightRAGCommands } from "./commands/lightragCommands";
+import { openDocumentUploadUI } from "./commands/documentUpload";
 import * as miniRAGCommands from "./commands/miniRAG";
 import { MiniRAGStorage } from "./commands/miniRAG/storage";
 import { FileManager } from "./utils/fileManager";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 import { registerLanguageModelTools } from "./utils/languageModelTools";
+import { LightRAGMCPServer } from "./tools/mcpServer";
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -47,6 +49,11 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register Language Model Tools for Copilot
     registerLanguageModelTools(context);
+
+    // Register LightRAG MCP Server for document processing
+    const mcpServer = new LightRAGMCPServer(context);
+    mcpServer.registerTools();
+    console.log('🛠️ Cappy: LightRAG MCP tools registered');
 
     // Telemetry consent gating (one-time and on updates)
     ensureTelemetryConsent(context)
@@ -295,20 +302,21 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Register: reindex command (rebuilds semantic indexes for docs, tasks and rules)
-    const reindexCommand = vscode.commands.registerCommand(
-      "cappy.reindex",
-      async () => {
-        try {
-          const cmd = new ReindexCommand(context);
-          const result = await cmd.execute();
-          return result;
-        } catch (error) {
-          console.error("Cappy reindex error:", error);
-          vscode.window.showErrorMessage(`Cappy reindex failed: ${error}`);
-          return "";
-        }
-      }
-    );
+    // Temporarily disabled - requires LanceDB
+    // const reindexCommand = vscode.commands.registerCommand(
+    //   "cappy.reindex",
+    //   async () => {
+    //     try {
+    //       const cmd = new ReindexCommand(context);
+    //       const result = await cmd.execute();
+    //       return result;
+    //     } catch (error) {
+    //       console.error("Cappy reindex error:", error);
+    //       vscode.window.showErrorMessage(`Cappy reindex failed: ${error}`);
+    //       return "";
+    //     }
+    //   }
+    // );
 
     // Register Mini-LightRAG commands
     const miniRAGIndexWorkspaceCommand = vscode.commands.registerCommand(
@@ -384,6 +392,19 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
+    // Document Upload UI Command
+    const documentUploadCommand = vscode.commands.registerCommand(
+      "cappy.lightrag.uploadUI",
+      async () => {
+        try {
+          await openDocumentUploadUI(context);
+        } catch (error) {
+          console.error("Document upload UI error:", error);
+          vscode.window.showErrorMessage(`Document upload failed: ${error}`);
+        }
+      }
+    );
+
     // Register all commands
     context.subscriptions.push(
       initCommand,
@@ -400,13 +421,14 @@ export function activate(context: vscode.ExtensionContext) {
       addPreventionRuleCommand,
       removePreventionRuleCommand,
       workOnCurrentTaskCommand,
-      reindexCommand,
+      // reindexCommand, // Temporarily disabled
       miniRAGIndexWorkspaceCommand,
       miniRAGSearchCommand,
       miniRAGOpenGraphCommand,
       miniRAGIndexFileCommand,
       miniRAGPopulateSampleCommand,
-      miniRAGPauseWatcherCommand
+      miniRAGPauseWatcherCommand,
+      documentUploadCommand
     );
 
     // Register LightRAG commands
