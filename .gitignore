@@ -82,6 +82,5 @@ test-results/
 coverage/
 
 # Cappy specific - ignore only runtime files
-.cappy/history/
 .cappy/tasks/
 .cappy/output.txt

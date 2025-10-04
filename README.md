@@ -87,6 +87,91 @@ Every task follows a rigorous schema ensuring:
 
 ---
 
+## 🔍 Mini-LightRAG: Hybrid Search Engine
+
+**NEW in CAPPY 2.9.9+** - Built-in hybrid search combining vector similarity with graph relationships for precise code/documentation discovery.
+
+### What is Mini-LightRAG?
+
+A **100% local** search system that combines:
+- **Vector Search** (LanceDB) for semantic similarity
+- **Graph Relationships** (LightGraph) for contextual expansion  
+- **Visual Navigation** (React UI) with explainable results
+
+### Key Features
+
+🎯 **Precise Symbol Search**
+- Find functions, classes, and types with semantic understanding
+- Direct file/line navigation from search results
+- Context-aware snippet extraction
+
+📊 **Explainable Results**  
+- Visual graph showing "why this appeared"
+- Relationship paths between connected concepts
+- Expandable neighborhood exploration
+
+⚡ **Incremental Indexing**
+- Hash-based change detection (BLAKE3)
+- Updates only modified content
+- Lightning-fast re-indexing
+
+🔒 **100% Local & Private**
+- No data leaves your machine
+- Works completely offline
+- Uses local embedding models (all-MiniLM-L6-v2)
+
+### Architecture Overview
+
+```
+Mini-LightRAG Pipeline:
+1. Vector Search    → Top-K semantic matches in chunks
+2. Graph Expansion  → 1-hop relationship traversal  
+3. Hybrid Ranking   → Combine similarity + graph + freshness
+4. Visual Results   → Interactive graph + direct navigation
+```
+
+### Data Sources Priority
+1. **JSDoc/TypeDoc JSON** (structured symbols)
+2. **Markdown documentation** (when available)
+3. **Source code** (with semantic chunking)
+
+### Tech Stack
+- **LanceDB**: Vector storage (384d embeddings)
+- **transformers.js**: Local embeddings (46.6MB)
+- **BLAKE3**: Fast content hashing (8.6kB)
+- **Cytoscape.js**: Graph visualization
+- **React**: Interactive UI components
+
+### Usage
+
+```typescript
+// Available Tools for LLMs (MCP/LM Tools)
+rag.search(query, topK?, filters?)     // Hybrid search
+graph.expand(nodeId, hops?, types?)    // Explore relationships  
+symbols.lookup(name)                   // Find symbol definitions
+cite.open(path, startLine, endLine)    // Navigate to code
+```
+
+### Storage Location
+```
+VS Code globalStorage/mini-lightrag/
+├── chunks/     # Vector embeddings & content
+├── nodes/      # Graph nodes (docs, symbols, keywords)  
+├── edges/      # Relationships (contains, refers_to, etc.)
+└── indexes/    # HNSW/IVF vector indices
+```
+
+### Getting Started with Mini-LightRAG
+
+1. **Initialize** (automatic with `CAPPY: Initialize Project`)
+2. **Index your workspace** (coming in next releases)
+3. **Search semantically** via LLM tools or UI
+4. **Navigate visually** through the graph interface
+
+> **🚀 Development Status**: Core infrastructure ready (Step 2/15 complete). Full implementation coming in subsequent releases following the [Mini-LightRAG roadmap](SPEC.md).
+
+---
+
 ## Quick Start
 
 ### Install & Initialize
@@ -146,6 +231,21 @@ code --install-extension eduardocecon.cappy
 ├── history/                 # Completed tasks with learnings
 └── stack.md                 # Project architecture knowledge
 
+src/mini-lightrag/           # Hybrid search engine (NEW)
+├── core/                    # Schemas, chunking, hashing, ranking
+├── indexer/                 # Incremental document processing  
+├── store/                   # LanceDB persistence layer
+├── graph/                   # Graph expansion & subgraph generation
+├── query/                   # Hybrid search orchestration
+├── tools/                   # MCP/LM Tools for LLMs
+└── webview/graph-ui/        # React visualization interface
+
+globalStorage/mini-lightrag/ # Vector & graph data (auto-created)
+├── chunks/                  # Embedded content chunks
+├── nodes/                   # Graph nodes (docs, symbols)  
+├── edges/                   # Relationships & connections
+└── indexes/                 # HNSW vector indices
+
 docs/
 ├── components/              # Auto-indexed documentation  
 ├── prevention/              # Categorized prevention rules
@@ -158,6 +258,13 @@ docs/
 3. **Knowledge Retrieval** - Find relevant docs, rules, and related tasks
 4. **Context Injection** - Pre-populate task with discovered intelligence
 5. **Continuous Learning** - Capture outcomes for future context improvement
+
+**Mini-LightRAG Search Pipeline:**
+1. **Vector Search** - Top-K semantic matches using 384d embeddings
+2. **Graph Expansion** - 1-hop relationship traversal (REFERS_TO, CONTAINS, etc.)
+3. **Hybrid Ranking** - Combine cosine similarity + graph weights + freshness
+4. **Visual Results** - Interactive Cytoscape.js graph + direct navigation
+5. **Incremental Updates** - BLAKE3-based change detection & delta indexing
 
 ---
 

@@ -5,6 +5,33 @@ All notable changes to the Cappy extension will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.10] - 2025-10-03
+
+### Added - Mini-LightRAG Infrastructure
+- **Mini-LightRAG Foundation**: Complete architectural foundation for hybrid search system
+- **Directory Structure**: Created 7 specialized modules (`core/`, `indexer/`, `store/`, `graph/`, `query/`, `tools/`, `webview/graph-ui/`)
+- **Architectural Documentation**: Comprehensive `SPEC.md` with 143 lines documenting decisions, data structures, and integration
+- **Module READMEs**: Detailed documentation for each module explaining purpose and responsibilities
+- **GlobalStorage Integration**: Automatic Mini-LightRAG structure creation in VS Code globalStorage
+- **Dependency Validation**: Verified compatibility of LanceDB (v0.22.1), transformers.js (46.6MB), and BLAKE3 (8.6kB)
+
+### Enhanced
+- **`cappy.init` Command**: Extended to automatically create Mini-LightRAG structure with backup safety
+- **Project Documentation**: Updated README.md with Mini-LightRAG section and architectural overview
+- **Safety Measures**: Backup system for critical file modifications (`initCappy.ts.backup-*`)
+
+### Technical Foundation
+- **LanceDB**: Vector storage with Windows x64 native binaries
+- **transformers.js**: Local embeddings (all-MiniLM-L6-v2, 384 dimensions) 
+- **BLAKE3**: Efficient content hashing for incremental updates
+- **React + Cytoscape.js**: Planned interactive graph visualization
+- **MCP/LM Tools**: Framework for LLM integration tools
+
+### Development Status
+- ✅ **Step 2/15 Complete**: Infrastructure and architectural decisions finalized
+- 🔄 **Next Steps**: Implementation of schemas, chunking, and LanceDB integration
+- 📋 **Roadmap**: Following [Mini-LightRAG Steps](.cappy/TODO/) 1-15 systematic implementation
+
 ## [2.9.9] - 2025-09-30
 
 ### Added
