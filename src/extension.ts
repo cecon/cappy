@@ -339,7 +339,7 @@ export function activate(context: vscode.ExtensionContext) {
       "miniRAG.openGraph",
       async () => {
         try {
-          await miniRAGCommands.openGraph();
+          await miniRAGCommands.openGraph(context);
         } catch (error) {
           console.error("Mini-LightRAG openGraph error:", error);
           vscode.window.showErrorMessage(`Mini-LightRAG openGraph failed: ${error}`);

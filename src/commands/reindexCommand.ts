@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { writeOutputForced } from '../utils/outputWriter';
 import * as crypto from 'crypto';
+import { LanceDBStore } from '../store/lancedb';
+import { Chunk as SchemaChunk, GraphNode as SchemaGraphNode, GraphEdge as SchemaGraphEdge } from '../core/schemas';
 
 interface Chunk {
     id: string;
@@ -42,8 +44,11 @@ interface GraphEdge {
 /**
  * Comando de reindexação com arquitetura Mini-LightRAG
  * Processa arquivos do workspace e cria grafo de conhecimento
+ * LIMPA E REGENERA os bancos de dados completamente
  */
 export class ReindexCommand {
+    private lancedb: LanceDBStore | null = null;
+
     constructor(private readonly extensionContext?: vscode.ExtensionContext) {}
 
     async execute(): Promise<string> {
@@ -69,13 +74,28 @@ export class ReindexCommand {
                 cancellable: false
             }, async (progress) => {
                 
-                progress.report({ increment: 0, message: 'Configurando storage...' });
-                const storagePath = await this.setupStorage();
+                progress.report({ increment: 0, message: '🗑️  Limpando bancos antigos...' });
+                const storagePath = await this.cleanAndSetupStorage();
 
-                progress.report({ increment: 10, message: 'Buscando documentos...' });
+                // Inicializar LanceDB
+                progress.report({ increment: 5, message: '🔧 Inicializando LanceDB...' });
+                this.lancedb = new LanceDBStore({
+                    dbPath: storagePath,
+                    vectorDimension: 384,
+                    writeMode: 'overwrite', // Força reescrita completa
+                    indexConfig: {
+                        metric: 'cosine',
+                        indexType: 'HNSW',
+                        m: 16,
+                        efConstruction: 200
+                    }
+                });
+                await this.lancedb.initialize();
+
+                progress.report({ increment: 10, message: '📂 Buscando documentos...' });
                 const files = await this.findDocuments(workspaceFolder);
                 
-                progress.report({ increment: 20, message: `Processando ${files.length} arquivos...` });
+                progress.report({ increment: 20, message: `⚙️  Processando ${files.length} arquivos...` });
                 const chunks: Chunk[] = [];
                 
                 for (let i = 0; i < files.length; i++) {
@@ -85,23 +105,27 @@ export class ReindexCommand {
                     
                     if (i % 10 === 0) {
                         progress.report({ 
-                            message: `Processando ${i + 1}/${files.length}: ${path.basename(file.fsPath)}` 
+                            message: `⚙️  Processando ${i + 1}/${files.length}: ${path.basename(file.fsPath)}` 
                         });
                     }
                 }
 
-                progress.report({ increment: 50, message: 'Construindo grafo...' });
+                progress.report({ increment: 50, message: '🕸️  Construindo grafo...' });
                 const { nodes, edges } = await this.buildGraph(chunks, files, workspaceFolder);
 
-                progress.report({ increment: 80, message: 'Salvando dados...' });
+                progress.report({ increment: 70, message: '💾 Salvando em LanceDB...' });
+                await this.saveToLanceDB(chunks, nodes, edges);
+
+                progress.report({ increment: 90, message: '📝 Salvando backup JSON...' });
                 await this.saveData(storagePath, chunks, nodes, edges);
 
                 stats = { files: files.length, chunks: chunks.length, nodes: nodes.length, edges: edges.length };
-                progress.report({ increment: 100, message: 'Concluído!' });
+                progress.report({ increment: 100, message: '✅ Concluído!' });
             });
 
-            const msg = `✅ Mini-LightRAG: Indexação concluída!
+            const msg = `✅ Mini-LightRAG: Reindexação completa!
 📊 ${stats.files} arquivos, ${stats.chunks} chunks, ${stats.nodes} nós, ${stats.edges} arestas
+🗄️  Dados salvos em LanceDB e JSON
 🌐 Use 'miniRAG.openGraph' para visualizar!`;
 
             vscode.window.showInformationMessage(msg);
@@ -109,11 +133,130 @@ export class ReindexCommand {
             return msg;
 
         } catch (error) {
-            const errorMsg = `Erro ao reindexar: ${error}`;
+            const errorMsg = `❌ Erro ao reindexar: ${error}`;
             vscode.window.showErrorMessage(errorMsg);
             writeOutputForced(errorMsg);
             return errorMsg;
+        } finally {
+            // Fechar conexão LanceDB
+            if (this.lancedb) {
+                await this.lancedb.close();
+            }
         }
+    }
+
+    /**
+     * Limpa completamente os bancos antigos e recria a estrutura
+     * IMPORTANTE: Banco de dados é LOCAL ao workspace (.cappy/data/)
+     * Apenas modelos LLM podem ser globais
+     */
+    private async cleanAndSetupStorage(): Promise<string> {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            throw new Error('Workspace não encontrado');
+        }
+
+        // 📂 Banco de dados LOCAL ao workspace
+        const cappyPath = path.join(workspaceFolder.uri.fsPath, '.cappy');
+        const dataPath = path.join(cappyPath, 'data');
+        const miniLightRagPath = path.join(dataPath, 'mini-lightrag');
+        
+        // 🗑️ APAGAR TUDO se já existir
+        if (fs.existsSync(miniLightRagPath)) {
+            console.log('🗑️  Removendo bancos antigos do workspace...');
+            await fs.promises.rm(miniLightRagPath, { recursive: true, force: true });
+        }
+
+        // Criar estrutura limpa
+        const directories = [
+            cappyPath,
+            dataPath,
+            miniLightRagPath,
+            path.join(miniLightRagPath, 'backup') // Backup JSON
+        ];
+
+        for (const dir of directories) {
+            await fs.promises.mkdir(dir, { recursive: true });
+        }
+
+        console.log(`✅ Estrutura de storage criada em: ${miniLightRagPath}`);
+        return miniLightRagPath;
+    }
+
+    /**
+     * Salva dados no LanceDB (principal storage)
+     */
+    private async saveToLanceDB(chunks: Chunk[], nodes: GraphNode[], edges: GraphEdge[]): Promise<void> {
+        if (!this.lancedb) {
+            throw new Error('LanceDB não inicializado!');
+        }
+
+        console.log(`💾 Salvando ${chunks.length} chunks em LanceDB...`);
+        
+        // Converter chunks para o formato do schema
+        const schemaChunks = chunks.map(chunk => ({
+            id: chunk.id,
+            path: chunk.source,
+            language: chunk.metadata.lang || 'unknown',
+            type: this.mapChunkType(chunk.metadata.type),
+            textHash: chunk.hash,
+            text: chunk.content,
+            startLine: chunk.startLine,
+            endLine: chunk.endLine,
+            keywords: chunk.metadata.tags || [],
+            metadata: {
+                heading: chunk.metadata.heading,
+                tokens: chunk.tokens,
+                complexity: 0
+            },
+            vector: new Array(384).fill(0), // TODO: Gerar embeddings reais
+            updatedAt: new Date().toISOString(),
+            version: 1
+        }));
+
+        await this.lancedb.upsertChunks(schemaChunks as any[]);
+        console.log(`✅ ${chunks.length} chunks salvos em LanceDB`);
+
+        console.log(`💾 Salvando ${nodes.length} nodes em LanceDB...`);
+        const schemaNodes = nodes.map(node => ({
+            id: node.id,
+            type: node.type,
+            label: node.label,
+            path: node.path,
+            lang: node.lang,
+            score: 1.0,
+            tags: node.tags || [],
+            updatedAt: new Date().toISOString()
+        }));
+
+        await this.lancedb.upsertNodes(schemaNodes as any[]);
+        console.log(`✅ ${nodes.length} nodes salvos em LanceDB`);
+
+        console.log(`💾 Salvando ${edges.length} edges em LanceDB...`);
+        const schemaEdges = edges.map(edge => ({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            type: edge.type,
+            weight: edge.weight,
+            updatedAt: new Date().toISOString()
+        }));
+
+        await this.lancedb.upsertEdges(schemaEdges as any[]);
+        console.log(`✅ ${edges.length} edges salvos em LanceDB`);
+    }
+
+    /**
+     * Mapeia tipo de chunk para o schema
+     */
+    private mapChunkType(type: string): 'code-function' | 'code-class' | 'code-interface' | 'markdown-section' | 'markdown-paragraph' | 'documentation' | 'comment' | 'import' | 'export' {
+        const mapping: Record<string, any> = {
+            'code': 'code-function',
+            'markdown': 'markdown-section',
+            'documentation': 'documentation'
+        };
+
+        return mapping[type] || 'documentation';
     }
 
     private async setupStorage(): Promise<string> {
@@ -268,7 +411,9 @@ export class ReindexCommand {
 
         for (const chunk of chunks) {
             const docNode = nodeMap.get(chunk.source);
-            if (!docNode) continue;
+            if (!docNode) {
+                continue;
+            }
 
             docNode.chunkIds!.push(chunk.id);
 
@@ -296,19 +441,21 @@ export class ReindexCommand {
                 let keywordNode = keywordMap.get(tag);
                 
                 if (!keywordNode) {
-                    keywordNode = {
+                    const newNode = {
                         id: `node_kw_${nodeIdCounter++}`,
-                        type: 'Keyword',
+                        type: 'Keyword' as const,
                         label: tag,
                         chunkIds: []
                     };
-                    nodes.push(keywordNode);
-                    keywordMap.set(tag, keywordNode);
+                    nodes.push(newNode);
+                    keywordMap.set(tag, newNode);
+                    keywordNode = newNode;
                 }
 
                 keywordNode.chunkIds!.push(chunk.id);
 
-                const edgeExists = edges.some(e => e.source === docNode.id && e.target === keywordNode!.id && e.type === 'MENTIONS');
+                const targetId = keywordNode.id;
+                const edgeExists = edges.some(e => e.source === docNode.id && e.target === targetId && e.type === 'MENTIONS');
                 if (!edgeExists) {
                     edges.push({
                         id: `edge_${edgeIdCounter++}`,
@@ -347,12 +494,17 @@ export class ReindexCommand {
         return { nodes, edges };
     }
 
+    /**
+     * Salva backup em JSON (fallback, não é o storage principal)
+     */
     private async saveData(storagePath: string, chunks: Chunk[], nodes: GraphNode[], edges: GraphEdge[]): Promise<void> {
-        await fs.promises.writeFile(path.join(storagePath, 'chunks', 'chunks.json'), JSON.stringify(chunks, null, 2), 'utf8');
-        await fs.promises.writeFile(path.join(storagePath, 'nodes', 'nodes.json'), JSON.stringify(nodes, null, 2), 'utf8');
-        await fs.promises.writeFile(path.join(storagePath, 'edges', 'edges.json'), JSON.stringify(edges, null, 2), 'utf8');
+        const backupPath = path.join(storagePath, 'backup');
         
-        await fs.promises.writeFile(path.join(storagePath, 'metadata.json'), JSON.stringify({
+        await fs.promises.writeFile(path.join(backupPath, 'chunks.json'), JSON.stringify(chunks, null, 2), 'utf8');
+        await fs.promises.writeFile(path.join(backupPath, 'nodes.json'), JSON.stringify(nodes, null, 2), 'utf8');
+        await fs.promises.writeFile(path.join(backupPath, 'edges.json'), JSON.stringify(edges, null, 2), 'utf8');
+        
+        await fs.promises.writeFile(path.join(backupPath, 'metadata.json'), JSON.stringify({
             lastIndexed: new Date().toISOString(),
             totalChunks: chunks.length,
             totalNodes: nodes.length,
@@ -360,6 +512,8 @@ export class ReindexCommand {
             nodesByType: this.countByType(nodes),
             edgesByType: this.countByType(edges)
         }, null, 2), 'utf8');
+        
+        console.log('📝 Backup JSON salvo em:', backupPath);
     }
 
     private countByType<T extends { type: string }>(items: T[]): Record<string, number> {

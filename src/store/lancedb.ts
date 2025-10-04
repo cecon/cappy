@@ -471,6 +471,129 @@ export class LanceDBStore {
     // ========== Graph Operations ==========
 
     /**
+     * Query edges from the graph
+     */
+    async queryEdges(query: {
+        source?: string | string[];
+        target?: string | string[];
+        minWeight?: number;
+        edgeTypes?: string[];
+        limit?: number;
+    }): Promise<Array<{
+        id: string;
+        source: string;
+        target: string;
+        type: string;
+        weight: number;
+    }>> {
+        await this.initialize();
+        
+        if (!this.chunksTable) {
+            return [];
+        }
+
+        try {
+            // Build WHERE clause
+            const conditions: string[] = ["path = '/graph/edges'"];
+            
+            // Parse edges and filter
+            const results = await this.chunksTable
+                .search(new Array(this.config.vectorDimension).fill(0))
+                .where(conditions.join(' AND '))
+                .limit(query.limit || 1000)
+                .toArray();
+
+            // Parse and filter edges
+            let edges = results.map((result: any) => {
+                const edge = JSON.parse(result.text);
+                return {
+                    id: edge.id,
+                    source: edge.source,
+                    target: edge.target,
+                    type: edge.type,
+                    weight: edge.weight
+                };
+            });
+
+            // Apply filters in memory (since LanceDB doesn't support complex JSON queries)
+            if (query.source) {
+                const sources = Array.isArray(query.source) ? query.source : [query.source];
+                edges = edges.filter(e => sources.includes(e.source));
+            }
+
+            if (query.target) {
+                const targets = Array.isArray(query.target) ? query.target : [query.target];
+                edges = edges.filter(e => targets.includes(e.target));
+            }
+
+            if (query.minWeight !== undefined) {
+                edges = edges.filter(e => e.weight >= query.minWeight!);
+            }
+
+            if (query.edgeTypes && query.edgeTypes.length > 0) {
+                edges = edges.filter(e => query.edgeTypes!.includes(e.type));
+            }
+
+            // Sort by weight descending
+            edges.sort((a, b) => b.weight - a.weight);
+
+            // Apply limit
+            if (query.limit) {
+                edges = edges.slice(0, query.limit);
+            }
+
+            return edges;
+
+        } catch (error) {
+            console.error('Failed to query edges:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Query nodes by their IDs
+     */
+    async queryNodesByIds(ids: string[]): Promise<Array<{
+        id: string;
+        type: string;
+        label?: string;
+        path?: string;
+        score?: number;
+    }>> {
+        await this.initialize();
+        
+        if (!this.chunksTable || ids.length === 0) {
+            return [];
+        }
+
+        try {
+            // Get all graph nodes
+            const results = await this.chunksTable
+                .search(new Array(this.config.vectorDimension).fill(0))
+                .where("path = '/graph/nodes'")
+                .limit(1000)
+                .toArray();
+
+            // Parse and filter by IDs
+            const nodes = results
+                .map((result: any) => JSON.parse(result.text))
+                .filter((node: any) => ids.includes(node.id));
+
+            return nodes.map((node: any) => ({
+                id: node.id,
+                type: node.type,
+                label: node.label,
+                path: node.path,
+                score: node.score
+            }));
+
+        } catch (error) {
+            console.error('Failed to query nodes by IDs:', error);
+            return [];
+        }
+    }
+
+    /**
      * Upsert graph nodes
      */
     async upsertNodes(nodes: import('../core/schemas').GraphNode[]): Promise<void> {
