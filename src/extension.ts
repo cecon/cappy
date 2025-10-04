@@ -13,6 +13,8 @@ import { AddPreventionRuleCommand } from "./commands/addPreventionRule";
 import { RemovePreventionRuleCommand } from "./commands/removePreventionRule";
 import { ReindexCommand } from "./commands/reindexCommand";
 import { registerLightRAGCommands } from "./commands/lightragCommands";
+import * as miniRAGCommands from "./commands/miniRAG";
+import { MiniRAGStorage } from "./commands/miniRAG/storage";
 import { FileManager } from "./utils/fileManager";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 import { registerLanguageModelTools } from "./utils/languageModelTools";
@@ -33,6 +35,15 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(cappyOutput);
 
     console.log('🦫 Cappy: Output channel created...');
+
+    // Initialize Mini-LightRAG storage
+    const miniRAGStorage = new MiniRAGStorage(context);
+    miniRAGStorage.initialize().catch(error => {
+      console.error('Failed to initialize Mini-LightRAG storage:', error);
+    });
+
+    // Make extension context available globally for Mini-LightRAG
+    (global as any).cappyExtensionContext = context;
 
     // Register Language Model Tools for Copilot
     registerLanguageModelTools(context);
@@ -299,6 +310,80 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
+    // Register Mini-LightRAG commands
+    const miniRAGIndexWorkspaceCommand = vscode.commands.registerCommand(
+      "miniRAG.indexWorkspace",
+      async () => {
+        try {
+          await miniRAGCommands.indexWorkspace();
+        } catch (error) {
+          console.error("Mini-LightRAG indexWorkspace error:", error);
+          vscode.window.showErrorMessage(`Mini-LightRAG indexWorkspace failed: ${error}`);
+        }
+      }
+    );
+
+    const miniRAGSearchCommand = vscode.commands.registerCommand(
+      "miniRAG.search",
+      async () => {
+        try {
+          await miniRAGCommands.search();
+        } catch (error) {
+          console.error("Mini-LightRAG search error:", error);
+          vscode.window.showErrorMessage(`Mini-LightRAG search failed: ${error}`);
+        }
+      }
+    );
+
+    const miniRAGOpenGraphCommand = vscode.commands.registerCommand(
+      "miniRAG.openGraph",
+      async () => {
+        try {
+          await miniRAGCommands.openGraph();
+        } catch (error) {
+          console.error("Mini-LightRAG openGraph error:", error);
+          vscode.window.showErrorMessage(`Mini-LightRAG openGraph failed: ${error}`);
+        }
+      }
+    );
+
+    const miniRAGIndexFileCommand = vscode.commands.registerCommand(
+      "miniRAG.indexFile",
+      async () => {
+        try {
+          await miniRAGCommands.indexFile();
+        } catch (error) {
+          console.error("Mini-LightRAG indexFile error:", error);
+          vscode.window.showErrorMessage(`Mini-LightRAG indexFile failed: ${error}`);
+        }
+      }
+    );
+
+    const miniRAGPopulateSampleCommand = vscode.commands.registerCommand(
+      "miniRAG.populateSampleData",
+      async () => {
+        try {
+          const { populateSampleData } = await import('./commands/miniRAG/populateSampleData');
+          await populateSampleData(context);
+        } catch (error) {
+          console.error("Mini-LightRAG populateSampleData error:", error);
+          vscode.window.showErrorMessage(`Mini-LightRAG populateSampleData failed: ${error}`);
+        }
+      }
+    );
+
+    const miniRAGPauseWatcherCommand = vscode.commands.registerCommand(
+      "miniRAG.pauseWatcher",
+      async () => {
+        try {
+          await miniRAGCommands.pauseWatcher();
+        } catch (error) {
+          console.error("Mini-LightRAG pauseWatcher error:", error);
+          vscode.window.showErrorMessage(`Mini-LightRAG pauseWatcher failed: ${error}`);
+        }
+      }
+    );
+
     // Register all commands
     context.subscriptions.push(
       initCommand,
@@ -315,7 +400,13 @@ export function activate(context: vscode.ExtensionContext) {
       addPreventionRuleCommand,
       removePreventionRuleCommand,
       workOnCurrentTaskCommand,
-      reindexCommand
+      reindexCommand,
+      miniRAGIndexWorkspaceCommand,
+      miniRAGSearchCommand,
+      miniRAGOpenGraphCommand,
+      miniRAGIndexFileCommand,
+      miniRAGPopulateSampleCommand,
+      miniRAGPauseWatcherCommand
     );
 
     // Register LightRAG commands

@@ -1,0 +1,58 @@
+{
+  "tasks": [
+    {
+      "id": "TASK_20251004113811",
+      "title": "TASK_20251004113811.ACTIVE",
+      "path": "c:\\Projetos\\cappy\\.cappy\\tasks\\TASK_20251004113811.ACTIVE.xml",
+      "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<task id=\"TASK_20251004113811\"\r\n    category=\"feature\"\r\n    priority=\"normal\"\r\n    status=\"completed\"\r\n    created=\"2025-10-04T14:38:11.180Z\"\r\n    completedAt=\"2025-10-04T15:25:00.000Z\"\r\n    xmlns=\"https://cappy-methodology.dev/task/1.0\">\r\n\r\n    <about>\r\n        <summary>\r\n            Você é um desenvolvedor experiente e um especialista.\r\n            Seu papel é seguir cada passo desse arquivo no plano e seguir ele a risca.\r\n            Sempre que concluir um passo, marque ele como concluído na lista e informe o progresso.\r\n            No final, quando todos os passos estiverem concluídos, finalize a tarefa e preencha a\r\n            data de finalização completedAt=\"\"  nesse arquivo de task.\r\n            use seus recursos de todo list para gerenciar o progresso.\r\n        </summary>\r\n    </about>\r\n\r\n    <context>\r\n        <description>\r\n            Integrar o sistema mini-LightRAG na extensão VS Code do Cappy, implementando comandos para indexação ",
+      "category": "feature",
+      "keywords": [
+        "task",
+        "feature",
+        "prevention",
+        "rule",
+        "api",
+        "utf",
+        "vs",
+        "todo",
+        "readme",
+        "json",
+        "20251004113811",
+        "active",
+        "xml"
+      ],
+      "lastModified": "2025-10-04T14:50:43.383Z",
+      "type": "task"
+    },
+    {
+      "id": "TASK_20251003102110",
+      "title": "TASK_20251003102110.DONE",
+      "path": "c:\\Projetos\\cappy\\.cappy\\history\\TASK_20251003102110.DONE.xml",
+      "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<task id=\"TASK_20251003102110\"\r\n    category=\"architecture\"\r\n    priority=\"normal\"\r\n    status=\"pending\"\r\n    created=\"2025-10-03T13:21:10.865Z\"\r\n    completedAt=\"\"\r\n    xmlns=\"https://cappy-methodology.dev/task/1.0\">\r\n\r\n    <about>\r\n        <summary>\r\n            Implementar estrutura inicial do Mini-LightRAG na extensão VS Code Cappy. \r\n            Criar diretórios, definir decisões arquiteturais e documentar especificações \r\n            para sistema de busca híbrida com LanceDB e LightGraph.\r\n        </summary>\r\n    </about>\r\n\r\n    <context>\r\n        <description>\r\n            Construir estrutura inicial para um mini-LightRAG 100% local dentro da extensão VS Code atual, \r\n            unindo LanceDB (vetorial) e LightGraph (grafo leve) com recuperação híbrida e UI de grafo em Webview.\r\n            \r\n            OBJETIVO: Criar base arquitetural para busca precisa em símbolos/docs com abertura direta no arquivo/linha,\r\n            subgrafo expli",
+      "category": "architecture",
+      "keywords": [
+        "task",
+        "ui",
+        "rule",
+        "utf",
+        "vs",
+        "objetivo",
+        "tecnologias",
+        "definidas",
+        "entreg",
+        "veis",
+        "spec",
+        "todo",
+        "mcp",
+        "readme",
+        "json",
+        "xml",
+        "20251003102110",
+        "done"
+      ],
+      "lastModified": "2025-10-04T05:08:09.047Z",
+      "type": "task"
+    }
+  ],
+  "lastUpdated": "2025-10-04T14:51:22.864Z"
+}

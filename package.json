@@ -113,6 +113,36 @@
         "command": "cappy.reindex",
         "title": "🔄 Cappy: Reindex Files",
         "category": "Cappy"
+      },
+      {
+        "command": "miniRAG.indexWorkspace",
+        "title": "🔍 Mini-LightRAG: Index Workspace",
+        "category": "Mini-LightRAG"
+      },
+      {
+        "command": "miniRAG.search",
+        "title": "🔎 Mini-LightRAG: Search",
+        "category": "Mini-LightRAG"
+      },
+      {
+        "command": "miniRAG.openGraph",
+        "title": "📊 Mini-LightRAG: Open Graph",
+        "category": "Mini-LightRAG"
+      },
+      {
+        "command": "miniRAG.indexFile",
+        "title": "📄 Mini-LightRAG: Index File",
+        "category": "Mini-LightRAG"
+      },
+      {
+        "command": "miniRAG.pauseWatcher",
+        "title": "⏸️ Mini-LightRAG: Pause Watcher",
+        "category": "Mini-LightRAG"
+      },
+      {
+        "command": "miniRAG.populateSampleData",
+        "title": "🔨 Mini-LightRAG: Populate Sample Data",
+        "category": "Mini-LightRAG"
       }
     ],
     "configuration": {
@@ -137,6 +167,60 @@
           "type": "boolean",
           "default": true,
           "description": "Show notifications for Cappy events"
+        },
+        "miniRAG.model": {
+          "type": "string",
+          "enum": ["fast", "quality"],
+          "default": "fast",
+          "description": "Model type for embeddings: fast (lightweight) or quality (better accuracy)"
+        },
+        "miniRAG.topK": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Number of top results to return in searches"
+        },
+        "miniRAG.maxStorageGB": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0.1,
+          "maximum": 50,
+          "description": "Maximum storage limit in GB for LanceDB and cache"
+        },
+        "miniRAG.maxNodes": {
+          "type": "number",
+          "default": 10000,
+          "minimum": 100,
+          "maximum": 100000,
+          "description": "Maximum number of nodes in the graph"
+        },
+        "miniRAG.maxEdges": {
+          "type": "number",
+          "default": 50000,
+          "minimum": 1000,
+          "maximum": 500000,
+          "description": "Maximum number of edges in the graph"
+        },
+        "miniRAG.excludeGlobs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules/**",
+            ".git/**",
+            "dist/**",
+            "build/**",
+            "out/**",
+            "*.vsix",
+            "*.jpg",
+            "*.png",
+            "*.gif",
+            "*.pdf",
+            "*.zip"
+          ],
+          "description": "Glob patterns for files and directories to exclude from indexing"
         }
       }
     },

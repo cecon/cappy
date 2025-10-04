@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { writeOutput } from '../utils/outputWriter';
 
 /**
@@ -67,6 +66,7 @@ export async function getActiveTask(): Promise<string> {
         return result;
         
     } catch (error) {
+        console.error('Error in getActiveTask:', error);
         const result = await generateTaskStatusXml(false, null, null, 0);
         writeOutput(result);
         return result;
