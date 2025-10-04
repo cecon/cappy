@@ -127,12 +127,17 @@ suite('🦫 Cappy Extension Test Suite', () => {
         console.log(`🧪 Workspace root: ${workspaceRoot}`);
         console.log(`🧪 Cappy dir: ${cappyDir}`);
 
-        // Clean up any existing .cappy folder
-        try {
-            await fs.promises.rmdir(cappyDir, { recursive: true });
-            console.log('🧪 Existing .cappy folder removed');
-        } catch (error) {
-            console.log('🧪 No existing .cappy folder to remove');
+        // Only clean up if we're in a test workspace (not the actual project)
+        const isTestWorkspace = workspaceRoot.includes('temp') || workspaceRoot.includes('test');
+        if (isTestWorkspace) {
+            try {
+                await fs.promises.rmdir(cappyDir, { recursive: true });
+                console.log('🧪 Existing .cappy folder removed from test workspace');
+            } catch (error) {
+                console.log('🧪 No existing .cappy folder to remove');
+            }
+        } else {
+            console.log('🧪 Running in production workspace - skipping .cappy cleanup');
         }
 
         // Execute init command
