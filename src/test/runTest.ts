@@ -1,4 +1,6 @@
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 import { runTests } from '@vscode/test-electron';
 
 async function main() {
@@ -11,8 +13,26 @@ async function main() {
         // Passed to --extensionTestsPath
         const extensionTestsPath = path.resolve(__dirname, './suite/index');
 
-        // Use the current project as workspace for testing
-        const testWorkspace = extensionDevelopmentPath;
+        // Create a temporary workspace for testing to avoid affecting the production workspace
+        const tempDir = os.tmpdir();
+        const testWorkspace = path.join(tempDir, `cappy-test-workspace-${Date.now()}`);
+        
+        // Create the temporary workspace directory
+        await fs.promises.mkdir(testWorkspace, { recursive: true });
+        
+        // Create a simple package.json for the test workspace
+        const testPackageJson = {
+            name: 'cappy-test-workspace',
+            version: '1.0.0',
+            description: 'Temporary workspace for Cappy tests'
+        };
+        
+        await fs.promises.writeFile(
+            path.join(testWorkspace, 'package.json'),
+            JSON.stringify(testPackageJson, null, 2)
+        );
+
+        console.log(`🧪 Using temporary test workspace: ${testWorkspace}`);
 
         // Download VS Code, unzip it and run the integration test
         await runTests({ 
@@ -20,8 +40,17 @@ async function main() {
             extensionTestsPath,
             launchArgs: [testWorkspace]
         });
+
+        // Clean up the temporary workspace after tests
+        try {
+            await fs.promises.rm(testWorkspace, { recursive: true, force: true });
+            console.log(`🧹 Cleaned up temporary test workspace: ${testWorkspace}`);
+        } catch (error) {
+            console.warn(`⚠️ Failed to clean up test workspace: ${error}`);
+        }
+
     } catch (err) {
-        console.error('Failed to run tests');
+        console.error('Failed to run tests:', err);
         process.exit(1);
     }
 }
