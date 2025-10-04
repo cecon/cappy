@@ -190,21 +190,22 @@ export class LightRAGLanceDatabase {
         if (tableNames.includes('relationships')) {
             this.relationshipsTable = await this.connection.openTable('relationships');
         } else {
-            const sampleRel: LightRAGRelationship = {
-                id: 'sample-rel',
-                source: 'entity1',
-                target: 'entity2',
-                type: 'related',
-                description: 'Sample relationship',
-                weight: 1.0,
-                documentIds: [],
-                created: new Date().toISOString(),
-                updated: new Date().toISOString()
-            };
+            // Define explicit schema for relationships table
+            const schema = new arrow.Schema([
+                new arrow.Field('id', new arrow.Utf8(), false),
+                new arrow.Field('source', new arrow.Utf8(), false),
+                new arrow.Field('target', new arrow.Utf8(), false),
+                new arrow.Field('type', new arrow.Utf8(), false),
+                new arrow.Field('description', new arrow.Utf8(), false),
+                new arrow.Field('weight', new arrow.Float64(), false),
+                new arrow.Field('documentIds', new arrow.List(new arrow.Field('item', new arrow.Utf8())), false),
+                new arrow.Field('created', new arrow.Utf8(), false),
+                new arrow.Field('updated', new arrow.Utf8(), false)
+            ]);
 
-            this.relationshipsTable = await this.connection.createTable('relationships', [sampleRel]);
-            await this.relationshipsTable.delete("id = 'sample-rel'");
-            console.log('[LightRAG LanceDB] Relationships table created');
+            const emptyData: LightRAGRelationship[] = [];
+            this.relationshipsTable = await this.connection.createTable('relationships', emptyData, { schema });
+            console.log('[LightRAG LanceDB] Relationships table created with explicit schema');
         }
     }
 
@@ -218,21 +219,22 @@ export class LightRAGLanceDatabase {
         if (tableNames.includes('chunks')) {
             this.chunksTable = await this.connection.openTable('chunks');
         } else {
-            const sampleChunk: LightRAGChunk = {
-                id: 'sample-chunk',
-                documentId: 'doc1',
-                content: 'Sample content',
-                startPosition: 0,
-                endPosition: 10,
-                chunkIndex: 0,
-                entities: [],
-                relationships: [],
-                created: new Date().toISOString()
-            };
+            // Define explicit schema for chunks table
+            const schema = new arrow.Schema([
+                new arrow.Field('id', new arrow.Utf8(), false),
+                new arrow.Field('documentId', new arrow.Utf8(), false),
+                new arrow.Field('content', new arrow.Utf8(), false),
+                new arrow.Field('startPosition', new arrow.Float64(), false),
+                new arrow.Field('endPosition', new arrow.Float64(), false),
+                new arrow.Field('chunkIndex', new arrow.Float64(), false),
+                new arrow.Field('entities', new arrow.List(new arrow.Field('item', new arrow.Utf8())), false),
+                new arrow.Field('relationships', new arrow.List(new arrow.Field('item', new arrow.Utf8())), false),
+                new arrow.Field('created', new arrow.Utf8(), false)
+            ]);
 
-            this.chunksTable = await this.connection.createTable('chunks', [sampleChunk]);
-            await this.chunksTable.delete("id = 'sample-chunk'");
-            console.log('[LightRAG LanceDB] Chunks table created');
+            const emptyData: LightRAGChunk[] = [];
+            this.chunksTable = await this.connection.createTable('chunks', emptyData, { schema });
+            console.log('[LightRAG LanceDB] Chunks table created with explicit schema');
         }
     }
 
