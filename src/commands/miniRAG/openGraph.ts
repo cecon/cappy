@@ -1,7 +1,7 @@
 ﻿import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openDocumentUploadUI } from '../documentUpload';
+import { openDocumentUploadUI } from '../lightrag';
 
 interface GraphNode {
     id: string;

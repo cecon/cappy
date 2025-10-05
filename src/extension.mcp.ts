@@ -3,7 +3,7 @@ import {
   ensureTelemetryConsent,
   showConsentWebview,
 } from "./commands/telemetryConsent";
-import { openDocumentUploadUI } from "./commands/documentUpload";
+import { openDocumentUploadUI } from "./commands/lightrag";
 import { LightRAGMCPServer } from "./tools/mcpServer";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 

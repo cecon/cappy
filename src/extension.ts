@@ -13,7 +13,7 @@ import { AddPreventionRuleCommand } from "./commands/addPreventionRule";
 import { RemovePreventionRuleCommand } from "./commands/removePreventionRule";
 // import { ReindexCommand } from "./commands/reindexCommand";
 import { registerLightRAGCommands } from "./commands/lightragCommands";
-import { openDocumentUploadUI } from "./commands/documentUpload";
+import { openDocumentUploadUI } from "./commands/lightrag";
 import * as miniRAGCommands from "./commands/miniRAG";
 import { MiniRAGStorage } from "./commands/miniRAG/storage";
 import { FileManager } from "./utils/fileManager";

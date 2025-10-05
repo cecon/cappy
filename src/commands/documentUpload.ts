@@ -628,7 +628,7 @@ function generateDocumentId(): string {
     return 'doc-' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
 }
 
-function getWebviewContent(webview: vscode.Webview): string {
+export function getWebviewContent(webview: vscode.Webview): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1766,12 +1766,12 @@ function getWebviewContent(webview: vscode.Webview): string {
             });
         }
 
-        // Document management functions
-        function refreshDocuments() {
+        // Document management functions (global scope for onclick handlers)
+        window.refreshDocuments = function() {
             vscode.postMessage({ command: 'loadDocuments' });
-        }
+        };
 
-        function clearDocuments() {
+        window.clearDocuments = function() {
             if (confirm('Are you sure you want to clear all documents? This action cannot be undone.')) {
                 vscode.postMessage({ command: 'clearAllDocuments' });
             }
@@ -1798,14 +1798,14 @@ function getWebviewContent(webview: vscode.Webview): string {
             }
         }
 
-        // Upload modal functions
-        function openUploadModal() {
+        // Upload modal functions (global scope for onclick handlers)
+        window.openUploadModal = function() {
             document.getElementById('upload-modal').style.display = 'flex';
             // Initialize drag and drop after modal is visible
             setTimeout(() => initDragAndDrop(), 100);
-        }
+        };
 
-        function closeUploadModal() {
+        window.closeUploadModal = function() {
             document.getElementById('upload-modal').style.display = 'none';
             
             // Reset form
@@ -1924,7 +1924,7 @@ function getWebviewContent(webview: vscode.Webview): string {
             }
         }
 
-        function uploadDocument() {
+        window.uploadDocument = function() {
             const fileInput = document.getElementById('file-input');
             const title = document.getElementById('document-title').value;
             const description = document.getElementById('document-description').value;
