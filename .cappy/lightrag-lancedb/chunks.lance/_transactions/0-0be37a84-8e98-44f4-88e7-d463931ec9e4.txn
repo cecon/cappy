@@ -1,6 +1,0 @@
-$0be37a84-8e98-44f4-88e7-d463931ec9e4²™"id ÿÿÿÿÿÿÿÿÿ*string8Zdefault,
-documentId ÿÿÿÿÿÿÿÿÿ*string8Zdefault)content ÿÿÿÿÿÿÿÿÿ*string8Zdefault/startPosition ÿÿÿÿÿÿÿÿÿ*double8Zdefault-endPosition ÿÿÿÿÿÿÿÿÿ*double8Zdefault,
-chunkIndex ÿÿÿÿÿÿÿÿÿ*double8Zdefault(entities ÿÿÿÿÿÿÿÿÿ*list8Zdefaultitem *string8Zdefault-relationships ÿÿÿÿÿÿÿÿÿ*list8Zdefaultitem	 *string8Zdefault)created
- ÿÿÿÿÿÿÿÿÿ*string8Zdefault"'
-lance.auto_cleanup.older_than14days"!
-lance.auto_cleanup.interval20

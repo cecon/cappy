@@ -83,12 +83,6 @@ coverage/
 
 # Cappy specific - ignore only runtime files
 test-workspace/
-
-
-
-
-
-.cappy/cappyrag-data/
-.cappy/history/# Mini-LightRAG - banco de dados local por workspace
+.cappy/history/
 .cappy/tasks/
 .cappy/output.txt

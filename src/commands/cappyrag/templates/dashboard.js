@@ -206,11 +206,30 @@ function filterDocuments(filter) {
 }
 
 function deleteDocument(documentId) {
-    if (confirm('Are you sure you want to delete this document?')) {
+    // Show custom confirmation dialog instead of browser confirm()
+    const doc = documents.find(d => d.id === documentId);
+    const docName = doc ? doc.title : 'this document';
+    
+    showToast('warning', 'Confirm Delete', 
+        `Delete "${docName}"? This action cannot be undone. Click again to confirm.`, 
+        5000);
+    
+    // Mark for deletion
+    if (window.pendingDelete === documentId) {
+        // Second click - confirm deletion
         vscode.postMessage({
             command: 'deleteDocument',
             documentId: documentId
         });
+        window.pendingDelete = null;
+    } else {
+        // First click - mark for deletion
+        window.pendingDelete = documentId;
+        setTimeout(() => {
+            if (window.pendingDelete === documentId) {
+                window.pendingDelete = null;
+            }
+        }, 5000); // Clear after 5 seconds
     }
 }
 

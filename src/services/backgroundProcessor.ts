@@ -364,7 +364,14 @@ Respond in JSON format:
 }`;
 
         const messages = [vscode.LanguageModelChatMessage.User(prompt)];
-        const response = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+        
+        // Create cancellation token
+        const tokenSource = new vscode.CancellationTokenSource();
+        
+        // Send request with proper options
+        const response = await model.sendRequest(messages, {
+            justification: 'Analyzing document chunk to extract entities and relationships for CappyRAG knowledge base'
+        }, tokenSource.token);
 
         let fullResponse = '';
         for await (const chunk of response.text) {

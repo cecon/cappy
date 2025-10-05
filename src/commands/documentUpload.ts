@@ -468,7 +468,9 @@ Generate a professional description focusing on the file's purpose, main topics,
                     vscode.LanguageModelChatMessage.User(prompt)
                 ];
                 
-                const response = await model.sendRequest(messages, {});
+                const response = await model.sendRequest(messages, {
+                    justification: 'Generating document description and category for CappyRAG indexing'
+                });
                 
                 let fullResponse = '';
                 for await (const part of response.text) {

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as crypto from 'crypto';
 import { CappyRAGDocument } from '../../../store/cappyragLanceDb';
 import { getDatabase } from '../utils/databaseHelper';
 import { DocumentUploadData } from '../utils/messageTypes';
@@ -6,10 +7,16 @@ import { getProcessingQueue } from '../../../services/documentProcessingQueue';
 import { getBackgroundProcessor } from '../../../services/backgroundProcessor';
 
 /**
- * Generate unique document ID
+ * Generate a document ID based on content hash
+ * This prevents duplicate documents with identical content
  */
-function generateDocumentId(): string {
-    return `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+function generateDocumentId(content: string, fileName: string): string {
+    const hash = crypto.createHash('sha256')
+        .update(content)
+        .update(fileName)
+        .digest('hex')
+        .substring(0, 16);
+    return `doc-${hash}`;
 }
 
 /**
@@ -71,9 +78,27 @@ export async function handleDocumentUpload(data: DocumentUploadData, panel: vsco
         const db = getDatabase();
         await db.initialize();
         
+        // Generate document ID based on content hash
+        const documentId = generateDocumentId(data.content, data.fileName);
+        
+        // Check if document already exists
+        const existingDocuments = await db.getDocumentsAsync();
+        const existingDoc = existingDocuments.find(d => d.id === documentId);
+        
+        if (existingDoc) {
+            panel.webview.postMessage({
+                command: 'uploadError',
+                data: { 
+                    message: `This document already exists in the knowledge base: "${existingDoc.title}". Duplicate documents are not allowed.`
+                }
+            });
+            vscode.window.showWarningMessage(`Document "${data.title}" already exists in the knowledge base.`);
+            return;
+        }
+        
         // Create document object
         const newDocument: CappyRAGDocument = {
-            id: generateDocumentId(),
+            id: documentId,
             title: data.title,
             description: data.description || '',
             category: data.category || 'general',
@@ -307,7 +332,10 @@ Respond in JSON format:
             vscode.LanguageModelChatMessage.User(prompt)
         ];
 
-        const response = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+        const tokenSource = new vscode.CancellationTokenSource();
+        const response = await model.sendRequest(messages, {
+            justification: 'Generating document description and category for CappyRAG dashboard'
+        }, tokenSource.token);
         
         let fullResponse = '';
         for await (const chunk of response.text) {

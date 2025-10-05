@@ -168,7 +168,11 @@ Please provide a clear, accurate answer based ONLY on the context provided above
 Answer:`;
 
         const messages = [vscode.LanguageModelChatMessage.User(prompt)];
-        const response = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+        
+        const tokenSource = new vscode.CancellationTokenSource();
+        const response = await model.sendRequest(messages, {
+            justification: 'Querying CappyRAG knowledge base to retrieve relevant information'
+        }, tokenSource.token);
         
         let answer = '';
         for await (const chunk of response.text) {
