@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
 import { getCappyRAGLanceDatabase, CappyRAGDocument, CappyRAGLanceDatabase } from '../store/cappyragLanceDb';
 
 /**
@@ -40,7 +38,7 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
     await db.initialize();
 
     // Set the webview HTML content
-    panel.webview.html = getWebviewContent(panel.webview);
+    // panel.webview.html = getWebviewContent(panel.webview);
 
     // Send initial data and initial tab
     try {
@@ -630,28 +628,3 @@ function generateDocumentId(): string {
     return 'doc-' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
 }
 
-export function getWebviewContent(webview: vscode.Webview): string {
-    // Load HTML from external file
-    const htmlPath = path.join(__dirname, 'cappyrag', 'templates', 'documentUpload.html');
-    
-    try {
-        const htmlContent = fs.readFileSync(htmlPath, 'utf8');
-        return htmlContent;
-    } catch (error) {
-        console.error('Failed to load documentUpload.html:', error);
-        return `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>Error</title>
-            </head>
-            <body>
-                <h1>Error loading dashboard</h1>
-                <p>Failed to load documentUpload.html from: ${htmlPath}</p>
-                <p>Error: ${error instanceof Error ? error.message : 'Unknown error'}</p>
-            </body>
-            </html>
-        `;
-    }
-}
