@@ -637,6 +637,9 @@ export function getWebviewContent(webview: vscode.Webview): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CappyRAG - Knowledge Graph Dashboard</title>
+    <!-- Sigma.js and Graphology Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/graphology@0.25.4/dist/graphology.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sigma@3.0.0-beta.27/build/sigma.min.js"></script>
     <style>
         /* Improved CSS Variables - Better Contrast */
         :root {
@@ -2289,9 +2292,9 @@ export function getWebviewContent(webview: vscode.Webview): string {
             }
         }
 
-        // Render the graph with Canvas (native implementation)
+        // Render the graph with Sigma.js
         function renderGraph(data) {
-            console.log('[Graph] Rendering graph with data:', data);
+            console.log('[Graph] Rendering graph with Sigma.js, data:', data);
             const container = document.getElementById('graph-container');
             const loading = document.getElementById('graph-loading');
             const empty = document.getElementById('graph-empty');
@@ -2312,123 +2315,93 @@ export function getWebviewContent(webview: vscode.Webview): string {
             empty.style.display = 'none';
 
             try {
-                // Prepare nodes with positions
-                const width = container.clientWidth || 800;
-                const height = container.clientHeight || 600;
-                
-                // Apply layout to calculate positions
-                const nodes = data.nodes.map((node, i) => {
-                    return {
-                        ...node,
-                        x: width / 2 + Math.cos(i * 2 * Math.PI / data.nodes.length) * 200,
-                        y: height / 2 + Math.sin(i * 2 * Math.PI / data.nodes.length) * 200,
-                        vx: 0,
-                        vy: 0
-                    };
-                });
-
-                // Apply force-directed layout if selected
-                if (currentLayout === 'force') {
-                    applyForceLayout(nodes, data.edges, 50);
+                // Destroy previous renderer if exists
+                if (graphRenderer) {
+                    graphRenderer.kill();
+                    graphRenderer = null;
                 }
 
-                // Create canvas
-                container.innerHTML = '<canvas id="graph-canvas" width="' + width + '" height="' + height + '" style="cursor: grab;"></canvas>';
-                const canvas = document.getElementById('graph-canvas');
-                const ctx = canvas.getContext('2d');
+                // Clear container
+                container.innerHTML = '';
 
-                let offsetX = 0, offsetY = 0, scale = 1;
-                let isDragging = false, dragStart = { x: 0, y: 0 };
+                // Create Graphology graph
+                const graph = new graphology.Graph();
 
-                // Draw function
-                function draw() {
-                    ctx.clearRect(0, 0, width, height);
-                    ctx.save();
-                    ctx.translate(offsetX, offsetY);
-                    ctx.scale(scale, scale);
+                // Color map by type
+                const typeColors = {
+                    'Document': '#4299e1',
+                    'Section': '#48bb78',
+                    'Entity': '#9f7aea',
+                    'Keyword': '#ed8936',
+                    'Chunk': '#f59e0b'
+                };
 
-                    // Draw edges
-                    ctx.strokeStyle = '#94a3b8';
-                    ctx.lineWidth = 2;
-                    data.edges.forEach(edge => {
-                        const source = nodes.find(n => n.id === edge.source);
-                        const target = nodes.find(n => n.id === edge.target);
-                        if (source && target) {
-                            ctx.beginPath();
-                            ctx.moveTo(source.x, source.y);
-                            ctx.lineTo(target.x, target.y);
-                            ctx.stroke();
+                // Size map by type
+                const typeSizes = {
+                    'Document': 20,
+                    'Section': 15,
+                    'Entity': 12,
+                    'Keyword': 12,
+                    'Chunk': 10
+                };
+
+                // Add nodes to graph
+                data.nodes.forEach((node, i) => {
+                    const angle = (i / data.nodes.length) * 2 * Math.PI;
+                    const radius = Math.min(container.clientWidth, container.clientHeight) / 3;
+                    
+                    graph.addNode(node.id, {
+                        label: node.label || node.id,
+                        type: node.type || 'Keyword',
+                        x: Math.cos(angle) * radius,
+                        y: Math.sin(angle) * radius,
+                        size: typeSizes[node.type] || 12,
+                        color: typeColors[node.type] || '#ed8936'
+                    });
+                });
+
+                // Add edges to graph
+                data.edges.forEach(edge => {
+                    if (graph.hasNode(edge.source) && graph.hasNode(edge.target)) {
+                        try {
+                            graph.addEdge(edge.source, edge.target, {
+                                size: 2,
+                                color: '#94a3b8'
+                            });
+                        } catch (e) {
+                            // Edge might already exist
                         }
-                    });
-
-                    // Draw nodes
-                    nodes.forEach(node => {
-                        ctx.fillStyle = node.color || getNodeColor(node.type);
-                        ctx.beginPath();
-                        ctx.arc(node.x, node.y, node.size || 10, 0, 2 * Math.PI);
-                        ctx.fill();
-                        ctx.strokeStyle = '#ffffff';
-                        ctx.lineWidth = 2;
-                        ctx.stroke();
-
-                        // Draw label
-                        ctx.fillStyle = '#1f2937';
-                        ctx.font = 'bold 12px sans-serif';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(node.label || node.id, node.x, node.y + (node.size || 10) + 15);
-                    });
-
-                    ctx.restore();
-                }
-
-                // Mouse interactions
-                canvas.addEventListener('mousedown', (e) => {
-                    isDragging = true;
-                    dragStart = { x: e.clientX - offsetX, y: e.clientY - offsetY };
-                    canvas.style.cursor = 'grabbing';
-                });
-
-                canvas.addEventListener('mousemove', (e) => {
-                    if (isDragging) {
-                        offsetX = e.clientX - dragStart.x;
-                        offsetY = e.clientY - dragStart.y;
-                        draw();
                     }
                 });
 
-                canvas.addEventListener('mouseup', () => {
-                    isDragging = false;
-                    canvas.style.cursor = 'grab';
+                // Initialize Sigma.js renderer
+                graphRenderer = new Sigma(graph, container, {
+                    renderLabels: true,
+                    labelSize: 12,
+                    labelWeight: 'bold',
+                    labelColor: { color: '#1f2937' },
+                    defaultEdgeColor: '#94a3b8',
+                    minCameraRatio: 0.1,
+                    maxCameraRatio: 10
                 });
 
-                canvas.addEventListener('wheel', (e) => {
-                    e.preventDefault();
-                    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-                    scale *= delta;
-                    scale = Math.max(0.1, Math.min(5, scale));
-                    draw();
+                // Add event listeners
+                graphRenderer.on('clickNode', ({ node }) => {
+                    console.log('[Graph] Node clicked:', node);
+                    showNodeDetails(node, graph.getNodeAttributes(node));
                 });
 
-                canvas.addEventListener('click', (e) => {
-                    const rect = canvas.getBoundingClientRect();
-                    const x = (e.clientX - rect.left - offsetX) / scale;
-                    const y = (e.clientY - rect.top - offsetY) / scale;
-
-                    // Find clicked node
-                    const clicked = nodes.find(n => {
-                        const dx = n.x - x;
-                        const dy = n.y - y;
-                        return Math.sqrt(dx * dx + dy * dy) < (n.size || 10);
-                    });
-
-                    if (clicked) {
-                        showNodeDetails(clicked.id, clicked);
-                    }
+                graphRenderer.on('enterNode', ({ node }) => {
+                    const originalSize = graph.getNodeAttribute(node, 'size');
+                    graph.setNodeAttribute(node, 'size', originalSize * 1.3);
+                    graphRenderer.refresh();
                 });
 
-                // Initial draw
-                draw();
-                graphRenderer = { canvas, draw, nodes, edges: data.edges };
+                graphRenderer.on('leaveNode', ({ node }) => {
+                    const type = graph.getNodeAttribute(node, 'type');
+                    graph.setNodeAttribute(node, 'size', typeSizes[type] || 12);
+                    graphRenderer.refresh();
+                });
 
                 // Update legend counts
                 updateGraphLegend(data);
@@ -2442,83 +2415,25 @@ export function getWebviewContent(webview: vscode.Webview): string {
             }
         }
 
-        // Simple force-directed layout
-        function applyForceLayout(nodes, edges, iterations) {
-            const k = 50; // Spring constant
-            
-            for (let iter = 0; iter < iterations; iter++) {
-                // Repulsion between all nodes
-                for (let i = 0; i < nodes.length; i++) {
-                    nodes[i].vx = 0;
-                    nodes[i].vy = 0;
-                    
-                    for (let j = 0; j < nodes.length; j++) {
-                        if (i !== j) {
-                            const dx = nodes[i].x - nodes[j].x;
-                            const dy = nodes[i].y - nodes[j].y;
-                            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                            const force = k * k / dist;
-                            nodes[i].vx += (dx / dist) * force * 0.1;
-                            nodes[i].vy += (dy / dist) * force * 0.1;
-                        }
-                    }
-                }
-                
-                // Attraction along edges
-                edges.forEach(edge => {
-                    const source = nodes.find(n => n.id === edge.source);
-                    const target = nodes.find(n => n.id === edge.target);
-                    if (source && target) {
-                        const dx = target.x - source.x;
-                        const dy = target.y - source.y;
-                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                        const force = dist / k;
-                        source.vx += (dx / dist) * force * 0.1;
-                        source.vy += (dy / dist) * force * 0.1;
-                        target.vx -= (dx / dist) * force * 0.1;
-                        target.vy -= (dy / dist) * force * 0.1;
-                    }
-                });
-                
-                // Apply velocities
-                nodes.forEach(node => {
-                    node.x += node.vx;
-                    node.y += node.vy;
-                });
-            }
-        }
-
-        // Get color based on node type
-        function getNodeColor(type) {
-            const colors = {
-                'document': '#10b981',  // Green
-                'entity': '#3b82f6',    // Blue
-                'relationship': '#f97316', // Orange
-                'chunk': '#8b5cf6',     // Purple
-                'keyword': '#ec4899'    // Pink
-            };
-            return colors[type] || '#64748b';
-        }
-
         // Change graph layout
         function changeLayout() {
-            const select = document.getElementById('layout-select');
-            currentLayout = select.value;
+            const select = document.getElementById('graph-layout');
+            currentLayout = select ? select.value : 'force';
             
             if (graphRenderer && graphData) {
                 renderGraph(graphData);
+                showToast('info', 'Layout Changed', 'Applied ' + currentLayout + ' layout');
             }
         }
 
         // Reset graph view to initial state
         function resetGraphView() {
-            if (graphRenderer && graphRenderer.draw) {
-                // Reset zoom and pan
-                const container = document.getElementById('graph-container');
-                const canvas = document.getElementById('graph-canvas');
-                if (canvas) {
-                    renderGraph(graphData);
+            if (graphRenderer) {
+                try {
+                    graphRenderer.getCamera().animatedReset();
                     showToast('info', 'View Reset', 'Graph view has been reset to default');
+                } catch (e) {
+                    console.error('[Graph] Error resetting view:', e);
                 }
             }
         }
