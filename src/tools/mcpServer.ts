@@ -231,7 +231,8 @@ export class CappyRAGMCPServer {
             for (let i = 0; i < topChunks.length; i++) {
                 const chunk = topChunks[i];
                 const preview = chunk.content.substring(0, 200).replace(/\n/g, ' ');
-                response += `${i + 1}. **Document:** ${chunk.documentId}\n`;
+                const lineInfo = chunk.startLine && chunk.endLine ? ` (Lines ${chunk.startLine}-${chunk.endLine})` : '';
+                response += `${i + 1}. **Document:** ${chunk.documentId}${lineInfo}\n`;
                 response += `   **Relevance Score:** ${chunk.score}\n`;
                 response += `   **Content Preview:** ${preview}...\n\n`;
             }

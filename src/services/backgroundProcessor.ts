@@ -27,6 +27,15 @@ export interface ChunkAnalysis {
     summary: string;
 }
 
+export interface ChunkWithPosition {
+    content: string;
+    startPosition: number;
+    endPosition: number;
+    startLine: number;
+    endLine: number;
+    index: number;
+}
+
 /**
  * Background Document Processor
  * Manages intelligent document processing with Copilot
@@ -234,10 +243,10 @@ export class BackgroundProcessor {
                 processedChunks: i
             });
 
-            console.log(`[Processor] Analyzing chunk ${i + 1}/${chunks.length}`);
+            console.log(`[Processor] Analyzing chunk ${i + 1}/${chunks.length} (lines ${chunk.startLine}-${chunk.endLine})`);
 
             try {
-                const analysis = await this.analyzeChunkWithCopilot(chunk, doc.title);
+                const analysis = await this.analyzeChunkWithCopilot(chunk.content, doc.title);
 
                 // Store entities
                 for (const entity of analysis.entities) {
@@ -273,10 +282,12 @@ export class BackgroundProcessor {
                 // Store chunk
                 await db.addChunk({
                     documentId: doc.documentId,
-                    content: chunk,
-                    startPosition: i * 1000,
-                    endPosition: Math.min((i + 1) * 1000, doc.content.length),
-                    chunkIndex: i,
+                    content: chunk.content,
+                    startPosition: chunk.startPosition,
+                    endPosition: chunk.endPosition,
+                    startLine: chunk.startLine,
+                    endLine: chunk.endLine,
+                    chunkIndex: chunk.index,
                     entities: Array.from(allEntities.values()),
                     relationships: allRelationships
                 });
@@ -305,13 +316,30 @@ export class BackgroundProcessor {
     }
 
     /**
-     * Chunk document into smaller pieces
+     * Chunk document into smaller pieces with line information
      */
-    private chunkDocument(content: string, chunkSize: number): string[] {
-        const chunks: string[] = [];
+    private chunkDocument(content: string, chunkSize: number): ChunkWithPosition[] {
+        const chunks: ChunkWithPosition[] = [];
         
         for (let i = 0; i < content.length; i += chunkSize) {
-            chunks.push(content.substring(i, i + chunkSize));
+            const startPos = i;
+            const endPos = Math.min(i + chunkSize, content.length);
+            const chunkContent = content.substring(startPos, endPos);
+            
+            // Calculate line numbers
+            const textBeforeChunk = content.substring(0, startPos);
+            const startLine = textBeforeChunk.split('\n').length;
+            const linesInChunk = chunkContent.split('\n').length;
+            const endLine = startLine + linesInChunk - 1;
+            
+            chunks.push({
+                content: chunkContent,
+                startPosition: startPos,
+                endPosition: endPos,
+                startLine: startLine,
+                endLine: endLine,
+                index: Math.floor(i / chunkSize)
+            });
         }
         
         return chunks;

@@ -7,102 +7,176 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
-            background: #1e1e1e; 
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
             color: #fff; 
             overflow: hidden; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         #cy { 
             position: fixed; 
-            top: 50px; 
+            top: 60px; 
             left: 0; 
             right: 0; 
-            bottom: 40px; 
+            bottom: 50px;
+            background: radial-gradient(circle at 50% 50%, #1e2a3a 0%, #0f1419 100%);
         }
         #toolbar { 
             position: fixed; 
             top: 0; 
             left: 0; 
             right: 0; 
-            height: 50px; 
-            background: #252526; 
-            border-bottom: 1px solid #3e3e42; 
-            padding: 0 15px; 
+            height: 60px; 
+            background: linear-gradient(180deg, #2d3748 0%, #1a202c 100%);
+            border-bottom: 2px solid #4299e1; 
+            padding: 0 20px; 
             display: flex; 
             align-items: center; 
-            gap: 10px; 
+            gap: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         }
         #stats { 
             position: fixed; 
             bottom: 0; 
             left: 0; 
             right: 0; 
-            height: 40px; 
-            background: #007acc; 
-            padding: 0 15px; 
+            height: 50px; 
+            background: linear-gradient(180deg, #2d3748 0%, #1a202c 100%);
+            border-top: 2px solid #4299e1;
+            padding: 0 20px; 
             display: flex; 
             align-items: center; 
-            gap: 15px;
+            gap: 20px;
+            box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.3);
         }
         .button { 
-            background: #0e639c; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #fff; 
             border: none; 
-            padding: 6px 12px; 
-            border-radius: 3px; 
+            padding: 8px 16px; 
+            border-radius: 6px; 
             cursor: pointer; 
-            font-size: 13px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
         }
-        .button:hover { background: #1177bb; }
+        .button:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+        }
+        .button:active {
+            transform: translateY(0);
+        }
         #loading { 
             position: fixed; 
             top: 50%; 
             left: 50%; 
             transform: translate(-50%, -50%); 
-            text-align: center; 
+            text-align: center;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
         }
-        .expanded { border: 2px solid #7ED321 !important; }
         .loading-node { opacity: 0.5; }
         #help {
             position: fixed;
-            top: 60px;
+            top: 70px;
             right: 20px;
-            background: #252526;
-            border: 1px solid #3e3e42;
-            border-radius: 5px;
-            padding: 15px;
-            max-width: 300px;
+            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+            border: 2px solid #4299e1;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 320px;
             display: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
         }
         #help.show { display: block; }
+        #help h3 {
+            color: #4299e1;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        #help ul {
+            margin-left: 20px;
+            margin-top: 10px;
+            line-height: 2;
+        }
+        #help li {
+            margin-bottom: 8px;
+        }
+        .legend {
+            position: fixed;
+            bottom: 60px;
+            right: 20px;
+            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+            border: 2px solid #4299e1;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 8px 0;
+        }
+        .legend-icon {
+            font-size: 24px;
+        }
+        .legend-text {
+            font-size: 13px;
+            color: #a0aec0;
+        }
     </style>
 </head>
 <body>
     <div id="toolbar">
-        <button class="button" onclick="fit()">🔍 Fit</button>
-        <button class="button" onclick="reset()">↺ Reset</button>
+        <button class="button" onclick="fit()">🔍 Ajustar Zoom</button>
+        <button class="button" onclick="reset()">↺ Resetar</button>
         <button class="button" onclick="toggleHelp()">❓ Ajuda</button>
-        <span style="margin-left:auto;font-weight:bold">🌐 Mini-LightRAG Graph (Progressive)</span>
+        <button class="button" onclick="toggleLegend()">🎨 Legenda</button>
+        <span style="margin-left:auto;font-weight:bold;font-size:16px;background:linear-gradient(90deg, #667eea, #764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">🌐 Knowledge Graph</span>
     </div>
     
     <div id="help">
         <h3>💡 Como usar:</h3>
-        <ul style="margin-left: 20px; margin-top: 10px; line-height: 1.8;">
+        <ul>
             <li><strong>Clique simples:</strong> Expande o nó (carrega filhos)</li>
             <li><strong>Clique duplo:</strong> Abre arquivo (se for Document)</li>
-            <li><strong>Verde:</strong> Nó já expandido</li>
-            <li><strong>Azul:</strong> Document (raiz)</li>
-            <li><strong>Laranja:</strong> Section/Keyword</li>
+            <li><strong>Borda verde:</strong> Nó já expandido</li>
+            <li><strong>Scroll:</strong> Zoom in/out</li>
+            <li><strong>Arrastar:</strong> Move o canvas</li>
         </ul>
     </div>
     
+    <div class="legend" id="legend" style="display: none;">
+        <div style="font-weight: bold; margin-bottom: 12px; color: #4299e1; font-size: 15px;">📊 Tipos de Nós</div>
+        <div class="legend-item">
+            <span class="legend-icon">📄</span>
+            <span class="legend-text">Document (Azul)</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-icon">📝</span>
+            <span class="legend-text">Section (Verde)</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-icon">🏷️</span>
+            <span class="legend-text">Keyword (Laranja)</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-icon">🔗</span>
+            <span class="legend-text">Entity (Roxo)</span>
+        </div>
+    </div>
+    
     <div id="cy"></div>
-    <div id="loading"><h2>⏳ Carregando nós raiz...</h2></div>
+    <div id="loading"><h2>⏳ Carregando Knowledge Graph...</h2></div>
     
     <div id="stats">
-        <span id="st">Aguardando...</span>
-        <span style="margin-left: auto;">
-            <strong>Visíveis:</strong> <span id="visibleNodes">0</span> nós, <span id="visibleEdges">0</span> edges
+        <span id="st" style="color: #cbd5e0;">Aguardando...</span>
+        <span style="margin-left: auto; color: #cbd5e0;">
+            <strong style="color: #4299e1;">Visíveis:</strong> <span id="visibleNodes">0</span> nós | <span id="visibleEdges">0</span> conexões
         </span>
     </div>
 
@@ -158,45 +232,134 @@
                     {
                         selector: 'node',
                         style: {
-                            'label': 'data(label)',
-                            'font-size': '12px',
-                            'width': 40,
-                            'height': 40,
+                            'label': function(ele) {
+                                const t = ele.data('type');
+                                const label = ele.data('label');
+                                const icon = t === 'Document' ? '📄' : 
+                                           t === 'Section' ? '📝' : 
+                                           t === 'Entity' ? '🔗' : '🏷️';
+                                return icon + ' ' + (label.length > 15 ? label.substring(0, 15) + '...' : label);
+                            },
+                            'font-size': '11px',
+                            'font-weight': 'bold',
+                            'width': function(ele) {
+                                return ele.data('type') === 'Document' ? 70 : 50;
+                            },
+                            'height': function(ele) {
+                                return ele.data('type') === 'Document' ? 70 : 50;
+                            },
                             'background-color': function(ele) {
                                 const t = ele.data('type');
-                                return t === 'Document' ? '#4A90E2' : 
-                                       t === 'Section' ? '#7ED321' : '#F5A623';
+                                return t === 'Document' ? '#4299e1' : 
+                                       t === 'Section' ? '#48bb78' : 
+                                       t === 'Entity' ? '#9f7aea' : '#ed8936';
                             },
-                            'color': '#fff',
-                            'text-valign': 'center',
+                            'background-gradient-stop-colors': function(ele) {
+                                const t = ele.data('type');
+                                if (t === 'Document') return '#4299e1 #2b6cb0';
+                                if (t === 'Section') return '#48bb78 #2f855a';
+                                if (t === 'Entity') return '#9f7aea #6b46c1';
+                                return '#ed8936 #c05621';
+                            },
+                            'background-gradient-stop-positions': '0% 100%',
+                            'color': '#ffffff',
+                            'text-valign': 'bottom',
                             'text-halign': 'center',
+                            'text-margin-y': 8,
+                            'text-background-color': 'rgba(0, 0, 0, 0.7)',
+                            'text-background-opacity': 1,
+                            'text-background-padding': '4px',
+                            'text-background-shape': 'roundrectangle',
                             'border-width': function(ele) {
-                                return ele.data('expanded') ? 3 : 0;
+                                return ele.data('expanded') ? 4 : 2;
                             },
-                            'border-color': '#7ED321'
+                            'border-color': function(ele) {
+                                return ele.data('expanded') ? '#48bb78' : 'rgba(255, 255, 255, 0.3)';
+                            },
+                            'border-style': function(ele) {
+                                return ele.data('expanded') ? 'solid' : 'solid';
+                            },
+                            'shadow-blur': 20,
+                            'shadow-color': function(ele) {
+                                const t = ele.data('type');
+                                if (t === 'Document') return 'rgba(66, 153, 225, 0.6)';
+                                if (t === 'Section') return 'rgba(72, 187, 120, 0.6)';
+                                if (t === 'Entity') return 'rgba(159, 122, 234, 0.6)';
+                                return 'rgba(237, 137, 54, 0.6)';
+                            },
+                            'shadow-offset-x': 0,
+                            'shadow-offset-y': 4,
+                            'transition-property': 'background-color, border-width, border-color',
+                            'transition-duration': '0.3s'
+                        }
+                    },
+                    {
+                        selector: 'node:selected',
+                        style: {
+                            'border-width': 5,
+                            'border-color': '#f6e05e',
+                            'shadow-blur': 30,
+                            'shadow-color': 'rgba(246, 224, 94, 0.8)'
                         }
                     },
                     {
                         selector: 'edge',
                         style: {
-                            'width': 2,
-                            'line-color': '#666',
+                            'width': 3,
+                            'line-color': function(ele) {
+                                const sourceType = cy.getElementById(ele.data('source')).data('type');
+                                if (sourceType === 'Document') return '#4299e1';
+                                if (sourceType === 'Section') return '#48bb78';
+                                if (sourceType === 'Entity') return '#9f7aea';
+                                return '#ed8936';
+                            },
+                            'line-style': 'solid',
                             'target-arrow-shape': 'triangle',
-                            'target-arrow-color': '#666',
-                            'curve-style': 'bezier'
+                            'target-arrow-color': function(ele) {
+                                const sourceType = cy.getElementById(ele.data('source')).data('type');
+                                if (sourceType === 'Document') return '#4299e1';
+                                if (sourceType === 'Section') return '#48bb78';
+                                if (sourceType === 'Entity') return '#9f7aea';
+                                return '#ed8936';
+                            },
+                            'curve-style': 'bezier',
+                            'opacity': 0.7,
+                            'arrow-scale': 1.5
+                        }
+                    },
+                    {
+                        selector: 'edge:selected',
+                        style: {
+                            'width': 5,
+                            'line-color': '#f6e05e',
+                            'target-arrow-color': '#f6e05e',
+                            'opacity': 1
                         }
                     },
                     {
                         selector: '.loading-node',
-                        style: { 'opacity': 0.5 }
+                        style: { 
+                            'opacity': 0.5,
+                            'text-opacity': 0.5
+                        }
                     }
                 ],
                 layout: {
                     name: 'cose',
                     fit: true,
-                    padding: 50,
+                    padding: 80,
                     animate: true,
-                    animationDuration: 500
+                    animationDuration: 1000,
+                    animationEasing: 'ease-out',
+                    nodeRepulsion: 8000,
+                    idealEdgeLength: 100,
+                    edgeElasticity: 200,
+                    nestingFactor: 5,
+                    gravity: 0.8,
+                    numIter: 1000,
+                    initialTemp: 200,
+                    coolingFactor: 0.95,
+                    minTemp: 1.0
                 }
             });
             
@@ -226,6 +389,46 @@
                     console.log('[webview] Opening file:', path);
                     vscode.postMessage({ command: 'openFile', filePath: path });
                 }
+            });
+            
+            // Efeito hover nos nós
+            cy.on('mouseover', 'node', function(evt) {
+                const node = evt.target;
+                node.animate({
+                    style: { 
+                        'width': node.style('width') * 1.2,
+                        'height': node.style('height') * 1.2
+                    }
+                }, {
+                    duration: 200
+                });
+                
+                // Destacar conexões
+                node.connectedEdges().animate({
+                    style: { 'width': 5, 'opacity': 1 }
+                }, {
+                    duration: 200
+                });
+            });
+            
+            cy.on('mouseout', 'node', function(evt) {
+                const node = evt.target;
+                const originalSize = node.data('type') === 'Document' ? 70 : 50;
+                node.animate({
+                    style: { 
+                        'width': originalSize,
+                        'height': originalSize
+                    }
+                }, {
+                    duration: 200
+                });
+                
+                // Restaurar conexões
+                node.connectedEdges().animate({
+                    style: { 'width': 3, 'opacity': 0.7 }
+                }, {
+                    duration: 200
+                });
             });
             
             console.log('[webview] Graph initialized!');
@@ -271,8 +474,15 @@
                 name: 'cose',
                 fit: false,
                 animate: true,
-                animationDuration: 500,
-                randomize: false
+                animationDuration: 800,
+                animationEasing: 'ease-out',
+                randomize: false,
+                nodeRepulsion: 8000,
+                idealEdgeLength: 100,
+                edgeElasticity: 200,
+                nestingFactor: 5,
+                gravity: 0.8,
+                numIter: 500
             }).run();
         }
         
@@ -300,6 +510,11 @@
         function toggleHelp() {
             const help = document.getElementById('help');
             help.classList.toggle('show');
+        }
+        
+        function toggleLegend() {
+            const legend = document.getElementById('legend');
+            legend.style.display = legend.style.display === 'none' ? 'block' : 'none';
         }
     </script>
 </body>

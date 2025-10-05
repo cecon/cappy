@@ -59,6 +59,8 @@ export interface CappyRAGChunk extends Record<string, unknown> {
     content: string;
     startPosition: number;
     endPosition: number;
+    startLine?: number;      // Line number where chunk starts (1-indexed)
+    endLine?: number;        // Line number where chunk ends (1-indexed)
     chunkIndex: number;
     entities: string[];
     relationships: string[];
@@ -234,6 +236,8 @@ export class CappyRAGLanceDatabase {
                 new arrow.Field('content', new arrow.Utf8(), false),
                 new arrow.Field('startPosition', new arrow.Float64(), false),
                 new arrow.Field('endPosition', new arrow.Float64(), false),
+                new arrow.Field('startLine', new arrow.Float64(), true),
+                new arrow.Field('endLine', new arrow.Float64(), true),
                 new arrow.Field('chunkIndex', new arrow.Float64(), false),
                 new arrow.Field('entities', new arrow.List(new arrow.Field('item', new arrow.Utf8())), false),
                 new arrow.Field('relationships', new arrow.List(new arrow.Field('item', new arrow.Utf8())), false),
@@ -487,7 +491,7 @@ export class CappyRAGLanceDatabase {
         }
 
         if (this.chunksTable) {
-            await this.chunksTable.delete(`documentId = '${documentId}'`);
+            await this.chunksTable.delete(`"documentId" = '${documentId}'`);
         }
     }
 
