@@ -18,11 +18,17 @@ export async function handleLoadDocuments(panel: vscode.WebviewPanel): Promise<v
         const db = getDatabase();
         await db.initialize();
         const documents = await db.getDocumentsAsync();
+        const entities = await db.getEntitiesAsync();
+        const relationships = await db.getRelationshipsAsync();
+        const chunks = await db.getChunksAsync();
+        
+        console.log(`[LightRAG] Stats - Docs: ${documents.length}, Entities: ${entities.length}, Relationships: ${relationships.length}, Chunks: ${chunks.length}`);
+        
         const stats = {
             documents: documents.length,
-            entities: (await db.getEntitiesAsync()).length,
-            relationships: (await db.getRelationshipsAsync()).length,
-            chunks: (await db.getChunksAsync()).length
+            entities: entities.length,
+            relationships: relationships.length,
+            chunks: chunks.length
         };
 
         panel.webview.postMessage({
@@ -98,19 +104,31 @@ export async function handleDocumentUpload(data: DocumentUploadData, panel: vsco
             }
             
             // Create relationships between entities
-            const createdRelationships = Math.floor(createdEntities.length / 2);
-            for (let i = 0; i < createdRelationships; i++) {
+            let createdRelationshipsCount = 0;
+            const targetRelCount = Math.floor(createdEntities.length / 2);
+            console.log(`[LightRAG] Creating ${targetRelCount} relationships between ${createdEntities.length} entities`);
+            
+            for (let i = 0; i < targetRelCount; i++) {
                 const sourceIdx = i;
                 const targetIdx = (i + 1) % createdEntities.length;
-                await db.addRelationship({
-                    source: createdEntities[sourceIdx],
-                    target: createdEntities[targetIdx],
-                    type: 'co-occurs',
-                    description: 'Found together in document',
-                    weight: 1.0,
-                    documentIds: [newDocument.id]
-                });
+                
+                try {
+                    const relId = await db.addRelationship({
+                        source: createdEntities[sourceIdx],
+                        target: createdEntities[targetIdx],
+                        type: 'co-occurs',
+                        description: 'Found together in document',
+                        weight: 1.0,
+                        documentIds: [newDocument.id]
+                    });
+                    createdRelationshipsCount++;
+                    console.log(`[LightRAG] Created relationship ${i + 1}/${targetRelCount}: ${relId} (${createdEntities[sourceIdx]} -> ${createdEntities[targetIdx]})`);
+                } catch (error) {
+                    console.error(`[LightRAG] Error creating relationship ${i}:`, error);
+                }
             }
+            
+            console.log(`[LightRAG] Successfully created ${createdRelationshipsCount} relationships`);
             
             // Create chunks
             const chunkSize = 1000;
@@ -129,7 +147,7 @@ export async function handleDocumentUpload(data: DocumentUploadData, panel: vsco
             
             newDocument.processingResults = {
                 entities: createdEntities.length,
-                relationships: createdRelationships,
+                relationships: createdRelationshipsCount,
                 chunks: chunks,
                 processingTime: '00:02:15'
             };
