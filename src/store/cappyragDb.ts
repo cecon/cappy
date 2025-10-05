@@ -3,11 +3,11 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 
 /**
- * LightRAG Database Schema and Operations
+ * CappyRAG Database Schema and Operations
  * Manages entities, relationships, documents, and chunks
  */
 
-export interface LightRAGEntity {
+export interface CappyRAGEntity {
     id: string;
     name: string;
     type: string;
@@ -17,7 +17,7 @@ export interface LightRAGEntity {
     updated: string;
 }
 
-export interface LightRAGRelationship {
+export interface CappyRAGRelationship {
     id: string;
     source: string;
     target: string;
@@ -29,7 +29,7 @@ export interface LightRAGRelationship {
     updated: string;
 }
 
-export interface LightRAGDocument {
+export interface CappyRAGDocument {
     id: string;
     title: string;
     description: string;
@@ -50,7 +50,7 @@ export interface LightRAGDocument {
     updated: string;
 }
 
-export interface LightRAGChunk {
+export interface CappyRAGChunk {
     id: string;
     documentId: string;
     content: string;
@@ -62,15 +62,15 @@ export interface LightRAGChunk {
     created: string;
 }
 
-export class LightRAGDatabase {
+export class CappyRAGDatabase {
     private dbPath: string;
-    private entities: Map<string, LightRAGEntity> = new Map();
-    private relationships: Map<string, LightRAGRelationship> = new Map();
-    private documents: Map<string, LightRAGDocument> = new Map();
-    private chunks: Map<string, LightRAGChunk> = new Map();
+    private entities: Map<string, CappyRAGEntity> = new Map();
+    private relationships: Map<string, CappyRAGRelationship> = new Map();
+    private documents: Map<string, CappyRAGDocument> = new Map();
+    private chunks: Map<string, CappyRAGChunk> = new Map();
 
     constructor(workspacePath: string) {
-        this.dbPath = path.join(workspacePath, '.cappy', 'lightrag-db');
+        this.dbPath = path.join(workspacePath, '.cappy', 'CappyRAG-db');
         this.ensureDbDirectory();
         this.loadDatabase();
     }
@@ -129,11 +129,11 @@ export class LightRAGDatabase {
     }
 
     // Document operations
-    async addDocument(document: Omit<LightRAGDocument, 'id' | 'created' | 'updated'>): Promise<string> {
+    async addDocument(document: Omit<CappyRAGDocument, 'id' | 'created' | 'updated'>): Promise<string> {
         const id = 'doc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         const now = new Date().toISOString();
         
-        const newDocument: LightRAGDocument = {
+        const newDocument: CappyRAGDocument = {
             ...document,
             id,
             created: now,
@@ -145,7 +145,7 @@ export class LightRAGDatabase {
         return id;
     }
 
-    async updateDocument(id: string, updates: Partial<LightRAGDocument>): Promise<void> {
+    async updateDocument(id: string, updates: Partial<CappyRAGDocument>): Promise<void> {
         const document = this.documents.get(id);
         if (!document) {
             throw new Error(`Document ${id} not found`);
@@ -209,24 +209,24 @@ export class LightRAGDatabase {
         this.saveTable('chunks', this.chunks);
     }
 
-    getDocuments(): LightRAGDocument[] {
+    getDocuments(): CappyRAGDocument[] {
         return Array.from(this.documents.values());
     }
 
-    getDocument(id: string): LightRAGDocument | undefined {
+    getDocument(id: string): CappyRAGDocument | undefined {
         return this.documents.get(id);
     }
 
-    getDocumentByFileName(fileName: string): LightRAGDocument | undefined {
+    getDocumentByFileName(fileName: string): CappyRAGDocument | undefined {
         return Array.from(this.documents.values()).find(doc => doc.fileName === fileName);
     }
 
     // Entity operations
-    async addEntity(entity: Omit<LightRAGEntity, 'id' | 'created' | 'updated'>): Promise<string> {
+    async addEntity(entity: Omit<CappyRAGEntity, 'id' | 'created' | 'updated'>): Promise<string> {
         const id = 'entity_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         const now = new Date().toISOString();
         
-        const newEntity: LightRAGEntity = {
+        const newEntity: CappyRAGEntity = {
             ...entity,
             id,
             created: now,
@@ -238,16 +238,16 @@ export class LightRAGDatabase {
         return id;
     }
 
-    getEntities(): LightRAGEntity[] {
+    getEntities(): CappyRAGEntity[] {
         return Array.from(this.entities.values());
     }
 
     // Relationship operations
-    async addRelationship(relationship: Omit<LightRAGRelationship, 'id' | 'created' | 'updated'>): Promise<string> {
+    async addRelationship(relationship: Omit<CappyRAGRelationship, 'id' | 'created' | 'updated'>): Promise<string> {
         const id = 'rel_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         const now = new Date().toISOString();
         
-        const newRelationship: LightRAGRelationship = {
+        const newRelationship: CappyRAGRelationship = {
             ...relationship,
             id,
             created: now,
@@ -259,16 +259,16 @@ export class LightRAGDatabase {
         return id;
     }
 
-    getRelationships(): LightRAGRelationship[] {
+    getRelationships(): CappyRAGRelationship[] {
         return Array.from(this.relationships.values());
     }
 
     // Chunk operations
-    async addChunk(chunk: Omit<LightRAGChunk, 'id' | 'created'>): Promise<string> {
+    async addChunk(chunk: Omit<CappyRAGChunk, 'id' | 'created'>): Promise<string> {
         const id = 'chunk_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         const now = new Date().toISOString();
         
-        const newChunk: LightRAGChunk = {
+        const newChunk: CappyRAGChunk = {
             ...chunk,
             id,
             created: now
@@ -279,7 +279,7 @@ export class LightRAGDatabase {
         return id;
     }
 
-    getChunks(documentId?: string): LightRAGChunk[] {
+    getChunks(documentId?: string): CappyRAGChunk[] {
         const chunks = Array.from(this.chunks.values());
         return documentId ? chunks.filter(chunk => chunk.documentId === documentId) : chunks;
     }
@@ -296,7 +296,7 @@ export class LightRAGDatabase {
     }
 
     // Search operations
-    searchEntities(query: string): LightRAGEntity[] {
+    searchEntities(query: string): CappyRAGEntity[] {
         const lowerQuery = query.toLowerCase();
         return Array.from(this.entities.values()).filter(entity =>
             entity.name.toLowerCase().includes(lowerQuery) ||
@@ -304,7 +304,7 @@ export class LightRAGDatabase {
         );
     }
 
-    searchDocuments(query: string): LightRAGDocument[] {
+    searchDocuments(query: string): CappyRAGDocument[] {
         const lowerQuery = query.toLowerCase();
         return Array.from(this.documents.values()).filter(document =>
             document.title.toLowerCase().includes(lowerQuery) ||
@@ -359,19 +359,19 @@ export class LightRAGDatabase {
 }
 
 // Singleton instance
-let dbInstance: LightRAGDatabase | null = null;
+let dbInstance: CappyRAGDatabase | null = null;
 
-export function getLightRAGDatabase(): LightRAGDatabase {
+export function getCappyRAGDatabase(): CappyRAGDatabase {
     if (!dbInstance) {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
             throw new Error('No workspace folder found');
         }
-        dbInstance = new LightRAGDatabase(workspaceFolders[0].uri.fsPath);
+        dbInstance = new CappyRAGDatabase(workspaceFolders[0].uri.fsPath);
     }
     return dbInstance;
 }
 
-export function resetLightRAGDatabase(): void {
+export function resetCappyRAGDatabase(): void {
     dbInstance = null;
 }

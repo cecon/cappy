@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { QueryOrchestrator, MiniLightRAGConfig } from '../query/orchestrator';
+import { QueryOrchestrator, MiniCappyRAGConfig } from '../query/orchestrator';
 
 async function runMainTest() {
   console.log('🚀 Testing Query Orchestrator...');
@@ -41,10 +41,10 @@ function createMockContext(testDir: string): vscode.ExtensionContext {
   } as unknown as vscode.ExtensionContext;
 }
 
-function createTestConfig(testDir: string): Partial<MiniLightRAGConfig> {
+function createTestConfig(testDir: string): Partial<MiniCappyRAGConfig> {
   return {
     database: {
-      path: path.join(testDir, 'test-lightrag'),
+      path: path.join(testDir, 'test-CappyRAG'),
       vectorDimension: 384,
       indexType: 'HNSW'
     },
@@ -203,7 +203,7 @@ export async function asyncHelper(): Promise<string> {
 function getReadmeContent(): string {
   return `# Test Project
 
-This is a test project for Mini-LightRAG.
+This is a test project for Mini-CappyRAG.
 
 ## Features
 

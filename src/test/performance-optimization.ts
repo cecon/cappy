@@ -1,13 +1,13 @@
 import { PerformanceMonitor } from '../performance/monitor';
-import { LightRAGCache } from '../performance/cache';
+import { CappyRAGCache } from '../performance/cache';
 import { MemoryOptimizer } from '../performance/memoryOptimizer';
 import { PerformanceManager } from '../performance/performanceManager';
 
 /**
- * Comprehensive test suite for LightRAG performance optimization
+ * Comprehensive test suite for CappyRAG performance optimization
  */
 async function testPerformanceOptimization() {
-    console.log('🚀 Testing LightRAG Performance Optimization...');
+    console.log('🚀 Testing CappyRAG Performance Optimization...');
 
     try {
         // Test Performance Monitor
@@ -67,7 +67,7 @@ async function testPerformanceMonitor(): Promise<void> {
 async function testCachingSystem(): Promise<void> {
     console.log('\n📦 Test 2: Caching System...');
     
-    const cache = LightRAGCache.getInstance();
+    const cache = CappyRAGCache.getInstance();
     
     // Test search result caching
     const testQuery = 'test query';

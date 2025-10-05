@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
-import { LightRAGDocument } from '../../../store/lightragLanceDb';
+import { CappyRAGDocument } from '../../../store/cappyragLanceDb';
 import { getDatabase } from '../utils/databaseHelper';
 
 /**
  * Generate intelligent chunk title from content
- * Inspired by LightRAG's semantic chunking approach
+ * Inspired by CappyRAG's semantic chunking approach
  */
 function generateChunkTitle(content: string, chunkIndex: number): string {
     if (!content || content.trim().length === 0) {
@@ -47,7 +47,7 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
         const edges: any[] = [];
 
         // Add document nodes
-        documents.forEach((doc: LightRAGDocument) => {
+        documents.forEach((doc: CappyRAGDocument) => {
             nodes.push({
                 id: doc.id,
                 label: doc.title,

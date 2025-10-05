@@ -1,27 +1,27 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getLightRAGLanceDatabase, LightRAGDocument, LightRAGLanceDatabase } from '../store/lightragLanceDb';
+import { getCappyRAGLanceDatabase, CappyRAGDocument, CappyRAGLanceDatabase } from '../store/cappyragLanceDb';
 
 /**
  * Helper to get database instance with workspace path
  */
-function getDatabase(): LightRAGLanceDatabase {
+function getDatabase(): CappyRAGLanceDatabase {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
         throw new Error('No workspace folder open');
     }
-    return getLightRAGLanceDatabase(workspaceFolders[0].uri.fsPath);
+    return getCappyRAGLanceDatabase(workspaceFolders[0].uri.fsPath);
 }
 
 /**
- * LightRAG Main Dashboard with Navigation and Document Management
- * Replicates exact LightRAG WebUI design and functionality
+ * CappyRAG Main Dashboard with Navigation and Document Management
+ * Replicates exact CappyRAG WebUI design and functionality
  */
 export async function openDocumentUploadUI(context: vscode.ExtensionContext, initialTab: string = 'documents') {
     const panel = vscode.window.createWebviewPanel(
-        'lightragDashboard',
-        'LightRAG - Knowledge Graph Dashboard',
+        'CappyRAGDashboard',
+        'CappyRAG - Knowledge Graph Dashboard',
         vscode.ViewColumn.One,
         {
             enableScripts: true,
@@ -36,7 +36,7 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
         vscode.window.showErrorMessage('No workspace folder open');
         return;
     }
-    const db = getLightRAGLanceDatabase(workspaceFolders[0].uri.fsPath);
+    const db = getCappyRAGLanceDatabase(workspaceFolders[0].uri.fsPath);
     await db.initialize();
 
     // Set the webview HTML content
@@ -146,7 +146,7 @@ async function handleDocumentUpload(data: any, panel: vscode.WebviewPanel) {
         await db.initialize();
         
         // Create document object
-        const newDocument: LightRAGDocument = {
+        const newDocument: CappyRAGDocument = {
             id: generateDocumentId(),
             title: data.title,
             description: data.description || '',
@@ -312,7 +312,7 @@ async function handleGetGraphData(panel: vscode.WebviewPanel) {
         const edges: any[] = [];
 
         // Add document nodes
-        documents.forEach((doc: LightRAGDocument) => {
+        documents.forEach((doc: CappyRAGDocument) => {
             nodes.push({
                 id: doc.id,
                 label: doc.title,
@@ -634,7 +634,7 @@ export function getWebviewContent(webview: vscode.Webview): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LightRAG - Knowledge Graph Dashboard</title>
+    <title>CappyRAG - Knowledge Graph Dashboard</title>
     <style>
         /* Improved CSS Variables - Better Contrast */
         :root {
@@ -662,7 +662,7 @@ export function getWebviewContent(webview: vscode.Webview): string {
             --radius: 0.5rem;
         }
 
-        /* Exact LightRAG WebUI Base Styles */
+        /* Exact CappyRAG WebUI Base Styles */
         * {
             box-sizing: border-box;
         }
@@ -1407,7 +1407,7 @@ export function getWebviewContent(webview: vscode.Webview): string {
                         <svg class="logo-icon icon-zap" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
                         </svg>
-                        <span class="logo-text">LightRAG</span>
+                        <span class="logo-text">CappyRAG</span>
                     </a>
                 </div>
                 
@@ -1622,7 +1622,7 @@ export function getWebviewContent(webview: vscode.Webview): string {
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title">Upload Document</h3>
-                <p>Upload a document to be processed by LightRAG</p>
+                <p>Upload a document to be processed by CappyRAG</p>
             </div>
             
             <!-- Upload Area - Initial State -->
@@ -1991,7 +1991,7 @@ export function getWebviewContent(webview: vscode.Webview): string {
                 return;
             }
 
-            filteredDocs.forEach((doc: LightRAGDocument) => {
+            filteredDocs.forEach((doc: CappyRAGDocument) => {
                 const row = document.createElement('tr');
                 row.innerHTML = \`
                     <td>

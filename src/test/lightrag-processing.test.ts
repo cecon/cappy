@@ -1,36 +1,36 @@
 /**
- * Teste direto do processamento de documentos LightRAG
+ * Teste direto do processamento de documentos CappyRAG
  * Simula o que eu (como LLM) faria ao chamar a ferramenta MCP
  */
 
-import { LightRAGDocumentProcessor } from "../core/simpleLightragProcessor";
-import { DocumentMetadata, ProcessingOptions } from "../models/lightragTypes";
+import { CappyRAGDocumentProcessor } from "../core/simplecappyragProcessor";
+import { DocumentMetadata, ProcessingOptions } from "../models/cappyragTypes";
 
-async function testLightRAGProcessing() {
-    console.log("🧪 Testando processamento LightRAG...");
+async function testCappyRAGProcessing() {
+    console.log("🧪 Testando processamento CappyRAG...");
     
-    const processor = new LightRAGDocumentProcessor();
+    const processor = new CappyRAGDocumentProcessor();
     
     // Simular documento para processamento
     const filePath = "d:\\projetos\\cappy-framework\\SPEC.md";
     const content = `
-# LightRAG System Specification
+# CappyRAG System Specification
 
-Este documento especifica a arquitetura do sistema LightRAG para processamento de documentos
+Este documento especifica a arquitetura do sistema CappyRAG para processamento de documentos
 com extração de entidades e relacionamentos.
 
 ## Entidades Principais
 
-- **LightRAG**: Sistema de processamento de documentos
+- **CappyRAG**: Sistema de processamento de documentos
 - **Entity Extraction**: Processo de identificação de entidades
 - **Relationship Mapping**: Mapeamento de relacionamentos entre entidades
 - **Vector Database**: Armazenamento vetorial para busca semântica
 
 ## Relacionamentos
 
-- LightRAG USES Entity Extraction
-- LightRAG USES Relationship Mapping  
-- LightRAG STORES_IN Vector Database
+- CappyRAG USES Entity Extraction
+- CappyRAG USES Relationship Mapping  
+- CappyRAG STORES_IN Vector Database
 - Entity Extraction PRODUCES Entities
 - Relationship Mapping PRODUCES Relationships
 
@@ -49,12 +49,12 @@ O sistema implementa uma arquitetura dual-level para recuperação eficiente:
     `;
     
     const metadata: DocumentMetadata = {
-        title: "SPEC.md - LightRAG System Specification",
+        title: "SPEC.md - CappyRAG System Specification",
         filename: "SPEC.md",
         contentType: "text/markdown",
         size: content.length,
         uploadedAt: new Date().toISOString(),
-        tags: ["specification", "lightrag", "system-design"],
+        tags: ["specification", "CappyRAG", "system-design"],
         language: "pt-BR"
     };
     
@@ -124,7 +124,7 @@ O sistema implementa uma arquitetura dual-level para recuperação eficiente:
 
 // Executar teste se chamado diretamente
 if (require.main === module) {
-    testLightRAGProcessing()
+    testCappyRAGProcessing()
         .then(() => process.exit(0))
         .catch(error => {
             console.error("Teste falhou:", error);
@@ -132,4 +132,4 @@ if (require.main === module) {
         });
 }
 
-export { testLightRAGProcessing };
+export { testCappyRAGProcessing };

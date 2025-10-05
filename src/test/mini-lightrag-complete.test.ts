@@ -1,7 +1,7 @@
 /**
- * Mini-LightRAG Complete System Test Suite
+ * Mini-CappyRAG Complete System Test Suite
  * 
- * This comprehensive test suite validates all Mini-LightRAG functionality across the system.
+ * This comprehensive test suite validates all Mini-CappyRAG functionality across the system.
  * Covers core functionality, search engine, indexing, UI components, performance, and error handling.
  */
 
@@ -95,21 +95,21 @@ interface PerformanceMetrics {
 }
 
 // Test Framework Setup
-describe('Mini-LightRAG Complete System Tests', () => {
+describe('Mini-CappyRAG Complete System Tests', () => {
   let testWorkspace: string;
-  let lightragSystem: any;
+  let CappyRAGSystem: any;
   
   before(async () => {
     // Setup test workspace
     testWorkspace = await createTestWorkspace();
     
-    // Initialize LightRAG
-    await vscode.commands.executeCommand('cappy.lightrag.initialize', {
+    // Initialize CappyRAG
+    await vscode.commands.executeCommand('cappy.CappyRAG.initialize', {
       workspacePath: testWorkspace
     });
     
     // Get system reference (commented out as not used in tests)
-    // lightragSystem = await vscode.commands.executeCommand('cappy.lightrag.getSystem');
+    // CappyRAGSystem = await vscode.commands.executeCommand('cappy.CappyRAG.getSystem');
   });
   
   after(async () => {
@@ -121,7 +121,7 @@ describe('Mini-LightRAG Complete System Tests', () => {
   describe('Core System Tests', () => {
     
     test('System Initialization', async () => {
-      const status = await vscode.commands.executeCommand('cappy.lightrag.getStatus') as SystemStatus;
+      const status = await vscode.commands.executeCommand('cappy.CappyRAG.getStatus') as SystemStatus;
       
       assert.strictEqual(status.isInitialized, true);
       assert.strictEqual(status.health, 'healthy');
@@ -129,7 +129,7 @@ describe('Mini-LightRAG Complete System Tests', () => {
     });
     
     test('Configuration Management', async () => {
-      const originalConfig = await vscode.commands.executeCommand('cappy.lightrag.getConfig') as any;
+      const originalConfig = await vscode.commands.executeCommand('cappy.CappyRAG.getConfig') as any;
       
       // Update configuration
       const newConfig = {
@@ -138,13 +138,13 @@ describe('Mini-LightRAG Complete System Tests', () => {
         }
       };
       
-      await vscode.commands.executeCommand('cappy.lightrag.updateConfig', { config: newConfig });
+      await vscode.commands.executeCommand('cappy.CappyRAG.updateConfig', { config: newConfig });
       
-      const updatedConfig = await vscode.commands.executeCommand('cappy.lightrag.getConfig') as any;
+      const updatedConfig = await vscode.commands.executeCommand('cappy.CappyRAG.getConfig') as any;
       assert.strictEqual(updatedConfig.search.maxResults, 15);
       
       // Reset to original
-      await vscode.commands.executeCommand('cappy.lightrag.updateConfig', { config: originalConfig });
+      await vscode.commands.executeCommand('cappy.CappyRAG.updateConfig', { config: originalConfig });
     });
   });
 
@@ -153,7 +153,7 @@ describe('Mini-LightRAG Complete System Tests', () => {
     
     test('Basic Semantic Search', async () => {
       const results = await vscode.commands.executeCommand(
-        'cappy.lightrag.search',
+        'cappy.CappyRAG.search',
         'user authentication function'
       ) as SearchResult[];
       
@@ -185,7 +185,7 @@ describe('Mini-LightRAG Complete System Tests', () => {
       };
       
       const results = await vscode.commands.executeCommand(
-        'cappy.lightrag.search',
+        'cappy.CappyRAG.search',
         'login validation',
         context
       ) as SearchResult[];
@@ -211,7 +211,7 @@ describe('Mini-LightRAG Complete System Tests', () => {
       const startTime = Date.now();
       
       for (const query of queries) {
-        const results = await vscode.commands.executeCommand('cappy.lightrag.search', query) as SearchResult[];
+        const results = await vscode.commands.executeCommand('cappy.CappyRAG.search', query) as SearchResult[];
         assert.ok(Array.isArray(results));
       }
       
@@ -227,31 +227,31 @@ describe('Mini-LightRAG Complete System Tests', () => {
       
       // First search (cache miss)
       const start1 = Date.now();
-      await vscode.commands.executeCommand('cappy.lightrag.search', query);
+      await vscode.commands.executeCommand('cappy.CappyRAG.search', query);
       const time1 = Date.now() - start1;
       
       // Second search (cache hit)
       const start2 = Date.now();
-      await vscode.commands.executeCommand('cappy.lightrag.search', query);
+      await vscode.commands.executeCommand('cappy.CappyRAG.search', query);
       const time2 = Date.now() - start2;
       
       // Cached search should be significantly faster
       assert.ok(time2 < time1 * 0.5, `Cache not effective: ${time1}ms vs ${time2}ms`);
       
       // Check cache metrics
-      const metrics = await vscode.commands.executeCommand('cappy.lightrag.getMetrics') as PerformanceMetrics;
+      const metrics = await vscode.commands.executeCommand('cappy.CappyRAG.getMetrics') as PerformanceMetrics;
       assert.ok(metrics.cache.hitRate > 0);
     });
     
     test('Memory Usage', async () => {
-      const initialMetrics = await vscode.commands.executeCommand('cappy.lightrag.getMetrics') as PerformanceMetrics;
+      const initialMetrics = await vscode.commands.executeCommand('cappy.CappyRAG.getMetrics') as PerformanceMetrics;
       
       // Perform multiple operations
       for (let i = 0; i < 10; i++) {
-        await vscode.commands.executeCommand('cappy.lightrag.search', `test query ${i}`);
+        await vscode.commands.executeCommand('cappy.CappyRAG.search', `test query ${i}`);
       }
       
-      const finalMetrics = await vscode.commands.executeCommand('cappy.lightrag.getMetrics') as PerformanceMetrics;
+      const finalMetrics = await vscode.commands.executeCommand('cappy.CappyRAG.getMetrics') as PerformanceMetrics;
       
       // Memory should not increase excessively
       const initialMB = parseFloat(initialMetrics.memory.currentUsage);
@@ -266,7 +266,7 @@ describe('Mini-LightRAG Complete System Tests', () => {
     
     test('Invalid Query Handling', async () => {
       const results = await vscode.commands.executeCommand(
-        'cappy.lightrag.search',
+        'cappy.CappyRAG.search',
         ''  // Empty query
       ) as SearchResult[];
       
@@ -277,15 +277,15 @@ describe('Mini-LightRAG Complete System Tests', () => {
     
     test('System Recovery', async () => {
       // Force an error condition
-      await vscode.commands.executeCommand('cappy.lightrag.clearCache');
+      await vscode.commands.executeCommand('cappy.CappyRAG.clearCache');
       
       // System should recover automatically
-      const status = await vscode.commands.executeCommand('cappy.lightrag.getStatus') as SystemStatus;
+      const status = await vscode.commands.executeCommand('cappy.CappyRAG.getStatus') as SystemStatus;
       assert.strictEqual(status.health, 'healthy');
       
       // Should still be able to search
       const results = await vscode.commands.executeCommand(
-        'cappy.lightrag.search',
+        'cappy.CappyRAG.search',
         'recovery test'
       ) as SearchResult[];
       assert.ok(Array.isArray(results));
@@ -297,26 +297,26 @@ describe('Mini-LightRAG Complete System Tests', () => {
     
     test('Full Workflow Integration', async () => {
       // 1. Initialize system
-      await vscode.commands.executeCommand('cappy.lightrag.initialize');
+      await vscode.commands.executeCommand('cappy.CappyRAG.initialize');
       
       // 2. Index workspace
-      const indexResult = await vscode.commands.executeCommand('cappy.lightrag.indexWorkspace') as IndexingResult;
+      const indexResult = await vscode.commands.executeCommand('cappy.CappyRAG.indexWorkspace') as IndexingResult;
       assert.strictEqual(indexResult.success, true);
       
       // 3. Perform search
       const searchResults = await vscode.commands.executeCommand(
-        'cappy.lightrag.search',
+        'cappy.CappyRAG.search',
         'integration test function'
       ) as SearchResult[];
       assert.ok(Array.isArray(searchResults));
       
       // 4. Check status
-      const status = await vscode.commands.executeCommand('cappy.lightrag.getStatus') as SystemStatus;
+      const status = await vscode.commands.executeCommand('cappy.CappyRAG.getStatus') as SystemStatus;
       assert.strictEqual(status.isInitialized, true);
       assert.strictEqual(status.health, 'healthy');
       
       // 5. Get metrics
-      const metrics = await vscode.commands.executeCommand('cappy.lightrag.getMetrics') as PerformanceMetrics;
+      const metrics = await vscode.commands.executeCommand('cappy.CappyRAG.getMetrics') as PerformanceMetrics;
       assert.ok(metrics.search.totalQueries >= 0);
     });
   });
@@ -361,7 +361,7 @@ async function createTestWorkspace(): Promise<string> {
     'docs/README.md': `
       # Test Project
       
-      This is a test project for LightRAG integration testing.
+      This is a test project for CappyRAG integration testing.
       
       ## Features
       - User authentication

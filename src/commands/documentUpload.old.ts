@@ -1,16 +1,16 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getLightRAGDatabase, LightRAGDocument } from '../store/lightragDb';
+import { getCappyRAGDatabase, CappyRAGDocument } from '../store/cappyragDb';
 
 /**
- * LightRAG Main Dashboard with Navigation and Document Management
+ * CappyRAG Main Dashboard with Navigation and Document Management
  * Includes upload, delete, duplicate handling, and navigation to Graph/Retrieval/MCP docs
  */
 export async function openDocumentUploadUI(context: vscode.ExtensionContext) {
     const panel = vscode.window.createWebviewPanel(
-        'lightragDashboard',
-        'LightRAG - Knowledge Graph Dashboard',
+        'CappyRAGDashboard',
+        'CappyRAG - Knowledge Graph Dashboard',
         vscode.ViewColumn.One,
         {
             enableScripts: true,
@@ -20,7 +20,7 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext) {
     );
 
     // Initialize database
-    const db = getLightRAGDatabase();
+    const db = getCappyRAGDatabase();
 
     // Set the webview HTML content
     panel.webview.html = getWebviewContent(panel.webview);
@@ -77,7 +77,7 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext) {
 
 async function handleLoadDocuments(panel: vscode.WebviewPanel) {
     try {
-        const db = getLightRAGDatabase();
+        const db = getCappyRAGDatabase();
         const documents = db.getDocuments();
         const stats = db.getStatistics();
 
@@ -98,7 +98,7 @@ async function handleLoadDocuments(panel: vscode.WebviewPanel) {
 
 async function handleDocumentDelete(documentId: string, panel: vscode.WebviewPanel) {
     try {
-        const db = getLightRAGDatabase();
+        const db = getCappyRAGDatabase();
         await db.deleteDocument(documentId);
 
         // Reload documents after deletion
@@ -119,8 +119,8 @@ async function handleDocumentDelete(documentId: string, panel: vscode.WebviewPan
 async function handleNavigateToGraph(context: vscode.ExtensionContext) {
     // Create graph visualization panel
     const panel = vscode.window.createWebviewPanel(
-        'lightragGraph',
-        'LightRAG - Knowledge Graph',
+        'CappyRAGGraph',
+        'CappyRAG - Knowledge Graph',
         vscode.ViewColumn.One,
         {
             enableScripts: true,
@@ -132,7 +132,7 @@ async function handleNavigateToGraph(context: vscode.ExtensionContext) {
     panel.webview.html = getGraphVisualizationContent();
     
     // Load graph data
-    const db = getLightRAGDatabase();
+    const db = getCappyRAGDatabase();
     const graphData = db.getGraphData();
     
     panel.webview.postMessage({
@@ -144,8 +144,8 @@ async function handleNavigateToGraph(context: vscode.ExtensionContext) {
 async function handleNavigateToRetrieval(context: vscode.ExtensionContext) {
     // Create retrieval testing panel
     const panel = vscode.window.createWebviewPanel(
-        'lightragRetrieval',
-        'LightRAG - Knowledge Retrieval',
+        'CappyRAGRetrieval',
+        'CappyRAG - Knowledge Retrieval',
         vscode.ViewColumn.One,
         {
             enableScripts: true,
@@ -160,8 +160,8 @@ async function handleNavigateToRetrieval(context: vscode.ExtensionContext) {
 async function handleNavigateToMcpDocs(context: vscode.ExtensionContext) {
     // Create MCP documentation panel
     const panel = vscode.window.createWebviewPanel(
-        'lightragMcpDocs',
-        'LightRAG - MCP Documentation',
+        'CappyRAGMcpDocs',
+        'CappyRAG - MCP Documentation',
         vscode.ViewColumn.One,
         {
             enableScripts: true,
@@ -229,7 +229,7 @@ async function handleDocumentUpload(data: any, panel: vscode.WebviewPanel) {
 
         panel.webview.postMessage({
             command: 'updateProgress',
-            data: { progress: 75, message: 'Processing with LightRAG...' }
+            data: { progress: 75, message: 'Processing with CappyRAG...' }
         });
 
         // Simulate processing
@@ -258,7 +258,7 @@ async function handleDocumentUpload(data: any, panel: vscode.WebviewPanel) {
 
 async function handleDocumentProcessing(data: any, panel: vscode.WebviewPanel) {
     try {
-        const db = getLightRAGDatabase();
+        const db = getCappyRAGDatabase();
         
         // Check for duplicate filename
         const existingDoc = db.getDocumentByFileName(data.file);
@@ -390,9 +390,9 @@ function getWebviewContent(webview: vscode.Webview): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LightRAG - Knowledge Graph Dashboard</title>
+    <title>CappyRAG - Knowledge Graph Dashboard</title>
     <style>
-        /* Exact LightRAG WebUI CSS Variables */
+        /* Exact CappyRAG WebUI CSS Variables */
         :root {
             --background: hsl(0 0% 100%);
             --foreground: hsl(240 10% 3.9%);
@@ -421,7 +421,7 @@ function getWebviewContent(webview: vscode.Webview): string {
             --radius: 0.6rem;
         }
 
-        /* Exact LightRAG WebUI Base Styles */
+        /* Exact CappyRAG WebUI Base Styles */
         * {
             box-sizing: border-box;
         }
@@ -991,7 +991,7 @@ function getWebviewContent(webview: vscode.Webview): string {
                         <svg class="logo-icon icon-zap" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
                         </svg>
-                        <span class="logo-text">LightRAG</span>
+                        <span class="logo-text">CappyRAG</span>
                     </a>
                 </div>
                 
@@ -1129,7 +1129,7 @@ function getWebviewContent(webview: vscode.Webview): string {
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title">Upload Document</h3>
-                <p>Upload a document to be processed by LightRAG</p>
+                <p>Upload a document to be processed by CappyRAG</p>
             </div>
             
             <div class="upload-area" onclick="document.getElementById('file-input').click()">
@@ -1163,7 +1163,7 @@ function getWebviewContent(webview: vscode.Webview): string {
         </div>
     </div>
 
-        /* Base styles matching LightRAG WebUI */
+        /* Base styles matching CappyRAG WebUI */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -1181,7 +1181,7 @@ function getWebviewContent(webview: vscode.Webview): string {
             overflow-x: hidden;
         }
 
-        /* Container and layout matching LightRAG WebUI */
+        /* Container and layout matching CappyRAG WebUI */
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -1209,7 +1209,7 @@ function getWebviewContent(webview: vscode.Webview): string {
             margin-bottom: 0;
         }
 
-        /* Card component matching LightRAG WebUI */
+        /* Card component matching CappyRAG WebUI */
         .card {
             background-color: hsl(var(--card));
             color: hsl(var(--card-foreground));
@@ -1246,7 +1246,7 @@ function getWebviewContent(webview: vscode.Webview): string {
             padding-top: 0;
         }
 
-        /* Button component matching LightRAG WebUI */
+        /* Button component matching CappyRAG WebUI */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -1282,7 +1282,7 @@ function getWebviewContent(webview: vscode.Webview): string {
             background-color: hsl(var(--secondary) / 0.8);
         }
 
-        /* Input component matching LightRAG WebUI */
+        /* Input component matching CappyRAG WebUI */
         .input {
             flex: 1;
             height: 36px;
@@ -1321,7 +1321,7 @@ function getWebviewContent(webview: vscode.Webview): string {
             color: hsl(var(--foreground));
         }
 
-        /* Upload area matching LightRAG WebUI */
+        /* Upload area matching CappyRAG WebUI */
         .upload-area {
             border: 2px dashed hsl(var(--border));
             border-radius: calc(var(--radius) * 2);
@@ -1863,7 +1863,7 @@ function getWebviewContent(webview: vscode.Webview): string {
         <!-- Navigation Header -->
         <div class="header">
             <div class="nav-header">
-                <h1>LightRAG Knowledge Graph</h1>
+                <h1>CappyRAG Knowledge Graph</h1>
                 <div class="nav-tabs">
                     <button class="nav-tab active" id="documentsTab">📄 Documents</button>
                     <button class="nav-tab" id="graphTab">🕸️ Graph</button>
@@ -2386,7 +2386,7 @@ function getGraphVisualizationContent(): string {
     return `<!DOCTYPE html>
 <html>
 <head>
-    <title>LightRAG - Knowledge Graph</title>
+    <title>CappyRAG - Knowledge Graph</title>
     <style>
         body { font-family: system-ui; margin: 0; padding: 20px; }
         .container { max-width: 1400px; margin: 0 auto; }
@@ -2418,7 +2418,7 @@ function getRetrievalTestingContent(): string {
     return `<!DOCTYPE html>
 <html>
 <head>
-    <title>LightRAG - Knowledge Retrieval</title>
+    <title>CappyRAG - Knowledge Retrieval</title>
     <style>
         body { font-family: system-ui; margin: 0; padding: 20px; }
         .container { max-width: 1400px; margin: 0 auto; }
@@ -2457,7 +2457,7 @@ function getMcpDocumentationContent(): string {
     return `<!DOCTYPE html>
 <html>
 <head>
-    <title>LightRAG - MCP Documentation</title>
+    <title>CappyRAG - MCP Documentation</title>
     <style>
         body { font-family: system-ui; margin: 0; padding: 20px; }
         .container { max-width: 1400px; margin: 0 auto; }

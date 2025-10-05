@@ -4,11 +4,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 /**
- * LightRAG Database Schema and Operations using LanceDB
+ * CappyRAG Database Schema and Operations using LanceDB
  * High-performance vector storage for documents, entities, relationships, and chunks
  */
 
-export interface LightRAGEntity extends Record<string, unknown> {
+export interface CappyRAGEntity extends Record<string, unknown> {
     id: string;
     name: string;
     type: string;
@@ -19,7 +19,7 @@ export interface LightRAGEntity extends Record<string, unknown> {
     vector?: number[]; // Optional embedding for semantic search
 }
 
-export interface LightRAGRelationship extends Record<string, unknown> {
+export interface CappyRAGRelationship extends Record<string, unknown> {
     id: string;
     source: string;
     target: string;
@@ -31,7 +31,7 @@ export interface LightRAGRelationship extends Record<string, unknown> {
     updated: string;
 }
 
-export interface LightRAGDocument extends Record<string, unknown> {
+export interface CappyRAGDocument extends Record<string, unknown> {
     id: string;
     title: string;
     description: string;
@@ -53,7 +53,7 @@ export interface LightRAGDocument extends Record<string, unknown> {
     vector?: number[]; // Document-level embedding
 }
 
-export interface LightRAGChunk extends Record<string, unknown> {
+export interface CappyRAGChunk extends Record<string, unknown> {
     id: string;
     documentId: string;
     content: string;
@@ -66,7 +66,7 @@ export interface LightRAGChunk extends Record<string, unknown> {
     vector?: number[]; // Chunk embedding for hybrid search
 }
 
-export interface LightRAGStatistics {
+export interface CappyRAGStatistics {
     totalDocuments: number;
     totalEntities: number;
     totalRelationships: number;
@@ -74,7 +74,7 @@ export interface LightRAGStatistics {
     lastUpdated: string;
 }
 
-export class LightRAGLanceDatabase {
+export class CappyRAGLanceDatabase {
     private dbPath: string;
     private connection: Connection | null = null;
     private documentsTable: Table | null = null;
@@ -103,7 +103,7 @@ export class LightRAGLanceDatabase {
         }
 
         try {
-            console.log(`[LightRAG LanceDB] Connecting to: ${this.dbPath}`);
+            console.log(`[CappyRAG LanceDB] Connecting to: ${this.dbPath}`);
             this.connection = await connect(this.dbPath);
 
             // Initialize all tables
@@ -113,9 +113,9 @@ export class LightRAGLanceDatabase {
             await this.initializeChunksTable();
 
             this.isInitialized = true;
-            console.log('[LightRAG LanceDB] Initialized successfully');
+            console.log('[CappyRAG LanceDB] Initialized successfully');
         } catch (error) {
-            console.error('[LightRAG LanceDB] Initialization failed:', error);
+            console.error('[CappyRAG LanceDB] Initialization failed:', error);
             throw error;
         }
     }
@@ -147,9 +147,9 @@ export class LightRAGLanceDatabase {
             ]);
 
             // Create empty table with explicit schema
-            const emptyData: LightRAGDocument[] = [];
+            const emptyData: CappyRAGDocument[] = [];
             this.documentsTable = await this.connection.createTable('documents', emptyData, { schema });
-            console.log('[LightRAG LanceDB] Documents table created with explicit schema');
+            console.log('[CappyRAG LanceDB] Documents table created with explicit schema');
         }
     }
 
@@ -174,9 +174,9 @@ export class LightRAGLanceDatabase {
                 new arrow.Field('updated', new arrow.Utf8(), false)
             ]);
 
-            const emptyData: LightRAGEntity[] = [];
+            const emptyData: CappyRAGEntity[] = [];
             this.entitiesTable = await this.connection.createTable('entities', emptyData, { schema });
-            console.log('[LightRAG LanceDB] Entities table created with explicit schema');
+            console.log('[CappyRAG LanceDB] Entities table created with explicit schema');
         }
     }
 
@@ -203,9 +203,9 @@ export class LightRAGLanceDatabase {
                 new arrow.Field('updated', new arrow.Utf8(), false)
             ]);
 
-            const emptyData: LightRAGRelationship[] = [];
+            const emptyData: CappyRAGRelationship[] = [];
             this.relationshipsTable = await this.connection.createTable('relationships', emptyData, { schema });
-            console.log('[LightRAG LanceDB] Relationships table created with explicit schema');
+            console.log('[CappyRAG LanceDB] Relationships table created with explicit schema');
         }
     }
 
@@ -232,9 +232,9 @@ export class LightRAGLanceDatabase {
                 new arrow.Field('created', new arrow.Utf8(), false)
             ]);
 
-            const emptyData: LightRAGChunk[] = [];
+            const emptyData: CappyRAGChunk[] = [];
             this.chunksTable = await this.connection.createTable('chunks', emptyData, { schema });
-            console.log('[LightRAG LanceDB] Chunks table created with explicit schema');
+            console.log('[CappyRAG LanceDB] Chunks table created with explicit schema');
         }
     }
 
@@ -243,7 +243,7 @@ export class LightRAGLanceDatabase {
     /**
      * Add a new entity
      */
-    async addEntity(entity: Omit<LightRAGEntity, 'id' | 'created' | 'updated'>): Promise<string> {
+    async addEntity(entity: Omit<CappyRAGEntity, 'id' | 'created' | 'updated'>): Promise<string> {
         await this.initialize();
         if (!this.entitiesTable) {
             throw new Error('Entities table not initialized');
@@ -252,12 +252,12 @@ export class LightRAGLanceDatabase {
         const id = 'entity_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         const now = new Date().toISOString();
 
-        const newEntity: LightRAGEntity = {
+        const newEntity: CappyRAGEntity = {
             id,
             created: now,
             updated: now,
             ...entity
-        } as LightRAGEntity;
+        } as CappyRAGEntity;
 
         await this.entitiesTable.add([newEntity]);
         return id;
@@ -266,7 +266,7 @@ export class LightRAGLanceDatabase {
     /**
      * Add a new relationship
      */
-    async addRelationship(rel: Omit<LightRAGRelationship, 'id' | 'created' | 'updated'>): Promise<string> {
+    async addRelationship(rel: Omit<CappyRAGRelationship, 'id' | 'created' | 'updated'>): Promise<string> {
         await this.initialize();
         if (!this.relationshipsTable) {
             throw new Error('Relationships table not initialized');
@@ -275,12 +275,12 @@ export class LightRAGLanceDatabase {
         const id = 'rel_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         const now = new Date().toISOString();
 
-        const newRel: LightRAGRelationship = {
+        const newRel: CappyRAGRelationship = {
             id,
             created: now,
             updated: now,
             ...rel
-        } as LightRAGRelationship;
+        } as CappyRAGRelationship;
 
         await this.relationshipsTable.add([newRel]);
         return id;
@@ -289,7 +289,7 @@ export class LightRAGLanceDatabase {
     /**
      * Add a new chunk
      */
-    async addChunk(chunk: Omit<LightRAGChunk, 'id' | 'created'>): Promise<string> {
+    async addChunk(chunk: Omit<CappyRAGChunk, 'id' | 'created'>): Promise<string> {
         await this.initialize();
         if (!this.chunksTable) {
             throw new Error('Chunks table not initialized');
@@ -298,11 +298,11 @@ export class LightRAGLanceDatabase {
         const id = 'chunk_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         const now = new Date().toISOString();
 
-        const newChunk: LightRAGChunk = {
+        const newChunk: CappyRAGChunk = {
             id,
             created: now,
             ...chunk
-        } as LightRAGChunk;
+        } as CappyRAGChunk;
 
         await this.chunksTable.add([newChunk]);
         return id;
@@ -311,7 +311,7 @@ export class LightRAGLanceDatabase {
     /**
      * Add a new document
      */
-    addDocument(doc: LightRAGDocument): void {
+    addDocument(doc: CappyRAGDocument): void {
         this.initialize().then(async () => {
             if (!this.documentsTable) {
                 throw new Error('Documents table not initialized');
@@ -323,7 +323,7 @@ export class LightRAGLanceDatabase {
     /**
      * Get all documents
      */
-    getDocuments(): LightRAGDocument[] {
+    getDocuments(): CappyRAGDocument[] {
         // Synchronous compatibility layer - returns empty for now
         // Use getDocumentsAsync() for real data
         return [];
@@ -332,65 +332,65 @@ export class LightRAGLanceDatabase {
     /**
      * Get all documents (async)
      */
-    async getDocumentsAsync(): Promise<LightRAGDocument[]> {
+    async getDocumentsAsync(): Promise<CappyRAGDocument[]> {
         await this.initialize();
         if (!this.documentsTable) {
             return [];
         }
 
         const results = await this.documentsTable.query().limit(1000).toArray();
-        return results as LightRAGDocument[];
+        return results as CappyRAGDocument[];
     }
 
     /**
      * Get all entities
      */
-    getEntities(): LightRAGEntity[] {
+    getEntities(): CappyRAGEntity[] {
         return [];
     }
 
-    async getEntitiesAsync(): Promise<LightRAGEntity[]> {
+    async getEntitiesAsync(): Promise<CappyRAGEntity[]> {
         await this.initialize();
         if (!this.entitiesTable) {
             return [];
         }
 
         const results = await this.entitiesTable.query().limit(10000).toArray();
-        return results as LightRAGEntity[];
+        return results as CappyRAGEntity[];
     }
 
     /**
      * Get all relationships
      */
-    getRelationships(): LightRAGRelationship[] {
+    getRelationships(): CappyRAGRelationship[] {
         return [];
     }
 
-    async getRelationshipsAsync(): Promise<LightRAGRelationship[]> {
+    async getRelationshipsAsync(): Promise<CappyRAGRelationship[]> {
         await this.initialize();
         if (!this.relationshipsTable) {
             return [];
         }
 
         const results = await this.relationshipsTable.query().limit(10000).toArray();
-        return results as LightRAGRelationship[];
+        return results as CappyRAGRelationship[];
     }
 
     /**
      * Get all chunks
      */
-    getChunks(): LightRAGChunk[] {
+    getChunks(): CappyRAGChunk[] {
         return [];
     }
 
-    async getChunksAsync(): Promise<LightRAGChunk[]> {
+    async getChunksAsync(): Promise<CappyRAGChunk[]> {
         await this.initialize();
         if (!this.chunksTable) {
             return [];
         }
 
         const results = await this.chunksTable.query().limit(10000).toArray();
-        return results as LightRAGChunk[];
+        return results as CappyRAGChunk[];
     }
 
     /**
@@ -416,7 +416,7 @@ export class LightRAGLanceDatabase {
         const doc = documents.find(d => d.id === documentId);
         
         if (!doc) {
-            console.warn(`[LightRAG LanceDB] Document ${documentId} not found for status update`);
+            console.warn(`[CappyRAG LanceDB] Document ${documentId} not found for status update`);
             return;
         }
 
@@ -424,7 +424,7 @@ export class LightRAGLanceDatabase {
         await this.documentsTable.delete(`id = '${documentId}'`);
         
         // Add updated document (create clean object to avoid Arrow metadata issues)
-        const updatedDoc: LightRAGDocument = {
+        const updatedDoc: CappyRAGDocument = {
             id: doc.id,
             title: doc.title,
             description: doc.description,
@@ -441,7 +441,7 @@ export class LightRAGLanceDatabase {
         };
         
         await this.documentsTable.add([updatedDoc]);
-        console.log(`[LightRAG LanceDB] Document ${documentId} status updated to '${status}'`);
+        console.log(`[CappyRAG LanceDB] Document ${documentId} status updated to '${status}'`);
     }
 
     /**
@@ -486,7 +486,7 @@ export class LightRAGLanceDatabase {
     /**
      * Get statistics
      */
-    getStatistics(): LightRAGStatistics {
+    getStatistics(): CappyRAGStatistics {
         return {
             totalDocuments: 0,
             totalEntities: 0,
@@ -496,7 +496,7 @@ export class LightRAGLanceDatabase {
         };
     }
 
-    async getStatisticsAsync(): Promise<LightRAGStatistics> {
+    async getStatisticsAsync(): Promise<CappyRAGStatistics> {
         await this.initialize();
 
         const [docs, entities, rels, chunks] = await Promise.all([
@@ -518,7 +518,7 @@ export class LightRAGLanceDatabase {
     /**
      * Vector search on chunks (for hybrid RAG)
      */
-    async searchChunks(queryVector: number[], limit: number = 10): Promise<LightRAGChunk[]> {
+    async searchChunks(queryVector: number[], limit: number = 10): Promise<CappyRAGChunk[]> {
         await this.initialize();
         if (!this.chunksTable) {
             return [];
@@ -530,7 +530,7 @@ export class LightRAGLanceDatabase {
             .limit(limit)
             .toArray();
 
-        return results as LightRAGChunk[];
+        return results as CappyRAGChunk[];
     }
 
     /**
@@ -546,13 +546,13 @@ export class LightRAGLanceDatabase {
 }
 
 // Singleton instance per workspace
-const dbInstances = new Map<string, LightRAGLanceDatabase>();
+const dbInstances = new Map<string, CappyRAGLanceDatabase>();
 
-export function getLightRAGLanceDatabase(workspacePath?: string): LightRAGLanceDatabase {
+export function getCappyRAGLanceDatabase(workspacePath?: string): CappyRAGLanceDatabase {
     const wsPath = workspacePath || process.cwd();
     
     if (!dbInstances.has(wsPath)) {
-        dbInstances.set(wsPath, new LightRAGLanceDatabase(wsPath));
+        dbInstances.set(wsPath, new CappyRAGLanceDatabase(wsPath));
     }
     
     return dbInstances.get(wsPath)!;

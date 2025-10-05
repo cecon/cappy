@@ -8,8 +8,8 @@ import * as path from 'path';
  */
 export function generateWebviewHTML(webview: vscode.Webview, context: vscode.ExtensionContext): string {
     // Read CSS and JS content directly (more reliable than external files in webview)
-    const cssPath = path.join(context.extensionPath, 'out', 'commands', 'lightrag', 'templates', 'dashboard.css');
-    const jsPath = path.join(context.extensionPath, 'out', 'commands', 'lightrag', 'templates', 'dashboard.js');
+    const cssPath = path.join(context.extensionPath, 'out', 'commands', 'cappyrag', 'templates', 'dashboard.css');
+    const jsPath = path.join(context.extensionPath, 'out', 'commands', 'cappyrag', 'templates', 'dashboard.js');
     
     const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf-8') : '';
     const jsContent = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, 'utf-8') : '';

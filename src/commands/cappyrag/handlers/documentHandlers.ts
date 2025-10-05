@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { LightRAGDocument } from '../../../store/lightragLanceDb';
+import { CappyRAGDocument } from '../../../store/cappyragLanceDb';
 import { getDatabase } from '../utils/databaseHelper';
 import { DocumentUploadData } from '../utils/messageTypes';
 import { getProcessingQueue } from '../../../services/documentProcessingQueue';
@@ -24,7 +24,7 @@ export async function handleLoadDocuments(panel: vscode.WebviewPanel): Promise<v
         const relationships = await db.getRelationshipsAsync();
         const chunks = await db.getChunksAsync();
         
-        console.log(`[LightRAG] Stats - Docs: ${documents.length}, Entities: ${entities.length}, Relationships: ${relationships.length}, Chunks: ${chunks.length}`);
+        console.log(`[CappyRAG] Stats - Docs: ${documents.length}, Entities: ${entities.length}, Relationships: ${relationships.length}, Chunks: ${chunks.length}`);
         
         const stats = {
             documents: documents.length,
@@ -72,7 +72,7 @@ export async function handleDocumentUpload(data: DocumentUploadData, panel: vsco
         await db.initialize();
         
         // Create document object
-        const newDocument: LightRAGDocument = {
+        const newDocument: CappyRAGDocument = {
             id: generateDocumentId(),
             title: data.title,
             description: data.description || '',
@@ -99,7 +99,7 @@ export async function handleDocumentUpload(data: DocumentUploadData, panel: vsco
             content: newDocument.content
         });
 
-        console.log(`[LightRAG] Document added to processing queue: ${queueId}`);
+        console.log(`[CappyRAG] Document added to processing queue: ${queueId}`);
 
         // Start processor if not already running
         if (!processor.getQueue().isQueueProcessing()) {
@@ -153,7 +153,7 @@ export async function handleDocumentUpload(data: DocumentUploadData, panel: vsco
             // Create relationships between entities
             let createdRelationshipsCount = 0;
             const targetRelCount = Math.floor(createdEntities.length / 2);
-            console.log(`[LightRAG] Creating ${targetRelCount} relationships between ${createdEntities.length} entities`);
+            console.log(`[CappyRAG] Creating ${targetRelCount} relationships between ${createdEntities.length} entities`);
             
             for (let i = 0; i < targetRelCount; i++) {
                 const sourceIdx = i;
@@ -169,13 +169,13 @@ export async function handleDocumentUpload(data: DocumentUploadData, panel: vsco
                         documentIds: [newDocument.id]
                     });
                     createdRelationshipsCount++;
-                    console.log(`[LightRAG] Created relationship ${i + 1}/${targetRelCount}: ${relId} (${createdEntities[sourceIdx]} -> ${createdEntities[targetIdx]})`);
+                    console.log(`[CappyRAG] Created relationship ${i + 1}/${targetRelCount}: ${relId} (${createdEntities[sourceIdx]} -> ${createdEntities[targetIdx]})`);
                 } catch (error) {
-                    console.error(`[LightRAG] Error creating relationship ${i}:`, error);
+                    console.error(`[CappyRAG] Error creating relationship ${i}:`, error);
                 }
             }
             
-            console.log(`[LightRAG] Successfully created ${createdRelationshipsCount} relationships`);
+            console.log(`[CappyRAG] Successfully created ${createdRelationshipsCount} relationships`);
             
             // Create chunks
             const chunkSize = 1000;
@@ -332,7 +332,7 @@ Respond in JSON format:
         }
 
     } catch (error) {
-        console.error('[LightRAG] Failed to generate description:', error);
+        console.error('[CappyRAG] Failed to generate description:', error);
         panel.webview.postMessage({
             command: 'uploadError',
             data: { message: error instanceof Error ? error.message : 'Failed to generate description' }

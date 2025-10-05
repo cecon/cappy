@@ -10,7 +10,7 @@ import {
     ProcessingStatus,
     QueuedDocument 
 } from './documentProcessingQueue';
-import { getDatabase } from '../commands/lightrag/utils/databaseHelper';
+import { getDatabase } from '../commands/cappyrag/utils/databaseHelper';
 
 export interface ChunkAnalysis {
     entities: Array<{

@@ -7,9 +7,9 @@
     "src/extension.mcp.ts",
     "src/commands/telemetryConsent.ts",
     "src/commands/documentUpload.ts",
-    "src/models/lightragTypes.ts",
+    "src/models/cappyragTypes.ts",
     "src/tools/**/*",
-    "src/core/simpleLightragProcessor.ts",
+    "src/core/simpleCappyragProcessor.ts",
     "src/utils/environmentDetector.ts",
     "src/utils/fileManager.ts"
   ]

@@ -1,23 +1,23 @@
 /**
- * Simple test to verify LightRAG upload UI functionality
+ * Simple test to verify CappyRAG upload UI functionality
  */
 
 import * as vscode from 'vscode';
 
 export async function testDocumentUploadUI() {
     try {
-        console.log('Testing LightRAG Document Upload UI...');
+        console.log('Testing CappyRAG Document Upload UI...');
         
         // Test command registration
         const commands = await vscode.commands.getCommands();
-        const uploadCommand = commands.find(cmd => cmd === 'cappy.lightrag.uploadUI');
+        const uploadCommand = commands.find(cmd => cmd === 'cappy.CappyRAG.uploadUI');
         
         if (uploadCommand) {
             console.log('✅ Upload command is registered');
             
             // Test opening the UI
             try {
-                await vscode.commands.executeCommand('cappy.lightrag.uploadUI');
+                await vscode.commands.executeCommand('cappy.CappyRAG.uploadUI');
                 console.log('✅ Upload UI opened successfully');
             } catch (error) {
                 console.error('❌ Failed to open upload UI:', error);
@@ -28,9 +28,9 @@ export async function testDocumentUploadUI() {
         
         // Test MCP commands
         const mcpCommands = [
-            'cappy.lightrag.addDocument',
-            'cappy.lightrag.processDocument',
-            'cappy.lightrag.validateMetadata'
+            'cappy.CappyRAG.addDocument',
+            'cappy.CappyRAG.processDocument',
+            'cappy.CappyRAG.validateMetadata'
         ];
         
         for (const cmd of mcpCommands) {
@@ -52,7 +52,7 @@ export const testDocumentData = {
         title: 'Test Document',
         description: 'This is a test document for verifying the upload functionality',
         category: 'other',
-        tags: ['test', 'verification', 'lightrag']
+        tags: ['test', 'verification', 'CappyRAG']
     },
     options: {
         extractEntities: true,

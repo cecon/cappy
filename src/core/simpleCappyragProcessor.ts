@@ -1,11 +1,11 @@
 /**
- * Simplified LightRAG Document Processor for MCP Testing
+ * Simplified CappyRAG Document Processor for MCP Testing
  * This is a mock implementation for testing the MCP system
  */
 
-import { Document, Entity, Relationship, KeyValuePair, DocumentMetadata, ProcessingOptions } from "../models/lightragTypes";
+import { Document, Entity, Relationship, KeyValuePair, DocumentMetadata, ProcessingOptions } from "../models/cappyragTypes";
 
-export class LightRAGDocumentProcessor {
+export class CappyRAGDocumentProcessor {
     
     async processDocument(
         filePath: string,

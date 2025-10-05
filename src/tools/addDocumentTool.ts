@@ -1,24 +1,24 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs/promises";
-import { LightRAGDocumentProcessor } from "../core/simpleLightragProcessor";
-import { Document, Entity, Relationship, KeyValuePair, DocumentMetadata, ProcessingOptions } from "../models/lightragTypes";
+import { CappyRAGDocumentProcessor } from "../core/simpleCappyragProcessor";
+import { Document, Entity, Relationship, KeyValuePair, DocumentMetadata, ProcessingOptions } from "../models/cappyragTypes";
 
 /**
- * MCP Tool for adding documents to LightRAG system
+ * MCP Tool for adding documents to CappyRAG system
  * Follows the manual insertion strategy defined in SPEC.md
  */
 export class AddDocumentTool {
-  private processor: LightRAGDocumentProcessor;
+  private processor: CappyRAGDocumentProcessor;
   private context: vscode.ExtensionContext;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
-    this.processor = new LightRAGDocumentProcessor();
+    this.processor = new CappyRAGDocumentProcessor();
   }
 
   /**
-   * Add a single document to the LightRAG system
+   * Add a single document to the CappyRAG system
    * @param filePath - Absolute path to the document file
    * @param title - Optional custom title (defaults to filename)
    * @param author - Optional author information
@@ -55,7 +55,7 @@ export class AddDocumentTool {
         uploadedAt: new Date().toISOString(),
       };
 
-      // Process document through LightRAG pipeline
+      // Process document through CappyRAG pipeline
       const result = await this.processor.processDocument(
         filePath,
         content,

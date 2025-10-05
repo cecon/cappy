@@ -1,5 +1,5 @@
 /**
- * Core schemas for Mini-LightRAG system
+ * Core schemas for Mini-CappyRAG system
  * Defines the contract for chunks, nodes, edges and related types
  */
 

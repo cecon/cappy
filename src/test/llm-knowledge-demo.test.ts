@@ -1,6 +1,6 @@
 /**
  * Demonstração prática de como eu (LLM/Copilot) usaria o conhecimento 
- * extraído pelo LightRAG para responder perguntas do usuário
+ * extraído pelo CappyRAG para responder perguntas do usuário
  */
 
 import { CappyMCPClient } from "./mcp-simulation.test";
@@ -24,11 +24,11 @@ class LLMKnowledgeUsage {
         // Como eu construiria uma resposta baseada no conhecimento
         let response = "";
         
-        if (question.toLowerCase().includes("lightrag")) {
+        if (question.toLowerCase().includes("CappyRAG")) {
             response = `
 🔍 Baseado nos documentos processados:
 
-**LightRAG** é um sistema avançado de processamento de documentos que implementa:
+**CappyRAG** é um sistema avançado de processamento de documentos que implementa:
 
 📋 **Funcionalidades Principais:**
 - Extração automática de entidades (TECHNOLOGY, CONCEPT, PROCESS, etc.)
@@ -56,10 +56,10 @@ Esta informação foi extraída automaticamente dos documentos SPEC.md e README.
 O MCP permite que eu (LLM) acesse diretamente as funcionalidades do Cappy:
 
 **Ferramentas Disponíveis:**
-- \`cappy.lightrag.addDocument()\` - Processar novos documentos
-- \`cappy.lightrag.query()\` - Buscar no conhecimento processado
-- \`cappy.lightrag.getEntities()\` - Listar entidades extraídas
-- \`cappy.lightrag.getRelationships()\` - Obter relacionamentos
+- \`cappy.CappyRAG.addDocument()\` - Processar novos documentos
+- \`cappy.CappyRAG.query()\` - Buscar no conhecimento processado
+- \`cappy.CappyRAG.getEntities()\` - Listar entidades extraídas
+- \`cappy.CappyRAG.getRelationships()\` - Obter relacionamentos
 
 **Como Uso:**
 1. Recebo pergunta do usuário
@@ -82,7 +82,7 @@ Isso me permite dar respostas mais precisas baseadas no contexto específico do 
 - SPEC.md (Especificação do sistema)
 - README.md (Documentação do projeto)
 
-Posso processar documentos adicionais se necessário usando \`cappy.lightrag.addDocument()\`.
+Posso processar documentos adicionais se necessário usando \`cappy.CappyRAG.addDocument()\`.
             `;
         }
         
@@ -103,17 +103,17 @@ Posso processar documentos adicionais se necessário usando \`cappy.lightrag.add
 📊 **Análise Cruzada SPEC.md + README.md:**
 
 🎯 **Conceitos Comuns:**
-- LightRAG aparece em ambos como conceito central
+- CappyRAG aparece em ambos como conceito central
 - TypeScript mencionado como tecnologia principal
 - VS Code como plataforma de integração
 - MCP como protocolo de comunicação
 
 🔄 **Relacionamentos Cruzados:**
-- SPEC.md DEFINES LightRAG
-- README.md DOCUMENTS LightRAG
-- TypeScript IMPLEMENTS LightRAG
-- VS Code HOSTS LightRAG
-- MCP ENABLES LightRAG communication
+- SPEC.md DEFINES CappyRAG
+- README.md DOCUMENTS CappyRAG
+- TypeScript IMPLEMENTS CappyRAG
+- VS Code HOSTS CappyRAG
+- MCP ENABLES CappyRAG communication
 
 💡 **Insights Gerados:**
 1. O sistema está bem documentado com especificação técnica detalhada
@@ -160,15 +160,15 @@ Estas sugestões são baseadas na análise dos padrões identificados nos docume
 }
 
 /**
- * Demonstração completa de uso do LightRAG pelo LLM
+ * Demonstração completa de uso do CappyRAG pelo LLM
  */
 async function demonstrateKnowledgeUsage() {
-    console.log("🧠 Demonstrando uso inteligente do conhecimento LightRAG...\n");
+    console.log("🧠 Demonstrando uso inteligente do conhecimento CappyRAG...\n");
     
     const llm = new LLMKnowledgeUsage();
     
     // Simular perguntas típicas do usuário
-    await llm.answerUserQuestion("Como funciona o sistema LightRAG?");
+    await llm.answerUserQuestion("Como funciona o sistema CappyRAG?");
     await llm.answerUserQuestion("O que é MCP e como uso?");
     await llm.answerUserQuestion("Quais são as dependências do projeto?");
     

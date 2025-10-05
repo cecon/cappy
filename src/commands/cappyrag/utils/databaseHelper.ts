@@ -1,13 +1,13 @@
 import * as vscode from 'vscode';
-import { getLightRAGLanceDatabase, LightRAGLanceDatabase } from '../../../store/lightragLanceDb';
+import { getCappyRAGLanceDatabase, CappyRAGLanceDatabase } from '../../../store/cappyragLanceDb';
 
 /**
  * Helper to get database instance with workspace path
  */
-export function getDatabase(): LightRAGLanceDatabase {
+export function getDatabase(): CappyRAGLanceDatabase {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
         throw new Error('No workspace folder open');
     }
-    return getLightRAGLanceDatabase(workspaceFolders[0].uri.fsPath);
+    return getCappyRAGLanceDatabase(workspaceFolders[0].uri.fsPath);
 }

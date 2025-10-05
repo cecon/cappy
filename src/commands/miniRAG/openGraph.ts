@@ -1,7 +1,7 @@
-﻿import * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { openDocumentUploadUI } from '../lightrag';
+import { openDocumentUploadUI } from '../cappyrag';
 
 interface GraphNode {
     id: string;
@@ -49,7 +49,7 @@ export async function openGraph(context?: vscode.ExtensionContext): Promise<void
         const panel = vscode.window.createWebviewPanel('miniRAGGraph', 'Mini-LightRAG Graph', vscode.ViewColumn.One, { enableScripts: true });
         console.log('[openGraph] Panel created');
         
-        // 🎯 Limites mais agressivos para melhor performance
+        // ?? Limites mais agressivos para melhor performance
         const config = vscode.workspace.getConfiguration('miniRAG');
         const maxNodes = config.get<number>('maxNodes', 100); // Reduzido de 1000 para 100
         const maxEdges = config.get<number>('maxEdges', 200); // Reduzido de 5000 para 200
@@ -83,7 +83,7 @@ export async function openGraph(context?: vscode.ExtensionContext): Promise<void
 }
 
 /**
- * Carrega APENAS os nós raiz (tipo Document) inicialmente
+ * Carrega APENAS os n�s raiz (tipo Document) inicialmente
  */
 async function loadInitialNodes(context: vscode.ExtensionContext | undefined): Promise<GraphData> {
     const empty: GraphData = { nodes: [], edges: [], stats: { totalNodes: 0, totalEdges: 0, nodesByType: {}, edgesByType: {} } };
@@ -98,7 +98,7 @@ async function loadInitialNodes(context: vscode.ExtensionContext | undefined): P
         const base = path.join(workspaceFolder.uri.fsPath, '.cappy', 'data', 'mini-lightrag', 'backup');
         
         if (!fs.existsSync(base)) {
-            vscode.window.showWarningMessage('Dados não encontrados. Execute "CAPPY: Reindex Workspace" primeiro!');
+            vscode.window.showWarningMessage('Dados n�o encontrados. Execute "CAPPY: Reindex Workspace" primeiro!');
             return empty;
         }
         
@@ -109,7 +109,7 @@ async function loadInitialNodes(context: vscode.ExtensionContext | undefined): P
         
         const allNodes: GraphNode[] = JSON.parse(await fs.promises.readFile(np, 'utf8'));
         
-        // 🎯 Carregar APENAS nós tipo Document (raiz)
+        // ?? Carregar APENAS n�s tipo Document (raiz)
         const rootNodes = allNodes.filter(n => n.type === 'Document').slice(0, 20); // Max 20 documentos iniciais
         
         console.log('[loadInitialNodes] Loaded', rootNodes.length, 'root nodes (Documents)');
@@ -128,7 +128,7 @@ async function loadInitialNodes(context: vscode.ExtensionContext | undefined): P
 }
 
 /**
- * Expande um nó específico, carregando seus filhos (Sections, Keywords)
+ * Expande um n� espec�fico, carregando seus filhos (Sections, Keywords)
  */
 async function expandNode(context: vscode.ExtensionContext | undefined, nodeId: string): Promise<{ nodes: GraphNode[], edges: GraphEdge[] }> {
     const empty = { nodes: [], edges: [] };
@@ -150,14 +150,14 @@ async function expandNode(context: vscode.ExtensionContext | undefined, nodeId: 
         const allNodes: GraphNode[] = JSON.parse(await fs.promises.readFile(np, 'utf8'));
         const allEdges: GraphEdge[] = JSON.parse(await fs.promises.readFile(ep, 'utf8'));
         
-        // Encontrar edges que saem do nó clicado
+        // Encontrar edges que saem do n� clicado
         const relatedEdges = allEdges.filter(e => e.source === nodeId).slice(0, 10); // Max 10 edges
         
-        // Encontrar nós conectados
+        // Encontrar n�s conectados
         const targetIds = new Set(relatedEdges.map(e => e.target));
         const relatedNodes = allNodes.filter(n => targetIds.has(n.id));
         
-        console.log('[expandNode]', nodeId, '→', relatedNodes.length, 'children');
+        console.log('[expandNode]', nodeId, '?', relatedNodes.length, 'children');
         
         return { nodes: relatedNodes, edges: relatedEdges };
     } catch (e) {
@@ -193,30 +193,30 @@ function getGraphHTML(): string {
 </head>
 <body>
     <div id="toolbar">
-        <button class="button" onclick="fit()">🔍 Fit</button>
-        <button class="button" onclick="reset()">↺ Reset</button>
-        <button class="button" onclick="toggleHelp()">❓ Ajuda</button>
-        <span class="toolbar-title">🌐 Mini-LightRAG Graph (Progressive)</span>
+        <button class="button" onclick="fit()">?? Fit</button>
+        <button class="button" onclick="reset()">? Reset</button>
+        <button class="button" onclick="toggleHelp()">? Ajuda</button>
+        <span class="toolbar-title">?? Mini-LightRAG Graph (Progressive)</span>
     </div>
     
     <div id="help">
-        <h3 class="help-title">💡 Como usar:</h3>
+        <h3 class="help-title">?? Como usar:</h3>
         <ul class="help-list">
-            <li><strong>Clique simples:</strong> Expande o nó (carrega filhos)</li>
+            <li><strong>Clique simples:</strong> Expande o n� (carrega filhos)</li>
             <li><strong>Clique duplo:</strong> Abre arquivo (se for Document)</li>
-            <li><strong>Verde:</strong> Nó já expandido</li>
+            <li><strong>Verde:</strong> N� j� expandido</li>
             <li><strong>Azul:</strong> Document (raiz)</li>
             <li><strong>Laranja:</strong> Section/Keyword</li>
         </ul>
     </div>
     
     <div id="cy"></div>
-    <div id="loading"><h2>⏳ Carregando nós raiz...</h2></div>
+    <div id="loading"><h2>? Carregando n�s raiz...</h2></div>
     
     <div id="stats">
         <span id="st">Aguardando...</span>
         <span class="stats-right">
-            <strong>Visíveis:</strong> <span id="visibleNodes">0</span> nós, <span id="visibleEdges">0</span> edges
+            <strong>Vis�veis:</strong> <span id="visibleNodes">0</span> n�s, <span id="visibleEdges">0</span> edges
         </span>
     </div>
 
@@ -231,7 +231,7 @@ function getGraphHTML(): string {
             if (e.data.command === 'loadGraph') {
                 const d = e.data.data;
                 if (d.nodes.length === 0) {
-                    document.getElementById('loading').innerHTML = '<h2>⚠️ Nenhum dado. Execute CAPPY: Reindex Workspace</h2>';
+                    document.getElementById('loading').innerHTML = '<h2>?? Nenhum dado. Execute CAPPY: Reindex Workspace</h2>';
                     return;
                 }
                 document.getElementById('loading').style.display = 'none';
@@ -316,7 +316,7 @@ function getGraphHTML(): string {
             const edgeCount = cy.edges().length;
             document.getElementById('visibleNodes').textContent = nodeCount;
             document.getElementById('visibleEdges').textContent = edgeCount;
-            document.getElementById('st').innerHTML = '<strong>' + expandedNodes.size + '</strong> nós expandidos | <strong>' + (nodeCount - expandedNodes.size) + '</strong> podem ser expandidos';
+            document.getElementById('st').innerHTML = '<strong>' + expandedNodes.size + '</strong> n�s expandidos | <strong>' + (nodeCount - expandedNodes.size) + '</strong> podem ser expandidos';
         }
         
         function fit() { if (cy) cy.fit(null, 50); }

@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { LightRAGUIManager } from '../ui/uiManager';
+import { CappyRAGUIManager } from '../ui/uiManager';
 import { QueryOrchestrator } from '../query/orchestrator';
 
 /**
- * Test suite for LightRAG UI Components
+ * Test suite for CappyRAG UI Components
  */
-async function testLightRAGUI() {
-    console.log('🧪 Testing LightRAG UI Components...');
+async function testCappyRAGUI() {
+    console.log('🧪 Testing CappyRAG UI Components...');
 
     try {
         // Mock extension context
@@ -52,7 +52,7 @@ async function testLightRAGUI() {
 
         // Test UI Manager initialization
         console.log('\n📋 Test 1: UI Manager initialization...');
-        const uiManager = new LightRAGUIManager(
+        const uiManager = new CappyRAGUIManager(
             mockContext as vscode.ExtensionContext,
             mockOrchestrator as QueryOrchestrator
         );
@@ -75,19 +75,19 @@ async function testLightRAGUI() {
         console.log('\n📋 Test 5: Search UI flow...');
         await testSearchUIFlow(uiManager, mockOrchestrator);
 
-        console.log('\n🎉 LightRAG UI Components Test Completed Successfully!');
+        console.log('\n🎉 CappyRAG UI Components Test Completed Successfully!');
         printUITestSummary();
 
         // Cleanup
         uiManager.dispose();
 
     } catch (error) {
-        console.error('❌ LightRAG UI test failed:', error);
+        console.error('❌ CappyRAG UI test failed:', error);
         throw error;
     }
 }
 
-async function testProgressIndicators(uiManager: LightRAGUIManager): Promise<void> {
+async function testProgressIndicators(uiManager: CappyRAGUIManager): Promise<void> {
     // Test initialization progress
     await uiManager.showInitializationProgress(async () => {
         // Simulate initialization work
@@ -106,7 +106,7 @@ async function testProgressIndicators(uiManager: LightRAGUIManager): Promise<voi
     console.log('✅ Indexing progress indicator tested');
 }
 
-async function testNotifications(uiManager: LightRAGUIManager): Promise<void> {
+async function testNotifications(uiManager: CappyRAGUIManager): Promise<void> {
     // Test success notification
     uiManager.showSuccess('Test success message');
     console.log('✅ Success notification tested');
@@ -128,7 +128,7 @@ async function testNotifications(uiManager: LightRAGUIManager): Promise<void> {
     console.log('✅ Indexing completion notification tested');
 }
 
-async function testSearchUIFlow(uiManager: LightRAGUIManager, mockOrchestrator: any): Promise<void> {
+async function testSearchUIFlow(uiManager: CappyRAGUIManager, mockOrchestrator: any): Promise<void> {
     // Test search with results display
     await uiManager.showSearchProgress('test query', async () => {
         const searchResult = await mockOrchestrator.search('test query');
@@ -156,9 +156,9 @@ function printUITestSummary(): void {
 }
 
 // Export for use in test suites
-export { testLightRAGUI };
+export { testCappyRAGUI };
 
 // Run test if called directly
 if (require.main === module) {
-    testLightRAGUI().catch(console.error);
+    testCappyRAGUI().catch(console.error);
 }

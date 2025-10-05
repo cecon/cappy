@@ -187,8 +187,8 @@ export class CappyRAGMCPServer {
 
     private async handleQueryKnowledgeBase(query: string, maxResults: number = 5): Promise<string> {
         try {
-            const { getDatabase } = await import('../commands/lightrag/utils/databaseHelper');
-            const { handleExecuteQuery } = await import('../commands/lightrag/handlers/retrievalHandlers');
+            const { getDatabase } = await import('../commands/cappyrag/utils/databaseHelper');
+            const { handleExecuteQuery } = await import('../commands/cappyrag/handlers/retrievalHandlers');
             
             const db = getDatabase();
             await db.initialize();
@@ -197,7 +197,7 @@ export class CappyRAGMCPServer {
             const allChunks = await db.getChunksAsync();
             
             if (allChunks.length === 0) {
-                return '📭 **No Documents Available**\n\nThe knowledge base is empty. Please add documents first using `lightrag.addDocument`.';
+                return '📭 **No Documents Available**\n\nThe knowledge base is empty. Please add documents first using `CappyRAG.addDocument`.';
             }
             
             // Rank and get top chunks
@@ -266,7 +266,7 @@ export class CappyRAGMCPServer {
     
     private async handleGetStats(): Promise<string> {
         try {
-            const { getDatabase } = await import('../commands/lightrag/utils/databaseHelper');
+            const { getDatabase } = await import('../commands/cappyrag/utils/databaseHelper');
             
             const db = getDatabase();
             await db.initialize();

@@ -12,13 +12,13 @@ import {
     ProcessingError,
     ValidationError,
     DeduplicationResult
-} from '../models/lightragTypes';
+} from '../models/cappyragTypes';
 
 /**
- * LightRAG Document Processor
+ * CappyRAG Document Processor
  * Implements the manual insertion strategy with LLM-based entity/relationship extraction
  */
-export class LightRAGDocumentProcessor {
+export class CappyRAGDocumentProcessor {
     private context: vscode.ExtensionContext;
     private storage: any; // TODO: Replace with proper LanceDB storage
     private llmService: any; // TODO: Replace with proper LLM service
@@ -30,7 +30,7 @@ export class LightRAGDocumentProcessor {
     }
 
     /**
-     * Process a single document through the LightRAG pipeline
+     * Process a single document through the CappyRAG pipeline
      */
     async processDocument(
         content: string,
@@ -209,7 +209,7 @@ export class LightRAGDocumentProcessor {
         chunk: DocumentChunk,
         entityTypes: string[]
     ): Promise<Entity[]> {
-        // LLM prompt for entity extraction (following LightRAG pattern)
+        // LLM prompt for entity extraction (following CappyRAG pattern)
         const prompt = `
 Analyze the following text and extract all important entities:
 

@@ -3,23 +3,23 @@
  * para processar documentos e extrair conhecimento
  */
 
-import { LightRAGDocumentProcessor } from "../core/simpleLightragProcessor";
-import { DocumentMetadata, ProcessingOptions } from "../models/lightragTypes";
+import { CappyRAGDocumentProcessor } from "../core/simplecappyragProcessor";
+import { DocumentMetadata, ProcessingOptions } from "../models/cappyragTypes";
 import * as fs from 'fs';
 import * as path from 'path';
 
 class CappyMCPClient {
-    private processor: LightRAGDocumentProcessor;
+    private processor: CappyRAGDocumentProcessor;
     
     constructor() {
-        this.processor = new LightRAGDocumentProcessor();
+        this.processor = new CappyRAGDocumentProcessor();
     }
     
     /**
-     * Simula como eu chamaria cappy.lightrag.addDocument
+     * Simula como eu chamaria cappy.CappyRAG.addDocument
      */
     async addDocument(filePath: string, options?: Partial<ProcessingOptions>) {
-        console.log(`🔧 [MCP Tool] cappy.lightrag.addDocument("${filePath}")`);
+        console.log(`🔧 [MCP Tool] cappy.CappyRAG.addDocument("${filePath}")`);
         
         try {
             // Verificar se arquivo existe
@@ -88,7 +88,7 @@ class CappyMCPClient {
      * Simula como eu buscaria informações processadas
      */
     async queryKnowledge(query: string) {
-        console.log(`🔍 [MCP Tool] cappy.lightrag.query("${query}")`);
+        console.log(`🔍 [MCP Tool] cappy.CappyRAG.query("${query}")`);
         
         // Simulação de busca no conhecimento processado
         return {
@@ -96,13 +96,13 @@ class CappyMCPClient {
             results: [
                 {
                     type: 'entity',
-                    name: 'LightRAG',
+                    name: 'CappyRAG',
                     relevance: 0.95,
                     context: 'Sistema de processamento de documentos'
                 },
                 {
                     type: 'relationship',
-                    source: 'LightRAG',
+                    source: 'CappyRAG',
                     target: 'Vector Database',
                     relation: 'STORES_IN',
                     relevance: 0.87
@@ -173,7 +173,7 @@ async function demonstrateLLMUsage() {
     }
     
     console.log("\n=== Cenário 3: Buscar conhecimento ===");
-    const queryResult = await mcpClient.queryKnowledge("Como funciona o sistema LightRAG?");
+    const queryResult = await mcpClient.queryKnowledge("Como funciona o sistema CappyRAG?");
     console.log("Resultado da busca:", JSON.stringify(queryResult, null, 2));
     
     console.log("\n🎯 Demonstração concluída!");

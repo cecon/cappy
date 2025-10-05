@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { registerLightRAGCommands } from '../commands/lightragCommands';
+import { registerCappyRAGCommands } from '../commands/CappyRAGCommands';
 
 /**
- * Simple test for LightRAG VS Code Commands Integration
+ * Simple test for CappyRAG VS Code Commands Integration
  */
-async function testLightRAGIntegration() {
-    console.log('🧪 Testing LightRAG VS Code Integration...');
+async function testCappyRAGIntegration() {
+    console.log('🧪 Testing CappyRAG VS Code Integration...');
 
     try {
         // Mock extension context
@@ -20,23 +20,23 @@ async function testLightRAGIntegration() {
 
         // Test command registration
         console.log('📋 Testing command registration...');
-        registerLightRAGCommands(mockContext as vscode.ExtensionContext);
+        registerCappyRAGCommands(mockContext as vscode.ExtensionContext);
         console.log('✅ Commands registered successfully');
         console.log(`   - Registered ${mockContext.subscriptions?.length || 0} command subscriptions`);
 
         // Test command availability
         console.log('\n📋 Testing command availability...');
         const availableCommands = await vscode.commands.getCommands();
-        const lightragCommands = availableCommands.filter(cmd => cmd.startsWith('cappy.lightrag'));
+        const CappyRAGCommands = availableCommands.filter(cmd => cmd.startsWith('cappy.CappyRAG'));
         
-        console.log(`✅ LightRAG commands available: ${lightragCommands.length}`);
-        lightragCommands.forEach(cmd => {
+        console.log(`✅ CappyRAG commands available: ${CappyRAGCommands.length}`);
+        CappyRAGCommands.forEach(cmd => {
             console.log(`   - ${cmd}`);
         });
 
         // Test configuration validation
         console.log('\n📋 Testing configuration...');
-        const config = vscode.workspace.getConfiguration('cappy.lightrag');
+        const config = vscode.workspace.getConfiguration('cappy.CappyRAG');
         console.log('✅ Configuration accessible');
         console.log(`   - Vector dimension: ${config.get('vectorDimension', 384)}`);
         console.log(`   - Auto-index on save: ${config.get('indexing.autoIndexOnSave', true)}`);
@@ -57,11 +57,11 @@ async function testLightRAGIntegration() {
         console.log('✅ Output channel integration ready');
         console.log('✅ Quick pick integration ready');
 
-        console.log('\n🎉 LightRAG VS Code Integration Test Completed Successfully!');
+        console.log('\n🎉 CappyRAG VS Code Integration Test Completed Successfully!');
         printIntegrationSummary();
 
     } catch (error) {
-        console.error('❌ LightRAG integration test failed:', error);
+        console.error('❌ CappyRAG integration test failed:', error);
         throw error;
     }
 }
@@ -69,7 +69,7 @@ async function testLightRAGIntegration() {
 function printIntegrationSummary(): void {
     console.log('\n📊 Integration Summary:');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('✅ Command Registration    - All LightRAG commands registered');
+    console.log('✅ Command Registration    - All CappyRAG commands registered');
     console.log('✅ VS Code API Integration - Status bar, output, quick pick');
     console.log('✅ Context Menu Support    - Search selected text');
     console.log('✅ Keyboard Shortcuts      - Ctrl+Shift+F for search');
@@ -82,9 +82,9 @@ function printIntegrationSummary(): void {
 }
 
 // Export for use in test suites
-export { testLightRAGIntegration };
+export { testCappyRAGIntegration };
 
 // Run test if called directly
 if (require.main === module) {
-    testLightRAGIntegration().catch(console.error);
+    testCappyRAGIntegration().catch(console.error);
 }
