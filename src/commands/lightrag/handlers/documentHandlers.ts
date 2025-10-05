@@ -203,3 +203,79 @@ export async function handleClearAllDocuments(panel: vscode.WebviewPanel): Promi
         vscode.window.showErrorMessage('Failed to clear documents');
     }
 }
+
+/**
+ * Handle generating description using Copilot
+ */
+export async function handleGenerateDescription(data: any, panel: vscode.WebviewPanel): Promise<void> {
+    try {
+        const { fileName, fileExtension, fileSize, contentPreview, title } = data;
+        
+        // Prepare prompt for GitHub Copilot
+        const prompt = `Analyze this document and provide:
+1. A concise description (2-3 sentences)
+2. An appropriate category (e.g., Documentation, Code, Research, Tutorial, Reference)
+3. Suggested chunk size based on content type
+
+Document: ${fileName}
+Extension: ${fileExtension}
+Size: ${fileSize} bytes
+${title ? `Title: ${title}` : ''}
+
+Content preview:
+${contentPreview}
+
+Respond in JSON format:
+{
+    "description": "...",
+    "category": "...",
+    "chunkInfo": "Suggested chunk size: X tokens based on Y"
+}`;
+
+        // Use VS Code's language model API (Copilot)
+        const models = await vscode.lm.selectChatModels({
+            vendor: 'copilot',
+            family: 'gpt-4o'
+        });
+
+        if (models.length === 0) {
+            throw new Error('No Copilot model available');
+        }
+
+        const model = models[0];
+        const messages = [
+            vscode.LanguageModelChatMessage.User(prompt)
+        ];
+
+        const response = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+        
+        let fullResponse = '';
+        for await (const chunk of response.text) {
+            fullResponse += chunk;
+        }
+
+        // Parse JSON response
+        const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const result = JSON.parse(jsonMatch[0]);
+            
+            panel.webview.postMessage({
+                command: 'descriptionGenerated',
+                data: {
+                    description: result.description,
+                    category: result.category,
+                    chunkInfo: result.chunkInfo
+                }
+            });
+        } else {
+            throw new Error('Failed to parse Copilot response');
+        }
+
+    } catch (error) {
+        console.error('[LightRAG] Failed to generate description:', error);
+        panel.webview.postMessage({
+            command: 'uploadError',
+            data: { message: error instanceof Error ? error.message : 'Failed to generate description' }
+        });
+    }
+}

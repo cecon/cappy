@@ -40,6 +40,19 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
 
         // Add entity nodes
         entities.forEach((entity: any) => {
+            // Convert Apache Arrow array to JS array if needed
+            let documentIds: string[] = [];
+            if (entity.documentIds) {
+                if (Array.isArray(entity.documentIds)) {
+                    documentIds = entity.documentIds;
+                } else if (typeof entity.documentIds.toArray === 'function') {
+                    documentIds = entity.documentIds.toArray();
+                } else if (typeof entity.documentIds === 'object' && entity.documentIds.length !== undefined) {
+                    // Apache Arrow Vector - convert to array manually
+                    documentIds = Array.from({ length: entity.documentIds.length }, (_, i) => entity.documentIds[i]);
+                }
+            }
+            
             nodes.push({
                 id: entity.id,
                 label: entity.name,
@@ -48,20 +61,22 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
                 color: '#3b82f6',
                 metadata: {
                     type: entity.type,
-                    documentIds: entity.documentIds
+                    documentIds: documentIds
                 }
             });
 
             // Connect entity to its documents
-            if (entity.documentIds && entity.documentIds.length > 0) {
-                entity.documentIds.forEach((docId: string) => {
-                    edges.push({
-                        source: docId,
-                        target: entity.id,
-                        label: 'contains',
-                        type: 'line',
-                        size: 2
-                    });
+            if (documentIds && documentIds.length > 0) {
+                documentIds.forEach((docId: string) => {
+                    if (docId) { // Skip null/undefined
+                        edges.push({
+                            source: docId,
+                            target: entity.id,
+                            label: 'contains',
+                            type: 'line',
+                            size: 2
+                        });
+                    }
                 });
             }
         });
@@ -80,6 +95,29 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
 
         // Add chunk nodes (smaller, connected to documents)
         chunks.slice(0, 50).forEach((chunk: any) => { // Limit to 50 chunks for performance
+            // Convert Apache Arrow arrays to JS arrays if needed
+            let chunkEntities: string[] = [];
+            if (chunk.entities) {
+                if (Array.isArray(chunk.entities)) {
+                    chunkEntities = chunk.entities;
+                } else if (typeof chunk.entities.toArray === 'function') {
+                    chunkEntities = chunk.entities.toArray();
+                } else if (typeof chunk.entities === 'object' && chunk.entities.length !== undefined) {
+                    chunkEntities = Array.from({ length: chunk.entities.length }, (_, i) => chunk.entities[i]);
+                }
+            }
+            
+            let chunkRelationships: string[] = [];
+            if (chunk.relationships) {
+                if (Array.isArray(chunk.relationships)) {
+                    chunkRelationships = chunk.relationships;
+                } else if (typeof chunk.relationships.toArray === 'function') {
+                    chunkRelationships = chunk.relationships.toArray();
+                } else if (typeof chunk.relationships === 'object' && chunk.relationships.length !== undefined) {
+                    chunkRelationships = Array.from({ length: chunk.relationships.length }, (_, i) => chunk.relationships[i]);
+                }
+            }
+            
             nodes.push({
                 id: chunk.id,
                 label: `Chunk ${chunk.chunkIndex}`,
@@ -89,8 +127,8 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
                 metadata: {
                     contentLength: chunk.content.length,
                     documentId: chunk.documentId,
-                    entities: chunk.entities.length,
-                    relationships: chunk.relationships.length
+                    entities: chunkEntities.length,
+                    relationships: chunkRelationships.length
                 }
             });
 

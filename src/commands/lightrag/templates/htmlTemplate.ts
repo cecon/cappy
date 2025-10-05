@@ -7,13 +7,12 @@ import * as path from 'path';
  * This replaces the monolithic inline approach
  */
 export function generateWebviewHTML(webview: vscode.Webview, context: vscode.ExtensionContext): string {
-    // Get paths to external resources
-    const cssPath = vscode.Uri.joinPath(context.extensionUri, 'src', 'commands', 'lightrag', 'templates', 'dashboard.css');
-    const jsPath = vscode.Uri.joinPath(context.extensionUri, 'src', 'commands', 'lightrag', 'templates', 'dashboard.js');
+    // Read CSS and JS content directly (more reliable than external files in webview)
+    const cssPath = path.join(context.extensionPath, 'out', 'commands', 'lightrag', 'templates', 'dashboard.css');
+    const jsPath = path.join(context.extensionPath, 'out', 'commands', 'lightrag', 'templates', 'dashboard.js');
     
-    // Convert to webview URIs
-    const cssUri = webview.asWebviewUri(cssPath);
-    const jsUri = webview.asWebviewUri(jsPath);
+    const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf-8') : '';
+    const jsContent = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, 'utf-8') : '';
     
     return `<!DOCTYPE html>
 <html lang="en">
@@ -22,7 +21,7 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'unsafe-inline' 'unsafe-eval';">
     <title>LightRAG - Knowledge Graph Dashboard</title>
-    <link rel="stylesheet" href="${cssUri}">
+    <style>${cssContent}</style>
 </head>
 <body>
     <!-- Toast Container -->
@@ -232,7 +231,15 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Description</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <label class="form-label" style="margin-bottom: 0;">Description</label>
+                        <button class="btn btn-secondary" onclick="askCopilotForDescription()" style="height: 28px; padding: 0 12px; font-size: 13px;" title="Generate description using Copilot">
+                            <svg style="width: 14px; height: 14px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                            </svg>
+                            Ask Copilot
+                        </button>
+                    </div>
                     <textarea id="document-description" class="form-textarea" placeholder="Enter document description"></textarea>
                 </div>
                 
@@ -241,8 +248,16 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
                     <input type="text" id="document-category" class="form-input" placeholder="e.g., Documentation, Code, Research">
                 </div>
                 
-                <div id="chunk-info" style="display: none; padding: 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px;">
-                    <div id="chunk-info-text"></div>
+                <div id="chunk-info" style="display: none; padding: 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: start; gap: 8px;">
+                        <svg style="width: 16px; height: 16px; color: #0284c7; flex-shrink: 0; margin-top: 2px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; font-size: 13px; color: #0c4a6e; margin-bottom: 4px;">Copilot Chunking Suggestion</div>
+                            <div id="chunk-info-text" style="font-size: 12px; color: #075985;"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -252,7 +267,7 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
         </div>
     </div>
 
-    <script src="${jsUri}"></script>
+    <script>${jsContent}</script>
 </body>
 </html>`;
 }

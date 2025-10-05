@@ -193,6 +193,68 @@ window.uploadDocument = function() {
     reader.readAsText(file);
 };
 
+window.askCopilotForDescription = async function() {
+    const fileInput = document.getElementById('file-input');
+    const titleInput = document.getElementById('document-title');
+    const descriptionTextarea = document.getElementById('document-description');
+    const categoryInput = document.getElementById('document-category');
+    
+    if (!fileInput.files || fileInput.files.length === 0) {
+        showToast('error', 'No File Selected', 'Please select a file first');
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const fileName = file.name;
+    const fileExtension = fileName.split('.').pop().toLowerCase();
+    
+    // Show loading state for all fields
+    const originalDesc = descriptionTextarea.value;
+    const originalCategory = categoryInput.value;
+    descriptionTextarea.value = '⏳ Asking Copilot to analyze...';
+    descriptionTextarea.disabled = true;
+    categoryInput.value = '⏳ Analyzing...';
+    categoryInput.disabled = true;
+    
+    showToast('info', 'Analyzing Document', 'Copilot is analyzing your file...');
+    
+    try {
+        // Read file content (first 3000 chars for better analysis)
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const content = e.target.result;
+            const preview = content.substring(0, 3000);
+            
+            // Send request to backend to generate all metadata
+            vscode.postMessage({
+                command: 'generateDescription',
+                data: {
+                    fileName: fileName,
+                    fileExtension: fileExtension,
+                    fileSize: file.size,
+                    contentPreview: preview,
+                    title: titleInput.value,
+                    generateAll: true
+                }
+            });
+        };
+        reader.onerror = function() {
+            descriptionTextarea.value = originalDesc;
+            descriptionTextarea.disabled = false;
+            categoryInput.value = originalCategory;
+            categoryInput.disabled = false;
+            showToast('error', 'File Read Failed', 'Could not read file content');
+        };
+        reader.readAsText(file);
+    } catch (error) {
+        descriptionTextarea.value = originalDesc;
+        descriptionTextarea.disabled = false;
+        categoryInput.value = originalCategory;
+        categoryInput.disabled = false;
+        showToast('error', 'Analysis Failed', error.message);
+    }
+};
+
 // ==================== FILE UPLOAD HANDLING ====================
 
 function initDragAndDrop() {
@@ -337,15 +399,24 @@ window.loadGraph = function() {
     const loading = document.getElementById('graph-loading');
     const empty = document.getElementById('graph-empty');
     
-    if (!container || !loading || !empty) {
-        console.error('[Graph] Required DOM elements not found');
+    if (!container) {
+        console.error('[Graph] Graph container not found');
         return;
     }
     
-    // Show loading state
-    loading.style.display = 'flex';
-    empty.style.display = 'none';
-    container.innerHTML = '';
+    // Show loading state (elements are inside container, don't clear innerHTML)
+    if (loading) {
+        loading.style.display = 'flex';
+    }
+    if (empty) {
+        empty.style.display = 'none';
+    }
+    
+    // Remove any existing graph canvas/svg (keep loading/empty divs)
+    const existingCanvas = container.querySelector('canvas');
+    const existingSvg = container.querySelector('svg');
+    if (existingCanvas) existingCanvas.remove();
+    if (existingSvg) existingSvg.remove();
     
     console.log('[Graph] Requesting graph data from extension...');
     vscode.postMessage({ command: 'getGraphData' });
@@ -369,8 +440,46 @@ window.closeNodeDetails = function() {
 
 function renderGraph(data) {
     console.log('[Graph] Rendering graph data:', data);
-    // Graph rendering logic would go here
-    // This is a placeholder - full implementation in next iteration
+    
+    const loading = document.getElementById('graph-loading');
+    const empty = document.getElementById('graph-empty');
+    const container = document.getElementById('graph-container');
+    
+    // Hide loading
+    if (loading) {
+        loading.style.display = 'none';
+    }
+    
+    // Check if we have data
+    if (!data || !data.nodes || data.nodes.length === 0) {
+        console.log('[Graph] No graph data to display');
+        if (empty) {
+            empty.style.display = 'flex';
+        }
+        return;
+    }
+    
+    // Hide empty message
+    if (empty) {
+        empty.style.display = 'none';
+    }
+    
+    console.log('[Graph] Graph visualization will be implemented in next iteration');
+    console.log(`[Graph] Nodes: ${data.nodes.length}, Edges: ${data.edges ? data.edges.length : 0}`);
+    
+    // TODO: Implement actual graph rendering (Sigma.js, D3.js, or Force-Graph)
+    // For now, just show a message
+    if (container) {
+        const placeholder = document.createElement('div');
+        placeholder.style.cssText = 'display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted-foreground); font-size: 14px;';
+        placeholder.textContent = `Graph visualization ready: ${data.nodes.length} nodes, ${data.edges ? data.edges.length : 0} edges`;
+        
+        // Remove old placeholder if exists
+        const oldPlaceholder = container.querySelector('div:not(#graph-loading):not(#graph-empty)');
+        if (oldPlaceholder) oldPlaceholder.remove();
+        
+        container.appendChild(placeholder);
+    }
 }
 
 // ==================== MESSAGE HANDLING ====================
@@ -419,6 +528,30 @@ window.addEventListener('message', function(event) {
             
         case 'graphData':
             renderGraph(message.data);
+            break;
+            
+        case 'descriptionGenerated':
+            const descriptionTextarea = document.getElementById('document-description');
+            const categoryInput = document.getElementById('document-category');
+            const chunkInfo = document.getElementById('chunk-info');
+            const chunkInfoText = document.getElementById('chunk-info-text');
+            
+            if (message.data.description) {
+                descriptionTextarea.value = message.data.description;
+                descriptionTextarea.disabled = false;
+            }
+            
+            if (message.data.category) {
+                categoryInput.value = message.data.category;
+                categoryInput.disabled = false;
+            }
+            
+            if (message.data.chunkInfo) {
+                chunkInfoText.textContent = message.data.chunkInfo;
+                chunkInfo.style.display = 'block';
+            }
+            
+            showToast('success', 'Analysis Complete', 'Document metadata generated by Copilot');
             break;
             
         case 'uploadError':

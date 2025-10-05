@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { handleLoadDocuments, handleDocumentUpload, handleDocumentDelete, handleClearAllDocuments } from './handlers/documentHandlers';
+import { handleLoadDocuments, handleDocumentUpload, handleDocumentDelete, handleClearAllDocuments, handleGenerateDescription } from './handlers/documentHandlers';
 import { handleGetGraphData } from './handlers/graphHandlers';
 import { getDatabase } from './utils/databaseHelper';
 
@@ -74,6 +74,10 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
 
                 case 'getGraphData':
                     await handleGetGraphData(panel);
+                    break;
+
+                case 'generateDescription':
+                    await handleGenerateDescription(message.data, panel);
                     break;
 
                 default:
