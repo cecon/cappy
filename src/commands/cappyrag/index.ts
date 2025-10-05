@@ -11,7 +11,7 @@ import { getDatabase } from './utils/databaseHelper';
 export async function openDocumentUploadUI(context: vscode.ExtensionContext, initialTab: string = 'documents') {
     const panel = vscode.window.createWebviewPanel(
         'lightragDashboard',
-        'CappyRAG - Knowledge Graph Dashboard',
+        'Cappy',
         vscode.ViewColumn.One,
         {
             enableScripts: true,
