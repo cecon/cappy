@@ -912,6 +912,7 @@ window.addEventListener('message', function(event) {
             
         case 'graphData':
             renderGraph(message.data);
+            updateGraphLegend(message.data);
             break;
             
         case 'queryResults':
