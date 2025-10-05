@@ -47,6 +47,11 @@ test-chunking.js
 .git/**
 .github/**
 
+# Project-specific folders to exclude
+.cappy/**
+.cursor/**
+scripts/**
+
 # Logs
 *.log
 npm-debug.log*
