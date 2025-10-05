@@ -851,9 +851,18 @@ function updateGraphLegend(data) {
         relationship: 0
     };
 
+    // Count nodes by type
     data.nodes.forEach(node => {
         if (counts.hasOwnProperty(node.type)) {
             counts[node.type]++;
+        }
+    });
+
+    // Count relationship edges (edges between entities with specific color)
+    data.edges.forEach(edge => {
+        // Relationship edges have color #f97316 and connect entities
+        if (edge.color === '#f97316') {
+            counts.relationship++;
         }
     });
 
