@@ -88,7 +88,7 @@ test-workspace/
 
 
 
-.cappy/lightrag-lancedb/
+.cappy/cappyrag-data/
 .cappy/history/# Mini-LightRAG - banco de dados local por workspace
 .cappy/tasks/
 .cappy/output.txt

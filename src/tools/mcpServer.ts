@@ -2,10 +2,12 @@ import * as vscode from 'vscode';
 import { AddDocumentTool, AddDocumentResult } from './addDocumentTool';
 
 /**
- * MCP Server for exposing LightRAG tools to LLMs
- * Based on Model Context Protocol specification
+ * MCP Server for exposing CappyRAG tools to LLMs
+ * Based on Model Context Prot            if (allChunks.length === 0) {
+                return '📝 **No Documents Available**\n\nThe knowledge base is empty. Please add documents first using `cappyrag.addDocument`.';
+            }l specification
  */
-export class LightRAGMCPServer {
+export class CappyRAGMCPServer {
     private addDocumentTool: AddDocumentTool;
     private context: vscode.ExtensionContext;
 
@@ -20,12 +22,14 @@ export class LightRAGMCPServer {
     registerTools(): void {
         // Register commands that can be called by LLMs
         this.context.subscriptions.push(
-            vscode.commands.registerCommand('lightrag.addDocument', this.handleAddDocument.bind(this)),
-            vscode.commands.registerCommand('lightrag.getSupportedFormats', this.handleGetSupportedFormats.bind(this)),
-            vscode.commands.registerCommand('lightrag.estimateProcessingTime', this.handleEstimateProcessingTime.bind(this))
+            vscode.commands.registerCommand('cappyrag.addDocument', this.handleAddDocument.bind(this)),
+            vscode.commands.registerCommand('cappyrag.getSupportedFormats', this.handleGetSupportedFormats.bind(this)),
+            vscode.commands.registerCommand('cappyrag.estimateProcessingTime', this.handleEstimateProcessingTime.bind(this)),
+            vscode.commands.registerCommand('cappyrag.queryKnowledgeBase', this.handleQueryKnowledgeBase.bind(this)),
+            vscode.commands.registerCommand('cappyrag.getStats', this.handleGetStats.bind(this))
         );
 
-        console.log('Registered LightRAG MCP commands');
+        console.log('Registered CappyRAG MCP commands');
     }
 
     private async handleAddDocument(
@@ -181,6 +185,143 @@ export class LightRAGMCPServer {
         return response;
     }
 
+    private async handleQueryKnowledgeBase(query: string, maxResults: number = 5): Promise<string> {
+        try {
+            const { getDatabase } = await import('../commands/lightrag/utils/databaseHelper');
+            const { handleExecuteQuery } = await import('../commands/lightrag/handlers/retrievalHandlers');
+            
+            const db = getDatabase();
+            await db.initialize();
+            
+            // Get all chunks for retrieval
+            const allChunks = await db.getChunksAsync();
+            
+            if (allChunks.length === 0) {
+                return '📭 **No Documents Available**\n\nThe knowledge base is empty. Please add documents first using `lightrag.addDocument`.';
+            }
+            
+            // Rank and get top chunks
+            const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+            const rankedChunks = allChunks.map(chunk => {
+                const content = chunk.content.toLowerCase();
+                let score = 0;
+                
+                queryTerms.forEach(term => {
+                    const matches = (content.match(new RegExp(term, 'g')) || []).length;
+                    score += matches;
+                });
+                
+                return { ...chunk, score };
+            }).sort((a, b) => b.score - a.score);
+            
+            const topChunks = rankedChunks.slice(0, maxResults);
+            
+            // Get related entities and relationships
+            const entities = await db.getEntitiesAsync();
+            const relationships = await db.getRelationshipsAsync();
+            
+            let response = `🔍 **Query Results for:** "${query}"\n\n`;
+            response += `📊 **Summary:**\n`;
+            response += `  • Found ${topChunks.length} relevant chunk(s)\n`;
+            response += `  • Total entities in knowledge base: ${entities.length}\n`;
+            response += `  • Total relationships: ${relationships.length}\n\n`;
+            
+            response += `📄 **Top ${topChunks.length} Relevant Chunks:**\n\n`;
+            
+            for (let i = 0; i < topChunks.length; i++) {
+                const chunk = topChunks[i];
+                const preview = chunk.content.substring(0, 200).replace(/\n/g, ' ');
+                response += `${i + 1}. **Document:** ${chunk.documentId}\n`;
+                response += `   **Relevance Score:** ${chunk.score}\n`;
+                response += `   **Content Preview:** ${preview}...\n\n`;
+            }
+            
+            // Find related entities
+            const relevantEntityIds = new Set<string>();
+            topChunks.forEach(chunk => {
+                if (Array.isArray(chunk.entities)) {
+                    chunk.entities.forEach((entityId: string) => relevantEntityIds.add(entityId));
+                }
+            });
+            
+            const relevantEntities = entities.filter(e => relevantEntityIds.has(e.id));
+            
+            if (relevantEntities.length > 0) {
+                response += `🏷️ **Related Entities (${relevantEntities.length}):**\n`;
+                relevantEntities.slice(0, 10).forEach(entity => {
+                    response += `  • ${entity.name} (${entity.type})\n`;
+                });
+                if (relevantEntities.length > 10) {
+                    response += `  ... and ${relevantEntities.length - 10} more\n`;
+                }
+                response += `\n`;
+            }
+            
+            return response;
+            
+        } catch (error) {
+            return `❌ Error querying knowledge base: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        }
+    }
+    
+    private async handleGetStats(): Promise<string> {
+        try {
+            const { getDatabase } = await import('../commands/lightrag/utils/databaseHelper');
+            
+            const db = getDatabase();
+            await db.initialize();
+            
+            const documents = await db.getDocumentsAsync();
+            const entities = await db.getEntitiesAsync();
+            const relationships = await db.getRelationshipsAsync();
+            const chunks = await db.getChunksAsync();
+            
+            let response = `📊 **Knowledge Base Statistics**\n\n`;
+            
+            response += `📄 **Documents:** ${documents.length}\n`;
+            response += `🏷️ **Entities:** ${entities.length}\n`;
+            response += `🔗 **Relationships:** ${relationships.length}\n`;
+            response += `📦 **Chunks:** ${chunks.length}\n\n`;
+            
+            if (documents.length > 0) {
+                const completedDocs = documents.filter(d => d.status === 'completed').length;
+                const processingDocs = documents.filter(d => d.status === 'processing').length;
+                const failedDocs = documents.filter(d => d.status === 'failed').length;
+                
+                response += `📈 **Document Status:**\n`;
+                response += `  • ✅ Completed: ${completedDocs}\n`;
+                response += `  • ⚙️ Processing: ${processingDocs}\n`;
+                response += `  • ❌ Failed: ${failedDocs}\n\n`;
+            }
+            
+            if (entities.length > 0) {
+                const entityTypes = new Map<string, number>();
+                entities.forEach(e => {
+                    const count = entityTypes.get(e.type) || 0;
+                    entityTypes.set(e.type, count + 1);
+                });
+                
+                response += `🏷️ **Entity Types:**\n`;
+                Array.from(entityTypes.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .forEach(([type, count]) => {
+                        response += `  • ${type}: ${count}\n`;
+                    });
+                response += `\n`;
+            }
+            
+            response += `💡 **Available Actions:**\n`;
+            response += `  • Add documents with \`cappyrag.addDocument\`\n`;
+            response += `  • Query knowledge with \`cappyrag.queryKnowledgeBase\`\n`;
+            response += `  • View graph visualization in dashboard\n`;
+            
+            return response;
+            
+        } catch (error) {
+            return `❌ Error getting statistics: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        }
+    }
+
     private formatDuration(ms: number): string {
         if (ms < 1000) {
             return `${ms}ms`;
@@ -196,20 +337,32 @@ export class LightRAGMCPServer {
      */
     getToolDescriptions(): string {
         return `
-🛠️ **Available LightRAG Tools:**
+🛠️ **Available CappyRAG Tools:**
 
-1. **lightrag_add_document** - Add a single document to the knowledge base
+1. **cappyrag_add_document** - Add a single document to the knowledge base
    • Processes documents through entity extraction and relationship mapping
    • Supports: .txt, .md, .pdf, .docx, .json, .xml, .html
    • Returns: Entities found, relationships mapped, processing status
    • Use for: Adding new documents to build your knowledge graph
 
-2. **lightrag_get_supported_formats** - Get supported file formats
+2. **cappyrag_query_knowledge_base** - Query the knowledge base
+   • Searches indexed documents and returns relevant chunks
+   • Shows related entities and relationships
+   • Parameters: query (string), maxResults (number, default 5)
+   • Use for: Finding information in your knowledge base
+
+3. **cappyrag_get_stats** - Get knowledge base statistics
+   • Shows document count, entities, relationships, and chunks
+   • Displays processing status of documents
+   • Entity type breakdown
+   • Use for: Understanding your knowledge base status
+
+4. **cappyrag_get_supported_formats** - Get supported file formats
    • Lists all supported and planned file formats
    • Includes format descriptions and requirements
    • Use for: Checking compatibility before upload
 
-3. **lightrag_estimate_processing_time** - Estimate processing duration
+5. **cappyrag_estimate_processing_time** - Estimate processing duration
    • Analyzes file size and complexity
    • Provides step-by-step time breakdown
    • Use for: Planning document uploads and setting expectations
@@ -217,7 +370,7 @@ export class LightRAGMCPServer {
 **Example Usage:**
 \`\`\`
 // Add a research paper to the knowledge base
-lightrag_add_document({
+cappyrag_add_document({
   "filePath": "/path/to/research-paper.pdf",
   "title": "AI Research Paper",
   "tags": ["ai", "research", "machine-learning"],

@@ -4,7 +4,7 @@ import {
   showConsentWebview,
 } from "./commands/telemetryConsent";
 import { openDocumentUploadUI } from "./commands/lightrag";
-import { LightRAGMCPServer } from "./tools/mcpServer";
+import { CappyRAGMCPServer } from "./tools/mcpServer";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 
 export function activate(context: vscode.ExtensionContext) {
@@ -22,10 +22,10 @@ export function activate(context: vscode.ExtensionContext) {
 
     console.log('🦫 Cappy MCP: Output channel created...');
 
-    // Register LightRAG MCP Server for document processing
-    const mcpServer = new LightRAGMCPServer(context);
+    // Register CappyRAG MCP Server for document processing
+    const mcpServer = new CappyRAGMCPServer(context);
     mcpServer.registerTools();
-    console.log('🛠️ Cappy MCP: LightRAG MCP tools registered');
+    console.log('🛠️ Cappy MCP: CappyRAG MCP tools registered');
 
     // Telemetry consent
     ensureTelemetryConsent(context)
@@ -70,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Document Upload UI Command
     const documentUploadCommand = vscode.commands.registerCommand(
-      "cappy.lightrag.uploadUI",
+      "cappyrag.uploadUI",
       async () => {
         try {
           await openDocumentUploadUI(context);

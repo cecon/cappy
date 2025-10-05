@@ -20,7 +20,7 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'unsafe-inline' 'unsafe-eval';">
-    <title>LightRAG - Knowledge Graph Dashboard</title>
+    <title>CappyRAG - Knowledge Graph Dashboard</title>
     <style>${cssContent}</style>
 </head>
 <body>
@@ -37,14 +37,15 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
-                        LightRAG Dashboard
+                        CappyRAG Dashboard
                     </h1>
                 </div>
                 
                 <nav class="nav-tabs">
-                    <button class="tab-trigger active" onclick="switchTab('documents')">Documents</button>
-                    <button class="tab-trigger" onclick="switchTab('graph')">Knowledge Graph</button>
-                    <button class="tab-trigger" onclick="switchTab('retrieval')">Query & Retrieval</button>
+                    <button id="tab-documents" class="tab-trigger active" onclick="switchTab('documents')">Documents</button>
+                    <button id="tab-graph" class="tab-trigger" onclick="switchTab('graph')">Knowledge Graph</button>
+                    <button id="tab-retrieval" class="tab-trigger" onclick="switchTab('retrieval')">Query & Retrieval</button>
+                    <button id="tab-queue" class="tab-trigger" onclick="switchTab('queue')">Processing Queue</button>
                 </nav>
             </header>
 
@@ -340,6 +341,96 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
                     </div>
                 </div>
             </div>
+            
+            <!-- Processing Queue Tab -->
+            <div id="queue-tab" class="tab-content">
+                <div class="page-header">
+                    <h2 class="page-title">Processing Pipeline</h2>
+                    <p class="page-description">Real-time view of document processing queue</p>
+                </div>
+                
+                <!-- Queue Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon documents">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <p class="stat-label">Pending</p>
+                            <h3 class="stat-value" id="queue-pending">0</h3>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon entities">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <p class="stat-label">Processing</p>
+                            <h3 class="stat-value" id="queue-processing">0</h3>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon relationships">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <p class="stat-label">Completed</p>
+                            <h3 class="stat-value" id="queue-completed">0</h3>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon chunks">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <p class="stat-label">Failed</p>
+                            <h3 class="stat-value" id="queue-failed">0</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Queue Table -->
+                <div class="table-container">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">Queue Items</h3>
+                        <button class="btn" onclick="refreshQueue()">
+                            <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Refresh
+                        </button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Document</th>
+                                <th>Status</th>
+                                <th>Progress</th>
+                                <th>Current Chunk</th>
+                                <th>Total Chunks</th>
+                                <th>Queued At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="queue-tbody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 2rem; color: #888;">No items in queue</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -352,64 +443,71 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
             <div class="modal-body">
                 <input type="file" id="file-input" accept=".txt,.md,.pdf,.doc,.docx" style="display: none;">
                 
+                <!-- Info Banner -->
+                <div style="padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; margin-bottom: 20px; color: white;">
+                    <div style="display: flex; align-items: start; gap: 12px;">
+                        <svg style="width: 24px; height: 24px; flex-shrink: 0; margin-top: 2px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <div>
+                            <div style="font-weight: 600; font-size: 16px; margin-bottom: 6px;">✨ Intelligent Processing with Copilot</div>
+                            <div style="font-size: 13px; opacity: 0.95; line-height: 1.5;">
+                                Select a document and it will be added to the processing queue. GitHub Copilot will analyze it chunk by chunk to extract entities, relationships, and semantic information automatically.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div id="upload-area" class="upload-area" onclick="document.getElementById('file-input').click()">
-                    <svg style="width: 48px; height: 48px; color: var(--muted-foreground);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg style="width: 64px; height: 64px; color: var(--muted-foreground);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-                    <p style="margin: 16px 0 8px 0; font-weight: 500;">Click to upload or drag and drop</p>
-                    <p style="margin: 0; font-size: 13px; color: var(--muted-foreground);">TXT, MD, PDF, DOC, DOCX up to 10MB</p>
+                    <p style="margin: 16px 0 8px 0; font-weight: 600; font-size: 16px;">Click to select a document</p>
+                    <p style="margin: 0; font-size: 14px; color: var(--muted-foreground);">TXT, MD, PDF, DOC, DOCX up to 10MB</p>
+                    <p style="margin: 8px 0 0 0; font-size: 12px; color: var(--muted-foreground); opacity: 0.8;">Document will be queued for AI analysis</p>
                 </div>
                 
                 <div id="file-preview" class="file-preview">
                     <div style="flex: 1;">
-                        <div id="file-name" style="font-weight: 500; margin-bottom: 4px;">file.txt</div>
-                        <div id="file-size" style="font-size: 13px; color: var(--muted-foreground);">0 KB</div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                            <svg style="width: 20px; height: 20px; color: #10b981;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div id="file-name" style="font-weight: 600; font-size: 14px;">file.txt</div>
+                        </div>
+                        <div id="file-size" style="font-size: 13px; color: var(--muted-foreground); margin-left: 28px;">0 KB • Ready to queue</div>
                     </div>
-                    <button type="button" onclick="removeFile()" style="padding: 8px; background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; cursor: pointer;">
+                    <button type="button" onclick="removeFile()" style="padding: 8px; background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; cursor: pointer;" title="Remove file">
                         <svg style="width: 16px; height: 16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
                 
-                <div class="form-group">
-                    <label class="form-label">Title</label>
-                    <input type="text" id="document-title" class="form-input" placeholder="Enter document title">
-                </div>
-                
-                <div class="form-group">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <label class="form-label" style="margin-bottom: 0;">Description</label>
-                        <button class="btn btn-secondary" onclick="askCopilotForDescription()" style="height: 28px; padding: 0 12px; font-size: 13px;" title="Generate description using Copilot">
-                            <svg style="width: 14px; height: 14px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                            </svg>
-                            Ask Copilot
-                        </button>
-                    </div>
-                    <textarea id="document-description" class="form-textarea" placeholder="Enter document description"></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Category</label>
-                    <input type="text" id="document-category" class="form-input" placeholder="e.g., Documentation, Code, Research">
-                </div>
-                
-                <div id="chunk-info" style="display: none; padding: 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; margin-bottom: 16px;">
+                <!-- Processing Info -->
+                <div style="padding: 12px; background: var(--background); border: 1px solid var(--border); border-radius: 6px; margin-top: 16px;">
                     <div style="display: flex; align-items: start; gap: 8px;">
-                        <svg style="width: 16px; height: 16px; color: #0284c7; flex-shrink: 0; margin-top: 2px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg style="width: 16px; height: 16px; color: #3b82f6; flex-shrink: 0; margin-top: 2px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; font-size: 13px; color: #0c4a6e; margin-bottom: 4px;">Copilot Chunking Suggestion</div>
-                            <div id="chunk-info-text" style="font-size: 12px; color: #075985;"></div>
+                        <div style="flex: 1; font-size: 12px; color: var(--muted-foreground); line-height: 1.5;">
+                            <strong style="color: var(--foreground);">What happens next?</strong><br>
+                            • Document added to processing queue<br>
+                            • Copilot analyzes content chunk by chunk<br>
+                            • Entities and relationships extracted automatically<br>
+                            • Knowledge graph updated in real-time
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn" onclick="closeUploadModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="uploadDocument()">Upload</button>
+                <button id="upload-btn" class="btn btn-primary" onclick="uploadDocument()" disabled>
+                    <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Add to Queue
+                </button>
             </div>
         </div>
     </div>

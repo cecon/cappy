@@ -1,16 +1,17 @@
 import * as vscode from 'vscode';
 import { handleLoadDocuments, handleDocumentUpload, handleDocumentDelete, handleClearAllDocuments, handleGenerateDescription } from './handlers/documentHandlers';
 import { handleGetGraphData } from './handlers/graphHandlers';
+import { handleExecuteQuery } from './handlers/retrievalHandlers';
 import { getDatabase } from './utils/databaseHelper';
 
 /**
- * Main entry point for LightRAG Dashboard
+ * Main entry point for CappyRAG Dashboard
  * This replaces the old monolithic documentUpload.ts
  */
 export async function openDocumentUploadUI(context: vscode.ExtensionContext, initialTab: string = 'documents') {
     const panel = vscode.window.createWebviewPanel(
         'lightragDashboard',
-        'LightRAG - Knowledge Graph Dashboard',
+        'CappyRAG - Knowledge Graph Dashboard',
         vscode.ViewColumn.One,
         {
             enableScripts: true,
@@ -27,6 +28,32 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
     }
     const db = getDatabase();
     await db.initialize();
+    
+    // Register callback to refresh documents when processing completes
+    const { getBackgroundProcessor } = await import('../../services/backgroundProcessor');
+    const processor = getBackgroundProcessor();
+    processor.onDocumentCompleted(async (documentId) => {
+        console.log(`[CappyRAG] Document ${documentId} completed, refreshing dashboard...`);
+        try {
+            const documents = await db.getDocumentsAsync();
+            const stats = {
+                documents: documents.length,
+                entities: (await db.getEntitiesAsync()).length,
+                relationships: (await db.getRelationshipsAsync()).length,
+                chunks: (await db.getChunksAsync()).length
+            };
+            
+            panel.webview.postMessage({
+                command: 'documentsLoaded',
+                data: {
+                    documents,
+                    stats
+                }
+            });
+        } catch (error) {
+            console.error('[CappyRAG] Failed to refresh after completion:', error);
+        }
+    });
 
     // Set the webview HTML content using new modular template
     const { generateWebviewHTML } = await import('./templates/htmlTemplate');
@@ -49,7 +76,7 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
             activeTab: initialTab
         });
     } catch (error) {
-        console.error('[LightRAG] Failed to load initial data:', error);
+        console.error('[CappyRAG] Failed to load initial data:', error);
     }
 
     // Message handler using modular handlers
@@ -80,8 +107,46 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
                     await handleGenerateDescription(message.data, panel);
                     break;
 
+                case 'executeQuery':
+                    await handleExecuteQuery(message.data.query, panel);
+                    break;
+
+                case 'getQueueStatus':
+                    // Get current processing queue status
+                    const { getProcessingQueue } = await import('../../services/documentProcessingQueue');
+                    const queue = getProcessingQueue();
+                    const queueStatus = queue.getQueueStatus();
+                    const allItems = queue.getAllItems();
+                    
+                    panel.webview.postMessage({
+                        command: 'queueStatus',
+                        data: {
+                            status: queueStatus,
+                            items: allItems
+                        }
+                    });
+                    break;
+
+                case 'retryDocument':
+                    // Retry failed document processing
+                    const { getProcessingQueue: getQueue } = await import('../../services/documentProcessingQueue');
+                    const retryQueue = getQueue();
+                    retryQueue.retry(message.documentId);
+                    
+                    // Return updated status
+                    const updatedStatus = retryQueue.getQueueStatus();
+                    const updatedItems = retryQueue.getAllItems();
+                    panel.webview.postMessage({
+                        command: 'queueStatus',
+                        data: {
+                            status: updatedStatus,
+                            items: updatedItems
+                        }
+                    });
+                    break;
+
                 default:
-                    console.warn(`[LightRAG] Unknown command: ${message.command}`);
+                    console.warn(`[CappyRAG] Unknown command: ${message.command}`);
             }
         },
         undefined,

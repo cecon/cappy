@@ -84,7 +84,7 @@ export class LightRAGLanceDatabase {
     private isInitialized = false;
 
     constructor(workspacePath: string) {
-        this.dbPath = path.join(workspacePath, '.cappy', 'lightrag-lancedb');
+        this.dbPath = path.join(workspacePath, '.cappy', 'cappyrag-data');
         this.ensureDbDirectory();
     }
 
@@ -391,6 +391,57 @@ export class LightRAGLanceDatabase {
 
         const results = await this.chunksTable.query().limit(10000).toArray();
         return results as LightRAGChunk[];
+    }
+
+    /**
+     * Update document status (without deleting entities/relationships)
+     */
+    async updateDocumentStatus(
+        documentId: string, 
+        status: 'processing' | 'completed' | 'failed',
+        processingResults?: {
+            entities: number;
+            relationships: number;
+            chunks: number;
+            processingTime: string;
+        }
+    ): Promise<void> {
+        await this.initialize();
+        if (!this.documentsTable) {
+            throw new Error('Documents table not initialized');
+        }
+
+        // Get the current document
+        const documents = await this.getDocumentsAsync();
+        const doc = documents.find(d => d.id === documentId);
+        
+        if (!doc) {
+            console.warn(`[LightRAG LanceDB] Document ${documentId} not found for status update`);
+            return;
+        }
+
+        // Delete old document
+        await this.documentsTable.delete(`id = '${documentId}'`);
+        
+        // Add updated document (create clean object to avoid Arrow metadata issues)
+        const updatedDoc: LightRAGDocument = {
+            id: doc.id,
+            title: doc.title,
+            description: doc.description,
+            category: doc.category,
+            tags: Array.isArray(doc.tags) ? Array.from(doc.tags) : [],
+            filePath: doc.filePath,
+            fileName: doc.fileName,
+            fileSize: doc.fileSize,
+            content: doc.content,
+            status,
+            processingResults,
+            created: doc.created,
+            updated: new Date().toISOString()
+        };
+        
+        await this.documentsTable.add([updatedDoc]);
+        console.log(`[LightRAG LanceDB] Document ${documentId} status updated to '${status}'`);
     }
 
     /**

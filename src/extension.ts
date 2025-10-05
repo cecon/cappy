@@ -19,7 +19,7 @@ import { MiniRAGStorage } from "./commands/miniRAG/storage";
 import { FileManager } from "./utils/fileManager";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 import { registerLanguageModelTools } from "./utils/languageModelTools";
-import { LightRAGMCPServer } from "./tools/mcpServer";
+import { CappyRAGMCPServer } from "./tools/mcpServer";
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -50,10 +50,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Register Language Model Tools for Copilot
     registerLanguageModelTools(context);
 
-    // Register LightRAG MCP Server for document processing
-    const mcpServer = new LightRAGMCPServer(context);
+    // Register CappyRAG MCP Server for document processing
+    const mcpServer = new CappyRAGMCPServer(context);
     mcpServer.registerTools();
-    console.log('🛠️ Cappy: LightRAG MCP tools registered');
+    console.log('🛠️ Cappy: CappyRAG MCP tools registered');
 
     // Telemetry consent gating (one-time and on updates)
     ensureTelemetryConsent(context)
@@ -318,83 +318,84 @@ export function activate(context: vscode.ExtensionContext) {
     //   }
     // );
 
-    // Register Mini-LightRAG commands
+    // Register CappyRAG commands
     const miniRAGIndexWorkspaceCommand = vscode.commands.registerCommand(
-      "miniRAG.indexWorkspace",
+      "cappyrag.indexWorkspace",
       async () => {
         try {
           await miniRAGCommands.indexWorkspace();
         } catch (error) {
-          console.error("Mini-LightRAG indexWorkspace error:", error);
-          vscode.window.showErrorMessage(`Mini-LightRAG indexWorkspace failed: ${error}`);
+          console.error("CappyRAG indexWorkspace error:", error);
+          vscode.window.showErrorMessage(`CappyRAG indexWorkspace failed: ${error}`);
         }
       }
     );
 
     const miniRAGSearchCommand = vscode.commands.registerCommand(
-      "miniRAG.search",
+      "cappyrag.search",
       async () => {
         try {
           await miniRAGCommands.search();
         } catch (error) {
-          console.error("Mini-LightRAG search error:", error);
-          vscode.window.showErrorMessage(`Mini-LightRAG search failed: ${error}`);
+          console.error("CappyRAG search error:", error);
+          vscode.window.showErrorMessage(`CappyRAG search failed: ${error}`);
         }
       }
     );
 
     const miniRAGOpenGraphCommand = vscode.commands.registerCommand(
-      "miniRAG.openGraph",
+      "cappyrag.openGraph",
       async () => {
         try {
-          await miniRAGCommands.openGraph(context);
+          // Open CappyRAG Dashboard on Documents tab
+          await openDocumentUploadUI(context, 'documents');
         } catch (error) {
-          console.error("Mini-LightRAG openGraph error:", error);
-          vscode.window.showErrorMessage(`Mini-LightRAG openGraph failed: ${error}`);
+          console.error("CappyRAG openGraph error:", error);
+          vscode.window.showErrorMessage(`CappyRAG openGraph failed: ${error}`);
         }
       }
     );
 
     const miniRAGIndexFileCommand = vscode.commands.registerCommand(
-      "miniRAG.indexFile",
+      "cappyrag.indexFile",
       async () => {
         try {
           await miniRAGCommands.indexFile();
         } catch (error) {
-          console.error("Mini-LightRAG indexFile error:", error);
-          vscode.window.showErrorMessage(`Mini-LightRAG indexFile failed: ${error}`);
+          console.error("CappyRAG indexFile error:", error);
+          vscode.window.showErrorMessage(`CappyRAG indexFile failed: ${error}`);
         }
       }
     );
 
     const miniRAGPopulateSampleCommand = vscode.commands.registerCommand(
-      "miniRAG.populateSampleData",
+      "cappyrag.populateSampleData",
       async () => {
         try {
           const { populateSampleData } = await import('./commands/miniRAG/populateSampleData');
           await populateSampleData(context);
         } catch (error) {
-          console.error("Mini-LightRAG populateSampleData error:", error);
-          vscode.window.showErrorMessage(`Mini-LightRAG populateSampleData failed: ${error}`);
+          console.error("CappyRAG populateSampleData error:", error);
+          vscode.window.showErrorMessage(`CappyRAG populateSampleData failed: ${error}`);
         }
       }
     );
 
     const miniRAGPauseWatcherCommand = vscode.commands.registerCommand(
-      "miniRAG.pauseWatcher",
+      "cappyrag.pauseWatcher",
       async () => {
         try {
           await miniRAGCommands.pauseWatcher();
         } catch (error) {
-          console.error("Mini-LightRAG pauseWatcher error:", error);
-          vscode.window.showErrorMessage(`Mini-LightRAG pauseWatcher failed: ${error}`);
+          console.error("CappyRAG pauseWatcher error:", error);
+          vscode.window.showErrorMessage(`CappyRAG pauseWatcher failed: ${error}`);
         }
       }
     );
 
     // Document Upload UI Command
     const documentUploadCommand = vscode.commands.registerCommand(
-      "cappy.lightrag.uploadUI",
+      "cappyrag.uploadUI",
       async () => {
         try {
           await openDocumentUploadUI(context);

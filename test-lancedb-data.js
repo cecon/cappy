@@ -8,7 +8,7 @@ const path = require('path');
 
 async function checkData() {
     try {
-        const dbPath = path.join(__dirname, '.cappy', 'lightrag-lancedb');
+        const dbPath = path.join(__dirname, '.cappy', 'cappyrag-data');
         console.log(`\n📂 Connecting to: ${dbPath}\n`);
         
         const db = await connect(dbPath);
@@ -19,7 +19,19 @@ async function checkData() {
         const docs = await docsTable.query().limit(10).toArray();
         console.log(`   Total documents: ${docs.length}`);
         if (docs.length > 0) {
-            console.log('   Sample:', JSON.stringify(docs[0], null, 2).substring(0, 300) + '...');
+            console.log('\n   Full document data:');
+            docs.forEach((doc, i) => {
+                console.log(`\n   Document ${i + 1}:`);
+                console.log(`   - ID: ${doc.id}`);
+                console.log(`   - Title: ${doc.title}`);
+                console.log(`   - Status: ${doc.status}`);
+                console.log(`   - Category: ${doc.category}`);
+                console.log(`   - Created: ${doc.created}`);
+                console.log(`   - Updated: ${doc.updated}`);
+                if (doc.processingResults) {
+                    console.log(`   - Processing Results:`, doc.processingResults);
+                }
+            });
         }
         
         // Check Entities

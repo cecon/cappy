@@ -1,9 +1,9 @@
 {
   "name": "cappy",
   "displayName": "Cappy",
-  "description": "AI coding companion with Single-Focus Workflow, Mini-LightRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
+  "description": "AI coding companion with Single-Focus Workflow, CappyRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
   "icon": "assets/icon.png",
-  "version": "2.9.41",
+  "version": "2.9.43",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0",
@@ -30,7 +30,7 @@
     "vector-search",
     "graph-database",
     "semantic-search",
-    "mini-lightrag",
+    "cappyrag",
     "language-model-tools"
   ],
   "activationEvents": [
@@ -115,39 +115,39 @@
         "category": "Cappy"
       },
       {
-        "command": "miniRAG.indexWorkspace",
-        "title": "🔍 Mini-LightRAG: Index Workspace",
-        "category": "Mini-LightRAG"
+        "command": "cappyrag.indexWorkspace",
+        "title": "🔍 CappyRAG: Index Workspace",
+        "category": "CappyRAG"
       },
       {
-        "command": "miniRAG.search",
-        "title": "🔎 Mini-LightRAG: Search",
-        "category": "Mini-LightRAG"
+        "command": "cappyrag.search",
+        "title": "🔎 CappyRAG: Search",
+        "category": "CappyRAG"
       },
       {
-        "command": "miniRAG.openGraph",
-        "title": "📊 Mini-LightRAG: Open Graph",
-        "category": "Mini-LightRAG"
+        "command": "cappyrag.openGraph",
+        "title": "📊 CappyRAG: Open Graph",
+        "category": "CappyRAG"
       },
       {
-        "command": "miniRAG.indexFile",
-        "title": "📄 Mini-LightRAG: Index File",
-        "category": "Mini-LightRAG"
+        "command": "cappyrag.indexFile",
+        "title": "📄 CappyRAG: Index File",
+        "category": "CappyRAG"
       },
       {
-        "command": "miniRAG.pauseWatcher",
-        "title": "⏸️ Mini-LightRAG: Pause Watcher",
-        "category": "Mini-LightRAG"
+        "command": "cappyrag.pauseWatcher",
+        "title": "⏸️ CappyRAG: Pause Watcher",
+        "category": "CappyRAG"
       },
       {
-        "command": "miniRAG.populateSampleData",
-        "title": "🔨 Mini-LightRAG: Populate Sample Data",
-        "category": "Mini-LightRAG"
+        "command": "cappyrag.populateSampleData",
+        "title": "🔨 CappyRAG: Populate Sample Data",
+        "category": "CappyRAG"
       },
       {
-        "command": "cappy.lightrag.uploadUI",
-        "title": "📄 LightRAG: Upload Documents",
-        "category": "LightRAG"
+        "command": "cappyrag.uploadUI",
+        "title": "📄 CappyRAG: Upload Documents",
+        "category": "CappyRAG"
       }
     ],
     "configuration": {
@@ -173,7 +173,7 @@
           "default": true,
           "description": "Show notifications for Cappy events"
         },
-        "miniRAG.model": {
+        "cappyrag.model": {
           "type": "string",
           "enum": [
             "fast",
@@ -182,35 +182,35 @@
           "default": "fast",
           "description": "Model type for embeddings: fast (lightweight) or quality (better accuracy)"
         },
-        "miniRAG.topK": {
+        "cappyrag.topK": {
           "type": "number",
           "default": 10,
           "minimum": 1,
           "maximum": 100,
           "description": "Number of top results to return in searches"
         },
-        "miniRAG.maxStorageGB": {
+        "cappyrag.maxStorageGB": {
           "type": "number",
           "default": 2,
           "minimum": 0.1,
           "maximum": 50,
           "description": "Maximum storage limit in GB for LanceDB and cache"
         },
-        "miniRAG.maxNodes": {
+        "cappyrag.maxNodes": {
           "type": "number",
           "default": 10000,
           "minimum": 100,
           "maximum": 100000,
           "description": "Maximum number of nodes in the graph"
         },
-        "miniRAG.maxEdges": {
+        "cappyrag.maxEdges": {
           "type": "number",
           "default": 50000,
           "minimum": 1000,
           "maximum": 500000,
           "description": "Maximum number of edges in the graph"
         },
-        "miniRAG.excludeGlobs": {
+        "cappyrag.excludeGlobs": {
           "type": "array",
           "items": {
             "type": "string"

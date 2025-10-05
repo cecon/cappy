@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { LightRAGDocument } from '../../../store/lightragLanceDb';
 import { getDatabase } from '../utils/databaseHelper';
 import { DocumentUploadData } from '../utils/messageTypes';
+import { getProcessingQueue } from '../../../services/documentProcessingQueue';
+import { getBackgroundProcessor } from '../../../services/backgroundProcessor';
 
 /**
  * Generate unique document ID
@@ -47,10 +49,25 @@ export async function handleLoadDocuments(panel: vscode.WebviewPanel): Promise<v
 }
 
 /**
- * Handle document upload with processing
+ * Handle document upload with processing queue
  */
 export async function handleDocumentUpload(data: DocumentUploadData, panel: vscode.WebviewPanel): Promise<void> {
     try {
+        // Check Copilot availability first
+        const processor = getBackgroundProcessor();
+        const copilotAvailable = await processor.checkCopilotAvailability();
+        
+        if (!copilotAvailable) {
+            panel.webview.postMessage({
+                command: 'uploadError',
+                data: { 
+                    message: 'GitHub Copilot is required for document processing. Please sign in to GitHub Copilot to enable intelligent analysis.',
+                    requiresCopilot: true
+                }
+            });
+            return;
+        }
+
         const db = getDatabase();
         await db.initialize();
         
@@ -73,7 +90,37 @@ export async function handleDocumentUpload(data: DocumentUploadData, panel: vsco
         // Add document to database
         await db.addDocument(newDocument);
 
-        // Simulate processing and create graph entities
+        // Add document to processing queue
+        const queue = getProcessingQueue();
+        const queueId = await queue.enqueue({
+            documentId: newDocument.id,
+            title: newDocument.title,
+            fileName: newDocument.fileName,
+            content: newDocument.content
+        });
+
+        console.log(`[LightRAG] Document added to processing queue: ${queueId}`);
+
+        // Start processor if not already running
+        if (!processor.getQueue().isQueueProcessing()) {
+            processor.start();
+        }
+
+        panel.webview.postMessage({
+            command: 'documentAdded',
+            data: {
+                ...newDocument,
+                queueId,
+                processingMessage: 'Document queued for intelligent analysis with Copilot'
+            }
+        });
+
+        vscode.window.showInformationMessage(
+            `✨ Document "${data.title}" added to processing queue. Copilot will analyze it chunk by chunk.`
+        );
+
+        // Old simulation code removed - now using real background processing
+        /*
         setTimeout(async () => {
             newDocument.status = 'completed';
             
@@ -158,13 +205,8 @@ export async function handleDocumentUpload(data: DocumentUploadData, panel: vsco
                 data: newDocument
             });
         }, 3000);
+        */
 
-        panel.webview.postMessage({
-            command: 'documentAdded',
-            data: newDocument
-        });
-
-        vscode.window.showInformationMessage(`Document "${data.title}" uploaded successfully`);
     } catch (error) {
         panel.webview.postMessage({
             command: 'uploadError',

@@ -3,6 +3,31 @@ import { LightRAGDocument } from '../../../store/lightragLanceDb';
 import { getDatabase } from '../utils/databaseHelper';
 
 /**
+ * Generate intelligent chunk title from content
+ * Inspired by LightRAG's semantic chunking approach
+ */
+function generateChunkTitle(content: string, chunkIndex: number): string {
+    if (!content || content.trim().length === 0) {
+        return `Chunk ${chunkIndex}`;
+    }
+    
+    // Try to extract first sentence (up to ., !, ? or newline)
+    const firstSentenceMatch = content.match(/^[^.!?\n]+[.!?]?/);
+    if (firstSentenceMatch && firstSentenceMatch[0].length > 0) {
+        const sentence = firstSentenceMatch[0].trim();
+        // Limit to 60 characters for display
+        if (sentence.length <= 60) {
+            return sentence;
+        }
+        return sentence.substring(0, 57) + '...';
+    }
+    
+    // Fallback: first 50 chars
+    const preview = content.trim().substring(0, 50);
+    return preview + (content.length > 50 ? '...' : '');
+}
+
+/**
  * Handle getting graph data for visualization
  */
 export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<void> {
@@ -95,6 +120,9 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
 
         // Add chunk nodes (smaller, connected to documents)
         chunks.slice(0, 50).forEach((chunk: any) => { // Limit to 50 chunks for performance
+            // Generate intelligent chunk title from content (first sentence or first 50 chars)
+            const chunkTitle = generateChunkTitle(chunk.content, chunk.chunkIndex);
+            
             // Convert Apache Arrow arrays to JS arrays if needed
             let chunkEntities: string[] = [];
             if (chunk.entities) {
@@ -120,15 +148,18 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
             
             nodes.push({
                 id: chunk.id,
-                label: `Chunk ${chunk.chunkIndex}`,
+                label: chunkTitle,
                 type: 'chunk',
                 size: 5,
                 color: '#8b5cf6',
                 metadata: {
+                    chunkIndex: chunk.chunkIndex,
                     contentLength: chunk.content.length,
                     documentId: chunk.documentId,
                     entities: chunkEntities.length,
-                    relationships: chunkRelationships.length
+                    relationships: chunkRelationships.length,
+                    contentPreview: chunk.content.substring(0, 200) + (chunk.content.length > 200 ? '...' : ''),
+                    fullContent: chunk.content // Include full content for detailed view
                 }
             });
 

@@ -82,6 +82,20 @@ window.switchTab = function(tabName) {
 
 // ==================== DOCUMENT MANAGEMENT ====================
 
+function updateStats(stats) {
+    const docEl = document.getElementById('stat-documents');
+    const entEl = document.getElementById('stat-entities');
+    const relEl = document.getElementById('stat-relationships');
+    const chunkEl = document.getElementById('stat-chunks');
+    
+    if (docEl) docEl.textContent = stats.documents || 0;
+    if (entEl) entEl.textContent = stats.entities || 0;
+    if (relEl) relEl.textContent = stats.relationships || 0;
+    if (chunkEl) chunkEl.textContent = stats.chunks || 0;
+    
+    console.log('[Stats] Updated:', stats);
+}
+
 window.refreshDocuments = function() {
     vscode.postMessage({ command: 'loadDocuments' });
 };
@@ -91,6 +105,93 @@ window.clearDocuments = function() {
         vscode.postMessage({ command: 'clearAllDocuments' });
     }
 };
+
+// ==================== QUEUE MANAGEMENT ====================
+
+window.refreshQueue = function() {
+    vscode.postMessage({ command: 'getQueueStatus' });
+};
+
+window.retryDocument = function(documentId) {
+    vscode.postMessage({ 
+        command: 'retryDocument',
+        documentId: documentId
+    });
+};
+
+function renderQueue(data) {
+    // Update stats
+    document.getElementById('queue-pending').textContent = data.status.pending;
+    document.getElementById('queue-processing').textContent = data.status.processing;
+    document.getElementById('queue-completed').textContent = data.status.completed;
+    document.getElementById('queue-failed').textContent = data.status.failed;
+    
+    // Render queue table
+    const tbody = document.getElementById('queue-tbody');
+    
+    if (data.items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #888;">No items in queue</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = data.items.map(item => {
+        const statusBadge = getStatusBadge(item.status);
+        const progressBar = getProgressBar(item.progress);
+        const actions = getQueueActions(item);
+        const queuedDate = new Date(item.createdAt).toLocaleString();
+        
+        return `
+            <tr>
+                <td>
+                    <div style="font-weight: 500;">${item.title}</div>
+                    <div style="font-size: 12px; color: #888;">${item.fileName}</div>
+                </td>
+                <td>${statusBadge}</td>
+                <td>
+                    ${progressBar}
+                    <div style="font-size: 12px; color: #888; margin-top: 4px;">${item.currentStep}</div>
+                </td>
+                <td style="text-align: center;">${item.processedChunks}</td>
+                <td style="text-align: center;">${item.totalChunks}</td>
+                <td style="font-size: 12px;">${queuedDate}</td>
+                <td>${actions}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        pending: '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; background: #fef3c7; color: #92400e; font-size: 12px; font-weight: 500;">⏳ Pending</span>',
+        processing: '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; background: #dbeafe; color: #1e40af; font-size: 12px; font-weight: 500;">⚙️ Processing</span>',
+        completed: '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; background: #d1fae5; color: #065f46; font-size: 12px; font-weight: 500;">✅ Completed</span>',
+        failed: '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; background: #fee2e2; color: #991b1b; font-size: 12px; font-weight: 500;">❌ Failed</span>'
+    };
+    return badges[status] || badges.pending;
+}
+
+function getProgressBar(progress) {
+    const percentage = Math.round(progress);
+    return `
+        <div style="width: 100%; background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+            <div style="width: ${percentage}%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); height: 100%; transition: width 0.3s;"></div>
+        </div>
+        <div style="font-size: 12px; color: #888; text-align: center; margin-top: 2px;">${percentage}%</div>
+    `;
+}
+
+function getQueueActions(item) {
+    if (item.status === 'failed') {
+        return `
+            <button class="btn btn-sm" onclick="retryDocument('${item.documentId}')" title="Retry processing">
+                <svg style="width: 16px; height: 16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            </button>
+        `;
+    }
+    return '<span style="color: #888;">—</span>';
+}
 
 function filterDocuments(filter) {
     currentFilter = filter;
@@ -146,39 +247,40 @@ window.removeFile = function() {
     document.getElementById('upload-area').style.display = 'flex';
     document.getElementById('file-preview').style.display = 'none';
     
-    // Clear title if it was auto-filled
-    document.getElementById('document-title').value = '';
-    document.getElementById('chunk-info').style.display = 'none';
+    // Disable upload button
+    const uploadBtn = document.getElementById('upload-btn');
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+    }
 };
 
 window.uploadDocument = function() {
     const fileInput = document.getElementById('file-input');
-    const title = document.getElementById('document-title').value;
-    const description = document.getElementById('document-description').value;
-    const category = document.getElementById('document-category').value;
     
     if (!fileInput.files || fileInput.files.length === 0) {
         showToast('error', 'No file selected', 'Please select a file to upload');
         return;
     }
     
-    if (!title.trim()) {
-        showToast('error', 'Title required', 'Please enter a document title');
-        return;
-    }
-    
     const file = fileInput.files[0];
+    
+    // Show loading toast
+    showToast('info', 'Adding to Queue', `Processing ${file.name}...`, 0);
+    
     const reader = new FileReader();
     
     reader.onload = function(e) {
         const content = e.target.result;
         
+        // Use filename as title (without extension)
+        const title = file.name.replace(/\.[^/.]+$/, '');
+        
         vscode.postMessage({
             command: 'uploadDocument',
             data: {
-                title: title.trim(),
-                description: description.trim(),
-                category: category.trim() || 'general',
+                title: title,
+                description: '', // Will be generated by Copilot
+                category: 'general', // Will be classified by Copilot
                 fileName: file.name,
                 fileSize: file.size,
                 content: content
@@ -186,6 +288,7 @@ window.uploadDocument = function() {
         });
         
         closeUploadModal();
+        showToast('success', 'Document Queued', `"${title}" added to processing queue. Copilot will analyze it.`, 5000);
     };
     
     reader.onerror = function() {
@@ -303,7 +406,7 @@ function handleFileSelect() {
     const fileInput = document.getElementById('file-input');
     const uploadArea = document.getElementById('upload-area');
     const filePreview = document.getElementById('file-preview');
-    const titleInput = document.getElementById('document-title');
+    const uploadBtn = document.getElementById('upload-btn');
     
     if (fileInput.files && fileInput.files.length > 0) {
         const file = fileInput.files[0];
@@ -313,19 +416,14 @@ function handleFileSelect() {
         filePreview.style.display = 'flex';
         
         // Update file info
-        document.getElementById('file-name').textContent = file.name;
-        document.getElementById('file-size').textContent = formatFileSize(file.size);
+        const fileName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+        document.getElementById('file-name').textContent = fileName;
+        document.getElementById('file-size').textContent = formatFileSize(file.size) + ' • Ready to queue';
         
-        // Auto-fill title if empty
-        if (!titleInput.value) {
-            titleInput.value = file.name.replace(/\.[^/.]+$/, '');
+        // Enable upload button
+        if (uploadBtn) {
+            uploadBtn.disabled = false;
         }
-        
-        // Show chunk suggestion
-        const chunkCount = Math.ceil(file.size / 1000);
-        document.getElementById('chunk-info').style.display = 'block';
-        document.getElementById('chunk-info-text').textContent = 
-            `This document will be split into approximately ${chunkCount} chunks for optimal processing.`;
     }
 }
 
@@ -547,6 +645,7 @@ window.resetGraphView = function() {
 window.closeNodeDetails = function() {
     const panel = document.getElementById('node-details');
     if (panel) {
+        panel.style.display = 'none';
         panel.classList.remove('visible');
     }
 };
@@ -827,20 +926,71 @@ function showNodeDetails(nodeId, attributes) {
     }
 
     title.textContent = attributes.label || nodeId;
-    type.textContent = 'Type: ' + (attributes.type || 'unknown');
     
-    // Format metadata
+    // Enhanced type display with icon
+    const typeIcons = {
+        'document': '📄',
+        'entity': '🏷️',
+        'chunk': '📝',
+        'relationship': '🔗'
+    };
+    const typeIcon = typeIcons[attributes.type] || '•';
+    type.textContent = typeIcon + ' Type: ' + (attributes.type || 'unknown');
+    
+    // Format metadata with enhanced display for chunks
     let metaHtml = '';
     if (attributes.metadata && Object.keys(attributes.metadata).length > 0) {
         metaHtml = '<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">';
+        
+        // Special handling for chunk content
+        if (attributes.type === 'chunk' && attributes.metadata.fullContent) {
+            metaHtml += '<div style="margin-bottom: 12px;">';
+            metaHtml += '<strong style="display: block; margin-bottom: 8px; color: var(--foreground);">Content:</strong>';
+            metaHtml += '<div style="background: var(--background); border: 1px solid var(--border); border-radius: 6px; padding: 12px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; color: var(--muted-foreground);">';
+            metaHtml += escapeHtml(attributes.metadata.fullContent);
+            metaHtml += '</div></div>';
+        }
+        
+        // Display other metadata
         Object.keys(attributes.metadata).forEach(key => {
-            metaHtml += '<div style="margin-bottom: 8px;"><strong>' + key + ':</strong> ' + attributes.metadata[key] + '</div>';
+            // Skip fullContent as we've already displayed it
+            if (key === 'fullContent') { return; }
+            
+            const value = attributes.metadata[key];
+            metaHtml += '<div style="margin-bottom: 8px;">';
+            metaHtml += '<strong>' + formatMetadataKey(key) + ':</strong> ';
+            
+            // Format value based on type
+            if (typeof value === 'number') {
+                metaHtml += '<span style="color: #10b981;">' + value + '</span>';
+            } else if (Array.isArray(value)) {
+                metaHtml += '<span style="color: #3b82f6;">[' + value.length + ' items]</span>';
+            } else {
+                metaHtml += value;
+            }
+            metaHtml += '</div>';
         });
         metaHtml += '</div>';
     }
     meta.innerHTML = metaHtml;
 
+    panel.style.display = 'block';
     panel.classList.add('visible');
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Helper function to format metadata keys nicely
+function formatMetadataKey(key) {
+    return key
+        .replace(/([A-Z])/g, ' $1') // Add space before capitals
+        .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
+        .trim();
 }
 
 // Update legend counts
@@ -870,9 +1020,9 @@ function updateGraphLegend(data) {
     const entityCount = document.getElementById('entity-count');
     const relCount = document.getElementById('rel-count');
 
-    if (docCount) docCount.textContent = 'Documents: ' + counts.document;
-    if (entityCount) entityCount.textContent = 'Entities: ' + counts.entity;
-    if (relCount) relCount.textContent = 'Relationships: ' + counts.relationship;
+    if (docCount) {docCount.textContent = 'Documents: ' + counts.document;}
+    if (entityCount) {entityCount.textContent = 'Entities: ' + counts.entity;}
+    if (relCount) {relCount.textContent = 'Relationships: ' + counts.relationship;}
 }
 
 // ==================== MESSAGE HANDLING ====================
@@ -885,14 +1035,28 @@ window.addEventListener('message', function(event) {
         case 'initialData':
             documents = message.documents || [];
             renderDocuments();
+            
+            // Update stats
+            if (message.stats) {
+                updateStats(message.stats);
+            }
+            
             if (message.activeTab) {
                 switchTab(message.activeTab);
+            } else {
+                // Default to documents tab
+                switchTab('documents');
             }
             break;
             
         case 'documentsLoaded':
             documents = message.data.documents || [];
             renderDocuments();
+            
+            // Update stats
+            if (message.data.stats) {
+                updateStats(message.data.stats);
+            }
             break;
             
         case 'documentAdded':
@@ -952,6 +1116,16 @@ window.addEventListener('message', function(event) {
             showToast('success', 'Analysis Complete', 'Document metadata generated by Copilot');
             break;
             
+        case 'queryResult':
+            console.log('[Retrieval] Query result received:', message.data);
+            displayQueryResults(message.data);
+            break;
+            
+        case 'queueStatus':
+            console.log('[Queue] Status received:', message.data);
+            renderQueue(message.data);
+            break;
+            
         case 'uploadError':
         case 'loadError':
         case 'deleteError':
@@ -966,8 +1140,20 @@ window.addEventListener('message', function(event) {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('[Dashboard] DOM loaded, initializing...');
     
+    // Ensure Documents tab is active by default
+    switchTab('documents');
+    
     // Initialize document refresh
     refreshDocuments();
+    
+    // Start queue auto-refresh (every 3 seconds)
+    setInterval(function() {
+        // Only refresh if queue tab is visible
+        const queueTab = document.getElementById('queue-tab');
+        if (queueTab && queueTab.classList.contains('visible')) {
+            refreshQueue();
+        }
+    }, 3000);
     
     // Close modal on background click
     const uploadModal = document.getElementById('upload-modal');
