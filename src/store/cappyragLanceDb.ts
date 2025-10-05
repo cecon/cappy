@@ -131,6 +131,13 @@ export class CappyRAGLanceDatabase {
             this.documentsTable = await this.connection.openTable('documents');
         } else {
             // Define explicit schema for documents table
+            const processingResultsStruct = new arrow.Struct([
+                new arrow.Field('entities', new arrow.Int32(), false),
+                new arrow.Field('relationships', new arrow.Int32(), false),
+                new arrow.Field('chunks', new arrow.Int32(), false),
+                new arrow.Field('processingTime', new arrow.Utf8(), false)
+            ]);
+
             const schema = new arrow.Schema([
                 new arrow.Field('id', new arrow.Utf8(), false),
                 new arrow.Field('title', new arrow.Utf8(), false),
@@ -142,6 +149,7 @@ export class CappyRAGLanceDatabase {
                 new arrow.Field('fileSize', new arrow.Float64(), false),
                 new arrow.Field('content', new arrow.Utf8(), false),
                 new arrow.Field('status', new arrow.Utf8(), false),
+                new arrow.Field('processingResults', processingResultsStruct, true), // nullable
                 new arrow.Field('created', new arrow.Utf8(), false),
                 new arrow.Field('updated', new arrow.Utf8(), false)
             ]);

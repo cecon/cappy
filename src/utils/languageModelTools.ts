@@ -230,6 +230,215 @@ export function registerLanguageModelTools(context: vscode.ExtensionContext) {
       }
     );
 
+    // === CappyRAG Tools ===
+
+    // Register cappyrag.addDocument tool
+    const cappyragAddDocumentDisposable = lm.registerTool(
+      'cappyrag_add_document',
+      {
+        name: 'cappyrag_add_document',
+        displayName: 'CappyRAG: Add Document',
+        modelDescription: 'Add a document to the CappyRAG knowledge base for entity extraction and relationship mapping. Supports .txt, .md, .pdf, .doc, .docx files. Document will be processed to extract entities, relationships and semantic information.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            filePath: {
+              type: 'string',
+              description: 'Absolute path to the document file'
+            },
+            title: {
+              type: 'string',
+              description: 'Optional title for the document (defaults to filename)'
+            },
+            author: {
+              type: 'string',
+              description: 'Optional author name'
+            },
+            tags: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Optional tags for categorization'
+            },
+            language: {
+              type: 'string',
+              description: 'Optional language code (e.g., "en", "pt", "es")'
+            }
+          },
+          required: ['filePath']
+        },
+        invoke: async (
+          options: vscode.LanguageModelToolInvocationOptions<{
+            filePath: string;
+            title?: string;
+            author?: string;
+            tags?: string[];
+            language?: string;
+          }>,
+          token: vscode.CancellationToken
+        ): Promise<vscode.LanguageModelToolResult> => {
+          try {
+            const result = await vscode.commands.executeCommand(
+              'cappyrag.addDocument',
+              options.input.filePath,
+              options.input.title,
+              options.input.author,
+              options.input.tags,
+              options.input.language
+            ) as string;
+            return new vscode.LanguageModelToolResult([
+              new vscode.LanguageModelTextPart(result)
+            ]);
+          } catch (error) {
+            return new vscode.LanguageModelToolResult([
+              new vscode.LanguageModelTextPart(`Error adding document: ${error}`)
+            ]);
+          }
+        }
+      }
+    );
+
+    // Register cappyrag.queryKnowledgeBase tool
+    const cappyragQueryDisposable = lm.registerTool(
+      'cappyrag_query_knowledge_base',
+      {
+        name: 'cappyrag_query_knowledge_base',
+        displayName: 'CappyRAG: Query Knowledge Base',
+        modelDescription: 'Query the CappyRAG knowledge base using hybrid search (vector + keyword) to retrieve relevant entities, relationships and document chunks. Returns contextualized information with similarity scores.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Natural language query to search the knowledge base'
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum number of results to return (default: 10)'
+            }
+          },
+          required: ['query']
+        },
+        invoke: async (
+          options: vscode.LanguageModelToolInvocationOptions<{
+            query: string;
+            limit?: number;
+          }>,
+          token: vscode.CancellationToken
+        ): Promise<vscode.LanguageModelToolResult> => {
+          try {
+            const result = await vscode.commands.executeCommand(
+              'cappyrag.queryKnowledgeBase',
+              options.input.query,
+              options.input.limit || 10
+            ) as string;
+            return new vscode.LanguageModelToolResult([
+              new vscode.LanguageModelTextPart(result)
+            ]);
+          } catch (error) {
+            return new vscode.LanguageModelToolResult([
+              new vscode.LanguageModelTextPart(`Error querying knowledge base: ${error}`)
+            ]);
+          }
+        }
+      }
+    );
+
+    // Register cappyrag.getStats tool
+    const cappyragStatsDisposable = lm.registerTool(
+      'cappyrag_get_stats',
+      {
+        name: 'cappyrag_get_stats',
+        displayName: 'CappyRAG: Get Statistics',
+        modelDescription: 'Get statistics about the CappyRAG knowledge base including total documents, entities, relationships, and chunks indexed',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        },
+        invoke: async (
+          options: vscode.LanguageModelToolInvocationOptions<void>,
+          token: vscode.CancellationToken
+        ): Promise<vscode.LanguageModelToolResult> => {
+          try {
+            const result = await vscode.commands.executeCommand('cappyrag.getStats') as string;
+            return new vscode.LanguageModelToolResult([
+              new vscode.LanguageModelTextPart(result)
+            ]);
+          } catch (error) {
+            return new vscode.LanguageModelToolResult([
+              new vscode.LanguageModelTextPart(`Error getting stats: ${error}`)
+            ]);
+          }
+        }
+      }
+    );
+
+    // Register cappyrag.getSupportedFormats tool
+    const cappyragFormatsDisposable = lm.registerTool(
+      'cappyrag_get_supported_formats',
+      {
+        name: 'cappyrag_get_supported_formats',
+        displayName: 'CappyRAG: Get Supported Formats',
+        modelDescription: 'Get list of supported document formats for CappyRAG including file extensions, descriptions, and processing capabilities',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        },
+        invoke: async (
+          options: vscode.LanguageModelToolInvocationOptions<void>,
+          token: vscode.CancellationToken
+        ): Promise<vscode.LanguageModelToolResult> => {
+          try {
+            const result = await vscode.commands.executeCommand('cappyrag.getSupportedFormats') as string;
+            return new vscode.LanguageModelToolResult([
+              new vscode.LanguageModelTextPart(result)
+            ]);
+          } catch (error) {
+            return new vscode.LanguageModelToolResult([
+              new vscode.LanguageModelTextPart(`Error getting supported formats: ${error}`)
+            ]);
+          }
+        }
+      }
+    );
+
+    // Register cappyrag.estimateProcessingTime tool
+    const cappyragEstimateDisposable = lm.registerTool(
+      'cappyrag_estimate_processing_time',
+      {
+        name: 'cappyrag_estimate_processing_time',
+        displayName: 'CappyRAG: Estimate Processing Time',
+        modelDescription: 'Estimate processing time for a document based on file size and complexity. Returns breakdown of processing steps and estimated duration.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            filePath: {
+              type: 'string',
+              description: 'Absolute path to the document file'
+            }
+          },
+          required: ['filePath']
+        },
+        invoke: async (
+          options: vscode.LanguageModelToolInvocationOptions<{ filePath: string }>,
+          token: vscode.CancellationToken
+        ): Promise<vscode.LanguageModelToolResult> => {
+          try {
+            const result = await vscode.commands.executeCommand(
+              'cappyrag.estimateProcessingTime',
+              options.input.filePath
+            ) as string;
+            return new vscode.LanguageModelToolResult([
+              new vscode.LanguageModelTextPart(result)
+            ]);
+          } catch (error) {
+            return new vscode.LanguageModelToolResult([
+              new vscode.LanguageModelTextPart(`Error estimating processing time: ${error}`)
+            ]);
+          }
+        }
+      }
+    );
+
     // Add all tools to context subscriptions
     context.subscriptions.push(
       initToolDisposable,
@@ -238,7 +447,12 @@ export function registerLanguageModelTools(context: vscode.ExtensionContext) {
       createTaskToolDisposable,
       workOnTaskToolDisposable,
       completeTaskToolDisposable,
-      reindexToolDisposable
+      reindexToolDisposable,
+      cappyragAddDocumentDisposable,
+      cappyragQueryDisposable,
+      cappyragStatsDisposable,
+      cappyragFormatsDisposable,
+      cappyragEstimateDisposable
     );
 
     console.log('🦫 Cappy: Language Model tools registered successfully');
