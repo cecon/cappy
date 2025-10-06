@@ -93,6 +93,15 @@ function updateStats(stats) {
     if (relEl) relEl.textContent = stats.relationships || 0;
     if (chunkEl) chunkEl.textContent = stats.chunks || 0;
     
+    // Update graph preview stats
+    const previewDocEl = document.getElementById('preview-doc-count');
+    const previewEntEl = document.getElementById('preview-entity-count');
+    const previewRelEl = document.getElementById('preview-rel-count');
+    
+    if (previewDocEl) previewDocEl.textContent = stats.documents || 0;
+    if (previewEntEl) previewEntEl.textContent = stats.entities || 0;
+    if (previewRelEl) previewRelEl.textContent = stats.relationships || 0;
+    
     console.log('[Stats] Updated:', stats);
 }
 
@@ -615,33 +624,20 @@ function displayQueryResults(data) {
 
 // ==================== GRAPH VISUALIZATION ====================
 
-window.loadGraph = function() {
-    console.log('[Graph] Loading D3.js graph...');
-    const iframe = document.getElementById('graph-d3-iframe');
-    const loading = document.getElementById('graph-loading');
-    const empty = document.getElementById('graph-empty');
-    
-    if (!iframe || !loading || !empty) {
-        console.error('[Graph] Required DOM elements not found');
-        console.log('[Graph] iframe:', iframe, 'loading:', loading, 'empty:', empty);
-        return;
-    }
-    
-    // Show loading state
-    loading.style.display = 'flex';
-    empty.style.display = 'none';
-    iframe.style.display = 'none';
-
+window.openGraphPage = function() {
+    console.log('[Graph] Opening full-page knowledge graph...');
     try {
-        console.log('[Graph] Requesting D3.js HTML from extension...');
-        // First, request the D3.js HTML to load in iframe
-        vscode.postMessage({ command: 'getGraphD3HTML' });
+        // Navigate to dedicated graph page
+        vscode.postMessage({ command: 'openGraphPage' });
     } catch (error) {
-        console.error('[Graph] Error loading graph:', error);
-        showToast('error', 'Graph Error', 'Failed to load knowledge graph: ' + error.message);
-        loading.style.display = 'none';
-        empty.style.display = 'flex';
+        console.error('[Graph] Error opening graph page:', error);
+        showToast('error', 'Navigation Error', 'Failed to open graph page: ' + error.message);
     }
+};
+
+window.loadGraph = function() {
+    // Deprecated - redirect to openGraphPage
+    openGraphPage();
 };
 
 window.resetGraphView = function() {

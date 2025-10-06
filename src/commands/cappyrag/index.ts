@@ -102,6 +102,61 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
                 case 'getGraphData':
                     await handleGetGraphData(panel);
                     break;
+
+                case 'openGraphPage':
+                    // Navigate to full-page graph view
+                    try {
+                        const fs = await import('fs');
+                        const path = await import('path');
+                        const graphPagePath = path.join(context.extensionPath, 'out', 'webview', 'graph-page.html');
+                        const d3JsPath = path.join(context.extensionPath, 'out', 'webview', 'd3.v7.min.js');
+                        
+                        let htmlContent = fs.readFileSync(graphPagePath, 'utf8');
+                        const d3Content = fs.readFileSync(d3JsPath, 'utf8');
+                        
+                        // Replace CDN script tag with inline D3.js
+                        htmlContent = htmlContent.replace(
+                            /<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/d3@7"><\/script>/,
+                            `<script>${d3Content}</script>`
+                        );
+                        
+                        // Update webview to show graph page
+                        panel.webview.html = htmlContent;
+                        
+                        // Immediately send graph data
+                        await handleGetGraphData(panel);
+                    } catch (error) {
+                        console.error('[CappyRAG] Failed to open graph page:', error);
+                        vscode.window.showErrorMessage(`Failed to open graph page: ${error}`);
+                    }
+                    break;
+
+                case 'backToDashboard':
+                    // Navigate back to dashboard
+                    try {
+                        const { generateWebviewHTML } = await import('./templates/htmlTemplate');
+                        panel.webview.html = generateWebviewHTML(panel.webview, context);
+                        
+                        // Reload dashboard data
+                        const documents = await db.getDocumentsAsync();
+                        const stats = {
+                            documents: documents.length,
+                            entities: (await db.getEntitiesAsync()).length,
+                            relationships: (await db.getRelationshipsAsync()).length,
+                            chunks: (await db.getChunksAsync()).length
+                        };
+                        
+                        panel.webview.postMessage({
+                            command: 'initialData',
+                            documents,
+                            stats,
+                            activeTab: 'graph'
+                        });
+                    } catch (error) {
+                        console.error('[CappyRAG] Failed to return to dashboard:', error);
+                        vscode.window.showErrorMessage(`Failed to return to dashboard: ${error}`);
+                    }
+                    break;
                 
                 case 'getGraphD3HTML':
                     // Send D3.js graph HTML to iframe with inline D3.js library

@@ -162,55 +162,52 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
                 <div id="graph-tab" class="tab-content hidden">
                     <div class="page-header">
                         <h2 class="page-title">Knowledge Graph</h2>
-                        <p class="page-description">Visualize entities and relationships extracted from your documents</p>
+                        <p class="page-description">Explore entities and relationships with interactive D3.js visualization</p>
                     </div>
                     
-                    <!-- Graph Controls -->
-                    <div class="control-group" style="margin-bottom: 16px;">
-                        <div class="control-group-left">
-                            <button class="btn btn-secondary" onclick="loadGraph()">
-                                <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    <!-- Graph Launch Card -->
+                    <div style="max-width: 600px; margin: 40px auto; text-align: center;">
+                        <div style="background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 48px 32px;">
+                            <!-- Icon -->
+                            <div style="width: 80px; height: 80px; margin: 0 auto 24px; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+                                <svg style="width: 48px; height: 48px; color: white;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                                 </svg>
-                                Load Graph
+                            </div>
+                            
+                            <!-- Title -->
+                            <h3 style="font-size: 24px; font-weight: 600; margin-bottom: 12px; color: var(--foreground);">
+                                Interactive Knowledge Graph
+                            </h3>
+                            <p style="font-size: 14px; color: var(--muted-foreground); margin-bottom: 24px; line-height: 1.6;">
+                                Visualize your knowledge base with a force-directed D3.js graph.<br/>
+                                Explore entities, relationships, and document connections interactively.
+                            </p>
+                            
+                            <!-- Stats Preview -->
+                            <div style="display: flex; gap: 24px; justify-content: center; margin-bottom: 32px; padding: 20px; background: var(--muted); border-radius: 8px;">
+                                <div style="text-align: center;">
+                                    <div style="font-size: 28px; font-weight: 700; color: #10b981;" id="preview-doc-count">0</div>
+                                    <div style="font-size: 12px; color: var(--muted-foreground); margin-top: 4px;">Documents</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 28px; font-weight: 700; color: #3b82f6;" id="preview-entity-count">0</div>
+                                    <div style="font-size: 12px; color: var(--muted-foreground); margin-top: 4px;">Entities</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 28px; font-weight: 700; color: #f97316;" id="preview-rel-count">0</div>
+                                    <div style="font-size: 12px; color: var(--muted-foreground); margin-top: 4px;">Relationships</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Launch Button -->
+                            <button class="btn btn-primary" onclick="openGraphPage()" style="padding: 12px 32px; font-size: 15px; font-weight: 600;">
+                                <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 20px; height: 20px;">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                Open Knowledge Graph
                             </button>
-                        </div>
-                        <div class="control-group-right" style="display: flex; gap: 16px; align-items: center; font-size: 13px;">
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <div style="width: 12px; height: 12px; background: #10b981; border-radius: 50%;"></div>
-                                <span id="doc-count">Documents: 0</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <div style="width: 12px; height: 12px; background: #3b82f6; border-radius: 50%;"></div>
-                                <span id="entity-count">Entities: 0</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <div style="width: 12px; height: 12px; background: #f97316; border-radius: 50%;"></div>
-                                <span id="rel-count">Relationships: 0</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Graph Container - D3.js Iframe -->
-                    <div style="position: relative; height: 600px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
-                        <iframe id="graph-d3-iframe" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
-                        <div id="graph-loading" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--card); z-index: 10;">
-                            <div style="text-align: center;">
-                                <svg style="width: 48px; height: 48px; color: #10b981; animation: spin 1s linear infinite; margin: 0 auto;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle style="opacity: 0.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path style="opacity: 0.75;" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <p style="margin-top: 16px; color: var(--muted-foreground);">Loading D3.js knowledge graph...</p>
-                            </div>
-                        </div>
-                        <div id="graph-empty" style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: var(--card); z-index: 10;">
-                            <div style="text-align: center; color: var(--muted-foreground);">
-                                <svg style="width: 64px; height: 64px; margin: 0 auto 16px; opacity: 0.5;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                                </svg>
-                                <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">No Knowledge Graph Data</h3>
-                                <p>Upload documents to build your knowledge graph</p>
-                            </div>
                         </div>
                     </div>
                 </div>
