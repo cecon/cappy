@@ -152,7 +152,6 @@ function calculateImportance(connections: number, confidence: number, created: s
  */
 export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<void> {
     try {
-        console.log('[Backend] ⚡ handleGetGraphData called - Stack trace:', new Error().stack);
         console.log('[Backend] Getting graph data...');
         const db = getDatabase();
         await db.initialize();

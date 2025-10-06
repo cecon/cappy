@@ -385,18 +385,25 @@
             </div>
 
             <div class="filter-section">
-                <h3>Confidence</h3>
+                <h3>📅 Timeline</h3>
+                <div style="font-size: 11px; color: #858585; margin-bottom: 8px;" id="timeline-info">Loading...</div>
+                <div id="timeline-chart" style="height: 80px; margin-bottom: 8px;"></div>
                 <div class="slider-container">
-                    <input type="range" class="slider" id="confidence-slider" min="0" max="100" value="0">
-                    <div class="slider-value">Min: <span id="confidence-value">0</span>%</div>
+                    <div style="font-size: 11px; color: #858585; margin-bottom: 4px;">Date Range:</div>
+                    <input type="date" class="select-input" id="date-from" style="margin-bottom: 4px;">
+                    <input type="date" class="select-input" id="date-to">
                 </div>
             </div>
 
             <div class="filter-section">
                 <h3>Category</h3>
-                <select class="select-input" id="category-filter">
+                <select class="select-input" id="category-filter" onchange="applyFilters()">
                     <option value="">All Categories</option>
                 </select>
+            </div>
+
+            <div class="filter-section">
+                <button class="control-button" onclick="clearFilters()" style="width: 100%;">🔄 Clear All Filters</button>
             </div>
         </div>
 
@@ -469,12 +476,21 @@
         
         // State
         let graphData = null;
+        let originalGraphData = null;
         let simulation = null;
         let svg = null;
         let g = null;
         let zoom = null;
         let isInitialized = false;
         let dataRequested = false;
+        let searchTimeout = null;
+        let filters = {
+            search: '',
+            types: { document: true, entity: true, relationship: true, chunk: true },
+            category: '',
+            dateFrom: null,
+            dateTo: null
+        };
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -506,8 +522,12 @@
                 }
                 
                 graphData = message.data;
+                originalGraphData = JSON.parse(JSON.stringify(message.data)); // Deep copy
                 isInitialized = true;
                 initializeGraph();
+                setupFilters();
+                populateCategories();
+                buildTimeline();
                 document.getElementById('loading').style.display = 'none';
             }
         });
@@ -662,6 +682,192 @@
 
         function exportImage() {
             alert('Export feature coming soon!');
+        }
+
+        // ============ FILTER FUNCTIONS ============
+
+        function setupFilters() {
+            // Search input
+            const searchInput = document.getElementById('search-input');
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    filters.search = e.target.value.toLowerCase();
+                    applyFilters();
+                }, 300);
+            });
+
+            // Type checkboxes
+            document.getElementById('filter-documents').addEventListener('change', (e) => {
+                filters.types.document = e.target.checked;
+                applyFilters();
+            });
+            document.getElementById('filter-entities').addEventListener('change', (e) => {
+                filters.types.entity = e.target.checked;
+                applyFilters();
+            });
+            document.getElementById('filter-relationships').addEventListener('change', (e) => {
+                filters.types.relationship = e.target.checked;
+                applyFilters();
+            });
+            document.getElementById('filter-chunks').addEventListener('change', (e) => {
+                filters.types.chunk = e.target.checked;
+                applyFilters();
+            });
+
+            // Date range
+            document.getElementById('date-from').addEventListener('change', (e) => {
+                filters.dateFrom = e.target.value;
+                applyFilters();
+            });
+            document.getElementById('date-to').addEventListener('change', (e) => {
+                filters.dateTo = e.target.value;
+                applyFilters();
+            });
+        }
+
+        function applyFilters() {
+            if (!originalGraphData) return;
+
+            // Filter nodes
+            let filteredNodes = originalGraphData.nodes.filter(node => {
+                // Type filter
+                if (!filters.types[node.type]) return false;
+
+                // Search filter
+                if (filters.search && !node.label.toLowerCase().includes(filters.search)) {
+                    return false;
+                }
+
+                // Category filter
+                if (filters.category && node.metadata?.fileCategory !== filters.category) {
+                    return false;
+                }
+
+                // Date filter
+                if (node.metadata?.created) {
+                    const nodeDate = new Date(node.metadata.created);
+                    if (filters.dateFrom && nodeDate < new Date(filters.dateFrom)) return false;
+                    if (filters.dateTo && nodeDate > new Date(filters.dateTo)) return false;
+                }
+
+                return true;
+            });
+
+            // Get IDs of filtered nodes
+            const nodeIds = new Set(filteredNodes.map(n => n.id));
+
+            // Filter edges (only keep edges between visible nodes)
+            let filteredEdges = originalGraphData.edges.filter(edge => 
+                nodeIds.has(edge.source.id || edge.source) && 
+                nodeIds.has(edge.target.id || edge.target)
+            );
+
+            // Update graphData
+            graphData = {
+                ...originalGraphData,
+                nodes: filteredNodes,
+                edges: filteredEdges
+            };
+
+            // Re-render
+            if (simulation) {
+                renderGraph();
+                updateStats();
+            }
+        }
+
+        function clearFilters() {
+            filters = {
+                search: '',
+                types: { document: true, entity: true, relationship: true, chunk: true },
+                category: '',
+                dateFrom: null,
+                dateTo: null
+            };
+
+            document.getElementById('search-input').value = '';
+            document.getElementById('filter-documents').checked = true;
+            document.getElementById('filter-entities').checked = true;
+            document.getElementById('filter-relationships').checked = true;
+            document.getElementById('filter-chunks').checked = true;
+            document.getElementById('category-filter').value = '';
+            document.getElementById('date-from').value = '';
+            document.getElementById('date-to').value = '';
+
+            applyFilters();
+        }
+
+        function populateCategories() {
+            const categories = new Set();
+            originalGraphData.nodes.forEach(node => {
+                if (node.metadata?.fileCategory) {
+                    categories.add(node.metadata.fileCategory);
+                }
+            });
+
+            const select = document.getElementById('category-filter');
+            categories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+                select.appendChild(option);
+            });
+        }
+
+        function buildTimeline() {
+            if (!originalGraphData) return;
+
+            // Extract dates from nodes
+            const dates = originalGraphData.nodes
+                .filter(n => n.metadata?.created)
+                .map(n => new Date(n.metadata.created));
+
+            if (dates.length === 0) {
+                document.getElementById('timeline-info').textContent = 'No date information available';
+                return;
+            }
+
+            dates.sort((a, b) => a - b);
+            const minDate = dates[0];
+            const maxDate = dates[dates.length - 1];
+
+            // Set date inputs
+            document.getElementById('date-from').value = minDate.toISOString().split('T')[0];
+            document.getElementById('date-to').value = maxDate.toISOString().split('T')[0];
+
+            // Build histogram by month
+            const monthCounts = {};
+            dates.forEach(date => {
+                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                monthCounts[monthKey] = (monthCounts[monthKey] || 0) + 1;
+            });
+
+            // Create simple bar chart
+            const chartContainer = document.getElementById('timeline-chart');
+            chartContainer.innerHTML = '';
+            chartContainer.style.display = 'flex';
+            chartContainer.style.alignItems = 'flex-end';
+            chartContainer.style.gap = '2px';
+            chartContainer.style.background = '#1e1e1e';
+            chartContainer.style.padding = '4px';
+            chartContainer.style.borderRadius = '4px';
+
+            const maxCount = Math.max(...Object.values(monthCounts));
+            Object.entries(monthCounts).forEach(([month, count]) => {
+                const bar = document.createElement('div');
+                const height = (count / maxCount) * 60;
+                bar.style.flex = '1';
+                bar.style.height = height + 'px';
+                bar.style.background = '#0e639c';
+                bar.style.borderRadius = '2px';
+                bar.style.cursor = 'pointer';
+                bar.title = `${month}: ${count} nodes`;
+                chartContainer.appendChild(bar);
+            });
+
+            document.getElementById('timeline-info').textContent = 
+                `${dates.length} nodes from ${minDate.toLocaleDateString()} to ${maxDate.toLocaleDateString()}`;
         }
 
         // Window resize
