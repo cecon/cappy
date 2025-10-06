@@ -111,17 +111,29 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
                         const graphPagePath = path.join(context.extensionPath, 'out', 'webview', 'graph-page.html');
                         const d3JsPath = path.join(context.extensionPath, 'out', 'webview', 'd3.v7.min.js');
                         
+                        console.log('[CappyRAG] Loading graph-page.html from:', graphPagePath);
+                        console.log('[CappyRAG] Loading d3.v7.min.js from:', d3JsPath);
+                        
                         let htmlContent = fs.readFileSync(graphPagePath, 'utf8');
                         const d3Content = fs.readFileSync(d3JsPath, 'utf8');
                         
-                        // Replace CDN script tag with inline D3.js
-                        htmlContent = htmlContent.replace(
-                            /<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/d3@7"><\/script>/,
-                            `<script>${d3Content}</script>`
-                        );
+                        console.log('[CappyRAG] D3.js content loaded, size:', d3Content.length, 'bytes');
+                        
+                        // Replace placeholder with inline D3.js using split/join to avoid template literal issues
+                        const placeholder = '<!-- D3_PLACEHOLDER -->';
+                        const beforeReplace = htmlContent.includes(placeholder);
+                        
+                        if (beforeReplace) {
+                            const parts = htmlContent.split(placeholder);
+                            htmlContent = parts[0] + '<script>' + d3Content + '</script>' + parts[1];
+                        }
+                        
+                        const afterReplace = htmlContent.includes(placeholder);
+                        console.log('[CappyRAG] D3 injection:', beforeReplace ? 'placeholder found' : 'placeholder NOT found', '→', afterReplace ? 'still there (FAILED)' : 'replaced (SUCCESS)');
                         
                         // Update webview to show graph page
                         panel.webview.html = htmlContent;
+                        console.log('[CappyRAG] Graph page HTML set');
                         
                         // Immediately send graph data
                         await handleGetGraphData(panel);
@@ -149,8 +161,7 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
                         panel.webview.postMessage({
                             command: 'initialData',
                             documents,
-                            stats,
-                            activeTab: 'graph'
+                            stats
                         });
                     } catch (error) {
                         console.error('[CappyRAG] Failed to return to dashboard:', error);
