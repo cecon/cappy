@@ -106,6 +106,27 @@ export class InitCappyCommand {
                     // Don't fail the entire init process if Mini-LightRAG setup fails
                 }
 
+                // 6.5 Configurar MCP Server
+                progress.report({ increment: 95, message: 'Configurando MCP Server...' });
+                try {
+                    console.log('[initCappy] Starting MCP Server configuration...');
+                    const mcpConfigManagerModule = await import('../utils/mcpConfigManager');
+                    const mcpConfigured = await mcpConfigManagerModule.MCPConfigManager.setupMCPConfig(this.extensionContext!);
+                    if (mcpConfigured) {
+                        console.log('[initCappy] MCP Server configured successfully');
+                        const envDetectorModule = await import('../utils/environmentDetector');
+                        const envName = envDetectorModule.EnvironmentDetector.getEnvironmentName();
+                        vscode.window.showInformationMessage(
+                            `✅ MCP Server configurado para ${envName}! Reinicie o editor para ativar.`
+                        );
+                    } else {
+                        console.warn('[initCappy] MCP Server configuration skipped or failed');
+                    }
+                } catch (mcpError) {
+                    console.error('[initCappy] Error setting up MCP Server:', mcpError);
+                    // Don't fail the entire init process if MCP setup fails
+                }
+
                 progress.report({ increment: 100, message: 'Finalizado!' });
 
                 vscode.window.showInformationMessage(
