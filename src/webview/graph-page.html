@@ -334,6 +334,82 @@
         .tooltip-value {
             color: #cccccc;
         }
+
+        /* Node Details Panel */
+        #node-details-panel {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 320px;
+            max-height: calc(100% - 80px);
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            z-index: 100;
+        }
+
+        .detail-row {
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #3c3c3c;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-size: 11px;
+            color: #858585;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .detail-value {
+            font-size: 13px;
+            color: #cccccc;
+            word-wrap: break-word;
+        }
+
+        .detail-badge {
+            display: inline-block;
+            background: #0e639c;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
+
+        /* Timeline Slider */
+        #timeline-chart {
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 8px;
+            cursor: crosshair;
+            user-select: none;
+        }
+
+        .timeline-bar {
+            transition: opacity 0.2s;
+        }
+
+        .timeline-bar:hover {
+            opacity: 0.8;
+        }
+
+        .timeline-selection {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            background: rgba(14, 99, 156, 0.3);
+            border: 1px solid #0e639c;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -387,11 +463,9 @@
             <div class="filter-section">
                 <h3>📅 Timeline</h3>
                 <div style="font-size: 11px; color: #858585; margin-bottom: 8px;" id="timeline-info">Loading...</div>
-                <div id="timeline-chart" style="height: 80px; margin-bottom: 8px;"></div>
-                <div class="slider-container">
-                    <div style="font-size: 11px; color: #858585; margin-bottom: 4px;">Date Range:</div>
-                    <input type="date" class="select-input" id="date-from" style="margin-bottom: 4px;">
-                    <input type="date" class="select-input" id="date-to">
+                <div id="timeline-chart" style="height: 80px; margin-bottom: 12px; position: relative;"></div>
+                <div style="font-size: 11px; color: #858585; margin-bottom: 4px;">
+                    <span id="timeline-range-text">Drag to filter by date</span>
                 </div>
             </div>
 
@@ -415,6 +489,15 @@
             <div class="loading" id="loading">
                 <div class="loading-spinner"></div>
                 <div style="margin-top: 16px;">Loading graph data...</div>
+            </div>
+
+            <!-- Node Details Panel -->
+            <div id="node-details-panel" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px;">Node Details</h3>
+                    <button onclick="closeNodeDetails()" style="background: transparent; border: none; color: #858585; cursor: pointer; font-size: 18px; padding: 0; width: 24px; height: 24px;">×</button>
+                </div>
+                <div id="node-details-content" style="overflow-y: auto; max-height: calc(100% - 40px);"></div>
             </div>
 
             <!-- Controls -->
@@ -558,6 +641,14 @@
 
             svg.call(zoom);
 
+            // Click on background to close node details
+            svg.on('click', function(event) {
+                if (event.target === this) {
+                    closeNodeDetails();
+                    g.selectAll('circle').attr('stroke', '#1e1e1e').attr('stroke-width', 2);
+                }
+            });
+
             // Main group
             g = svg.append('g');
 
@@ -576,6 +667,10 @@
 
         // Render graph
         function renderGraph() {
+            if (!graphData || !graphData.nodes || !simulation) return;
+
+            console.log('[Render] Rendering graph with', graphData.nodes.length, 'nodes');
+
             // Clear existing
             g.selectAll('*').remove();
 
@@ -599,7 +694,27 @@
                 .attr('fill', d => getNodeColor(d))
                 .attr('stroke', '#1e1e1e')
                 .attr('stroke-width', 2)
-                .call(drag(simulation));
+                .call(drag(simulation))
+                .on('click', function(event, d) {
+                    event.stopPropagation();
+                    showNodeDetails(d);
+                    // Highlight clicked node
+                    g.selectAll('circle').attr('stroke', '#1e1e1e').attr('stroke-width', 2);
+                    d3.select(this).attr('stroke', '#fbbf24').attr('stroke-width', 4);
+                })
+                .on('mouseover', function(event, d) {
+                    d3.select(this)
+                        .attr('stroke', '#0e639c')
+                        .attr('stroke-width', 3);
+                })
+                .on('mouseout', function(event, d) {
+                    const isSelected = document.getElementById('node-details-panel').style.display === 'block';
+                    if (!isSelected) {
+                        d3.select(this)
+                            .attr('stroke', '#1e1e1e')
+                            .attr('stroke-width', 2);
+                    }
+                });
 
             // Update positions
             simulation.on('tick', () => {
@@ -655,14 +770,22 @@
         }
 
         function updateStats() {
-            document.getElementById('stat-nodes').textContent = graphData.nodes.length;
-            document.getElementById('stat-edges').textContent = graphData.edges.length;
-            document.getElementById('stat-filtered').textContent = graphData.nodes.length;
+            if (!graphData) return;
+            
+            const visibleNodes = graphData.nodes.length;
+            const visibleEdges = graphData.edges.length;
+            const totalNodes = originalGraphData ? originalGraphData.nodes.length : visibleNodes;
+            
+            document.getElementById('stat-nodes').textContent = totalNodes;
+            document.getElementById('stat-edges').textContent = originalGraphData ? originalGraphData.edges.length : visibleEdges;
+            document.getElementById('stat-filtered').textContent = visibleNodes;
             
             if (graphData.statistics) {
                 document.getElementById('stat-confidence').textContent = 
                     (graphData.statistics.avgConfidence || 0).toFixed(1) + '%';
             }
+
+            console.log('[Stats] Total:', totalNodes, 'Visible:', visibleNodes);
         }
 
         function resetView() {
@@ -715,66 +838,89 @@
                 applyFilters();
             });
 
-            // Date range
-            document.getElementById('date-from').addEventListener('change', (e) => {
-                filters.dateFrom = e.target.value;
-                applyFilters();
-            });
-            document.getElementById('date-to').addEventListener('change', (e) => {
-                filters.dateTo = e.target.value;
-                applyFilters();
-            });
+            // Date range is handled by timeline drag selection
         }
 
         function applyFilters() {
             if (!originalGraphData) return;
 
-            // Filter nodes
-            let filteredNodes = originalGraphData.nodes.filter(node => {
-                // Type filter
-                if (!filters.types[node.type]) return false;
+            console.log('[Filters] Applying filters:', filters);
 
-                // Search filter
-                if (filters.search && !node.label.toLowerCase().includes(filters.search)) {
-                    return false;
-                }
+            // Deep copy nodes to avoid D3.js mutations
+            let filteredNodes = originalGraphData.nodes
+                .filter(node => {
+                    // Type filter
+                    if (!filters.types[node.type]) return false;
 
-                // Category filter
-                if (filters.category && node.metadata?.fileCategory !== filters.category) {
-                    return false;
-                }
+                    // Search filter
+                    if (filters.search && !node.label.toLowerCase().includes(filters.search)) {
+                        return false;
+                    }
 
-                // Date filter
-                if (node.metadata?.created) {
-                    const nodeDate = new Date(node.metadata.created);
-                    if (filters.dateFrom && nodeDate < new Date(filters.dateFrom)) return false;
-                    if (filters.dateTo && nodeDate > new Date(filters.dateTo)) return false;
-                }
+                    // Category filter
+                    if (filters.category && node.metadata?.fileCategory !== filters.category) {
+                        return false;
+                    }
 
-                return true;
-            });
+                    // Date filter
+                    if (node.metadata?.created) {
+                        const nodeDate = new Date(node.metadata.created);
+                        if (filters.dateFrom && nodeDate < new Date(filters.dateFrom)) return false;
+                        if (filters.dateTo && nodeDate > new Date(filters.dateTo)) return false;
+                    }
+
+                    return true;
+                })
+                .map(node => ({ ...node })); // Create shallow copies
+
+            console.log('[Filters] Filtered nodes:', filteredNodes.length, 'of', originalGraphData.nodes.length);
 
             // Get IDs of filtered nodes
             const nodeIds = new Set(filteredNodes.map(n => n.id));
 
-            // Filter edges (only keep edges between visible nodes)
-            let filteredEdges = originalGraphData.edges.filter(edge => 
-                nodeIds.has(edge.source.id || edge.source) && 
-                nodeIds.has(edge.target.id || edge.target)
-            );
+            // Filter edges (only keep edges between visible nodes) - also copy
+            let filteredEdges = originalGraphData.edges
+                .filter(edge => {
+                    const sourceId = edge.source.id || edge.source;
+                    const targetId = edge.target.id || edge.target;
+                    return nodeIds.has(sourceId) && nodeIds.has(targetId);
+                })
+                .map(edge => ({
+                    ...edge,
+                    source: edge.source.id || edge.source,
+                    target: edge.target.id || edge.target
+                }));
 
-            // Update graphData
+            console.log('[Filters] Filtered edges:', filteredEdges.length, 'of', originalGraphData.edges.length);
+
+            // Update graphData with fresh copies
             graphData = {
-                ...originalGraphData,
                 nodes: filteredNodes,
-                edges: filteredEdges
+                edges: filteredEdges,
+                statistics: originalGraphData.statistics
             };
 
-            // Re-render
+            // Stop old simulation
             if (simulation) {
-                renderGraph();
-                updateStats();
+                simulation.stop();
             }
+
+            // Reinitialize graph completely
+            const width = window.innerWidth - 280;
+            const height = window.innerHeight - 48 - 49;
+
+            // Setup new simulation
+            simulation = d3.forceSimulation(graphData.nodes)
+                .force('link', d3.forceLink(graphData.edges)
+                    .id(d => d.id)
+                    .distance(100))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(30));
+
+            // Re-render
+            renderGraph();
+            updateStats();
         }
 
         function clearFilters() {
@@ -792,8 +938,14 @@
             document.getElementById('filter-relationships').checked = true;
             document.getElementById('filter-chunks').checked = true;
             document.getElementById('category-filter').value = '';
-            document.getElementById('date-from').value = '';
-            document.getElementById('date-to').value = '';
+
+            // Reset timeline
+            if (timelineData.monthCounts && timelineData.monthCounts.length > 0) {
+                timelineData.startIndex = 0;
+                timelineData.endIndex = timelineData.monthCounts.length - 1;
+                updateTimelineSelection();
+                document.getElementById('timeline-range-text').textContent = 'Click and drag to filter • Double-click to reset';
+            }
 
             applyFilters();
         }
@@ -815,59 +967,357 @@
             });
         }
 
+        // ============ NODE DETAILS PANEL ============
+        
+        function showNodeDetails(node) {
+            const panel = document.getElementById('node-details-panel');
+            const content = document.getElementById('node-details-content');
+            
+            let html = `
+                <div class="detail-row">
+                    <div class="detail-label">Type</div>
+                    <div class="detail-value">
+                        <span class="detail-badge" style="background: ${getNodeColor(node)}">${node.type.toUpperCase()}</span>
+                    </div>
+                </div>
+                
+                <div class="detail-row">
+                    <div class="detail-label">Label</div>
+                    <div class="detail-value"><strong>${node.label}</strong></div>
+                </div>
+                
+                <div class="detail-row">
+                    <div class="detail-label">ID</div>
+                    <div class="detail-value" style="font-size: 10px; color: #858585;">${node.id}</div>
+                </div>
+            `;
+
+            // Metadata
+            if (node.metadata) {
+                const meta = node.metadata;
+                
+                if (meta.fileName) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">File Name</div>
+                            <div class="detail-value">${meta.fileName}</div>
+                        </div>
+                    `;
+                }
+                
+                if (meta.filePath) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">File Path</div>
+                            <div class="detail-value" style="font-size: 11px; word-break: break-all;">${meta.filePath}</div>
+                        </div>
+                    `;
+                }
+                
+                if (meta.fileCategory) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">Category</div>
+                            <div class="detail-value">
+                                <span class="detail-badge">${meta.fileCategory}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                if (meta.entityType) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">Entity Type</div>
+                            <div class="detail-value">${meta.entityType}</div>
+                        </div>
+                    `;
+                }
+                
+                if (meta.description) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">Description</div>
+                            <div class="detail-value">${meta.description}</div>
+                        </div>
+                    `;
+                }
+                
+                if (meta.contentPreview) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">Content Preview</div>
+                            <div class="detail-value" style="font-size: 11px; max-height: 100px; overflow-y: auto; background: #1e1e1e; padding: 8px; border-radius: 4px;">${meta.contentPreview}</div>
+                        </div>
+                    `;
+                }
+                
+                if (meta.sourceDocumentsCount) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">Source Documents</div>
+                            <div class="detail-value">${meta.sourceDocumentsCount} document(s)</div>
+                        </div>
+                    `;
+                }
+                
+                if (meta.confidence !== undefined) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">Confidence</div>
+                            <div class="detail-value">${(meta.confidence * 100).toFixed(1)}%</div>
+                        </div>
+                    `;
+                }
+                
+                if (meta.created) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">Created</div>
+                            <div class="detail-value">${new Date(meta.created).toLocaleString()}</div>
+                        </div>
+                    `;
+                }
+                
+                if (meta.tags && meta.tags.length > 0) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">Tags</div>
+                            <div class="detail-value">
+                                ${meta.tags.map(tag => `<span class="detail-badge">${tag}</span>`).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (meta.lineRange) {
+                    html += `
+                        <div class="detail-row">
+                            <div class="detail-label">Line Range</div>
+                            <div class="detail-value">${meta.lineRange}</div>
+                        </div>
+                    `;
+                }
+            }
+
+            // Connections
+            if (node.connections) {
+                html += `
+                    <div class="detail-row">
+                        <div class="detail-label">Connections</div>
+                        <div class="detail-value">
+                            <span class="detail-badge" style="background: #10b981;">↓ ${node.connections.incoming || 0} In</span>
+                            <span class="detail-badge" style="background: #ef4444;">↑ ${node.connections.outgoing || 0} Out</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Metrics
+            if (node.metrics && node.metrics.importance !== undefined) {
+                html += `
+                    <div class="detail-row">
+                        <div class="detail-label">Importance</div>
+                        <div class="detail-value">${(node.metrics.importance * 100).toFixed(1)}%</div>
+                    </div>
+                `;
+            }
+
+            content.innerHTML = html;
+            panel.style.display = 'block';
+        }
+
+        function closeNodeDetails() {
+            document.getElementById('node-details-panel').style.display = 'none';
+        }
+
+        // ============ TIMELINE SLIDER ============
+
+        let timelineData = {
+            dates: [],
+            minDate: null,
+            maxDate: null,
+            monthCounts: {},
+            bars: [],
+            isDragging: false,
+            startX: 0,
+            startIndex: 0,
+            endIndex: 0
+        };
+
         function buildTimeline() {
             if (!originalGraphData) return;
 
             // Extract dates from nodes
             const dates = originalGraphData.nodes
                 .filter(n => n.metadata?.created)
-                .map(n => new Date(n.metadata.created));
+                .map(n => ({
+                    date: new Date(n.metadata.created),
+                    node: n
+                }));
 
             if (dates.length === 0) {
                 document.getElementById('timeline-info').textContent = 'No date information available';
                 return;
             }
 
-            dates.sort((a, b) => a - b);
-            const minDate = dates[0];
-            const maxDate = dates[dates.length - 1];
+            dates.sort((a, b) => a.date - b.date);
+            const minDate = dates[0].date;
+            const maxDate = dates[dates.length - 1].date;
 
-            // Set date inputs
-            document.getElementById('date-from').value = minDate.toISOString().split('T')[0];
-            document.getElementById('date-to').value = maxDate.toISOString().split('T')[0];
+            timelineData.dates = dates;
+            timelineData.minDate = minDate;
+            timelineData.maxDate = maxDate;
 
             // Build histogram by month
             const monthCounts = {};
-            dates.forEach(date => {
-                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                monthCounts[monthKey] = (monthCounts[monthKey] || 0) + 1;
+            const monthData = [];
+            dates.forEach(item => {
+                const monthKey = `${item.date.getFullYear()}-${String(item.date.getMonth() + 1).padStart(2, '0')}`;
+                if (!monthCounts[monthKey]) {
+                    monthCounts[monthKey] = { count: 0, date: new Date(item.date.getFullYear(), item.date.getMonth(), 1) };
+                }
+                monthCounts[monthKey].count++;
             });
 
-            // Create simple bar chart
+            // Convert to array and sort
+            Object.entries(monthCounts).forEach(([key, value]) => {
+                monthData.push({ key, ...value });
+            });
+            monthData.sort((a, b) => a.date - b.date);
+
+            timelineData.monthCounts = monthData;
+            timelineData.startIndex = 0;
+            timelineData.endIndex = monthData.length - 1;
+
+            // Create interactive bar chart
             const chartContainer = document.getElementById('timeline-chart');
             chartContainer.innerHTML = '';
             chartContainer.style.display = 'flex';
             chartContainer.style.alignItems = 'flex-end';
             chartContainer.style.gap = '2px';
-            chartContainer.style.background = '#1e1e1e';
-            chartContainer.style.padding = '4px';
-            chartContainer.style.borderRadius = '4px';
+            chartContainer.style.position = 'relative';
 
-            const maxCount = Math.max(...Object.values(monthCounts));
-            Object.entries(monthCounts).forEach(([month, count]) => {
+            const maxCount = Math.max(...monthData.map(m => m.count));
+            timelineData.bars = [];
+
+            monthData.forEach((month, index) => {
                 const bar = document.createElement('div');
-                const height = (count / maxCount) * 60;
+                const height = (month.count / maxCount) * 60;
                 bar.style.flex = '1';
                 bar.style.height = height + 'px';
                 bar.style.background = '#0e639c';
                 bar.style.borderRadius = '2px';
                 bar.style.cursor = 'pointer';
-                bar.title = `${month}: ${count} nodes`;
+                bar.title = `${month.key}: ${month.count} nodes`;
+                bar.className = 'timeline-bar';
+                bar.dataset.index = index;
                 chartContainer.appendChild(bar);
+                timelineData.bars.push(bar);
+            });
+
+            // Add drag selection
+            let selectionDiv = document.createElement('div');
+            selectionDiv.className = 'timeline-selection';
+            selectionDiv.style.display = 'none';
+            chartContainer.appendChild(selectionDiv);
+
+            // Mouse events for drag selection
+            chartContainer.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('timeline-bar')) {
+                    timelineData.isDragging = true;
+                    timelineData.startIndex = parseInt(e.target.dataset.index);
+                    timelineData.endIndex = timelineData.startIndex;
+                    updateTimelineSelection();
+                }
+            });
+
+            chartContainer.addEventListener('mousemove', (e) => {
+                if (timelineData.isDragging && e.target.classList.contains('timeline-bar')) {
+                    timelineData.endIndex = parseInt(e.target.dataset.index);
+                    updateTimelineSelection();
+                }
+            });
+
+            chartContainer.addEventListener('mouseup', () => {
+                if (timelineData.isDragging) {
+                    timelineData.isDragging = false;
+                    applyTimelineFilter();
+                }
+            });
+
+            chartContainer.addEventListener('mouseleave', () => {
+                if (timelineData.isDragging) {
+                    timelineData.isDragging = false;
+                    applyTimelineFilter();
+                }
+            });
+
+            // Double click to reset
+            chartContainer.addEventListener('dblclick', () => {
+                timelineData.startIndex = 0;
+                timelineData.endIndex = monthData.length - 1;
+                filters.dateFrom = null;
+                filters.dateTo = null;
+                updateTimelineSelection();
+                applyFilters();
             });
 
             document.getElementById('timeline-info').textContent = 
                 `${dates.length} nodes from ${minDate.toLocaleDateString()} to ${maxDate.toLocaleDateString()}`;
+            
+            document.getElementById('timeline-range-text').textContent = 'Click and drag to filter • Double-click to reset';
+        }
+
+        function updateTimelineSelection() {
+            const container = document.getElementById('timeline-chart');
+            const selection = container.querySelector('.timeline-selection');
+            
+            if (!selection || timelineData.bars.length === 0) return;
+
+            const start = Math.min(timelineData.startIndex, timelineData.endIndex);
+            const end = Math.max(timelineData.startIndex, timelineData.endIndex);
+
+            // Highlight selected bars
+            timelineData.bars.forEach((bar, index) => {
+                if (index >= start && index <= end) {
+                    bar.style.background = '#1177bb';
+                } else {
+                    bar.style.background = '#0e639c';
+                }
+            });
+
+            // Show selection overlay
+            const firstBar = timelineData.bars[start];
+            const lastBar = timelineData.bars[end];
+            const containerRect = container.getBoundingClientRect();
+            const firstRect = firstBar.getBoundingClientRect();
+            const lastRect = lastBar.getBoundingClientRect();
+
+            selection.style.display = 'block';
+            selection.style.left = (firstRect.left - containerRect.left) + 'px';
+            selection.style.width = (lastRect.right - firstRect.left) + 'px';
+        }
+
+        function applyTimelineFilter() {
+            const start = Math.min(timelineData.startIndex, timelineData.endIndex);
+            const end = Math.max(timelineData.startIndex, timelineData.endIndex);
+
+            const startMonth = timelineData.monthCounts[start];
+            const endMonth = timelineData.monthCounts[end];
+
+            // Set date range
+            const fromDate = new Date(startMonth.date);
+            const toDate = new Date(endMonth.date);
+            toDate.setMonth(toDate.getMonth() + 1); // End of month
+
+            filters.dateFrom = fromDate.toISOString().split('T')[0];
+            filters.dateTo = toDate.toISOString().split('T')[0];
+
+            document.getElementById('timeline-range-text').textContent = 
+                `${fromDate.toLocaleDateString()} - ${toDate.toLocaleDateString()}`;
+
+            applyFilters();
         }
 
         // Window resize
