@@ -74,10 +74,8 @@ window.switchTab = function(tabName) {
         }
     });
     
-    // Load graph if switching to graph tab
-    if (tabName === 'graph') {
-        loadGraph();
-    }
+    // Note: Graph page is now opened manually via launch card button
+    // No automatic navigation to graph page
 };
 
 // ==================== DOCUMENT MANAGEMENT ====================
@@ -1051,12 +1049,9 @@ window.addEventListener('message', function(event) {
                 updateStats(message.stats);
             }
             
-            if (message.activeTab) {
-                switchTab(message.activeTab);
-            } else {
-                // Default to documents tab
-                switchTab('documents');
-            }
+            // Always respect the activeTab parameter, default to 'documents'
+            const tabToActivate = message.activeTab || 'documents';
+            switchTab(tabToActivate);
             break;
             
         case 'documentsLoaded':
@@ -1067,6 +1062,9 @@ window.addEventListener('message', function(event) {
             if (message.data.stats) {
                 updateStats(message.data.stats);
             }
+            
+            // Ensure we stay on documents tab after loading
+            switchTab('documents');
             break;
             
         case 'documentAdded':
