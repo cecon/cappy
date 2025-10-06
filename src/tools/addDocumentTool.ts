@@ -1,12 +1,13 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs/promises";
-import { CappyRAGDocumentProcessor } from "../core/simpleCappyragProcessor";
+import { CappyRAGDocumentProcessor } from "../core/cappyragProcessor";
 import { Document, Entity, Relationship, KeyValuePair, DocumentMetadata, ProcessingOptions } from "../models/cappyragTypes";
 
 /**
  * MCP Tool for adding documents to CappyRAG system
  * Follows the manual insertion strategy defined in SPEC.md
+ * Uses the full CappyRAG processor with cross-document relationship detection
  */
 export class AddDocumentTool {
   private processor: CappyRAGDocumentProcessor;
@@ -14,7 +15,7 @@ export class AddDocumentTool {
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
-    this.processor = new CappyRAGDocumentProcessor();
+    this.processor = new CappyRAGDocumentProcessor(context);
   }
 
   /**
@@ -55,9 +56,8 @@ export class AddDocumentTool {
         uploadedAt: new Date().toISOString(),
       };
 
-      // Process document through CappyRAG pipeline
+      // Process document through CappyRAG pipeline with cross-document relationship detection
       const result = await this.processor.processDocument(
-        filePath,
         content,
         metadata,
         processingOptions || {
@@ -65,20 +65,21 @@ export class AddDocumentTool {
           maxChunkSize: 500,
           minConfidence: 0.7,
           minWeight: 0.5,
-          autoMerge: false
+          autoMerge: false,
+          entityTypes: ['Person', 'Organization', 'Technology', 'Concept', 'Location', 'Event']
         }
       );
 
       // Return structured result for LLM
       return {
         success: true,
-        documentId: result.document.id,
+        documentId: result.documentId,
         metadata: metadata,
         processing: {
           entitiesFound: result.entities.length,
           relationshipsFound: result.relationships.length,
-          processingTimeMs: 1000,
-          status: 'completed',
+          processingTimeMs: result.processingTimeMs || 1000,
+          status: result.status,
         },
         preview: {
           entities: result.entities.slice(0, 5).map((e) => ({
