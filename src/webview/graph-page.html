@@ -473,15 +473,21 @@
         let svg = null;
         let g = null;
         let zoom = null;
+        let isInitialized = false;
+        let dataRequested = false;
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             console.log('[Graph Page] Initializing...');
-            requestGraphData();
+            if (!dataRequested) {
+                dataRequested = true;
+                requestGraphData();
+            }
         });
 
         // Request graph data from extension
         function requestGraphData() {
+            console.log('[Graph Page] Requesting graph data...');
             vscode.postMessage({ command: 'getGraphData' });
         }
 
@@ -491,7 +497,16 @@
             
             if (message.command === 'graphData') {
                 console.log('[Graph Page] Received graph data:', message.data);
+                console.log('[Graph Page] Nodes:', message.data.nodes?.length, 'Edges:', message.data.edges?.length);
+                
+                // Prevent duplicate initialization
+                if (isInitialized) {
+                    console.warn('[Graph Page] Already initialized, skipping duplicate data');
+                    return;
+                }
+                
                 graphData = message.data;
+                isInitialized = true;
                 initializeGraph();
                 document.getElementById('loading').style.display = 'none';
             }

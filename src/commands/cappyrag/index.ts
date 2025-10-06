@@ -135,8 +135,8 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
                         panel.webview.html = htmlContent;
                         console.log('[CappyRAG] Graph page HTML set');
                         
-                        // Immediately send graph data
-                        await handleGetGraphData(panel);
+                        // Note: Graph data will be requested automatically by the webview via DOMContentLoaded event
+                        // No need to call handleGetGraphData here to avoid duplicate loading
                     } catch (error) {
                         console.error('[CappyRAG] Failed to open graph page:', error);
                         vscode.window.showErrorMessage(`Failed to open graph page: ${error}`);
