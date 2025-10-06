@@ -102,6 +102,36 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
                 case 'getGraphData':
                     await handleGetGraphData(panel);
                     break;
+                
+                case 'getGraphD3HTML':
+                    // Send D3.js graph HTML to iframe with inline D3.js library
+                    try {
+                        const fs = await import('fs');
+                        const path = await import('path');
+                        const graphHtmlPath = path.join(context.extensionPath, 'out', 'webview', 'graph-d3.html');
+                        const d3JsPath = path.join(context.extensionPath, 'out', 'webview', 'd3.v7.min.js');
+                        
+                        let htmlContent = fs.readFileSync(graphHtmlPath, 'utf8');
+                        const d3Content = fs.readFileSync(d3JsPath, 'utf8');
+                        
+                        // Replace CDN script tag with inline D3.js
+                        htmlContent = htmlContent.replace(
+                            /<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/d3@7"><\/script>/,
+                            `<script>${d3Content}</script>`
+                        );
+                        
+                        panel.webview.postMessage({
+                            command: 'graphD3HTML',
+                            data: htmlContent
+                        });
+                    } catch (error) {
+                        console.error('[CappyRAG] Failed to load graph-d3.html:', error);
+                        panel.webview.postMessage({
+                            command: 'graphD3HTMLError',
+                            data: { message: `Failed to load graph HTML: ${error}` }
+                        });
+                    }
+                    break;
 
                 case 'generateDescription':
                     await handleGenerateDescription(message.data, panel);

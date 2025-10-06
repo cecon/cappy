@@ -616,31 +616,26 @@ function displayQueryResults(data) {
 // ==================== GRAPH VISUALIZATION ====================
 
 window.loadGraph = function() {
-    console.log('[Graph] Loading graph data...');
-    const container = document.getElementById('graph-container');
+    console.log('[Graph] Loading D3.js graph...');
+    const iframe = document.getElementById('graph-d3-iframe');
     const loading = document.getElementById('graph-loading');
     const empty = document.getElementById('graph-empty');
     
-    if (!container || !loading || !empty) {
+    if (!iframe || !loading || !empty) {
         console.error('[Graph] Required DOM elements not found');
-        console.log('[Graph] container:', container, 'loading:', loading, 'empty:', empty);
+        console.log('[Graph] iframe:', iframe, 'loading:', loading, 'empty:', empty);
         return;
     }
     
     // Show loading state
     loading.style.display = 'flex';
     empty.style.display = 'none';
-    
-    // Remove any existing canvas (but keep loading/empty elements)
-    const existingCanvas = container.querySelector('canvas');
-    if (existingCanvas) {
-        existingCanvas.remove();
-    }
+    iframe.style.display = 'none';
 
     try {
-        console.log('[Graph] Requesting graph data from extension...');
-        // Request graph data from extension
-        vscode.postMessage({ command: 'getGraphData' });
+        console.log('[Graph] Requesting D3.js HTML from extension...');
+        // First, request the D3.js HTML to load in iframe
+        vscode.postMessage({ command: 'getGraphD3HTML' });
     } catch (error) {
         console.error('[Graph] Error loading graph:', error);
         showToast('error', 'Graph Error', 'Failed to load knowledge graph: ' + error.message);
@@ -1102,8 +1097,57 @@ window.addEventListener('message', function(event) {
             renderDocuments();
             break;
             
+        case 'graphD3HTML':
+            // Use data URI to load HTML (works reliably in VS Code iframes)
+            console.log('[Graph] Received D3.js HTML, loading in iframe...');
+            const iframe = document.getElementById('graph-d3-iframe');
+            if (iframe) {
+                // Convert HTML to base64 data URI
+                const base64Html = btoa(unescape(encodeURIComponent(message.data)));
+                iframe.src = 'data:text/html;base64,' + base64Html;
+                iframe.style.display = 'block';
+                
+                // Wait for iframe to load
+                iframe.onload = function() {
+                    console.log('[Graph] D3.js iframe loaded via data URI, requesting graph data...');
+                    setTimeout(() => {
+                        vscode.postMessage({ command: 'getGraphData' });
+                    }, 500);
+                };
+            }
+            break;
+        
+        case 'graphD3HTMLError':
+            console.error('[Graph] Failed to load D3.js HTML:', message.data.message);
+            const loading = document.getElementById('graph-loading');
+            const empty = document.getElementById('graph-empty');
+            if (loading) loading.style.display = 'none';
+            if (empty) {
+                empty.style.display = 'flex';
+                empty.querySelector('h3').textContent = 'Failed to Load Graph';
+                empty.querySelector('p').textContent = message.data.message;
+            }
+            showToast('error', 'Graph Error', message.data.message);
+            break;
+        
         case 'graphData':
-            renderGraph(message.data);
+            // Send data to D3.js iframe
+            console.log('[Graph] Received graph data, sending to D3.js iframe...');
+            const graphIframe = document.getElementById('graph-d3-iframe');
+            if (graphIframe && graphIframe.contentWindow) {
+                graphIframe.contentWindow.postMessage({
+                    command: 'graphData',
+                    data: message.data
+                }, '*');
+                
+                // Hide loading
+                const graphLoading = document.getElementById('graph-loading');
+                const graphEmpty = document.getElementById('graph-empty');
+                if (graphLoading) graphLoading.style.display = 'none';
+                if (graphEmpty) graphEmpty.style.display = 'none';
+                
+                showToast('success', 'Graph Loaded', `Loaded ${message.data.nodes.length} nodes and ${message.data.edges.length} edges`);
+            }
             updateGraphLegend(message.data);
             break;
             

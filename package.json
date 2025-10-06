@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "AI coding companion with Single-Focus Workflow, CappyRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
   "icon": "assets/icon.png",
-  "version": "2.9.47",
+  "version": "2.9.59",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0",
@@ -332,7 +332,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./ && npm run copy-assets",
-    "copy-assets": "node -e \"const fs=require('fs'),path=require('path');const src='src/commands/cappyrag/templates',dest='out/commands/cappyrag/templates';fs.mkdirSync(dest,{recursive:true});['dashboard.css','dashboard.js'].forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dest,f)))\"",
+    "copy-assets": "node -e \"const fs=require('fs'),path=require('path');const src='src/commands/cappyrag/templates',dest='out/commands/cappyrag/templates';fs.mkdirSync(dest,{recursive:true});['dashboard.css','dashboard.js'].forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dest,f)));const webviewSrc='src/webview',webviewDest='out/webview';fs.mkdirSync(webviewDest,{recursive:true});fs.readdirSync(webviewSrc).filter(f=>f.endsWith('.html')||f.endsWith('.js')).forEach(f=>fs.copyFileSync(path.join(webviewSrc,f),path.join(webviewDest,f)))\"",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
     "test": "npm run compile && node ./out/test/runTest.js",

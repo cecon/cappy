@@ -347,8 +347,8 @@ export function activate(context: vscode.ExtensionContext) {
       "cappyrag.openGraph",
       async () => {
         try {
-          // Open CappyRAG Dashboard on Documents tab
-          await openDocumentUploadUI(context, 'documents');
+          // Open CappyRAG Dashboard on Graph tab
+          await openDocumentUploadUI(context, 'graph');
         } catch (error) {
           console.error("CappyRAG openGraph error:", error);
           vscode.window.showErrorMessage(`CappyRAG openGraph failed: ${error}`);

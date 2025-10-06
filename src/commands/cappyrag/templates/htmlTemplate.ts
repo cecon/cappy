@@ -19,7 +19,7 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'unsafe-inline' 'unsafe-eval';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'unsafe-inline' 'unsafe-eval'; frame-src data:;">
     <title>CappyRAG - Knowledge Graph Dashboard</title>
     <style>${cssContent}</style>
 </head>
@@ -172,19 +172,8 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
                                 <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
-                                Refresh Graph
+                                Load Graph
                             </button>
-                            <button class="btn btn-secondary" onclick="resetGraphView()">
-                                <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                                </svg>
-                                Reset View
-                            </button>
-                            <label style="margin-left: 16px; font-size: 14px; font-weight: 500;">Layout:</label>
-                            <select id="layout-select" class="form-input" style="width: 150px; margin-left: 8px;" onchange="changeLayout()">
-                                <option value="force">Force-Directed</option>
-                                <option value="circular">Circular</option>
-                            </select>
                         </div>
                         <div class="control-group-right" style="display: flex; gap: 16px; align-items: center; font-size: 13px;">
                             <div style="display: flex; align-items: center; gap: 6px;">
@@ -202,47 +191,27 @@ export function generateWebviewHTML(webview: vscode.Webview, context: vscode.Ext
                         </div>
                     </div>
                     
-                    <!-- Search Bar -->
-                    <div style="margin-bottom: 16px;">
-                        <input type="text" id="graph-search" class="form-input" placeholder="Search nodes in the graph..." style="width: 100%;" onkeyup="if(event.key === 'Enter') searchGraph()">
-                    </div>
-                    
-                    <!-- Graph Container -->
+                    <!-- Graph Container - D3.js Iframe -->
                     <div style="position: relative; height: 600px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
-                        <div id="graph-container" style="width: 100%; height: 100%; position: relative;">
-                            <div id="graph-loading" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--card);">
-                                <div style="text-align: center;">
-                                    <svg style="width: 48px; height: 48px; color: #10b981; animation: spin 1s linear infinite; margin: 0 auto;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle style="opacity: 0.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path style="opacity: 0.75;" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    <p style="margin-top: 16px; color: var(--muted-foreground);">Loading knowledge graph...</p>
-                                </div>
-                            </div>
-                            <div id="graph-empty" style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: var(--card);">
-                                <div style="text-align: center; color: var(--muted-foreground);">
-                                    <svg style="width: 64px; height: 64px; margin: 0 auto 16px; opacity: 0.5;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                                    </svg>
-                                    <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">No Knowledge Graph Data</h3>
-                                    <p>Upload documents to build your knowledge graph</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Node Details Panel -->
-                    <div id="node-details" style="margin-top: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
-                            <h3 id="node-title" style="font-size: 16px; font-weight: 600; flex: 1;">Node Details</h3>
-                            <button onclick="closeNodeDetails()" class="btn btn-secondary" style="padding: 4px 8px;">
-                                <svg style="width: 16px; height: 16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <iframe id="graph-d3-iframe" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
+                        <div id="graph-loading" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--card); z-index: 10;">
+                            <div style="text-align: center;">
+                                <svg style="width: 48px; height: 48px; color: #10b981; animation: spin 1s linear infinite; margin: 0 auto;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle style="opacity: 0.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path style="opacity: 0.75;" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                            </button>
+                                <p style="margin-top: 16px; color: var(--muted-foreground);">Loading D3.js knowledge graph...</p>
+                            </div>
                         </div>
-                        <div id="node-type" style="font-size: 14px; margin-bottom: 8px; color: var(--muted-foreground);"></div>
-                        <div id="node-metadata" style="font-size: 14px;"></div>
+                        <div id="graph-empty" style="position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: var(--card); z-index: 10;">
+                            <div style="text-align: center; color: var(--muted-foreground);">
+                                <svg style="width: 64px; height: 64px; margin: 0 auto 16px; opacity: 0.5;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                </svg>
+                                <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">No Knowledge Graph Data</h3>
+                                <p>Upload documents to build your knowledge graph</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

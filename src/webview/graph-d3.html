@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cappy Knowledge Graph - D3.js</title>
+    
+    <!-- D3.js v7 - Loaded from CDN alternative that works with CSP -->
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        /* Graph Container */
+        #graph-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        /* SVG Styles */
+        svg {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        
+        svg:active {
+            cursor: grabbing;
+        }
+        
+        /* Nodes */
+        .node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .node:hover {
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.8));
+        }
+        
+        .node.selected {
+            filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.9));
+        }
+        
+        .node.search-highlight circle {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                stroke: #fbbf24;
+                stroke-width: 3px;
+            }
+            50% {
+                stroke: #f59e0b;
+                stroke-width: 5px;
+            }
+        }
+        
+        .node-icon {
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: none;
+        }
+        
+        .node-label {
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: none;
+        }
+        
+        /* Links */
+        .link line {
+            transition: all 0.3s ease;
+        }
+        
+        .link:hover line {
+            stroke-width: 4 !important;
+            stroke-opacity: 1 !important;
+        }
+        
+        /* Tooltip */
+        .graph-tooltip {
+            position: absolute;
+            visibility: hidden;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            max-width: 300px;
+            z-index: 1000;
+            pointer-events: none;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* Detail Panel */
+        #detail-panel {
+            position: fixed;
+            right: -450px;
+            top: 0;
+            width: 400px;
+            height: 100vh;
+            background: white;
+            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+            overflow-y: auto;
+            transition: right 0.3s ease;
+            z-index: 1000;
+        }
+        
+        #detail-panel.show {
+            right: 0;
+        }
+        
+        #detail-panel .close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6b7280;
+        }
+        
+        #detail-panel .close-btn:hover {
+            color: #1f2937;
+        }
+        
+        /* Controls */
+        .graph-controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 100;
+            max-width: 280px;
+        }
+        
+        .graph-controls h3 {
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            color: #1f2937;
+        }
+        
+        .graph-controls input,
+        .graph-controls select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        
+        .graph-controls button {
+            width: 100%;
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+            margin-bottom: 4px;
+        }
+        
+        .graph-controls button:hover {
+            background: #2563eb;
+        }
+        
+        .filter-group {
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .filter-group:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .filter-group label {
+            display: block;
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+        
+        /* Legend */
+        #legend-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            font-size: 13px;
+            z-index: 100;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .legend-title {
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #1f2937;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .legend-item:hover {
+            background: #f3f4f6;
+            margin-left: 4px;
+        }
+        
+        .legend-item span:first-child {
+            font-size: 20px;
+            margin-right: 8px;
+        }
+        
+        .legend-item span:last-child {
+            font-weight: 500;
+        }
+        
+        /* Loading */
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px 60px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            color: white;
+        }
+        
+        #loading h2 {
+            margin-bottom: 16px;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Stats Bar */
+        #stats-bar {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 100;
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Indicator -->
+    <div id="loading">
+        <h2>🔍 Loading Knowledge Graph</h2>
+        <div class="spinner"></div>
+        <p style="margin-top: 16px; color: #9ca3af;">Preparing visualization...</p>
+    </div>
+    
+    <!-- Graph Container -->
+    <div id="graph-container"></div>
+    
+    <!-- Tooltip -->
+    <div class="graph-tooltip"></div>
+    
+    <!-- Controls Panel -->
+    <div class="graph-controls">
+        <h3>🎛️ Controls</h3>
+        
+        <div class="filter-group">
+            <label>🔍 Search Nodes</label>
+            <input type="text" id="search-input" placeholder="Search by name..." />
+        </div>
+        
+        <div class="filter-group">
+            <label>📁 Node Types</label>
+            <div class="checkbox-group">
+                <div class="checkbox-item">
+                    <input type="checkbox" id="filter-documents" checked />
+                    <label for="filter-documents">Documents</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="filter-entities" checked />
+                    <label for="filter-entities">Entities</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="filter-chunks" checked />
+                    <label for="filter-chunks">Chunks</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="filter-group">
+            <label>⭐ Min Confidence: <span id="confidence-value">0%</span></label>
+            <input type="range" id="confidence-slider" min="0" max="100" value="0" />
+        </div>
+        
+        <button id="reset-btn">↺ Reset View</button>
+        <button id="toggle-legend-btn">📊 Toggle Legend</button>
+    </div>
+    
+    <!-- Stats Bar -->
+    <div id="stats-bar">
+        <div class="stat-item">
+            <div class="stat-value" id="stat-nodes">0</div>
+            <div class="stat-label">Nodes</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="stat-edges">0</div>
+            <div class="stat-label">Edges</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="stat-visible">0</div>
+            <div class="stat-label">Visible</div>
+        </div>
+    </div>
+    
+    <!-- Legend -->
+    <div id="legend-container">
+        <div class="legend-title">📊 File Types</div>
+        <div id="legend-items"></div>
+    </div>
+    
+    <!-- Detail Panel -->
+    <div id="detail-panel">
+        <button class="close-btn" onclick="hideDetailPanel()">×</button>
+        <div id="detail-content"></div>
+    </div>
+    
+    <script>
+        // Check if running in iframe (inside dashboard) or standalone webview
+        const isIframe = window.parent !== window;
+        const vscode = isIframe ? null : (typeof acquireVsCodeApi !== 'undefined' ? acquireVsCodeApi() : null);
+        
+        // Global state
+        let graphData = { nodes: [], edges: [] };
+        let simulation = null;
+        let svg = null;
+        let g = null;
+        let nodeElements = null;
+        let linkElements = null;
+        
+        // Icon mapping (emojis)
+        const iconsByCategory = {
+            'csharp': '🔷', 'dotnet': '💎', 'java': '☕', 'python': '🐍',
+            'ruby': '💎', 'go': '🐹', 'rust': '🦀', 'php': '🐘',
+            'javascript': '📜', 'typescript': '📘', 'react': '⚛️',
+            'vue': '💚', 'angular': '🅰️', 'svelte': '🔥',
+            'css': '🎨', 'scss': '🎨', 'html': '🌐',
+            'sql': '🗄️', 'mongodb': '🍃', 'postgresql': '🐘',
+            'mysql': '🐬', 'graphql': '◉',
+            'markdown': '📝', 'documentation': '📚', 'text': '📄',
+            'xml': '📋', 'json': '📦', 'yaml': '⚙️',
+            'shell': '🐚', 'powershell': '💻', 'batch': '⚡',
+            'dockerfile': '🐳', 'makefile': '🔨',
+            'csv': '📊', 'excel': '📊', 'pdf': '📕',
+            'image': '🖼️', 'video': '🎬', 'audio': '🎵',
+            'archive': '📦',
+            'unknown': '❓', 'default': '📄'
+        };
+        
+        // Get icon for node
+        function getNodeIcon(node) {
+            if (node.type === 'document' && node.metadata.fileCategory) {
+                return iconsByCategory[node.metadata.fileCategory] || iconsByCategory.default;
+            }
+            
+            const nodeTypeIcons = {
+                'entity': '👤',
+                'chunk': '📄',
+                'relationship': '🔗',
+                'document': '📄'
+            };
+            
+            return nodeTypeIcons[node.type] || '⚫';
+        }
+        
+        // Initialize D3 graph
+        function initializeGraph() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            // Create SVG
+            svg = d3.select('#graph-container')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height)
+                .attr('viewBox', [0, 0, width, height]);
+            
+            // Add zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 10])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+            
+            svg.call(zoom);
+            
+            // Create main group
+            g = svg.append('g');
+            
+            // Create force simulation
+            simulation = d3.forceSimulation()
+                .force('charge', d3.forceManyBody().strength(-200))
+                .force('link', d3.forceLink().id(d => d.id).distance(100))
+                .force('x', d3.forceX(width / 2).strength(0.05))
+                .force('y', d3.forceY(height / 2).strength(0.05))
+                .force('collision', d3.forceCollide().radius(d => d.size + 5))
+                .on('tick', ticked);
+        }
+        
+        // Update graph with data
+        function updateGraph(data) {
+            graphData = data;
+            
+            // Update stats
+            updateStats();
+            
+            // Create links
+            linkElements = g.append('g')
+                .attr('class', 'links')
+                .selectAll('.link')
+                .data(data.edges)
+                .join('g')
+                .attr('class', 'link');
+            
+            linkElements.append('line')
+                .attr('stroke', d => d.color || '#999')
+                .attr('stroke-width', d => d.size || 2)
+                .attr('stroke-opacity', d => d.opacity || 0.6);
+            
+            // Create nodes
+            nodeElements = g.append('g')
+                .attr('class', 'nodes')
+                .selectAll('.node')
+                .data(data.nodes)
+                .join('g')
+                .attr('class', 'node')
+                .call(drag(simulation));
+            
+            // Render nodes with icons
+            nodeElements.each(function(d) {
+                const node = d3.select(this);
+                const icon = getNodeIcon(d);
+                
+                // Circle background
+                node.append('circle')
+                    .attr('r', d.size)
+                    .attr('fill', d.color)
+                    .attr('opacity', d.opacity || 0.85)
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', d.metadata.confidence > 0.8 ? 3 : 1.5);
+                
+                // Icon/emoji
+                node.append('text')
+                    .attr('class', 'node-icon')
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '0.35em')
+                    .attr('font-size', `${d.size * 1.3}px`)
+                    .attr('pointer-events', 'none')
+                    .attr('filter', 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))')
+                    .text(icon);
+                
+                // Label
+                node.append('text')
+                    .attr('class', 'node-label')
+                    .attr('dy', d.size + 14)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', '11px')
+                    .attr('font-weight', '500')
+                    .attr('fill', '#374151')
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', '3px')
+                    .attr('paint-order', 'stroke')
+                    .text(d.label.length > 20 ? d.label.substring(0, 17) + '...' : d.label);
+                
+                // Badge for connections
+                if (d.connections && d.connections.total > 5) {
+                    node.append('circle')
+                        .attr('cx', d.size * 0.7)
+                        .attr('cy', -d.size * 0.7)
+                        .attr('r', 9)
+                        .attr('fill', '#ef4444')
+                        .attr('stroke', '#fff')
+                        .attr('stroke-width', 2);
+                    
+                    node.append('text')
+                        .attr('x', d.size * 0.7)
+                        .attr('y', -d.size * 0.7 + 1)
+                        .attr('text-anchor', 'middle')
+                        .attr('dy', '0.3em')
+                        .attr('font-size', '9px')
+                        .attr('font-weight', 'bold')
+                        .attr('fill', '#fff')
+                        .text(d.connections.total);
+                }
+            });
+            
+            // Add event listeners
+            nodeElements
+                .on('mouseover', handleNodeHover)
+                .on('mouseout', handleNodeOut)
+                .on('click', handleNodeClick);
+            
+            // Update simulation
+            simulation.nodes(data.nodes);
+            simulation.force('link').links(data.edges);
+            simulation.alpha(1).restart();
+            
+            // Render legend
+            renderLegend();
+            
+            // Hide loading
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        // Tick function
+        function ticked() {
+            linkElements.select('line')
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+            
+            nodeElements.attr('transform', d => `translate(${d.x},${d.y})`);
+        }
+        
+        // Drag behavior
+        function drag(simulation) {
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+            
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+            
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
+            
+            return d3.drag()
+                .on('start', dragstarted)
+                .on('drag', dragged)
+                .on('end', dragended);
+        }
+        
+        // Handle node hover
+        function handleNodeHover(event, d) {
+            const tooltip = d3.select('.graph-tooltip');
+            
+            let tooltipHtml = `
+                <div style="border-bottom: 1px solid #444; padding-bottom: 8px; margin-bottom: 8px;">
+                    <strong style="font-size: 14px;">${d.label}</strong>
+                    <div style="font-size: 10px; color: #aaa; margin-top: 4px;">
+                        ${d.type.toUpperCase()} • ${d.id.substring(0, 8)}...
+                    </div>
+                </div>
+            `;
+            
+            if (d.type === 'entity' && d.metadata) {
+                tooltipHtml += `
+                    <div><strong>Type:</strong> ${d.metadata.entityType || 'N/A'}</div>
+                    <div><strong>Confidence:</strong> ${((d.metadata.confidence || 0) * 100).toFixed(0)}%</div>
+                    <div><strong>Connections:</strong> ${d.connections.total}</div>
+                `;
+            } else if (d.type === 'document' && d.metadata) {
+                tooltipHtml += `
+                    <div><strong>File:</strong> ${d.metadata.fileName}</div>
+                    <div><strong>Category:</strong> ${d.metadata.fileCategory || d.metadata.category}</div>
+                    <div><strong>Status:</strong> ${d.metadata.status}</div>
+                `;
+            }
+            
+            tooltip.html(tooltipHtml)
+                .style('visibility', 'visible')
+                .style('top', (event.pageY + 10) + 'px')
+                .style('left', (event.pageX + 10) + 'px');
+            
+            // Highlight
+            d3.select(event.currentTarget).select('circle')
+                .transition()
+                .duration(200)
+                .attr('stroke-width', 4)
+                .attr('stroke', '#fbbf24');
+        }
+        
+        // Handle node out
+        function handleNodeOut(event, d) {
+            d3.select('.graph-tooltip').style('visibility', 'hidden');
+            
+            d3.select(event.currentTarget).select('circle')
+                .transition()
+                .duration(200)
+                .attr('stroke-width', d.metadata.confidence > 0.8 ? 3 : 1.5)
+                .attr('stroke', '#fff');
+        }
+        
+        // Handle node click
+        function handleNodeClick(event, d) {
+            event.stopPropagation();
+            showDetailPanel(d);
+        }
+        
+        // Show detail panel
+        function showDetailPanel(node) {
+            const panel = document.getElementById('detail-panel');
+            const content = document.getElementById('detail-content');
+            
+            let html = `
+                <div style="padding: 16px;">
+                    <div style="margin-bottom: 24px;">
+                        <h2 style="margin: 0 0 8px 0; font-size: 20px;">${node.label}</h2>
+                        <div style="font-size: 12px; color: #666;">
+                            ${node.type.toUpperCase()} • ${node.id}
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;">
+                        <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">${node.connections.incoming}</div>
+                            <div style="font-size: 11px; color: #666;">Incoming</div>
+                        </div>
+                        <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #10b981;">${node.connections.outgoing}</div>
+                            <div style="font-size: 11px; color: #666;">Outgoing</div>
+                        </div>
+                        <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #8b5cf6;">${node.connections.total}</div>
+                            <div style="font-size: 11px; color: #666;">Total</div>
+                        </div>
+                    </div>
+            `;
+            
+            if (node.metadata) {
+                html += '<div style="margin-bottom: 24px;"><h3 style="font-size: 16px; margin-bottom: 12px;">Metadata</h3>';
+                
+                for (const [key, value] of Object.entries(node.metadata)) {
+                    if (typeof value !== 'object' && value !== null && value !== undefined) {
+                        html += `<div style="margin-bottom: 8px; font-size: 13px;"><strong>${key}:</strong> ${value}</div>`;
+                    }
+                }
+                
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            
+            content.innerHTML = html;
+            panel.classList.add('show');
+        }
+        
+        // Hide detail panel
+        function hideDetailPanel() {
+            document.getElementById('detail-panel').classList.remove('show');
+        }
+        
+        // Update stats
+        function updateStats() {
+            document.getElementById('stat-nodes').textContent = graphData.nodes.length;
+            document.getElementById('stat-edges').textContent = graphData.edges.length;
+            
+            const visibleNodes = graphData.nodes.filter(n => n.state.visible).length;
+            document.getElementById('stat-visible').textContent = visibleNodes;
+        }
+        
+        // Render legend
+        function renderLegend() {
+            const legendItems = document.getElementById('legend-items');
+            const categories = new Set();
+            
+            graphData.nodes.forEach(node => {
+                if (node.metadata && node.metadata.fileCategory) {
+                    categories.add(node.metadata.fileCategory);
+                }
+            });
+            
+            const categoryArray = Array.from(categories).slice(0, 10);
+            
+            legendItems.innerHTML = categoryArray.map(cat => {
+                const icon = iconsByCategory[cat] || iconsByCategory.default;
+                return `
+                    <div class="legend-item" onclick="filterByCategory('${cat}')">
+                        <span>${icon}</span>
+                        <span style="color: ${getCategoryColor(cat)}">${cat.toUpperCase()}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Helper to get category color (fallback)
+        function getCategoryColor(category) {
+            const colors = {
+                'markdown': '#10b981', 'python': '#3572A5', 'typescript': '#2b7489',
+                'javascript': '#f1e05a', 'css': '#563d7c', 'sql': '#e38c00',
+                'html': '#e34c26', 'json': '#292929'
+            };
+            return colors[category] || '#6366f1';
+        }
+        
+        // Filter state
+        let currentFilters = {
+            search: '',
+            nodeTypes: {
+                documents: true,
+                entities: true,
+                chunks: true
+            },
+            minConfidence: 0,
+            category: null
+        };
+        
+        // Apply all filters
+        function applyFilters() {
+            let visibleCount = 0;
+            
+            // Update node visibility
+            nodeElements.each(function(d) {
+                const node = d3.select(this);
+                let visible = true;
+                
+                // Search filter
+                if (currentFilters.search && !d.label.toLowerCase().includes(currentFilters.search)) {
+                    visible = false;
+                }
+                
+                // Node type filter
+                if (d.type === 'document' && !currentFilters.nodeTypes.documents) {
+                    visible = false;
+                } else if (d.type === 'entity' && !currentFilters.nodeTypes.entities) {
+                    visible = false;
+                } else if (d.type === 'chunk' && !currentFilters.nodeTypes.chunks) {
+                    visible = false;
+                }
+                
+                // Confidence filter
+                const confidence = (d.metadata.confidence || 0) * 100;
+                if (confidence < currentFilters.minConfidence) {
+                    visible = false;
+                }
+                
+                // Category filter
+                if (currentFilters.category && d.metadata.fileCategory !== currentFilters.category) {
+                    visible = false;
+                }
+                
+                // Apply visibility
+                d.state = d.state || {};
+                d.state.visible = visible;
+                
+                node.style('opacity', visible ? 1 : 0.1)
+                    .style('pointer-events', visible ? 'all' : 'none');
+                
+                if (visible) visibleCount++;
+            });
+            
+            // Update link visibility
+            linkElements.each(function(d) {
+                const link = d3.select(this);
+                const sourceVisible = d.source.state && d.source.state.visible;
+                const targetVisible = d.target.state && d.target.state.visible;
+                const visible = sourceVisible && targetVisible;
+                
+                link.style('opacity', visible ? 1 : 0.05)
+                    .style('pointer-events', visible ? 'all' : 'none');
+            });
+            
+            // Update stats
+            document.getElementById('stat-visible').textContent = visibleCount;
+            
+            // Restart simulation with reduced alpha
+            if (simulation) {
+                simulation.alpha(0.3).restart();
+            }
+        }
+        
+        // Filter by category
+        function filterByCategory(category) {
+            if (currentFilters.category === category) {
+                // Toggle off
+                currentFilters.category = null;
+                
+                // Remove highlight from all legend items
+                document.querySelectorAll('.legend-item').forEach(item => {
+                    item.style.background = '';
+                    item.style.fontWeight = '';
+                });
+            } else {
+                // Set new category
+                currentFilters.category = category;
+                
+                // Highlight selected legend item
+                document.querySelectorAll('.legend-item').forEach(item => {
+                    if (item.textContent.toLowerCase().includes(category)) {
+                        item.style.background = '#dbeafe';
+                        item.style.fontWeight = '600';
+                    } else {
+                        item.style.background = '';
+                        item.style.fontWeight = '';
+                    }
+                });
+            }
+            
+            applyFilters();
+        }
+        
+        // Highlight nodes matching search
+        function highlightSearchResults(query) {
+            if (!query) {
+                // Remove all highlights
+                nodeElements.classed('search-highlight', false);
+                return;
+            }
+            
+            nodeElements.each(function(d) {
+                const node = d3.select(this);
+                const matches = d.label.toLowerCase().includes(query);
+                
+                node.classed('search-highlight', matches);
+                
+                if (matches && d.state.visible) {
+                    // Bring to front
+                    this.parentNode.appendChild(this);
+                    
+                    // Add pulsing effect
+                    node.select('circle')
+                        .transition()
+                        .duration(300)
+                        .attr('stroke', '#fbbf24')
+                        .attr('stroke-width', 4)
+                        .transition()
+                        .duration(300)
+                        .attr('stroke', '#fff')
+                        .attr('stroke-width', d.metadata.confidence > 0.8 ? 3 : 1.5);
+                }
+            });
+        }
+        
+        // Event listeners
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            currentFilters.search = query;
+            applyFilters();
+            highlightSearchResults(query);
+        });
+        
+        document.getElementById('confidence-slider').addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            currentFilters.minConfidence = value;
+            document.getElementById('confidence-value').textContent = value + '%';
+            applyFilters();
+        });
+        
+        document.getElementById('filter-documents').addEventListener('change', (e) => {
+            currentFilters.nodeTypes.documents = e.target.checked;
+            applyFilters();
+        });
+        
+        document.getElementById('filter-entities').addEventListener('change', (e) => {
+            currentFilters.nodeTypes.entities = e.target.checked;
+            applyFilters();
+        });
+        
+        document.getElementById('filter-chunks').addEventListener('change', (e) => {
+            currentFilters.nodeTypes.chunks = e.target.checked;
+            applyFilters();
+        });
+        
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            // Reset filters
+            currentFilters = {
+                search: '',
+                nodeTypes: {
+                    documents: true,
+                    entities: true,
+                    chunks: true
+                },
+                minConfidence: 0,
+                category: null
+            };
+            
+            // Reset UI controls
+            document.getElementById('search-input').value = '';
+            document.getElementById('confidence-slider').value = 0;
+            document.getElementById('confidence-value').textContent = '0%';
+            document.getElementById('filter-documents').checked = true;
+            document.getElementById('filter-entities').checked = true;
+            document.getElementById('filter-chunks').checked = true;
+            
+            // Remove legend highlights
+            document.querySelectorAll('.legend-item').forEach(item => {
+                item.style.background = '';
+                item.style.fontWeight = '';
+            });
+            
+            // Apply filters and restart simulation
+            applyFilters();
+            
+            if (simulation) {
+                simulation.alpha(1).restart();
+            }
+            
+            // Reset zoom
+            if (svg) {
+                svg.transition()
+                    .duration(750)
+                    .call(
+                        d3.zoom().transform,
+                        d3.zoomIdentity.translate(window.innerWidth / 2, window.innerHeight / 2).scale(1)
+                    );
+            }
+        });
+        
+        document.getElementById('toggle-legend-btn').addEventListener('click', () => {
+            const legend = document.getElementById('legend-container');
+            legend.style.display = legend.style.display === 'none' ? 'block' : 'none';
+        });
+        
+        // Message handler
+        window.addEventListener('message', (event) => {
+            const message = event.data;
+            
+            switch (message.command) {
+                case 'graphData':
+                    console.log('Received graph data:', message.data);
+                    updateGraph(message.data);
+                    break;
+                case 'graphDataError':
+                    document.getElementById('loading').innerHTML = `
+                        <h2>❌ Error</h2>
+                        <p>${message.data.message}</p>
+                    `;
+                    break;
+            }
+        });
+        
+        // Initialize
+        initializeGraph();
+        
+        // Request data only if standalone (not in iframe)
+        if (vscode) {
+            vscode.postMessage({ command: 'ready' });
+        }
+        // If in iframe, data will be sent via postMessage from parent
+    </script>
+</body>
+</html>
