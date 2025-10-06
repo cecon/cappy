@@ -450,7 +450,7 @@
                         <span>Entities</span>
                     </label>
                     <label class="checkbox-item">
-                        <input type="checkbox" id="filter-relationships" checked>
+                        <input type="checkbox" id="filter-relationships">
                         <span>Relationships</span>
                     </label>
                     <label class="checkbox-item">
@@ -510,20 +510,20 @@
             <div class="legend">
                 <div class="legend-title">Node Types</div>
                 <div class="legend-item">
-                    <div class="legend-color" style="background: #4a9eff;"></div>
-                    <span>Documents</span>
+                    <div class="legend-color" style="background: linear-gradient(135deg, #10b981, #3572A5, #f1e05a);"></div>
+                    <span>📄 Documents (by category)</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background: #4ec9b0;"></div>
-                    <span>Entities</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #ce9178;"></div>
-                    <span>Relationships</span>
+                    <span>🔗 Entities</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background: #c586c0;"></div>
-                    <span>Chunks</span>
+                    <span>📝 Chunks</span>
+                </div>
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #3c3c3c; font-size: 10px; color: #858585;">
+                    💡 Click nodes for details<br>
+                    🖱️ Drag timeline to filter
                 </div>
             </div>
 
@@ -569,7 +569,7 @@
         let searchTimeout = null;
         let filters = {
             search: '',
-            types: { document: true, entity: true, relationship: true, chunk: true },
+            types: { document: true, entity: true, relationship: false, chunk: true },
             category: '',
             dateFrom: null,
             dateTo: null
@@ -652,14 +652,16 @@
             // Main group
             g = svg.append('g');
 
-            // Setup simulation
+            // Setup simulation with stronger forces to keep nodes closer
             simulation = d3.forceSimulation(graphData.nodes)
                 .force('link', d3.forceLink(graphData.edges)
                     .id(d => d.id)
-                    .distance(100))
-                .force('charge', d3.forceManyBody().strength(-300))
+                    .distance(80))
+                .force('charge', d3.forceManyBody().strength(-500))
                 .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(30));
+                .force('collision', d3.forceCollide().radius(d => getNodeSize(d) + 5))
+                .force('x', d3.forceX(width / 2).strength(0.1))
+                .force('y', d3.forceY(height / 2).strength(0.1));
 
             renderGraph();
             updateStats();
@@ -685,36 +687,51 @@
                 .attr('opacity', 0.6);
 
             // Draw nodes
-            const nodes = g.append('g')
-                .selectAll('circle')
+            const nodeGroup = g.append('g');
+            
+            const nodes = nodeGroup
+                .selectAll('g')
                 .data(graphData.nodes)
                 .enter()
-                .append('circle')
-                .attr('r', d => getNodeSize(d))
-                .attr('fill', d => getNodeColor(d))
-                .attr('stroke', '#1e1e1e')
-                .attr('stroke-width', 2)
+                .append('g')
                 .call(drag(simulation))
                 .on('click', function(event, d) {
                     event.stopPropagation();
                     showNodeDetails(d);
                     // Highlight clicked node
-                    g.selectAll('circle').attr('stroke', '#1e1e1e').attr('stroke-width', 2);
-                    d3.select(this).attr('stroke', '#fbbf24').attr('stroke-width', 4);
+                    nodeGroup.selectAll('circle').attr('stroke', '#1e1e1e').attr('stroke-width', 2);
+                    d3.select(this).select('circle').attr('stroke', '#fbbf24').attr('stroke-width', 4);
                 })
                 .on('mouseover', function(event, d) {
-                    d3.select(this)
+                    d3.select(this).select('circle')
                         .attr('stroke', '#0e639c')
                         .attr('stroke-width', 3);
                 })
                 .on('mouseout', function(event, d) {
                     const isSelected = document.getElementById('node-details-panel').style.display === 'block';
                     if (!isSelected) {
-                        d3.select(this)
+                        d3.select(this).select('circle')
                             .attr('stroke', '#1e1e1e')
                             .attr('stroke-width', 2);
                     }
                 });
+
+            // Add circles
+            nodes.append('circle')
+                .attr('r', d => getNodeSize(d))
+                .attr('fill', d => getNodeColor(d))
+                .attr('stroke', '#1e1e1e')
+                .attr('stroke-width', 2);
+
+            // Add text labels for documents with icons
+            nodes.filter(d => d.type === 'document' && d.metadata?.fileCategory)
+                .append('text')
+                .text(d => getCategoryIcon(d.metadata.fileCategory))
+                .attr('text-anchor', 'middle')
+                .attr('dy', '0.35em')
+                .attr('font-size', d => getNodeSize(d) * 0.8 + 'px')
+                .attr('pointer-events', 'none')
+                .style('user-select', 'none');
 
             // Update positions
             simulation.on('tick', () => {
@@ -725,13 +742,50 @@
                     .attr('y2', d => d.target.y);
 
                 nodes
-                    .attr('cx', d => d.x)
-                    .attr('cy', d => d.y);
+                    .attr('transform', d => `translate(${d.x},${d.y})`);
             });
         }
 
         // Helper functions
         function getNodeColor(node) {
+            // Use category colors for documents
+            if (node.type === 'document' && node.metadata?.fileCategory) {
+                const categoryColors = {
+                    'markdown': '#10b981',
+                    'documentation': '#10b981',
+                    'text': '#6b7280',
+                    'csharp': '#68217a',
+                    'dotnet': '#512bd4',
+                    'java': '#b07219',
+                    'python': '#3572A5',
+                    'ruby': '#701516',
+                    'go': '#00ADD8',
+                    'rust': '#dea584',
+                    'php': '#4F5D95',
+                    'javascript': '#f1e05a',
+                    'typescript': '#2b7489',
+                    'react': '#61dafb',
+                    'vue': '#41b883',
+                    'angular': '#dd0031',
+                    'svelte': '#ff3e00',
+                    'css': '#563d7c',
+                    'scss': '#c6538c',
+                    'html': '#e34c26',
+                    'xml': '#0060ac',
+                    'json': '#292929',
+                    'yaml': '#cb171e',
+                    'sql': '#e38c00',
+                    'mongodb': '#4db33d',
+                    'graphql': '#e10098',
+                    'shell': '#89e051',
+                    'powershell': '#012456',
+                    'dockerfile': '#384d54',
+                    'unknown': '#9ca3af'
+                };
+                return categoryColors[node.metadata.fileCategory] || categoryColors.unknown;
+            }
+            
+            // Default colors by type
             const colors = {
                 'document': '#4a9eff',
                 'entity': '#4ec9b0',
@@ -742,7 +796,46 @@
         }
 
         function getNodeSize(node) {
-            return node.importance ? 5 + (node.importance * 15) : 8;
+            if (node.type === 'document') {
+                return node.size || 15; // Use size from backend
+            }
+            return node.size || (node.importance ? 5 + (node.importance * 15) : 8);
+        }
+
+        function getCategoryIcon(category) {
+            const icons = {
+                'markdown': '📝',
+                'documentation': '📄',
+                'text': '📃',
+                'csharp': '💜',
+                'dotnet': '🔵',
+                'java': '☕',
+                'python': '🐍',
+                'ruby': '💎',
+                'go': '🔷',
+                'rust': '🦀',
+                'php': '🐘',
+                'javascript': '🟨',
+                'typescript': '🔷',
+                'react': '⚛️',
+                'vue': '💚',
+                'angular': '🅰️',
+                'svelte': '🧡',
+                'css': '🎨',
+                'scss': '🎨',
+                'html': '🌐',
+                'xml': '📋',
+                'json': '📦',
+                'yaml': '⚙️',
+                'sql': '🗄️',
+                'mongodb': '🍃',
+                'graphql': '◼️',
+                'shell': '💻',
+                'powershell': '🖥️',
+                'dockerfile': '🐳',
+                'unknown': '📄'
+            };
+            return icons[category] || icons.unknown;
         }
 
         function drag(simulation) {
@@ -838,6 +931,13 @@
                 applyFilters();
             });
 
+            // Category filter
+            document.getElementById('category-filter').addEventListener('change', (e) => {
+                filters.category = e.target.value;
+                console.log('[Filter] Category changed to:', filters.category);
+                applyFilters();
+            });
+
             // Date range is handled by timeline drag selection
         }
 
@@ -909,14 +1009,16 @@
             const width = window.innerWidth - 280;
             const height = window.innerHeight - 48 - 49;
 
-            // Setup new simulation
+            // Setup new simulation with same forces
             simulation = d3.forceSimulation(graphData.nodes)
                 .force('link', d3.forceLink(graphData.edges)
                     .id(d => d.id)
-                    .distance(100))
-                .force('charge', d3.forceManyBody().strength(-300))
+                    .distance(80))
+                .force('charge', d3.forceManyBody().strength(-500))
                 .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(30));
+                .force('collision', d3.forceCollide().radius(d => getNodeSize(d) + 5))
+                .force('x', d3.forceX(width / 2).strength(0.1))
+                .force('y', d3.forceY(height / 2).strength(0.1));
 
             // Re-render
             renderGraph();
@@ -926,7 +1028,7 @@
         function clearFilters() {
             filters = {
                 search: '',
-                types: { document: true, entity: true, relationship: true, chunk: true },
+                types: { document: true, entity: true, relationship: false, chunk: true },
                 category: '',
                 dateFrom: null,
                 dateTo: null
@@ -935,7 +1037,7 @@
             document.getElementById('search-input').value = '';
             document.getElementById('filter-documents').checked = true;
             document.getElementById('filter-entities').checked = true;
-            document.getElementById('filter-relationships').checked = true;
+            document.getElementById('filter-relationships').checked = false;
             document.getElementById('filter-chunks').checked = true;
             document.getElementById('category-filter').value = '';
 

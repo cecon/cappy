@@ -13,20 +13,136 @@ import {
     ValidationError,
     DeduplicationResult
 } from '../models/cappyragTypes';
+import { CappyRAGLanceDatabase, CappyRAGEntity, CappyRAGRelationship } from '../store/cappyragLanceDb';
 
 /**
  * CappyRAG Document Processor
- * Implements the manual insertion strategy with LLM-based entity/relationship extraction
+ * Implements the manual insertion strategy with GitHub Copilot-based entity/relationship extraction
+ * 
+ * IMPLEMENTATION STATUS:
+ * ✅ Entity/Relationship extraction with enhanced prompts
+ * ✅ Quality scoring system with confidence-based weighting  
+ * ✅ VS Code Copilot Chat integration (vscode.lm API)
+ * ✅ Cross-document relationship support architecture
+ * ✅ JSON parsing and error handling
+ * ✅ LanceDB integration for cross-document context
+ * 
+ * TODO - Remaining:
+ * 1. generateEmbedding() - implement with @xenova/transformers
+ * 2. Performance optimization with caching
  */
 export class CappyRAGDocumentProcessor {
     private context: vscode.ExtensionContext;
-    private storage: any; // TODO: Replace with proper LanceDB storage
-    private llmService: any; // TODO: Replace with proper LLM service
-    private embeddingService: any; // TODO: Replace with proper embedding service
+    private database: CappyRAGLanceDatabase;
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
-        // TODO: Initialize storage, LLM, and embedding services
+        
+        // Get workspace path for database initialization
+        const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || context.extensionPath;
+        this.database = new CappyRAGLanceDatabase(workspacePath);
+    }
+
+    /**
+     * Get existing entities from database for context during extraction
+     */
+    private async getExistingEntitiesForContext(): Promise<Entity[]> {
+        try {
+            // Ensure database is initialized
+            await this.database.initialize();
+            
+            // Get all entities from LanceDB
+            const dbEntities = await this.database.getEntitiesAsync();
+            
+            // Convert CappyRAGEntity to Entity interface
+            return dbEntities.map(dbEntity => ({
+                id: dbEntity.id,
+                name: dbEntity.name,
+                type: dbEntity.type,
+                description: dbEntity.description,
+                properties: {},
+                sourceDocuments: dbEntity.documentIds || [],
+                sourceChunks: [],
+                confidence: 0.8, // Default confidence for existing entities
+                createdAt: dbEntity.created,
+                updatedAt: dbEntity.updated
+            }));
+        } catch (error) {
+            console.error('Error fetching existing entities:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get existing relationships for pattern matching
+     */
+    private async getExistingRelationshipsForContext(): Promise<Relationship[]> {
+        try {
+            // Ensure database is initialized
+            await this.database.initialize();
+            
+            // Get all relationships from LanceDB
+            const dbRelationships = await this.database.getRelationshipsAsync();
+            
+            // Convert CappyRAGRelationship to Relationship interface
+            return dbRelationships.map(dbRel => ({
+                id: dbRel.id,
+                source: dbRel.source,
+                target: dbRel.target,
+                type: dbRel.type,
+                description: dbRel.description,
+                properties: {},
+                weight: dbRel.weight,
+                bidirectional: true, // Default to bidirectional
+                sourceDocuments: dbRel.documentIds || [],
+                sourceChunks: [],
+                confidence: 0.8, // Default confidence for existing relationships
+                createdAt: dbRel.created,
+                updatedAt: dbRel.updated
+            }));
+        } catch (error) {
+            console.error('Error fetching existing relationships:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get entities from other documents to enable cross-document relationships
+     */
+    private async getEntitiesFromOtherDocuments(currentDocumentId: string): Promise<Entity[]> {
+        try {
+            // Ensure database is initialized
+            await this.database.initialize();
+            
+            // Get all entities from LanceDB
+            const allEntities = await this.database.getEntitiesAsync();
+            
+            // Filter entities that are NOT from the current document
+            const entitiesFromOtherDocs = allEntities.filter(entity => 
+                entity.documentIds && 
+                !entity.documentIds.includes(currentDocumentId) &&
+                entity.documentIds.length > 0
+            );
+            
+            console.log(`[CappyRAG] Found ${entitiesFromOtherDocs.length} entities from other documents for cross-document linking`);
+            
+            // Convert to Entity interface
+            return entitiesFromOtherDocs.map(dbEntity => ({
+                id: dbEntity.id,
+                name: dbEntity.name,
+                type: dbEntity.type,
+                description: dbEntity.description,
+                properties: {},
+                sourceDocuments: dbEntity.documentIds || [],
+                sourceChunks: [],
+                confidence: 0.8,
+                createdAt: dbEntity.created,
+                updatedAt: dbEntity.updated
+            }));
+        } catch (error) {
+            console.error('Error fetching entities from other documents:', error);
+            return [];
+        }
     }
 
     /**
@@ -209,30 +325,43 @@ export class CappyRAGDocumentProcessor {
         chunk: DocumentChunk,
         entityTypes: string[]
     ): Promise<Entity[]> {
-        // LLM prompt for entity extraction (following CappyRAG pattern)
+        // Get existing entities from database for context
+        const existingEntities = await this.getExistingEntitiesForContext();
+        
+        // Enhanced LLM prompt with existing entities context
         const prompt = `
-Analyze the following text and extract all important entities:
+You are an expert knowledge graph builder. Analyze the following text and extract important entities.
 
-TEXT:
+CONTEXT - EXISTING ENTITIES IN KNOWLEDGE BASE:
+${existingEntities.slice(0, 20).map(e => `- ${e.name} (${e.type}): ${e.description?.substring(0, 80)}...`).join('\n')}
+
+TEXT TO ANALYZE:
 ${chunk.text}
 
-Identify entities of these types:
-${entityTypes.map(type => `- ${type}`).join('\n')}
+TASK:
+1. Extract entities of these types: ${entityTypes.join(', ')}
+2. For each entity, check if it matches or relates to existing entities above
+3. Use EXACT same names for entities that already exist
+4. Create precise, contextual descriptions
+5. Set confidence based on context clarity and existing entity matches
 
-For each entity, provide:
-- Normalized name (unique identifier)
-- Type
-- Contextual description
-- Confidence (0-1)
+QUALITY GUIDELINES:
+- Use specific, technical descriptions (not generic)
+- Confidence 0.9+ for exact matches with existing entities
+- Confidence 0.7-0.9 for clear new entities
+- Confidence 0.4-0.7 for ambiguous entities
+- Normalize names consistently (e.g., "Python" not "python programming")
 
 Return JSON format:
 {
   "entities": [
     {
-      "name": "Python Programming",
+      "name": "Python",
       "type": "Technology",
-      "description": "High-level programming language used for...",
-      "confidence": 0.95
+      "description": "High-level programming language known for simplicity and versatility in web development, data science, and automation",
+      "confidence": 0.95,
+      "isExisting": true,
+      "chunkContext": "Brief context from this specific chunk"
     }
   ]
 }
@@ -249,8 +378,13 @@ Return JSON format:
                     id: this.normalizeEntityName(entityData.name),
                     name: entityData.name,
                     type: entityData.type,
-                    description: entityData.description,
-                    properties: {},
+                    description: entityData.description || `A ${entityData.type.toLowerCase()} entity representing ${entityData.name}`,
+                    properties: {
+                        isExisting: entityData.isExisting || false,
+                        chunkContext: entityData.chunkContext || '',
+                        extractionMethod: 'llm_enhanced',
+                        qualityScore: this.calculateEntityQualityScore(entityData)
+                    },
                     sourceDocuments: [chunk.documentId],
                     sourceChunks: [chunk.id],
                     confidence: entityData.confidence || 0.5,
@@ -258,10 +392,9 @@ Return JSON format:
                     updatedAt: new Date().toISOString()
                 };
 
-                // Generate embedding for entity
-                entity.vector = await this.generateEmbedding(
-                    `${entity.name} ${entity.type} ${entity.description}`
-                );
+                // Generate embedding for entity with enhanced context
+                const embeddingText = `${entity.name} ${entity.type} ${entity.description} ${entityData.chunkContext || ''}`;
+                entity.vector = await this.generateEmbedding(embeddingText);
 
                 entities.push(entity);
             }
@@ -272,6 +405,70 @@ Return JSON format:
             console.error('Error in LLM entity extraction:', error);
             return [];
         }
+    }
+
+    /**
+     * Calculate quality score for extracted entity
+     */
+    private calculateEntityQualityScore(entityData: any): number {
+        let score = 0.5; // Base score
+        
+        // Boost for high confidence
+        if (entityData.confidence > 0.8) {
+            score += 0.2;
+        } else if (entityData.confidence > 0.6) {
+            score += 0.1;
+        }
+        
+        // Boost for existing entity match
+        if (entityData.isExisting) {
+            score += 0.15;
+        }
+        
+        // Boost for good description
+        if (entityData.description && entityData.description.length > 50) {
+            score += 0.1;
+        }
+        
+        // Boost for chunk context
+        if (entityData.chunkContext && entityData.chunkContext.length > 20) {
+            score += 0.05;
+        }
+        
+        return Math.min(score, 1.0);
+    }
+
+    /**
+     * Calculate quality score for extracted relationship
+     */
+    private calculateRelationshipQualityScore(relData: any): number {
+        let score = 0.5; // Base score
+        
+        // Boost for high confidence
+        if (relData.confidence > 0.8) {
+            score += 0.2;
+        } else if (relData.confidence > 0.6) {
+            score += 0.1;
+        }
+        
+        // Boost for high weight
+        if (relData.weight > 0.8) {
+            score += 0.15;
+        } else if (relData.weight > 0.6) {
+            score += 0.1;
+        }
+        
+        // Boost for evidence text
+        if (relData.evidenceText && relData.evidenceText.length > 20) {
+            score += 0.1;
+        }
+        
+        // Boost for good description
+        if (relData.description && relData.description.length > 30) {
+            score += 0.05;
+        }
+        
+        return Math.min(score, 1.0);
     }
 
     private async extractRelationships(
@@ -307,38 +504,58 @@ Return JSON format:
         chunk: DocumentChunk,
         entities: Entity[]
     ): Promise<Relationship[]> {
+        // Get existing relationships for pattern matching
+        const existingRelationships = await this.getExistingRelationshipsForContext();
+        const existingEntitiesInOtherDocs = await this.getEntitiesFromOtherDocuments(chunk.documentId);
+        
         const prompt = `
-Based on the text and identified entities, extract relationships:
+You are building a knowledge graph. Extract relationships from this text, considering existing patterns.
 
-TEXT:
+CONTEXT - EXISTING RELATIONSHIP PATTERNS:
+${existingRelationships.slice(0, 15).map(r => `- ${r.type}: ${r.description}`).join('\n')}
+
+CONTEXT - ENTITIES FROM OTHER DOCUMENTS:
+${existingEntitiesInOtherDocs.slice(0, 10).map(e => `- ${e.name} (${e.type}) from ${e.sourceDocuments?.[0] || 'unknown'}`).join('\n')}
+
+TEXT TO ANALYZE:
 ${chunk.text}
 
-ENTITIES FOUND:
-${entities.map(e => `- ${e.name} (${e.type})`).join('\n')}
+ENTITIES IN THIS CHUNK:
+${entities.map(e => `- ${e.name} (${e.type}): ${e.description}`).join('\n')}
 
-Identify relationships such as:
-- WORKS_FOR, PART_OF, INFLUENCES, CREATED_BY
-- LOCATED_IN, HAPPENED_AT, CAUSED_BY
-- SIMILAR_TO, DEPENDS_ON, ENABLES
+TASK:
+1. Extract relationships between entities in this chunk
+2. Find relationships to entities from other documents (cross-document links)
+3. Use consistent relationship types from existing patterns
+4. Create specific, technical descriptions
+5. Set weight based on relationship strength and evidence
 
-For each relationship, provide:
-- Source entity name
-- Target entity name
-- Relationship type
-- Contextual description
-- Weight/strength (0-1)
-- Whether it's bidirectional
+RELATIONSHIP TYPES (use these patterns):
+- TECHNICAL: implements, uses, depends_on, extends, integrates_with
+- STRUCTURAL: contains, part_of, composed_of, includes
+- FUNCTIONAL: enables, supports, processes, manages, executes
+- SEMANTIC: similar_to, relates_to, classified_as, categorized_as
+- TEMPORAL: created_by, updated_by, derived_from, evolved_from
+
+QUALITY GUIDELINES:
+- Weight 0.8-1.0 for strong technical relationships
+- Weight 0.5-0.8 for clear semantic relationships  
+- Weight 0.2-0.5 for weak/inferred relationships
+- Bidirectional=true for symmetric relationships (similar_to, compatible_with)
+- Use exact entity names (case-sensitive matching)
 
 Return JSON format:
 {
   "relationships": [
     {
-      "source": "Python Programming",
-      "target": "Data Science",
-      "type": "ENABLES",
-      "description": "Python is widely used in data science applications...",
+      "source": "Cappy",
+      "target": "VS Code",
+      "type": "compatible_with",
+      "description": "Cappy extension is designed to work seamlessly within VS Code IDE environment",
       "weight": 0.9,
-      "bidirectional": false
+      "bidirectional": true,
+      "confidence": 0.95,
+      "evidenceText": "Brief quote from chunk supporting this relationship"
     }
   ]
 }
@@ -350,11 +567,23 @@ Return JSON format:
 
             const relationships: Relationship[] = [];
             for (const relData of parsed.relationships || []) {
-                // Find source and target entities
-                const sourceEntity = entities.find(e => e.name === relData.source);
-                const targetEntity = entities.find(e => e.name === relData.target);
+                // Find source and target entities (in current chunk or from other documents)
+                let sourceEntity = entities.find(e => e.name === relData.source);
+                let targetEntity = entities.find(e => e.name === relData.target);
+                
+                // If not found in current entities, check existing entities from other documents
+                if (!sourceEntity) {
+                    const existingEntities = await this.getEntitiesFromOtherDocuments(chunk.documentId);
+                    sourceEntity = existingEntities.find(e => e.name === relData.source);
+                }
+                
+                if (!targetEntity) {
+                    const existingEntities = await this.getEntitiesFromOtherDocuments(chunk.documentId);
+                    targetEntity = existingEntities.find(e => e.name === relData.target);
+                }
 
                 if (!sourceEntity || !targetEntity) {
+                    console.warn(`Relationship skipped: Entity not found - ${relData.source} -> ${relData.target}`);
                     continue;
                 }
 
@@ -363,13 +592,18 @@ Return JSON format:
                     source: sourceEntity.id,
                     target: targetEntity.id,
                     type: relData.type,
-                    description: relData.description,
-                    properties: {},
+                    description: relData.description || `${relData.type} relationship between ${sourceEntity.name} and ${targetEntity.name}`,
+                    properties: {
+                        evidenceText: relData.evidenceText || '',
+                        extractionMethod: 'llm_enhanced',
+                        crossDocument: sourceEntity.sourceDocuments?.[0] !== targetEntity.sourceDocuments?.[0],
+                        qualityScore: this.calculateRelationshipQualityScore(relData)
+                    },
                     weight: relData.weight || 0.5,
                     bidirectional: relData.bidirectional || false,
                     sourceDocuments: [chunk.documentId],
                     sourceChunks: [chunk.id],
-                    confidence: 0.8, // TODO: Calculate based on LLM confidence
+                    confidence: relData.confidence || 0.8,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
@@ -467,14 +701,139 @@ Return JSON format:
     }
 
     private async callLLM(prompt: string): Promise<string> {
-        // TODO: Implement actual LLM call
-        // This should integrate with available LLM services (Ollama, OpenAI, etc.)
-        throw new Error('LLM service not yet implemented');
+        try {
+            // Use VS Code's Language Model API (Copilot)
+            const [model] = await vscode.lm.selectChatModels({ vendor: 'copilot', family: 'gpt-4o' });
+            
+            if (!model) {
+                console.warn('[CappyRAG] No Copilot model available, trying fallback');
+                // Try without specific family
+                const [fallbackModel] = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+                if (!fallbackModel) {
+                    throw new Error('No Copilot model available');
+                }
+            }
+
+            const selectedModel = model || (await vscode.lm.selectChatModels({ vendor: 'copilot' }))[0];
+
+            // Add instruction for JSON format
+            const enhancedPrompt = `${prompt}
+
+IMPORTANT: You must respond with valid JSON only. No additional text, explanations, or markdown formatting. Just the JSON object as specified in the prompt.`;
+
+            // Create messages for the chat
+            const messages = [
+                vscode.LanguageModelChatMessage.User(enhancedPrompt)
+            ];
+
+            // Send request to Copilot
+            const chatResponse = await selectedModel.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+            
+            // Collect the full response
+            let fullResponse = '';
+            for await (const fragment of chatResponse.text) {
+                fullResponse += fragment;
+            }
+
+            console.log(`[CappyRAG] LLM Response received: ${fullResponse.length} characters`);
+            
+            // Clean up the response to extract JSON
+            const cleanedResponse = this.extractJSONFromResponse(fullResponse);
+            
+            // Validate JSON format
+            try {
+                JSON.parse(cleanedResponse);
+                return cleanedResponse;
+            } catch (parseError) {
+                console.warn('[CappyRAG] Invalid JSON response from LLM, attempting to fix...');
+                const fixedResponse = this.attemptJSONFix(cleanedResponse);
+                JSON.parse(fixedResponse); // Validate
+                return fixedResponse;
+            }
+
+        } catch (err) {
+            console.error('[CappyRAG] LLM Error:', err);
+            
+            // Handle specific Language Model errors
+            if (err instanceof vscode.LanguageModelError) {
+                console.log(`LLM Error: ${err.message}, Code: ${err.code}`);
+                
+                // Check for specific error types
+                if (err.message.includes('off_topic')) {
+                    throw new Error('Request was considered off-topic by Copilot');
+                }
+                
+                if (err.message.includes('permission') || err.message.includes('subscription')) {
+                    throw new Error('No permissions to use Copilot. Please check your Copilot subscription.');
+                }
+                
+                if (err.message.includes('blocked') || err.message.includes('filter')) {
+                    throw new Error('Request was blocked by Copilot content filter');
+                }
+                
+                if (err.message.includes('not found') || err.message.includes('unavailable')) {
+                    throw new Error('Copilot model not found. Please ensure Copilot is enabled.');
+                }
+                
+                throw new Error(`Copilot error: ${err.message}`);
+            }
+            
+            // Fallback: Return empty JSON structure if LLM fails
+            console.warn('[CappyRAG] Falling back to empty response due to LLM failure');
+            return JSON.stringify({ entities: [], relationships: [] });
+        }
+    }
+
+    /**
+     * Extract JSON from LLM response that might contain markdown or extra text
+     */
+    private extractJSONFromResponse(response: string): string {
+        // Remove markdown code blocks
+        let cleaned = response.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+        
+        // Try to find JSON object boundaries
+        const jsonStart = cleaned.indexOf('{');
+        const jsonEnd = cleaned.lastIndexOf('}');
+        
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+        }
+        
+        return cleaned.trim();
+    }
+
+    /**
+     * Attempt to fix common JSON formatting issues
+     */
+    private attemptJSONFix(jsonString: string): string {
+        let fixed = jsonString;
+        
+        // Fix trailing commas
+        fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+        
+        // Fix unquoted keys
+        fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+        
+        // If still invalid, return empty structure
+        try {
+            JSON.parse(fixed);
+            return fixed;
+        } catch {
+            console.warn('[CappyRAG] Could not fix JSON, returning empty structure');
+            return JSON.stringify({ entities: [], relationships: [] });
+        }
     }
 
     private async generateEmbedding(text: string): Promise<number[]> {
-        // TODO: Implement embedding generation using transformers.js
-        // Should generate 384d vectors using all-MiniLM-L6-v2
+        // @copilot: How to generate embeddings locally using transformers.js in VS Code extension?
+        // I need 384-dimensional embeddings for semantic search in knowledge graph
+        // Requirements:
+        // 1. Use @xenova/transformers package
+        // 2. Load all-MiniLM-L6-v2 model locally (lightweight)
+        // 3. Caching for performance
+        // 4. Batch processing for multiple texts
+        
+        // TODO: Implement local embedding generation with transformers.js
         return new Array(384).fill(0).map(() => Math.random());
     }
 
