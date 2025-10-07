@@ -4,10 +4,11 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "c:\\Users\\cecon\\.vscode\\extensions\\eduardocecon.cappy-2.9.65\\out\\extension.mcp.js"
+        "c:\\Users\\cecon\\.vscode\\extensions\\eduardocecon.cappy-2.9.66\\out\\mcp-standalone\\server.js"
       ],
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "CAPPY_API_PORT": "38194"
       },
       "description": "Cappy Memory - Context Orchestration and RAG System"
     }
