@@ -49,6 +49,11 @@
     "onLanguageModelTool:cappyrag_estimate_processing_time"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "languageModel": {
+      "enabled": true
+    }
+  },
   "contributes": {
     "commands": [
       {
