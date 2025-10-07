@@ -68,8 +68,9 @@ if (mcpConfigured) {
 
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "cappy": {
+      "type": "stdio",
       "command": "node",
       "args": [
         "/path/to/cappy/out/extension.mcp.js"
@@ -82,6 +83,8 @@ if (mcpConfigured) {
   }
 }
 ```
+
+**Estrutura conforme [documentação oficial do VS Code](https://code.visualstudio.com/docs/copilot/customization/mcp-servers#_configuration-format)**
 
 ### Para Cursor
 

@@ -20,8 +20,12 @@ import { FileManager } from "./utils/fileManager";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 import { registerLanguageModelTools } from "./utils/languageModelTools";
 import { CappyRAGMCPServer } from "./tools/mcpServer";
+import { ExtensionHTTPAPI } from "./api/extensionHTTPAPI";
 import * as path from 'path';
 import * as fs from 'fs';
+
+// Global HTTP API instance (needs to persist across extension lifecycle)
+let httpAPI: ExtensionHTTPAPI | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
   try {
@@ -54,6 +58,19 @@ export function activate(context: vscode.ExtensionContext) {
     const mcpServer = new CappyRAGMCPServer(context);
     mcpServer.registerTools();
     console.log('🛠️ Cappy: CappyRAG MCP tools registered');
+    
+    // Start HTTP API for external MCP server communication
+    httpAPI = new ExtensionHTTPAPI(context);
+    httpAPI.start()
+      .then(() => {
+        console.log(`🌐 Cappy: HTTP API started on port ${httpAPI!.getPort()}`);
+        // Store port in environment for MCP server to use
+        process.env.CAPPY_API_PORT = httpAPI!.getPort().toString();
+      })
+      .catch((error) => {
+        console.error('Failed to start HTTP API:', error);
+        vscode.window.showWarningMessage('Cappy: HTTP API failed to start. External MCP tools may not work.');
+      });
 
     // Telemetry consent gating (one-time and on updates)
     ensureTelemetryConsent(context)
@@ -583,6 +600,18 @@ async function updateCopilotInstructions(workspaceRoot: string): Promise<void> {
   }
 }
 
-export function deactivate() {
-  vscode.window.showErrorMessage(`🦫 Cappy Memory: Deactivation`);
+export async function deactivate() {
+  console.log('🦫 Cappy: Deactivating...');
+  
+  // Stop HTTP API
+  if (httpAPI) {
+    try {
+      await httpAPI.stop();
+      console.log('✅ Cappy: HTTP API stopped');
+    } catch (error) {
+      console.error('Failed to stop HTTP API:', error);
+    }
+  }
+  
+  vscode.window.showInformationMessage(`🦫 Cappy Memory: Deactivated`);
 }

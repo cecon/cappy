@@ -1,9 +1,10 @@
 {
   "servers": {
     "cappy": {
+      "type": "stdio",
       "command": "node",
       "args": [
-        "c:\\Users\\cecon\\.vscode\\extensions\\eduardocecon.cappy-2.9.64\\out\\extension.mcp.js"
+        "c:\\Users\\cecon\\.vscode\\extensions\\eduardocecon.cappy-2.9.65\\out\\extension.mcp.js"
       ],
       "env": {
         "NODE_ENV": "production"
