@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "AI coding companion with Single-Focus Workflow, CappyRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
   "icon": "assets/icon.png",
-  "version": "2.9.69",
+  "version": "2.9.70",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0",
@@ -376,7 +376,9 @@
               "description": "Absolute path to the document file to add"
             }
           },
-          "required": ["filePath"]
+          "required": [
+            "filePath"
+          ]
         }
       },
       {
@@ -395,7 +397,9 @@
               "description": "Maximum number of results to return (default: 10)"
             }
           },
-          "required": ["query"]
+          "required": [
+            "query"
+          ]
         }
       },
       {
@@ -428,7 +432,9 @@
               "description": "Absolute path to the document file"
             }
           },
-          "required": ["filePath"]
+          "required": [
+            "filePath"
+          ]
         }
       }
     ]
