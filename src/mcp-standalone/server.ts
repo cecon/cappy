@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
- * Standalone MCP Server for Cappy
- * This runs as a separate Node.js process and communicates via stdio
- * Does NOT require the vscode module
+ * Standalone MCP Server for Cappy - VS Code Commands Version
+ * Communicates with VS Code extension via VS Code commands (no HTTP server needed)
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -12,123 +11,101 @@ import {
   ListToolsRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
-import * as http from 'http';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
+
+const execAsync = promisify(exec);
 
 /**
- * Extension HTTP API Client
- * Communicates with the running VS Code extension via HTTP
+ * VS Code Command Executor
+ * Executes VS Code commands and retrieves results via temporary files
  */
-class ExtensionAPIClient {
-  private baseUrl: string;
+class VSCodeCommandExecutor {
+  private tempDir: string;
   
   constructor() {
-    // Try to detect port from environment or use default
-    const port = process.env.CAPPY_API_PORT || '38194';
-    this.baseUrl = `http://localhost:${port}`;
+    this.tempDir = os.tmpdir();
   }
   
   /**
-   * Make HTTP request to extension API
+   * Execute VS Code command and get result
    */
-  private async request(method: string, path: string, body?: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const url = new URL(path, this.baseUrl);
+  async executeCommand(commandId: string, args: any = {}): Promise<any> {
+    // Create unique temp file for result
+    const resultFile = path.join(this.tempDir, `cappy-mcp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.json`);
+    
+    try {
+      // Prepare arguments
+      const argsJson = JSON.stringify({ ...args, resultFile });
       
-      const options: http.RequestOptions = {
-        method,
-        headers: {
-          'content-type': 'application/json', // eslint-disable-line
-          'user-agent': 'Cappy-MCP-Server/1.0', // eslint-disable-line
-        },
-      };
+      // Execute VS Code command
+      // VS Code will write result to the temp file
+      const command = `code --command "${commandId}" --args="${argsJson.replace(/"/g, '\\"')}"`;
       
-      const req = http.request(url, options, (res) => {
-        let data = '';
-        
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-        
-        res.on('end', () => {
-          try {
-            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-              resolve(JSON.parse(data));
-            } else {
-              reject(new Error(`HTTP ${res.statusCode}: ${data}`));
-            }
-          } catch (error) {
-            reject(error);
-          }
-        });
-      });
+      console.error(`[MCP] Executing: ${commandId}`);
+      await execAsync(command, { timeout: 30000 });
       
-      req.on('error', (error) => {
-        reject(error);
-      });
+      // Wait for result file with timeout
+      const result = await this.waitForResult(resultFile, 10000);
       
-      if (body) {
-        req.write(JSON.stringify(body));
+      // Cleanup temp file
+      await fs.unlink(resultFile).catch(() => {});
+      
+      return result;
+    } catch (error) {
+      // Cleanup on error
+      await fs.unlink(resultFile).catch(() => {});
+      throw new Error(`Command execution failed: ${error}`);
+    }
+  }
+  
+  /**
+   * Wait for result file to be created and read it
+   */
+  private async waitForResult(filePath: string, timeoutMs: number): Promise<any> {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        // Check if file exists and has content
+        const stats = await fs.stat(filePath);
+        if (stats.size > 0) {
+          const content = await fs.readFile(filePath, 'utf8');
+          return JSON.parse(content);
+        }
+      } catch (error) {
+        // File doesn't exist yet, continue waiting
       }
       
-      req.end();
-    });
-  }
-  
-  /**
-   * Add document via extension API
-   */
-  async addDocument(filePath: string, options?: any): Promise<any> {
-    return this.request('POST', '/api/cappyrag/addDocument', {
-      filePath,
-      ...options,
-    });
-  }
-  
-  /**
-   * Query knowledge base via extension API
-   */
-  async query(query: string, maxResults?: number): Promise<any> {
-    return this.request('POST', '/api/cappyrag/query', {
-      query,
-      maxResults,
-    });
-  }
-  
-  /**
-   * Get statistics via extension API
-   */
-  async getStats(): Promise<any> {
-    return this.request('GET', '/api/cappyrag/stats');
-  }
-  
-  /**
-   * Health check
-   */
-  async health(): Promise<boolean> {
-    try {
-      await this.request('GET', '/api/health');
-      return true;
-    } catch {
-      return false;
+      // Wait 100ms before checking again
+      await this.sleep(100);
     }
+    
+    throw new Error('Timeout waiting for command result');
+  }
+  
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
 /**
- * Cappy MCP Server
- * Provides tools for CappyRAG via Model Context Protocol
+ * Cappy MCP Server using VS Code Commands
  */
 class CappyMCPServer {
   private server: Server;
-  private apiClient: ExtensionAPIClient;
+  private commandExecutor: VSCodeCommandExecutor;
   
   constructor() {
-    this.apiClient = new ExtensionAPIClient();
+    this.commandExecutor = new VSCodeCommandExecutor();
     
     this.server = new Server(
       {
         name: 'cappy',
-        version: '1.0.0',
+        version: '2.0.0',
       },
       {
         capabilities: {
@@ -141,18 +118,13 @@ class CappyMCPServer {
     this.setupErrorHandling();
   }
   
-  /**
-   * Setup tool handlers
-   */
   private setupToolHandlers(): void {
-    // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: this.getTools(),
       };
     });
     
-    // Handle tool calls
     this.server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
       const { name, arguments: args } = request.params;
       
@@ -175,7 +147,7 @@ class CappyMCPServer {
           content: [
             {
               type: 'text',
-              text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              text: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
             },
           ],
         };
@@ -183,29 +155,26 @@ class CappyMCPServer {
     });
   }
   
-  /**
-   * Get list of available tools
-   */
   private getTools(): Tool[] {
     return [
       {
         name: 'cappyrag_add_document',
-        description: 'Add a document to the CappyRAG knowledge base',
+        description: 'Add a document to the CappyRAG knowledge base with cross-document relationship detection',
         inputSchema: {
           type: 'object',
           properties: {
             filePath: {
               type: 'string',
-              description: 'Path to the document file',
+              description: 'Absolute path to the document file',
             },
             title: {
               type: 'string',
-              description: 'Optional document title',
+              description: 'Optional document title (defaults to filename)',
             },
             tags: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Optional document tags',
+              description: 'Optional document tags for categorization',
             },
           },
           required: ['filePath'],
@@ -213,17 +182,22 @@ class CappyMCPServer {
       },
       {
         name: 'cappyrag_query',
-        description: 'Query the CappyRAG knowledge base',
+        description: 'Query the CappyRAG knowledge base with semantic or text-based search',
         inputSchema: {
           type: 'object',
           properties: {
             query: {
               type: 'string',
-              description: 'Search query',
+              description: 'Search query text',
             },
             maxResults: {
               type: 'number',
-              description: 'Maximum number of results (default: 5)',
+              description: 'Maximum number of results to return (default: 5)',
+            },
+            searchType: {
+              type: 'string',
+              enum: ['semantic', 'text', 'hybrid'],
+              description: 'Type of search: semantic (vector), text (keyword), or hybrid (both)',
             },
           },
           required: ['query'],
@@ -231,7 +205,7 @@ class CappyMCPServer {
       },
       {
         name: 'cappyrag_get_stats',
-        description: 'Get statistics about the knowledge base',
+        description: 'Get comprehensive statistics about the CappyRAG knowledge base',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -240,14 +214,8 @@ class CappyMCPServer {
     ];
   }
   
-  /**
-   * Handle add document tool
-   */
   private async handleAddDocument(args: any): Promise<any> {
-    const result = await this.apiClient.addDocument(args.filePath, {
-      title: args.title,
-      tags: args.tags,
-    });
+    const result = await this.commandExecutor.executeCommand('cappy.mcp.addDocument', args);
     
     return {
       content: [
@@ -259,11 +227,8 @@ class CappyMCPServer {
     };
   }
   
-  /**
-   * Handle query tool
-   */
   private async handleQuery(args: any): Promise<any> {
-    const result = await this.apiClient.query(args.query, args.maxResults);
+    const result = await this.commandExecutor.executeCommand('cappy.mcp.query', args);
     
     return {
       content: [
@@ -275,11 +240,8 @@ class CappyMCPServer {
     };
   }
   
-  /**
-   * Handle get stats tool
-   */
   private async handleGetStats(): Promise<any> {
-    const result = await this.apiClient.getStats();
+    const result = await this.commandExecutor.executeCommand('cappy.mcp.getStats', {});
     
     return {
       content: [
@@ -291,9 +253,6 @@ class CappyMCPServer {
     };
   }
   
-  /**
-   * Setup error handling
-   */
   private setupErrorHandling(): void {
     this.server.onerror = (error: any) => {
       console.error('[MCP Server Error]', error);
@@ -305,22 +264,11 @@ class CappyMCPServer {
     });
   }
   
-  /**
-   * Start the server
-   */
   async start(): Promise<void> {
-    // Check if extension API is available
-    const isHealthy = await this.apiClient.health();
-    
-    if (!isHealthy) {
-      console.error('⚠️  Warning: Extension API is not available. Some features may not work.');
-      console.error('   Make sure the Cappy extension is running in VS Code.');
-    }
-    
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     
-    console.error('🦫 Cappy MCP Server started successfully');
+    console.error('🦫 Cappy MCP Server started (VS Code Commands mode)');
   }
 }
 

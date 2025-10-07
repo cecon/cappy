@@ -6,11 +6,15 @@
 import * as http from 'http';
 import * as vscode from 'vscode';
 import { AddDocumentTool } from '../tools/addDocumentTool';
+import { QueryTool } from '../tools/queryTool';
+import { GetStatsTool } from '../tools/getStatsTool';
 
 export class ExtensionHTTPAPI {
   private server: http.Server | null = null;
   private port: number;
   private addDocumentTool: AddDocumentTool;
+  private queryTool: QueryTool;
+  private getStatsTool: GetStatsTool;
   
   constructor(
     private context: vscode.ExtensionContext,
@@ -18,6 +22,8 @@ export class ExtensionHTTPAPI {
   ) {
     this.port = port;
     this.addDocumentTool = new AddDocumentTool(context);
+    this.queryTool = new QueryTool(context);
+    this.getStatsTool = new GetStatsTool(context);
   }
   
   /**
@@ -111,15 +117,22 @@ export class ExtensionHTTPAPI {
         return;
       }
       
-      // Query (placeholder - implement when QueryTool exists)
+      // Query
       if (url.pathname === '/api/cappyrag/query' && req.method === 'POST') {
-        this.sendJSON(res, 501, { error: 'Query endpoint not implemented yet' });
+        const body = await this.parseBody(req);
+        const result = await this.queryTool.query(
+          body.query,
+          body.maxResults || 5,
+          body.searchType || 'hybrid'
+        );
+        this.sendJSON(res, 200, result);
         return;
       }
       
-      // Get stats (placeholder - implement when GetStatsTool exists)
+      // Get stats
       if (url.pathname === '/api/cappyrag/stats' && req.method === 'GET') {
-        this.sendJSON(res, 501, { error: 'Stats endpoint not implemented yet' });
+        const result = await this.getStatsTool.getStats();
+        this.sendJSON(res, 200, result);
         return;
       }
       

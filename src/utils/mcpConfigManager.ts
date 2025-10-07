@@ -51,9 +51,6 @@ export class MCPConfigManager {
             // Path to mcp.json
             const mcpConfigPath = path.join(vscodeDir, 'mcp.json');
             
-            // Get API port from environment (set by extension activation)
-            const apiPort = process.env.CAPPY_API_PORT || '38194';
-            
             // Create MCP configuration pointing to standalone server
             const mcpConfig = {
                 servers: {
@@ -65,9 +62,7 @@ export class MCPConfigManager {
                         ],
                         env: {
                             // eslint-disable-next-line @typescript-eslint/naming-convention
-                            'NODE_ENV': 'production',
-                            // eslint-disable-next-line @typescript-eslint/naming-convention
-                            'CAPPY_API_PORT': apiPort
+                            'NODE_ENV': 'production'
                         },
                         description: 'Cappy Memory - Context Orchestration and RAG System'
                     }

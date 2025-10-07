@@ -20,12 +20,8 @@ import { FileManager } from "./utils/fileManager";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 import { registerLanguageModelTools } from "./utils/languageModelTools";
 import { CappyRAGMCPServer } from "./tools/mcpServer";
-import { ExtensionHTTPAPI } from "./api/extensionHTTPAPI";
 import * as path from 'path';
 import * as fs from 'fs';
-
-// Global HTTP API instance (needs to persist across extension lifecycle)
-let httpAPI: ExtensionHTTPAPI | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
   try {
@@ -58,19 +54,6 @@ export function activate(context: vscode.ExtensionContext) {
     const mcpServer = new CappyRAGMCPServer(context);
     mcpServer.registerTools();
     console.log('🛠️ Cappy: CappyRAG MCP tools registered');
-    
-    // Start HTTP API for external MCP server communication
-    httpAPI = new ExtensionHTTPAPI(context);
-    httpAPI.start()
-      .then(() => {
-        console.log(`🌐 Cappy: HTTP API started on port ${httpAPI!.getPort()}`);
-        // Store port in environment for MCP server to use
-        process.env.CAPPY_API_PORT = httpAPI!.getPort().toString();
-      })
-      .catch((error) => {
-        console.error('Failed to start HTTP API:', error);
-        vscode.window.showWarningMessage('Cappy: HTTP API failed to start. External MCP tools may not work.');
-      });
 
     // Telemetry consent gating (one-time and on updates)
     ensureTelemetryConsent(context)
@@ -423,6 +406,108 @@ export function activate(context: vscode.ExtensionContext) {
       }
     );
 
+    // Register MCP Commands for standalone server communication
+    const mcpAddDocumentCommand = vscode.commands.registerCommand(
+      "cappy.mcp.addDocument",
+      async (args: any) => {
+        try {
+          const addDocumentTool = new (await import('./tools/addDocumentTool')).AddDocumentTool(context);
+          const result = await addDocumentTool.addDocument(
+            args.filePath,
+            args.title,
+            args.author,
+            args.tags,
+            args.language,
+            args.processingOptions
+          );
+          
+          // Write result to temp file if specified
+          if (args.resultFile) {
+            const fs = await import('fs/promises');
+            await fs.writeFile(args.resultFile, JSON.stringify(result, null, 2));
+          }
+          
+          return result;
+        } catch (error) {
+          const errorResult = {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+          
+          if (args.resultFile) {
+            const fs = await import('fs/promises');
+            await fs.writeFile(args.resultFile, JSON.stringify(errorResult, null, 2));
+          }
+          
+          return errorResult;
+        }
+      }
+    );
+
+    const mcpQueryCommand = vscode.commands.registerCommand(
+      "cappy.mcp.query",
+      async (args: any) => {
+        try {
+          const queryTool = new (await import('./tools/queryTool')).QueryTool(context);
+          const result = await queryTool.query(
+            args.query,
+            args.maxResults || 5,
+            args.searchType || 'hybrid'
+          );
+          
+          // Write result to temp file if specified
+          if (args.resultFile) {
+            const fs = await import('fs/promises');
+            await fs.writeFile(args.resultFile, JSON.stringify(result, null, 2));
+          }
+          
+          return result;
+        } catch (error) {
+          const errorResult = {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+          
+          if (args.resultFile) {
+            const fs = await import('fs/promises');
+            await fs.writeFile(args.resultFile, JSON.stringify(errorResult, null, 2));
+          }
+          
+          return errorResult;
+        }
+      }
+    );
+
+    const mcpGetStatsCommand = vscode.commands.registerCommand(
+      "cappy.mcp.getStats",
+      async (args: any) => {
+        try {
+          const getStatsTool = new (await import('./tools/getStatsTool')).GetStatsTool(context);
+          const result = await getStatsTool.getStats();
+          
+          // Write result to temp file if specified
+          if (args.resultFile) {
+            const fs = await import('fs/promises');
+            await fs.writeFile(args.resultFile, JSON.stringify(result, null, 2));
+          }
+          
+          return result;
+        } catch (error) {
+          const errorResult = {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+          
+          if (args.resultFile) {
+            const fs = await import('fs/promises');
+            await fs.writeFile(args.resultFile, JSON.stringify(errorResult, null, 2));
+          }
+          
+          return errorResult;
+        }
+      }
+    );
+
     // Register all commands
     context.subscriptions.push(
       initCommand,
@@ -446,7 +531,11 @@ export function activate(context: vscode.ExtensionContext) {
       miniRAGIndexFileCommand,
       miniRAGPopulateSampleCommand,
       miniRAGPauseWatcherCommand,
-      documentUploadCommand
+      documentUploadCommand,
+      // MCP Commands
+      mcpAddDocumentCommand,
+      mcpQueryCommand,
+      mcpGetStatsCommand
     );
 
     // Register LightRAG commands
@@ -602,16 +691,5 @@ async function updateCopilotInstructions(workspaceRoot: string): Promise<void> {
 
 export async function deactivate() {
   console.log('🦫 Cappy: Deactivating...');
-  
-  // Stop HTTP API
-  if (httpAPI) {
-    try {
-      await httpAPI.stop();
-      console.log('✅ Cappy: HTTP API stopped');
-    } catch (error) {
-      console.error('Failed to stop HTTP API:', error);
-    }
-  }
-  
   vscode.window.showInformationMessage(`🦫 Cappy Memory: Deactivated`);
 }

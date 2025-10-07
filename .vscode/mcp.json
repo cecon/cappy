@@ -4,7 +4,7 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "c:\\Users\\cecon\\.vscode\\extensions\\eduardocecon.cappy-2.9.66\\out\\mcp-standalone\\server.js"
+        "c:\\Users\\cecon\\.vscode\\extensions\\eduardocecon.cappy-2.9.67\\out\\mcp-standalone\\server.js"
       ],
       "env": {
         "NODE_ENV": "production",
