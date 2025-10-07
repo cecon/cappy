@@ -34,7 +34,19 @@
     "language-model-tools"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onLanguageModelTool:cappy_init",
+    "onLanguageModelTool:cappy_knowstack",
+    "onLanguageModelTool:cappy_new_task",
+    "onLanguageModelTool:cappy_create_task",
+    "onLanguageModelTool:cappy_work_on_task",
+    "onLanguageModelTool:cappy_complete_task",
+    "onLanguageModelTool:cappy_reindex",
+    "onLanguageModelTool:cappyrag_add_document",
+    "onLanguageModelTool:cappyrag_query_knowledge_base",
+    "onLanguageModelTool:cappyrag_get_stats",
+    "onLanguageModelTool:cappyrag_get_supported_formats",
+    "onLanguageModelTool:cappyrag_estimate_processing_time"
   ],
   "main": "./out/extension.js",
   "contributes": {
