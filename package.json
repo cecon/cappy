@@ -326,6 +326,73 @@
           "type": "object",
           "properties": {}
         }
+      },
+      {
+        "name": "cappyrag_add_document",
+        "displayName": "CappyRAG: Add Document",
+        "modelDescription": "Add a document to the CappyRAG knowledge base with semantic indexing and processing",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "type": "string",
+              "description": "Absolute path to the document file to add"
+            }
+          },
+          "required": ["filePath"]
+        }
+      },
+      {
+        "name": "cappyrag_query_knowledge_base",
+        "displayName": "CappyRAG: Query Knowledge Base",
+        "modelDescription": "Search the CappyRAG knowledge base using semantic and text-based search with relevance scoring",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query to find relevant information"
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of results to return (default: 10)"
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "cappyrag_get_stats",
+        "displayName": "CappyRAG: Get Statistics",
+        "modelDescription": "Get comprehensive statistics about the CappyRAG knowledge base including document counts and storage metrics",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "cappyrag_get_supported_formats",
+        "displayName": "CappyRAG: Get Supported Formats",
+        "modelDescription": "Get list of supported document formats for CappyRAG processing with format specifications",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "cappyrag_estimate_processing_time",
+        "displayName": "CappyRAG: Estimate Processing Time",
+        "modelDescription": "Estimate processing time for a document based on file size and complexity",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "type": "string",
+              "description": "Absolute path to the document file"
+            }
+          },
+          "required": ["filePath"]
+        }
       }
     ]
   },
