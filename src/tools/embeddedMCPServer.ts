@@ -1,9 +1,4 @@
-#!/usr/bin/env node
-/**
- * Standalone MCP Server for Cappy - Direct VS Code Integration
- * Uses direct VS Code command execution (no external processes)
- */
-
+import * as vscode from 'vscode';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -11,55 +6,29 @@ import {
   ListToolsRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
-
-// Import VS Code API if available (when running inside VS Code)
-let vscode: any = null;
-try {
-  vscode = require('vscode');
-} catch (error) {
-  console.error('[MCP] VS Code API not available');
-}
+import { AddDocumentTool } from './addDocumentTool';
+import { QueryTool } from './queryTool';
+import { GetStatsTool } from './getStatsTool';
 
 /**
- * Direct VS Code Command Executor
+ * Embedded MCP Server (runs inside VS Code extension)
+ * Uses direct vscode.commands.executeCommand calls
  */
-class DirectVSCodeExecutor {
-  
-  /**
-   * Execute VS Code command directly
-   */
-  async executeCommand(commandId: string, args: any = {}): Promise<any> {
-    if (!vscode) {
-      throw new Error('VS Code API not available');
-    }
-    
-    console.error(`[MCP] Executing: ${commandId}`);
-    
-    try {
-      const result = await vscode.commands.executeCommand(commandId, args);
-      console.error(`[MCP] Command completed: ${commandId}`);
-      return result;
-    } catch (error) {
-      console.error(`[MCP] Command failed: ${commandId}`, error);
-      throw new Error(`Failed to execute ${commandId}: ${error}`);
-    }
-  }
-}
-
-/**
- * Cappy MCP Server using Direct VS Code Commands
- */
-class CappyMCPServer {
+export class EmbeddedMCPServer {
   private server: Server;
-  private commandExecutor: DirectVSCodeExecutor;
+  private addDocumentTool: AddDocumentTool;
+  private queryTool: QueryTool;
+  private getStatsTool: GetStatsTool;
   
-  constructor() {
-    this.commandExecutor = new DirectVSCodeExecutor();
+  constructor(private context: vscode.ExtensionContext) {
+    this.addDocumentTool = new AddDocumentTool(context);
+    this.queryTool = new QueryTool(context);
+    this.getStatsTool = new GetStatsTool(context);
     
     this.server = new Server(
       {
         name: 'cappy',
-        version: '2.0.0',
+        version: '3.0.0',
       },
       {
         capabilities: {
@@ -69,9 +38,11 @@ class CappyMCPServer {
     );
     
     this.setupToolHandlers();
-    this.setupErrorHandling();
   }
   
+  /**
+   * Setup MCP tool handlers
+   */
   private setupToolHandlers(): void {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
@@ -101,7 +72,7 @@ class CappyMCPServer {
           content: [
             {
               type: 'text',
-              text: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
             },
           ],
         };
@@ -109,6 +80,9 @@ class CappyMCPServer {
     });
   }
   
+  /**
+   * Get available tools
+   */
   private getTools(): Tool[] {
     return [
       {
@@ -136,7 +110,7 @@ class CappyMCPServer {
       },
       {
         name: 'cappyrag_query',
-        description: 'Query the CappyRAG knowledge base with semantic or text-based search',
+        description: 'Query the CappyRAG knowledge base with semantic search',
         inputSchema: {
           type: 'object',
           properties: {
@@ -151,7 +125,7 @@ class CappyMCPServer {
             searchType: {
               type: 'string',
               enum: ['semantic', 'text', 'hybrid'],
-              description: 'Type of search: semantic (vector), text (keyword), or hybrid (both)',
+              description: 'Type of search (default: hybrid)',
             },
           },
           required: ['query'],
@@ -168,8 +142,18 @@ class CappyMCPServer {
     ];
   }
   
+  /**
+   * Handle add document tool
+   */
   private async handleAddDocument(args: any): Promise<any> {
-    const result = await this.commandExecutor.executeCommand('cappy.mcp.addDocument', args);
+    const result = await this.addDocumentTool.addDocument(
+      args.filePath,
+      args.title,
+      args.author,
+      args.tags,
+      args.language,
+      args.processingOptions
+    );
     
     return {
       content: [
@@ -181,8 +165,15 @@ class CappyMCPServer {
     };
   }
   
+  /**
+   * Handle query tool
+   */
   private async handleQuery(args: any): Promise<any> {
-    const result = await this.commandExecutor.executeCommand('cappy.mcp.query', args);
+    const result = await this.queryTool.query(
+      args.query,
+      args.maxResults || 5,
+      args.searchType || 'hybrid'
+    );
     
     return {
       content: [
@@ -194,8 +185,11 @@ class CappyMCPServer {
     };
   }
   
+  /**
+   * Handle get stats tool
+   */
   private async handleGetStats(): Promise<any> {
-    const result = await this.commandExecutor.executeCommand('cappy.mcp.getStats', {});
+    const result = await this.getStatsTool.getStats();
     
     return {
       content: [
@@ -207,28 +201,20 @@ class CappyMCPServer {
     };
   }
   
-  private setupErrorHandling(): void {
-    this.server.onerror = (error: any) => {
-      console.error('[MCP Server Error]', error);
-    };
-    
-    process.on('SIGINT', async () => {
-      await this.server.close();
-      process.exit(0);
-    });
-  }
-  
+  /**
+   * Start the embedded MCP server
+   */
   async start(): Promise<void> {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     
-    console.error('🦫 Cappy MCP Server started (VS Code Commands mode)');
+    console.log('🦫 Embedded Cappy MCP Server started (direct VS Code integration)');
+  }
+  
+  /**
+   * Stop the server
+   */
+  async stop(): Promise<void> {
+    await this.server.close();
   }
 }
-
-// Start the server
-const server = new CappyMCPServer();
-server.start().catch((error) => {
-  console.error('Failed to start MCP server:', error);
-  process.exit(1);
-});

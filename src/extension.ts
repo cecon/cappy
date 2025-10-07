@@ -50,10 +50,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Register Language Model Tools for Copilot
     registerLanguageModelTools(context);
 
-    // Register CappyRAG MCP Server for document processing
+    // Register CappyRAG MCP Server for document processing (embedded)
     const mcpServer = new CappyRAGMCPServer(context);
     mcpServer.registerTools();
-    console.log('🛠️ Cappy: CappyRAG MCP tools registered');
+    console.log('🛠️ Cappy: CappyRAG MCP tools registered (embedded mode)');
 
     // Telemetry consent gating (one-time and on updates)
     ensureTelemetryConsent(context)
