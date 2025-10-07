@@ -53,14 +53,16 @@ export class MCPConfigManager {
             
             // Create MCP configuration
             const mcpConfig = {
-                mcpServers: {
+                servers: {
                     cappy: {
+                        type: 'stdio',
                         command: 'node',
                         args: [
                             path.join(context.extensionPath, 'out', 'extension.mcp.js')
                         ],
                         env: {
-                            NODE_ENV: 'production'
+                            // eslint-disable-next-line @typescript-eslint/naming-convention
+                            'NODE_ENV': 'production'
                         },
                         description: 'Cappy Memory - Context Orchestration and RAG System'
                     }
@@ -74,12 +76,12 @@ export class MCPConfigManager {
                     const existingConfig = JSON.parse(existingContent);
                     
                     // Merge configurations
-                    if (!existingConfig.mcpServers) {
-                        existingConfig.mcpServers = {};
+                    if (!existingConfig.servers) {
+                        existingConfig.servers = {};
                     }
                     
-                    if (!existingConfig.mcpServers.cappy) {
-                        existingConfig.mcpServers.cappy = mcpConfig.mcpServers.cappy;
+                    if (!existingConfig.servers.cappy) {
+                        existingConfig.servers.cappy = mcpConfig.servers.cappy;
                         fs.writeFileSync(mcpConfigPath, JSON.stringify(existingConfig, null, 2), 'utf8');
                         console.log('[MCP] Cappy MCP server added to existing mcp.json');
                         return true;
@@ -152,12 +154,14 @@ export class MCPConfigManager {
             // Add or update Cappy MCP server
             if (!mcpConfig.mcpServers['cappy']) {
                 mcpConfig.mcpServers['cappy'] = {
+                    type: 'stdio',
                     command: 'node',
                     args: [
                         path.join(context.extensionPath, 'out', 'extension.mcp.js')
                     ],
                     env: {
-                        nodeEnv: 'production'
+                        // eslint-disable-next-line @typescript-eslint/naming-convention
+                        'NODE_ENV': 'production'
                     },
                     description: 'Cappy Memory - Context Orchestration and RAG System',
                     enabled: true
@@ -216,7 +220,7 @@ export class MCPConfigManager {
             const content = fs.readFileSync(mcpConfigPath, 'utf8');
             const mcpConfig = JSON.parse(content);
             
-            return !!(mcpConfig.mcpServers && mcpConfig.mcpServers['cappy']);
+            return !!(mcpConfig.servers && mcpConfig.servers['cappy']);
         } catch (error) {
             return false;
         }

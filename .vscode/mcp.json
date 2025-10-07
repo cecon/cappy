@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "cappy": {
+      "command": "node",
+      "args": [
+        "c:\\Users\\cecon\\.vscode\\extensions\\eduardocecon.cappy-2.9.64\\out\\extension.mcp.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "description": "Cappy Memory - Context Orchestration and RAG System"
+    }
+  }
+}
