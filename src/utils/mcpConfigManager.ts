@@ -31,36 +31,71 @@ export class MCPConfigManager {
     
     /**
      * Setup MCP for VS Code
+     * Creates .vscode/mcp.json in the workspace
      */
     private static async setupVSCodeMCP(context: vscode.ExtensionContext): Promise<boolean> {
         try {
-            // Get workspace configuration
-            const config = vscode.workspace.getConfiguration();
-            
-            // Check if MCP servers are already configured
-            const mcpServers = config.get<any>('mcpServers') || {};
-            
-            // Add or update Cappy MCP server
-            if (!mcpServers['cappy']) {
-                mcpServers['cappy'] = {
-                    command: 'node',
-                    args: [
-                        path.join(context.extensionPath, 'out', 'extension.mcp.js')
-                    ],
-                    env: {
-                        nodeEnv: 'production'
-                    },
-                    description: 'Cappy Memory - Context Orchestration and RAG System'
-                };
-                
-                // Update configuration
-                await config.update('mcpServers', mcpServers, vscode.ConfigurationTarget.Global);
-                
-                console.log('[MCP] Cappy MCP server configured for VS Code');
-                return true;
+            // Get workspace folder
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                console.warn('[MCP] No workspace folder found');
+                return false;
             }
             
-            console.log('[MCP] Cappy MCP server already configured for VS Code');
+            // Create .vscode directory if it doesn't exist
+            const vscodeDir = path.join(workspaceFolder.uri.fsPath, '.vscode');
+            if (!fs.existsSync(vscodeDir)) {
+                fs.mkdirSync(vscodeDir, { recursive: true });
+            }
+            
+            // Path to mcp.json
+            const mcpConfigPath = path.join(vscodeDir, 'mcp.json');
+            
+            // Create MCP configuration
+            const mcpConfig = {
+                mcpServers: {
+                    cappy: {
+                        command: 'node',
+                        args: [
+                            path.join(context.extensionPath, 'out', 'extension.mcp.js')
+                        ],
+                        env: {
+                            NODE_ENV: 'production'
+                        },
+                        description: 'Cappy Memory - Context Orchestration and RAG System'
+                    }
+                }
+            };
+            
+            // Check if file already exists
+            if (fs.existsSync(mcpConfigPath)) {
+                try {
+                    const existingContent = fs.readFileSync(mcpConfigPath, 'utf8');
+                    const existingConfig = JSON.parse(existingContent);
+                    
+                    // Merge configurations
+                    if (!existingConfig.mcpServers) {
+                        existingConfig.mcpServers = {};
+                    }
+                    
+                    if (!existingConfig.mcpServers.cappy) {
+                        existingConfig.mcpServers.cappy = mcpConfig.mcpServers.cappy;
+                        fs.writeFileSync(mcpConfigPath, JSON.stringify(existingConfig, null, 2), 'utf8');
+                        console.log('[MCP] Cappy MCP server added to existing mcp.json');
+                        return true;
+                    } else {
+                        console.log('[MCP] Cappy MCP server already configured in mcp.json');
+                        return true;
+                    }
+                } catch (parseError) {
+                    console.warn('[MCP] Failed to parse existing mcp.json, creating new one');
+                }
+            }
+            
+            // Write new mcp.json
+            fs.writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2), 'utf8');
+            console.log('[MCP] Created mcp.json at:', mcpConfigPath);
+            
             return true;
             
         } catch (error) {
@@ -167,9 +202,21 @@ export class MCPConfigManager {
      */
     private static async isVSCodeMCPConfigured(): Promise<boolean> {
         try {
-            const config = vscode.workspace.getConfiguration();
-            const mcpServers = config.get<any>('mcpServers') || {};
-            return !!mcpServers['cappy'];
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                return false;
+            }
+            
+            const mcpConfigPath = path.join(workspaceFolder.uri.fsPath, '.vscode', 'mcp.json');
+            
+            if (!fs.existsSync(mcpConfigPath)) {
+                return false;
+            }
+            
+            const content = fs.readFileSync(mcpConfigPath, 'utf8');
+            const mcpConfig = JSON.parse(content);
+            
+            return !!(mcpConfig.mcpServers && mcpConfig.mcpServers['cappy']);
         } catch (error) {
             return false;
         }
@@ -221,7 +268,11 @@ export class MCPConfigManager {
                     return path.join(homeDir, '.cursor', 'mcp_settings.json');
                 }
             } else {
-                return 'VS Code Settings (via workspace.getConfiguration)';
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                if (workspaceFolder) {
+                    return path.join(workspaceFolder.uri.fsPath, '.vscode', 'mcp.json');
+                }
+                return null;
             }
         } catch (error) {
             return null;

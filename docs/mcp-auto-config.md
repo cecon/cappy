@@ -64,7 +64,7 @@ if (mcpConfigured) {
 
 ### Para VS Code
 
-**Localização:** Configuração Global do VS Code (`settings.json`)
+**Localização:** `.vscode/mcp.json` (no workspace)
 
 ```json
 {
@@ -75,7 +75,7 @@ if (mcpConfigured) {
         "/path/to/cappy/out/extension.mcp.js"
       ],
       "env": {
-        "nodeEnv": "production"
+        "NODE_ENV": "production"
       },
       "description": "Cappy Memory - Context Orchestration and RAG System"
     }

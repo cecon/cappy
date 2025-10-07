@@ -83,7 +83,7 @@ coverage/
 
 # Cappy specific - ignore only runtime files
 test-workspace/
+cappyrag-data/
 .cappy/history/
-.cappy/cappyrag-data/
 .cappy/tasks/
 .cappy/output.txt
