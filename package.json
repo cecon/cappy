@@ -160,6 +160,26 @@
         "command": "cappyrag.uploadUI",
         "title": "📄 CappyRAG: Upload Documents",
         "category": "CappyRAG"
+      },
+      {
+        "command": "cappyrag.getStats",
+        "title": "📊 CappyRAG: Get Knowledge Base Stats",
+        "category": "CappyRAG"
+      },
+      {
+        "command": "cappyrag.getSupportedFormats",
+        "title": "📃 CappyRAG: Get Supported Formats",
+        "category": "CappyRAG"
+      },
+      {
+        "command": "cappyrag.estimateProcessingTime",
+        "title": "⏱️ CappyRAG: Estimate Processing Time",
+        "category": "CappyRAG"
+      },
+      {
+        "command": "cappyrag.queryKnowledgeBase",
+        "title": "🔍 CappyRAG: Query Knowledge Base",
+        "category": "CappyRAG"
       }
     ],
     "configuration": {
