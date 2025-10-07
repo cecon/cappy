@@ -23,7 +23,7 @@ import { CappyRAGMCPServer } from "./tools/mcpServer";
 import * as path from 'path';
 import * as fs from 'fs';
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   try {
     console.log('🦫 Cappy: Starting activation...');
     
@@ -38,11 +38,33 @@ export function activate(context: vscode.ExtensionContext) {
 
     console.log('🦫 Cappy: Output channel created...');
 
+  await ensureLanguageModelToolsSetting();
+
     // Initialize Mini-LightRAG storage
     const miniRAGStorage = new MiniRAGStorage(context);
     miniRAGStorage.initialize().catch(error => {
       console.error('Failed to initialize Mini-LightRAG storage:', error);
     });
+async function ensureLanguageModelToolsSetting() {
+  try {
+    const config = vscode.workspace.getConfiguration();
+    const isEnabled = config.get<boolean>('languageModel.experimental.tools');
+
+    if (isEnabled !== true) {
+      await config.update(
+        'languageModel.experimental.tools',
+        true,
+        vscode.ConfigurationTarget.Global
+      );
+      console.log('Cappy: Enabled languageModel.experimental.tools setting for Copilot tools');
+      vscode.window.showInformationMessage(
+        'Cappy ativou o suporte a ferramentas do modelo de linguagem para que os comandos do CappyRAG apareçam no Copilot.'
+      );
+    }
+  } catch (error) {
+    console.warn('Cappy: Could not ensure languageModel.experimental.tools setting', error);
+  }
+}
 
     // Make extension context available globally for Mini-LightRAG
     (global as any).cappyExtensionContext = context;
@@ -73,6 +95,26 @@ export function activate(context: vscode.ExtensionContext) {
       "cappy.init",
       async () => {
         try {
+              async function ensureLanguageModelToolsSetting() {
+                try {
+                  const config = vscode.workspace.getConfiguration();
+                  const isEnabled = config.get<boolean>('languageModel.experimental.tools');
+
+                  if (isEnabled !== true) {
+                    await config.update(
+                      'languageModel.experimental.tools',
+                      true,
+                      vscode.ConfigurationTarget.Global
+                    );
+                    console.log('Cappy: Enabled languageModel.experimental.tools setting for Copilot tools');
+                    vscode.window.showInformationMessage(
+                      'Cappy ativou o suporte a ferramentas do modelo de linguagem para que os comandos do CappyRAG apareçam no Copilot.'
+                    );
+                  }
+                } catch (error) {
+                  console.warn('Cappy: Could not ensure languageModel.experimental.tools setting', error);
+                }
+              }
           try {
             const initModule = await import("./commands/initCappy");
             const initCommand = new initModule.InitCappyCommand(context);
