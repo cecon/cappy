@@ -424,7 +424,7 @@
             </div>
         </div>
         <div class="header-right">
-            <button class="header-button" onclick="resetView()">🔄 Reset View</button>
+            <button class="header-button" onclick="resetView()">🔄 Reset & Reload</button>
             <button class="header-button" onclick="exportImage()">💾 Export</button>
         </div>
     </div>
@@ -882,10 +882,15 @@
         }
 
         function resetView() {
+            // Reset zoom
             svg.transition().duration(750).call(
                 zoom.transform,
                 d3.zoomIdentity
             );
+            
+            // Reload graph data
+            console.log('[Reset] Reloading graph data...');
+            vscode.postMessage({ command: 'getGraphData' });
         }
 
         function zoomIn() {
