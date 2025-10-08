@@ -49,6 +49,12 @@ coverage/
 tmp/
 temp/
 
+# CappyRAG data files (exclude from package)
+.cappy/cappyrag-data/**
+.cappy/indexes/**
+.cappy/TODO/**
+.cappy/history/**
+
 # OS files
 .DS_Store
 Thumbs.db
