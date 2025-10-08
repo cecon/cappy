@@ -43,7 +43,7 @@
     "onLanguageModelTool:cappy_complete_task",
     "onLanguageModelTool:cappy_reindex",
     "onLanguageModelTool:cappyrag_add_document",
-    "onLanguageModelTool:cappyrag_query_knowledge_base",
+    "onLanguageModelTool:cappy_query",
     "onLanguageModelTool:cappyrag_get_stats",
     "onLanguageModelTool:cappyrag_get_supported_formats",
     "onLanguageModelTool:cappyrag_estimate_processing_time"
