@@ -225,6 +225,50 @@
           "default": true,
           "description": "Show notifications for Cappy events"
         },
+        "cappy.chat.customModels": {
+          "type": "array",
+          "default": [],
+          "description": "Custom LLM models configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique identifier for the model"
+              },
+              "name": {
+                "type": "string",
+                "description": "Display name for the model"
+              },
+              "provider": {
+                "type": "string",
+                "enum": ["openai", "anthropic", "local", "azure"],
+                "description": "Model provider"
+              },
+              "apiKey": {
+                "type": "string",
+                "description": "API key for the model (optional)"
+              },
+              "endpoint": {
+                "type": "string",
+                "description": "Custom endpoint URL (optional)"
+              },
+              "available": {
+                "type": "boolean",
+                "default": true,
+                "description": "Whether the model is available for use"
+              }
+            }
+          }
+        },
+        "cappy.chat.ollama.models": {
+          "type": "array",
+          "default": ["llama2", "codellama", "mistral"],
+          "description": "Ollama models to show in Cappy Chat (if Ollama is installed)",
+          "items": {
+            "type": "string"
+          }
+        },
         "cappyrag.model": {
           "type": "string",
           "enum": [

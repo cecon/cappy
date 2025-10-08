@@ -31,6 +31,147 @@ export class ChatProvider implements vscode.WebviewViewProvider {
         private readonly _context: vscode.ExtensionContext
     ) {}
 
+    private async getAvailableModels(): Promise<LLMModel[]> {
+        const models: LLMModel[] = [];
+
+        try {
+            // 1. Check VS Code Language Model API (vscode.lm namespace)
+            if (vscode.lm && typeof vscode.lm.selectChatModels === 'function') {
+                try {
+                    const languageModels = await vscode.lm.selectChatModels();
+                    for (const model of languageModels) {
+                        models.push({
+                            id: model.id || model.name,
+                            name: model.name || model.id,
+                            provider: this.detectProvider(model.vendor || model.family || ''),
+                            available: true
+                        });
+                    }
+                } catch (error) {
+                    console.log('Language Model API not available:', error);
+                }
+            }
+
+            // 2. Check GitHub Copilot models (if available)
+            const copilotModels = this.getCopilotModels();
+            models.push(...copilotModels);
+
+            // 3. Check user configuration for custom models
+            const customModels = this.getCustomModels();
+            models.push(...customModels);
+
+            // 4. Add default fallback models
+            if (models.length === 0) {
+                models.push(...this.getDefaultModels());
+            }
+
+            return models;
+        } catch (error) {
+            console.error('Error getting available models:', error);
+            return this.getDefaultModels();
+        }
+    }
+
+    private detectProvider(vendor: string): 'openai' | 'anthropic' | 'local' | 'azure' {
+        const vendorLower = vendor.toLowerCase();
+        if (vendorLower.includes('openai') || vendorLower.includes('gpt')) {
+            return 'openai';
+        }
+        if (vendorLower.includes('anthropic') || vendorLower.includes('claude')) {
+            return 'anthropic';
+        }
+        if (vendorLower.includes('azure')) {
+            return 'azure';
+        }
+        return 'local';
+    }
+
+    private getCopilotModels(): LLMModel[] {
+        // Check if GitHub Copilot is installed and active
+        const copilotExtension = vscode.extensions.getExtension('github.copilot');
+        const copilotChatExtension = vscode.extensions.getExtension('github.copilot-chat');
+        
+        if (copilotExtension?.isActive || copilotChatExtension?.isActive) {
+            return [
+                {
+                    id: 'copilot-gpt-4',
+                    name: 'GitHub Copilot (GPT-4)',
+                    provider: 'openai',
+                    available: true
+                },
+                {
+                    id: 'copilot-gpt-3.5',
+                    name: 'GitHub Copilot (GPT-3.5)',
+                    provider: 'openai',
+                    available: true
+                }
+            ];
+        }
+        return [];
+    }
+
+    private getCustomModels(): LLMModel[] {
+        const models: LLMModel[] = [];
+        
+        // Check workspace/user settings for custom LLM configurations
+        const config = vscode.workspace.getConfiguration('cappy.chat');
+        const customModels = config.get<any[]>('customModels', []);
+        
+        for (const model of customModels) {
+            models.push({
+                id: model.id || model.name,
+                name: model.name || model.id,
+                provider: model.provider || 'local',
+                available: model.available !== false
+            });
+        }
+
+        // Check for Ollama
+        const ollamaExtension = vscode.extensions.getExtension('continue.continue');
+        if (ollamaExtension?.isActive) {
+            const ollamaModels = config.get<string[]>('ollama.models', []);
+            for (const modelName of ollamaModels) {
+                models.push({
+                    id: `ollama-${modelName}`,
+                    name: `Ollama: ${modelName}`,
+                    provider: 'local',
+                    available: true
+                });
+            }
+        }
+
+        return models;
+    }
+
+    private getDefaultModels(): LLMModel[] {
+        return [
+            {
+                id: 'gpt-4',
+                name: 'GPT-4',
+                provider: 'openai',
+                available: false
+            },
+            {
+                id: 'gpt-3.5-turbo',
+                name: 'GPT-3.5 Turbo',
+                provider: 'openai',
+                available: false
+            },
+            {
+                id: 'claude-3-opus',
+                name: 'Claude 3 Opus',
+                provider: 'anthropic',
+                available: false
+            },
+            {
+                id: 'claude-3-sonnet',
+                name: 'Claude 3 Sonnet',
+                provider: 'anthropic',
+                available: false
+            }
+        ];
+    }
+
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,
@@ -72,20 +213,23 @@ export class ChatProvider implements vscode.WebviewViewProvider {
 
     private async handleAgentQuery(prompt: string, model: string, context: AgentContext[], tools: AgentTool[]) {
         try {
-            // Simulate AI agent processing with Cappy tools
-            console.log(`Agent Query: ${prompt}`);
-            console.log(`Model: ${model}`);
-            console.log(`Context: ${JSON.stringify(context)}`);
-            console.log(`Tools: ${JSON.stringify(tools)}`);
+            console.log(`🦫 Agent Query: ${prompt}`);
+            console.log(`🤖 Model: ${model}`);
+            console.log(`📋 Context: ${context.length} items`);
 
-            // Process the query with context and tools
-            const response = await this.processAgentQuery(prompt, model, context, tools);
-            
-            // Send response back to webview
-            this._view?.webview.postMessage({
-                type: 'agentResponse',
-                data: response
-            });
+            // Check if we should use Copilot streaming
+            if (model.includes('copilot') || model.includes('gpt')) {
+                await this.handleCopilotStreaming(prompt, model, context);
+            } else {
+                // Process the query with context and tools
+                const response = await this.processAgentQuery(prompt, model, context, tools);
+                
+                // Send response back to webview
+                this._view?.webview.postMessage({
+                    type: 'agentResponse',
+                    data: response
+                });
+            }
         } catch (error) {
             console.error('Error processing agent query:', error);
             this._view?.webview.postMessage({
@@ -95,10 +239,160 @@ export class ChatProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private async handleCopilotStreaming(prompt: string, model: string, context: AgentContext[]) {
+        try {
+            // Get Copilot models
+            const models = await vscode.lm.selectChatModels({
+                vendor: 'copilot',
+                family: model.includes('gpt-4') ? 'gpt-4' : 'gpt-3.5-turbo'
+            });
+
+            if (models.length === 0) {
+                throw new Error('GitHub Copilot not available. Please ensure GitHub Copilot extension is installed and active.');
+            }
+
+            const selectedModel = models[0];
+            console.log(`✨ Streaming from: ${selectedModel.name || selectedModel.id}`);
+
+            // Build messages with context
+            const systemMessage = this.buildSystemMessage(context);
+            const messages = [
+                vscode.LanguageModelChatMessage.User(systemMessage),
+                vscode.LanguageModelChatMessage.User(prompt)
+            ];
+
+            // Start streaming
+            this._view?.webview.postMessage({
+                type: 'streamStart'
+            });
+
+            const chatResponse = await selectedModel.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+
+            let fullResponse = '';
+            for await (const fragment of chatResponse.text) {
+                fullResponse += fragment;
+                
+                // Send chunk to webview
+                this._view?.webview.postMessage({
+                    type: 'streamChunk',
+                    data: { chunk: fragment, fullText: fullResponse }
+                });
+            }
+
+            // Send final response
+            this._view?.webview.postMessage({
+                type: 'agentResponse',
+                data: {
+                    content: fullResponse,
+                    toolResults: [],
+                    newContext: []
+                }
+            });
+
+            console.log('✅ Streaming complete');
+        } catch (error) {
+            console.error('Copilot streaming error:', error);
+            
+            // Fallback to tool-based processing
+            const response = await this.processWithTools(prompt, context, []);
+            this._view?.webview.postMessage({
+                type: 'agentResponse',
+                data: response
+            });
+        }
+    }
+
     private async processAgentQuery(prompt: string, model: string, context: AgentContext[], tools: AgentTool[]) {
-        // This is where we would integrate with actual LLM APIs
-        // For now, we'll simulate intelligent responses based on prompt analysis
-        
+        try {
+            // Try to use GitHub Copilot API directly
+            if (vscode.lm && typeof vscode.lm.selectChatModels === 'function') {
+                const response = await this.callCopilotAPI(prompt, model, context);
+                if (response) {
+                    return response;
+                }
+            }
+
+            // Fallback to tool-based processing if Copilot API not available
+            return await this.processWithTools(prompt, context, tools);
+        } catch (error) {
+            console.error('Error in processAgentQuery:', error);
+            // Fallback to tool-based processing
+            return await this.processWithTools(prompt, context, tools);
+        }
+    }
+
+    private async callCopilotAPI(prompt: string, model: string, context: AgentContext[]): Promise<any> {
+        try {
+            // Get available chat models
+            const models = await vscode.lm.selectChatModels({
+                vendor: 'copilot',
+                family: 'gpt-4'
+            });
+
+            if (models.length === 0) {
+                console.log('No Copilot models available');
+                return null;
+            }
+
+            const selectedModel = models[0];
+            console.log(`🤖 Using Copilot model: ${selectedModel.name || selectedModel.id}`);
+
+            // Build system message with Cappy context
+            const systemMessage = this.buildSystemMessage(context);
+            
+            // Create messages array
+            const messages = [
+                vscode.LanguageModelChatMessage.User(systemMessage),
+                vscode.LanguageModelChatMessage.User(prompt)
+            ];
+
+            // Send request to Copilot
+            const chatResponse = await selectedModel.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+
+            // Stream response
+            let fullResponse = '';
+            for await (const fragment of chatResponse.text) {
+                fullResponse += fragment;
+            }
+
+            console.log('✅ Copilot response received');
+
+            return {
+                content: fullResponse,
+                toolResults: [],
+                newContext: []
+            };
+        } catch (error) {
+            console.error('Error calling Copilot API:', error);
+            return null;
+        }
+    }
+
+    private buildSystemMessage(context: AgentContext[]): string {
+        let systemMessage = `You are Cappy 🦫, an intelligent AI assistant integrated into VS Code. You have access to the following project context:\n\n`;
+
+        // Add context information
+        if (context.length > 0) {
+            systemMessage += `**Current Context:**\n`;
+            for (const ctx of context) {
+                systemMessage += `- ${ctx.type}: ${ctx.name}\n`;
+            }
+            systemMessage += `\n`;
+        }
+
+        systemMessage += `**Available Cappy Tools:**
+• 📝 Create Task - Create structured Cappy tasks with steps
+• 🔍 Search Code - Search codebase using CappyRAG
+• 📊 Analyze Project - Analyze project structure
+• 🛡️ Prevention Rules - Apply best practices and prevention rules
+• 💡 KnowStack - Get project technology stack information
+
+You can suggest using these tools when relevant. Always be helpful, concise, and provide actionable insights based on the project context.`;
+
+        return systemMessage;
+    }
+
+    private async processWithTools(prompt: string, context: AgentContext[], tools: AgentTool[]) {
         const promptLower = prompt.toLowerCase();
         let response = {
             content: '',
@@ -120,8 +414,8 @@ export class ChatProvider implements vscode.WebviewViewProvider {
             response.content = '🛡️ Checking prevention rules and best practices...';
             response.toolResults.push(await this.executePreventionRulesTool());
         } else {
-            // General AI response simulation
-            response.content = this.generateContextualResponse(prompt, context, model);
+            // General response
+            response.content = this.generateContextualResponse(prompt, context, 'fallback');
         }
 
         return response;
@@ -412,14 +706,10 @@ Just let me know how you'd like to proceed!`;
     }
 
     private async handleRequestInitialData() {
-        // Send initial models list
-        const models: LLMModel[] = [
-            { id: 'gpt-4', name: 'GPT-4', provider: 'openai', available: true },
-            { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai', available: true },
-            { id: 'claude-3', name: 'Claude 3', provider: 'anthropic', available: true },
-            { id: 'local-llama', name: 'Local Llama', provider: 'local', available: false },
-            { id: 'local-codellama', name: 'Local CodeLlama', provider: 'local', available: false }
-        ];
+        // Get dynamically detected models
+        const models = await this.getAvailableModels();
+        
+        console.log('🤖 Available LLM models:', models);
         
         this._view?.webview.postMessage({
             type: 'modelsList',
