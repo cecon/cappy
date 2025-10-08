@@ -37,7 +37,6 @@
     "onStartupFinished",
     "onLanguageModelTool:cappy_init",
     "onLanguageModelTool:cappy_knowstack",
-    "onLanguageModelTool:cappy_new_task",
     "onLanguageModelTool:cappy_create_task",
     "onLanguageModelTool:cappy_work_on_task",
     "onLanguageModelTool:cappy_complete_task",
@@ -357,29 +356,10 @@
         }
       },
       {
-        "name": "cappy_new_task",
-        "displayName": "Cappy: New Task Script",
-        "toolReferenceName": "cappyNewTask",
-        "modelDescription": "Generate step-by-step script for creating a new Cappy task with category, description, and atomic steps. Use this to plan task creation before executing cappy_create_task.",
-        "userDescription": "Generate a guided script to create a new task with proper structure",
-        "icon": "$(notebook)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappy",
-          "task creation",
-          "task planning",
-          "workflow"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
-      },
-      {
         "name": "cappy_create_task",
         "displayName": "Cappy: Create Task File",
         "toolReferenceName": "cappyCreateTask",
-        "modelDescription": "Create XML task file with rich context injection, automatic prevention rules, and semantic indexing. Use this after planning with cappy_new_task to create the actual task file.",
+        "modelDescription": "Create XML task file with rich context injection, automatic prevention rules, and semantic indexing. Use this to create task files directly without needing a separate planning step.",
         "userDescription": "Create a new task file with context orchestration and prevention rules",
         "icon": "$(file-add)",
         "canBeReferencedInPrompt": true,

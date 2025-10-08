@@ -70,40 +70,6 @@ export function registerLanguageModelTools(context: vscode.ExtensionContext) {
       }
     );
 
-    // Register cappy.new tool
-    const newTaskToolDisposable = lm.registerTool(
-      'cappy_new_task',
-      {
-        name: 'cappy_new_task',
-        displayName: 'Cappy: New Task',
-        modelDescription: 'Generate step-by-step script to create a new Cappy task with context and execution steps',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            taskDescription: {
-              type: 'string',
-              description: 'Brief description of the task to create'
-            }
-          }
-        },
-        invoke: async (
-          options: vscode.LanguageModelToolInvocationOptions<{ taskDescription?: string }>,
-          token: vscode.CancellationToken
-        ): Promise<vscode.LanguageModelToolResult> => {
-          try {
-            const result = await vscode.commands.executeCommand('cappy.new', options.input) as string;
-            return new vscode.LanguageModelToolResult([
-              new vscode.LanguageModelTextPart(result)
-            ]);
-          } catch (error) {
-            return new vscode.LanguageModelToolResult([
-              new vscode.LanguageModelTextPart(`Error creating new task: ${error}`)
-            ]);
-          }
-        }
-      }
-    );
-
     // Register cappy.createTaskFile tool
     const createTaskToolDisposable = lm.registerTool(
       'cappy_create_task',
@@ -443,7 +409,6 @@ export function registerLanguageModelTools(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       initToolDisposable,
       knowstackToolDisposable,
-      newTaskToolDisposable,
       createTaskToolDisposable,
       workOnTaskToolDisposable,
       completeTaskToolDisposable,
