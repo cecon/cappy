@@ -37,9 +37,19 @@
 ## Proibições Absolutas
 
 * **Nunca** executar comandos CAPPY no terminal, shell, cmd, bash ou PowerShell.
-* Todos os comandos CAPPY são executados **exclusivamente** via **Language Model Tools**.
-* Comandos retornam dados **diretamente** - não há mais arquivos intermediários.
-* Respostas são processadas **imediatamente** através das ferramentas disponíveis.
+* Todos os comandos CAPPY são disparados **exclusivamente** via VS Code API:
+
+  ```ts
+  vscode.commands.executeCommand('<commandId>')
+  ```
+* **Nunca** ler arquivos além de `.cappy/output.txt`.
+* `.cappy/output.txt` é **a única fonte da verdade** para saídas.
+
+  * Se o arquivo **não existir** ou estiver **vazio**, **pare imediatamente** e responda em **1 linha**:
+
+    ```
+    No output in .cappy/output.txt. Re-execute in VS Code.
+    ```
 
 ---
 
@@ -56,17 +66,26 @@ Padronizar como LLM e desenvolvedor interagem com o CAPPY para:
 
 ## Regras de Ouro
 
-1. **Execução exclusiva via Language Model Tools** — comandos retornam dados diretamente.
+1. **Execução exclusiva via API** — use sempre `vscode.commands.executeCommand`.
 2. **Prioridade de comando** — mensagens que começam com `cappy:` têm prioridade máxima.
-3. **Processamento imediato** — respostas são obtidas através das ferramentas disponíveis.
+3. **Fonte única da verdade** — após qualquer execução, ler somente `.cappy/output.txt`.
 
 ---
 
-## Execução de Comandos (Language Model Tools)
+## Execução de Comandos (programática)
 
-* Todos os comandos CAPPY são executados **exclusivamente** via **Language Model Tools**.
-* Comandos retornam dados **diretamente** - não há mais arquivos intermediários.
-* Respostas são processadas **imediatamente** através das ferramentas disponíveis.
+* Todos os comandos CAPPY devem ser disparados programaticamente via VS Code:
+
+  ```ts
+  vscode.commands.executeCommand('<commandId>')
+  ```
+* É **proibido** executar comandos CAPPY no terminal.
+* Após cada execução, ler `.cappy/output.txt`.
+* Se não houver saída, responder:
+
+  ```
+  No output in .cappy/output.txt. Re-execute in VS Code.
+  ```
 
 ---
 
@@ -108,6 +127,7 @@ Interpretando como cappy.new — gerar roteiro passo a passo para criar uma task
  ├─ history/                # Tasks concluídas
  ├─ config.yaml             # Configuração do Cappy
  ├─ stack.md                # KnowStack do projeto
+ ├─ output.txt              # Resultado do último comando (fonte única)
  ├─ schemas/                # Definições XSD para referência/edição manual
  └─ indexes/                # Índices semânticos (gerados por cappy.reindex)
      ├─ tasks.json
@@ -173,9 +193,12 @@ docs/
 
 ## Política de Erros
 
-* Todos os comandos CAPPY agora retornam dados **diretamente** via Language Model Tools.
-* Não há mais arquivos intermediários ou dependências de sistema de arquivos.
-* Erros são tratados e reportados imediatamente através das respostas das ferramentas.
+* **Nunca** tentar adivinhar saídas.
+* Se `.cappy/output.txt` estiver ausente ou vazio:
+
+  ```
+  No output in .cappy/output.txt. Re-execute in VS Code.
+  ```
 
 ---
 <!-- CAPPY END -->

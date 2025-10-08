@@ -193,8 +193,7 @@ Mini-LightRAG Architecture
 ├── 🧠 Embedding Service    → MiniLM-L6-v2 embeddings
 ├── 📄 Chunking Service     → Semantic text chunking
 ├── 🕸️ LightGraph Service   → Relationship graph
-├── 🔄 Incremental Indexer  → Change detection
-├── 🔍 Hybrid Search        → Multi-modal search
+├──  Hybrid Search        → Multi-modal search
 ├── 🎨 UI Manager           → Rich interface
 └── ⚡ Performance Manager  → Optimization
 ```
@@ -202,12 +201,11 @@ Mini-LightRAG Architecture
 ### Data Flow
 
 ```
-1. File Change Detection → Incremental Indexer
-2. Text Chunking → Semantic chunks with overlap
-3. Embedding Generation → 384D vectors via MiniLM
-4. Graph Relationship Detection → Similarity edges
-5. Vector Storage → LanceDB with HNSW index
-6. Search Query → Hybrid vector + graph search
+1. Text Chunking → Semantic chunks with overlap
+2. Embedding Generation → 384D vectors via MiniLM
+3. Graph Relationship Detection → Similarity edges
+4. Vector Storage → LanceDB with HNSW index
+5. Search Query → Hybrid vector + graph search
 7. Result Ranking → Vector + Graph + Freshness scores
 8. UI Display → Rich webview with actions
 ```

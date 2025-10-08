@@ -4,7 +4,7 @@ import {
   showConsentWebview,
 } from "./commands/telemetryConsent";
 import { openDocumentUploadUI } from "./commands/cappyrag";
-import { CappyRAGMCPServer } from "./tools/mcpServer";
+import { EmbeddedMCPServer } from "./tools/embeddedMCPServer";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 
 export function activate(context: vscode.ExtensionContext) {
@@ -23,8 +23,7 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('🦫 Cappy MCP: Output channel created...');
 
     // Register CappyRAG MCP Server for document processing
-    const mcpServer = new CappyRAGMCPServer(context);
-    mcpServer.registerTools();
+    const mcpServer = new EmbeddedMCPServer(context);
     console.log('🛠️ Cappy MCP: CappyRAG MCP tools registered');
 
     // Telemetry consent

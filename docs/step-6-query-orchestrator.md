@@ -14,7 +14,6 @@ QueryOrchestrator
 ├── EmbeddingService (miniLM-L6-v2)
 ├── ChunkingService (semantic chunks)
 ├── LightGraphService (graph relationships)
-├── IncrementalIndexer (change detection)
 └── HybridSearchPipeline (multi-modal search)
 ```
 

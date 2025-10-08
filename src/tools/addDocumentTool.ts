@@ -1,21 +1,23 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs/promises";
-import { CappyRAGDocumentProcessor } from "../core/cappyragProcessor";
-import { Document, Entity, Relationship, KeyValuePair, DocumentMetadata, ProcessingOptions } from "../models/cappyragTypes";
+import * as crypto from 'crypto';
+import { DocumentMetadata, ProcessingOptions } from "../models/cappyragTypes";
+import { CappyRAGDocument } from "../store/cappyragLanceDb";
+import { getDatabase } from "../commands/cappyrag/utils/databaseHelper";
+import { getProcessingQueue } from "../services/documentProcessingQueue";
+import { getBackgroundProcessor } from "../services/backgroundProcessor";
 
 /**
  * MCP Tool for adding documents to CappyRAG system
  * Follows the manual insertion strategy defined in SPEC.md
- * Uses the full CappyRAG processor with cross-document relationship detection
+ * Uses the processing queue and background processor like the manual process
  */
 export class AddDocumentTool {
-  private processor: CappyRAGDocumentProcessor;
   private context: vscode.ExtensionContext;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
-    this.processor = new CappyRAGDocumentProcessor(context);
   }
 
   /**
@@ -56,45 +58,64 @@ export class AddDocumentTool {
         uploadedAt: new Date().toISOString(),
       };
 
-      // Process document through CappyRAG pipeline with cross-document relationship detection
-      const result = await this.processor.processDocument(
-        content,
-        metadata,
-        processingOptions || {
-          chunkingStrategy: 'semantic',
-          maxChunkSize: 500,
-          minConfidence: 0.7,
-          minWeight: 0.5,
-          autoMerge: false,
-          entityTypes: ['Person', 'Organization', 'Technology', 'Concept', 'Location', 'Event']
-        }
-      );
+      // Generate document ID based on content hash (same as manual process)
+      const documentId = crypto.createHash('sha256')
+        .update(content + path.basename(filePath))
+        .digest('hex').substring(0, 16);
 
-      // Return structured result for LLM
+      // Create CappyRAG document record
+      const db = getDatabase();
+      const newDocument: CappyRAGDocument = {
+        id: documentId,
+        title: metadata.title,
+        description: `Added via MCP tool - ${metadata.filename}`,
+        category: 'general',
+        tags: metadata.tags || [],
+        filePath: metadata.filename,
+        fileName: metadata.filename,
+        fileSize: metadata.size,
+        content: content,
+        status: 'processing',
+        created: new Date().toISOString(),
+        updated: new Date().toISOString()
+      };
+
+      // Add document to database
+      await db.addDocument(newDocument);
+
+      // Add document to processing queue (same as manual process)
+      const queue = getProcessingQueue();
+      const queueId = await queue.enqueue({
+        documentId: newDocument.id,
+        title: newDocument.title,
+        fileName: newDocument.fileName,
+        content: newDocument.content
+      });
+
+      console.log(`[AddDocumentTool] Document added to processing queue: ${queueId}`);
+
+      // Start background processor if not already running
+      const processor = getBackgroundProcessor();
+      if (!processor.getQueue().isQueueProcessing()) {
+        processor.start();
+      }
+
+      // Return structured result for LLM indicating queued processing
       return {
         success: true,
-        documentId: result.documentId,
+        documentId: newDocument.id,
         metadata: metadata,
         processing: {
-          entitiesFound: result.entities.length,
-          relationshipsFound: result.relationships.length,
-          processingTimeMs: result.processingTimeMs || 1000,
-          status: result.status,
+          entitiesFound: 0, // Will be filled during background processing
+          relationshipsFound: 0,
+          processingTimeMs: Date.now(), // Just timestamp for now
+          status: "processing",
         },
         preview: {
-          entities: result.entities.slice(0, 5).map((e) => ({
-            name: e.name,
-            type: e.type,
-            confidence: e.confidence,
-          })),
-          relationships: result.relationships.slice(0, 5).map((r) => ({
-            source: r.source,
-            target: r.target,
-            type: r.type,
-            weight: r.weight,
-          })),
+          entities: [], // Will be populated during processing
+          relationships: [],
         },
-        nextSteps: this.generateNextSteps(result),
+        nextSteps: this.generateNextSteps(true),
       };
     } catch (error) {
       return {
@@ -240,31 +261,18 @@ export class AddDocumentTool {
     return mimeTypes[extension] || "application/octet-stream";
   }
 
-  private generateNextSteps(result: any): string[] {
+  private generateNextSteps(queueProcessing: boolean = true): string[] {
     const steps: string[] = [];
 
-    if (result.status === "completed") {
-      steps.push("✅ Document successfully processed and indexed");
-      steps.push(
-        "🔍 You can now search for entities and concepts from this document"
-      );
-
-      if (result.entities.length > 0) {
-        steps.push(
-          `📊 ${result.entities.length} entities discovered and ready for querying`
-        );
-      }
-
-      if (result.relationships.length > 0) {
-        steps.push(
-          `🔗 ${result.relationships.length} relationships mapped in the knowledge graph`
-        );
-      }
-
+    if (queueProcessing) {
+      steps.push("✅ Document successfully added to knowledge base");
+      steps.push("⏳ Document processing in progress via background queue...");
+      steps.push("� Check processing status with the status command");
+      steps.push("� Search for this document once processing completes");
       steps.push("🎯 Use the graph viewer to explore connections visually");
     } else {
-      steps.push("⏳ Document processing in progress...");
-      steps.push("📋 Check processing status with the status command");
+      steps.push("⚠️ Document added but not queued for processing");
+      steps.push("� Start background processor manually if needed");
     }
 
     return steps;

@@ -19,7 +19,7 @@ import { MiniRAGStorage } from "./commands/miniRAG/storage";
 import { FileManager } from "./utils/fileManager";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 import { registerLanguageModelTools } from "./utils/languageModelTools";
-import { CappyRAGMCPServer } from "./tools/mcpServer";
+import { EmbeddedMCPServer } from "./tools/embeddedMCPServer";
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -73,8 +73,7 @@ async function ensureLanguageModelToolsSetting() {
     registerLanguageModelTools(context);
 
     // Register CappyRAG MCP Server for document processing (embedded)
-    const mcpServer = new CappyRAGMCPServer(context);
-    mcpServer.registerTools();
+    const mcpServer = new EmbeddedMCPServer(context);
     console.log('🛠️ Cappy: CappyRAG MCP tools registered (embedded mode)');
 
     // Telemetry consent gating (one-time and on updates)

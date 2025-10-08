@@ -17,7 +17,6 @@ interface LightRAGSystem {
   embeddings: EmbeddingService;         // Text to vectors
   chunker: ChunkingService;             // Text segmentation
   graph: LightGraphService;             // Relationship mapping
-  indexer: IncrementalIndexer;          // Change detection
   search: HybridSearchService;          // Multi-modal search
   ui: UIManager;                        // Interface management
   performance: PerformanceManager;      // Optimization
