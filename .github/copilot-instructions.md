@@ -1,37 +1,5 @@
-## 🚀 Build & Publicação
-- 1 Se eu pedir para publicar 
- - Rode o comando package patch para alterar a versão, 
- - compile
- - publique
- - Instale a extensão no VS Code
-
-## Rules
-- Sempre grave as documentações na pasta docs/
- 
-### Processo de Release
-
-1. **Incrementar versão** no `package.json`:
-   - Patch (2.5.12 → 2.5.13): bugs/melhorias menores
-   - Minor (2.5.13 → 2.6.0): novas funcionalidades
-   - Major (2.6.0 → 3.0.0): breaking changes
-
-2. **Compilar e testar:**
-   ```bash
-   npm run compile    # Compilação TypeScript
-   npm run test      # Executar todos os testes
-   ```
-
-3. **Gerar pacote VSIX:**
-   ```bash
-   npm run package   # Cria arquivo .vsix
-   ```
-
-4. **Publicar na VS Code Marketplace:**
-   ```bash
-   npm run publish   # Publica automaticamente
-   ```
-   
 <!-- CAPPY INI -->
+
 # CAPPY — Manual Completo de Uso (Orquestração de Contexto)
 
 ## 🎯 O que é o CAPPY?
@@ -370,4 +338,5 @@ Padronizar como LLM e desenvolvedor interagem com o CAPPY para:
 * Orquestrar **contexto automaticamente** no momento certo
 * Registrar progresso no arquivo da Task
 * Aplicar **regras de prevenção** automaticamente por categoria
+
 <!-- CAPPY END -->

@@ -81,11 +81,6 @@
         "category": "Cappy"
       },
       {
-        "command": "cappy.new",
-        "title": "🧩 Cappy: New Task",
-        "category": "Cappy"
-      },
-      {
         "command": "cappy.getActiveTask",
         "title": "📄 Cappy: Get Active Task (XML content)",
         "category": "Cappy"

@@ -76,7 +76,7 @@ export function registerLanguageModelTools(context: vscode.ExtensionContext) {
       {
         name: 'cappy_create_task',
         displayName: 'Cappy: Create Task File',
-        modelDescription: 'Create a new task XML file with specified category and title, and return the step-by-step script for creating tasks',
+        modelDescription: 'Create a new task XML file with specified category and title directly',
         inputSchema: {
           type: 'object',
           properties: {
@@ -96,15 +96,12 @@ export function registerLanguageModelTools(context: vscode.ExtensionContext) {
           token: vscode.CancellationToken
         ): Promise<vscode.LanguageModelToolResult> => {
           try {
-            // First get the task creation script
-            const script = await vscode.commands.executeCommand('cappy.new', options.input) as string;
+            // Create the task file directly
+            const result = await vscode.commands.executeCommand('cappy.createTaskFile', options.input);
             
-            // Then create the task file
-            await vscode.commands.executeCommand('cappy.createTaskFile', options.input);
-            
-            // Return the script so user knows the steps to follow
+            // Return success message
             return new vscode.LanguageModelToolResult([
-              new vscode.LanguageModelTextPart(`Task file created successfully. Here's your step-by-step guide:\n\n${script}`)
+              new vscode.LanguageModelTextPart(`Task file created successfully with category "${options.input.category}" and title "${options.input.title}". The task is now ready to work on.`)
             ]);
           } catch (error) {
             return new vscode.LanguageModelToolResult([

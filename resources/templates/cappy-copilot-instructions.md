@@ -35,9 +35,9 @@ Gera `stack.md` com arquitetura, dependências e padrões do projeto.
 ### 3. Criar Primeira Task
 ```
 "create new task" ou "nova tarefa"
-→ Executa: cappy.new
+→ Executa: cappy.createTaskFile
 ```
-Gera roteiro step-by-step para criação com contexto inteligente.
+Cria task XML diretamente com contexto inteligente e regras de prevenção.
 
 ### 4. Trabalhar na Task
 ```
@@ -82,7 +82,7 @@ Executa step atual com contexto, regras de prevenção e validações.
 2. **Criar Task**:
    ```
    User: "I need to add JWT authentication"
-   LLM: Interpretando como cappy.new — gerar roteiro para task
+   LLM: Interpretando como cappy.createTaskFile — criar task com contexto completo
    ```
 
 3. **CAPPY Context Discovery** (automático):
@@ -115,7 +115,7 @@ Fale naturalmente - o CAPPY entende:
 ### ✅ Gerenciamento de Tarefas
 | Comando Natural | Ação CAPPY | Resultado |
 |----------------|------------|-----------|
-| "nova tarefa" / "create task" | `cappy.new` | Gera roteiro step-by-step |
+| "nova tarefa" / "create task" | `cappy.createTaskFile` | Cria task XML diretamente |
 | "tarefa atual" / "current task" | `cappy.taskstatus` | Status + contexto |
 | "trabalhar" / "continue" | `cappy.workcurrent` | Executa step atual |
 | "finalizar" / "complete" | `cappy.completeTask` | Captura aprendizados |
@@ -134,7 +134,7 @@ Fale naturalmente - o CAPPY entende:
 
 **Sempre confirmar interpretação:**
 ```
-Interpretando como cappy.new — gerar roteiro passo a passo para criar uma task
+Interpretando como cappy.createTaskFile — criar task XML com contexto completo
 ```
 
 ---
@@ -183,8 +183,7 @@ cappy.version     → Exibe versão atual da extensão
 
 ### Gerenciamento de Tasks
 ```
-cappy.new                → Gera roteiro step-by-step para task
-cappy.createTaskFile     → Aplica XSD e orquestra contexto
+cappy.createTaskFile     → Cria task XML com contexto e prevenção
 cappy.taskstatus         → Status da task ativa + contexto
 cappy.workOnCurrentTask  → Executa step com prevenção
 cappy.completeTask       → Finaliza + captura aprendizados
@@ -198,10 +197,9 @@ cappy.completeTask       → Finaliza + captura aprendizados
 
 | Comando | Template de Resposta |
 |---------|---------------------|
-| **new** | `Task creation script generated. Review, answer prompts, then run cappy.createTaskFile` |
 | **createtaskfile** | `XML task created: [ID] category [cat]. Rich context injected automatically` |
 | **taskstatus (ativo)** | `Active [category] task. [X] prevention rules applied. Next: [step]` |
-| **taskstatus (inativo)** | `No active task. Use 'new task' to get the step-by-step script` |
+| **taskstatus (inativo)** | `No active task. Use 'create task' to create a new task file` |
 | **workcurrent** | `Executing context-aware: [step]. [X] rules verified` |
 | **completetask** | `Task completed. [X] learnings captured, context metrics updated` |
 | **reindex** | `Semantic indexes rebuilt: [X] tasks, [Y] docs, [Z] rules indexed` |

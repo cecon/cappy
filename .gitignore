@@ -84,8 +84,5 @@ coverage/
 # Cappy specific - ignore only runtime files
 test-workspace/
 cappyrag-data/
-
-
-
-.cappy/history/# Cappy output file - REMOVED: Now using Language Model Tools directly
+.cappy/history/
 .cappy/tasks/

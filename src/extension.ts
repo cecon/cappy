@@ -3,7 +3,6 @@ import {
   ensureTelemetryConsent,
   showConsentWebview,
 } from "./commands/telemetryConsent";
-import getNewTaskInstruction from "./commands/getNewTaskInstruction";
 import getActiveTask from "./commands/getActiveTask";
 import createTaskFile from "./commands/createTaskFile";
 import { changeTaskStatusCommand } from "./commands/changeTaskStatus";
@@ -203,23 +202,6 @@ async function ensureLanguageModelToolsSetting() {
           await showConsentWebview(context);
         } catch (err) {
           vscode.window.showErrorMessage(`Falha ao abrir termos: ${err}`);
-        }
-      }
-    );
-
-    // Register: new task (returns processed template content)
-    const newTaskCommand = vscode.commands.registerCommand(
-      "cappy.new",
-      async (args?: Record<string, string>) => {
-        try {
-          const content = await getNewTaskInstruction(context, args);
-          return content; // important: return string so LLM can consume it via executeCommand
-        } catch (error) {
-          console.error("Cappy new task error:", error);
-          vscode.window.showErrorMessage(
-            `Cappy new task failed: ${error}`
-          );
-          return "";
         }
       }
     );
@@ -556,7 +538,6 @@ async function ensureLanguageModelToolsSetting() {
       knowStackAliasCommand,
       knowTaskTypoAliasCommand,
       consentCommand,
-      newTaskCommand,      
       getActiveTaskCommand,
       versionCommand,
       createTaskFileCommand,
