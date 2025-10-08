@@ -91,9 +91,9 @@ export function registerLanguageModelTools(context: vscode.ExtensionContext) {
           token: vscode.CancellationToken
         ): Promise<vscode.LanguageModelToolResult> => {
           try {
-            await vscode.commands.executeCommand('cappy.new', options.input);
+            const result = await vscode.commands.executeCommand('cappy.new', options.input) as string;
             return new vscode.LanguageModelToolResult([
-              new vscode.LanguageModelTextPart(`Task creation script generated successfully.`)
+              new vscode.LanguageModelTextPart(result)
             ]);
           } catch (error) {
             return new vscode.LanguageModelToolResult([
