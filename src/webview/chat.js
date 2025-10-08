@@ -1,31 +1,48 @@
-// Chat Assistant JavaScript
+// Cappy Agent Chat JavaScript
 (function() {
     const vscode = acquireVsCodeApi();
     
-    let currentTodoData = null;
-    let isEditing = false;
+    let currentContext = [];
+    let selectedModel = 'gpt-4';
+    let availableTools = [];
 
     // DOM Elements
     const promptInput = document.getElementById('promptInput');
-    const generateBtn = document.getElementById('generateBtn');
+    const sendBtn = document.getElementById('sendBtn');
     const chatArea = document.getElementById('chatArea');
-    const todoSection = document.getElementById('todoSection');
-    const todoList = document.getElementById('todoList');
-    const createTaskBtn = document.getElementById('createTaskBtn');
-    const regenerateBtn = document.getElementById('regenerateBtn');
-    const editBtn = document.getElementById('editBtn');
+    const modelSelect = document.getElementById('modelSelect');
+    const contextIndicator = document.getElementById('contextIndicator');
+    const contextPills = document.getElementById('contextPills');
+    const attachContext = document.getElementById('attachContext');
+    const useTools = document.getElementById('useTools');
+    const toolsPanel = document.getElementById('toolsPanel');
+    const closeTools = document.getElementById('closeTools');
 
     // Event Listeners
-    generateBtn.addEventListener('click', handleGenerate);
-    createTaskBtn.addEventListener('click', handleCreateTask);
-    regenerateBtn.addEventListener('click', handleRegenerate);
-    editBtn.addEventListener('click', handleEdit);
+    sendBtn.addEventListener('click', handleSend);
+    attachContext.addEventListener('click', handleAttachContext);
+    useTools.addEventListener('click', toggleToolsPanel);
+    closeTools.addEventListener('click', () => toolsPanel.style.display = 'none');
+    
+    modelSelect.addEventListener('change', (e) => {
+        selectedModel = e.target.value;
+        updateModelStatus();
+    });
     
     // Allow Enter to submit (Ctrl+Enter for new line)
     promptInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
             e.preventDefault();
-            handleGenerate();
+            handleSend();
+        }
+    });
+
+    // Tool selection
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.tool-item')) {
+            const toolItem = e.target.closest('.tool-item');
+            const toolName = toolItem.dataset.tool;
+            selectTool(toolName);
         }
     });
 
@@ -34,11 +51,17 @@
         const message = event.data;
         
         switch (message.type) {
-            case 'todoGenerated':
-                handleTodoGenerated(message.data);
+            case 'agentResponse':
+                handleAgentResponse(message.data);
                 break;
-            case 'taskCreated':
-                handleTaskCreated(message.success);
+            case 'contextUpdate':
+                handleContextUpdate(message.context);
+                break;
+            case 'toolsUpdate':
+                handleToolsUpdate(message.tools);
+                break;
+            case 'modelsList':
+                handleModelsUpdate(message.models);
                 break;
             case 'error':
                 handleError(message.message);
@@ -46,10 +69,10 @@
         }
     });
 
-    function handleGenerate() {
+    function handleSend() {
         const prompt = promptInput.value.trim();
         if (!prompt) {
-            showError('Please describe your task first.');
+            showError('Please enter a message first.');
             return;
         }
 
@@ -61,149 +84,185 @@
         
         // Show loading state
         setLoading(true);
-        addMessage('🤔 Analyzing your task and generating todo list...', 'assistant');
+        addMessage('� Thinking...', 'assistant', true);
         
-        // Send request to extension
+        // Send request to extension with full context
         vscode.postMessage({
-            type: 'generateTodoList',
-            prompt: prompt
+            type: 'agentQuery',
+            prompt: prompt,
+            model: selectedModel,
+            context: currentContext,
+            tools: availableTools
         });
     }
 
-    function handleTodoGenerated(todoItems) {
+    function handleAgentResponse(response) {
         setLoading(false);
         
         // Remove loading message
-        const messages = chatArea.querySelectorAll('.message');
-        const lastMessage = messages[messages.length - 1];
-        if (lastMessage && lastMessage.classList.contains('assistant')) {
-            lastMessage.remove();
+        removeLoadingMessage();
+        
+        // Add agent response
+        addMessage(response.content, 'assistant');
+        
+        // Handle any tool results
+        if (response.toolResults) {
+            response.toolResults.forEach(result => {
+                addToolResult(result);
+            });
         }
         
-        // Add success message
-        addMessage('✅ Great! I\'ve created a todo list for your task. Review it below and click "Create Cappy Task" when ready.', 'assistant');
-        
-        // Store todo data
-        currentTodoData = { items: todoItems };
-        
-        // Render todo list
-        renderTodoList(todoItems);
-        
-        // Show todo section
-        todoSection.style.display = 'block';
-        
-        // Scroll to bottom
-        todoSection.scrollIntoView({ behavior: 'smooth' });
+        // Update context if changed
+        if (response.newContext) {
+            updateContext(response.newContext);
+        }
     }
 
-    function renderTodoList(todoItems) {
-        todoList.innerHTML = '';
-        
-        todoItems.forEach((item, index) => {
-            const todoItem = document.createElement('div');
-            todoItem.className = `todo-item ${item.completed ? 'completed' : ''}`;
-            todoItem.innerHTML = `
-                <input type="checkbox" 
-                       class="todo-checkbox" 
-                       ${item.completed ? 'checked' : ''} 
-                       data-index="${index}"
-                       ${!isEditing ? 'disabled' : ''}>
-                <div class="todo-content">
-                    <div class="todo-title" contenteditable="${isEditing}">${escapeHtml(item.title)}</div>
-                    <div class="todo-description" contenteditable="${isEditing}">${escapeHtml(item.description)}</div>
-                </div>
-            `;
-            
-            todoList.appendChild(todoItem);
-            
-            // Add event listeners for editing
-            if (isEditing) {
-                const checkbox = todoItem.querySelector('.todo-checkbox');
-                checkbox.addEventListener('change', () => {
-                    currentTodoData.items[index].completed = checkbox.checked;
-                    todoItem.classList.toggle('completed', checkbox.checked);
-                });
-                
-                const title = todoItem.querySelector('.todo-title');
-                const description = todoItem.querySelector('.todo-description');
-                
-                title.addEventListener('blur', () => {
-                    currentTodoData.items[index].title = title.textContent;
-                });
-                
-                description.addEventListener('blur', () => {
-                    currentTodoData.items[index].description = description.textContent;
-                });
-            }
+    function handleAttachContext() {
+        // Request available context from extension
+        vscode.postMessage({
+            type: 'requestContext'
         });
     }
 
-    function handleCreateTask() {
-        if (!currentTodoData) {
-            showError('No todo list to create task from.');
+    function handleContextUpdate(context) {
+        currentContext = context;
+        renderContextPills();
+        updateContextIndicator();
+    }
+
+    function handleToolsUpdate(tools) {
+        availableTools = tools;
+        renderToolsPanel();
+    }
+
+    function handleModelsUpdate(models) {
+        updateModelDropdown(models);
+    }
+
+    function toggleToolsPanel() {
+        const isVisible = toolsPanel.style.display !== 'none';
+        toolsPanel.style.display = isVisible ? 'none' : 'block';
+        
+        if (!isVisible) {
+            // Request available tools
+            vscode.postMessage({
+                type: 'requestTools'
+            });
+        }
+    }
+
+    function selectTool(toolName) {
+        // Add tool reference to input
+        const currentValue = promptInput.value;
+        const toolRef = `@${toolName} `;
+        
+        if (!currentValue.includes(toolRef)) {
+            promptInput.value = toolRef + currentValue;
+        }
+        
+        toolsPanel.style.display = 'none';
+        promptInput.focus();
+    }
+
+    function renderContextPills() {
+        contextPills.innerHTML = '';
+        
+        currentContext.forEach((item, index) => {
+            const pill = document.createElement('div');
+            pill.className = 'context-pill';
+            pill.innerHTML = `
+                <span>${getContextIcon(item.type)} ${item.name}</span>
+                <span class="remove-context" data-index="${index}">×</span>
+            `;
+            
+            pill.querySelector('.remove-context').addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeContext(index);
+            });
+            
+            contextPills.appendChild(pill);
+        });
+    }
+
+    function getContextIcon(type) {
+        const icons = {
+            file: '📄',
+            task: '📝',
+            project: '📁',
+            search: '🔍',
+            prevention: '🛡️'
+        };
+        return icons[type] || '📎';
+    }
+
+    function removeContext(index) {
+        currentContext.splice(index, 1);
+        renderContextPills();
+        updateContextIndicator();
+    }
+
+    function updateContext(newContext) {
+        currentContext = [...currentContext, ...newContext];
+        renderContextPills();
+        updateContextIndicator();
+    }
+
+    function updateContextIndicator() {
+        const count = currentContext.length;
+        if (count > 0) {
+            contextIndicator.textContent = `📄 ${count} Context Item${count > 1 ? 's' : ''}`;
+            contextIndicator.classList.add('active');
+        } else {
+            contextIndicator.textContent = '📄 No Context';
+            contextIndicator.classList.remove('active');
+        }
+    }
+
+    function renderToolsPanel() {
+        const toolsGrid = document.querySelector('.tools-grid');
+        if (!toolsGrid) {
             return;
         }
         
-        setLoading(true);
-        createTaskBtn.disabled = true;
-        createTaskBtn.textContent = '⏳ Creating Task...';
+        toolsGrid.innerHTML = '';
         
-        vscode.postMessage({
-            type: 'createTask',
-            todoData: currentTodoData
+        availableTools.forEach(tool => {
+            const toolItem = document.createElement('div');
+            toolItem.className = 'tool-item';
+            toolItem.dataset.tool = tool.name;
+            toolItem.innerHTML = `
+                <span class="tool-icon">${tool.icon}</span>
+                <span class="tool-name">${tool.displayName}</span>
+            `;
+            toolsGrid.appendChild(toolItem);
         });
     }
 
-    function handleTaskCreated(success) {
-        setLoading(false);
-        createTaskBtn.disabled = false;
-        createTaskBtn.innerHTML = '<span class="btn-icon">✅</span>Create Cappy Task';
+    function updateModelDropdown(models) {
+        modelSelect.innerHTML = '';
         
-        if (success) {
-            addMessage('🎉 Perfect! Your Cappy task has been created successfully. You can now work on it using the existing Cappy commands.', 'assistant');
-            
-            // Hide todo section and reset
-            setTimeout(() => {
-                todoSection.style.display = 'none';
-                currentTodoData = null;
-                isEditing = false;
-                updateEditButton();
-            }, 2000);
-        } else {
-            showError('Failed to create task. Please try again.');
-        }
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            option.selected = model.id === selectedModel;
+            modelSelect.appendChild(option);
+        });
     }
 
-    function handleRegenerate() {
-        const lastUserMessage = getLastUserMessage();
-        if (lastUserMessage) {
-            promptInput.value = lastUserMessage;
-            handleGenerate();
-        } else {
-            showError('No previous prompt found to regenerate from.');
-        }
+    function updateModelStatus() {
+        // Could add model-specific status indicators here
+        console.log(`Model changed to: ${selectedModel}`);
     }
 
-    function handleEdit() {
-        isEditing = !isEditing;
-        updateEditButton();
-        renderTodoList(currentTodoData.items);
-    }
-
-    function updateEditButton() {
-        editBtn.textContent = isEditing ? '💾 Save' : '✏️ Edit';
-        editBtn.classList.toggle('primary-btn', isEditing);
-        editBtn.classList.toggle('secondary-btn', !isEditing);
-    }
-
-    function handleError(message) {
-        setLoading(false);
-        showError(message);
-    }
-
-    function addMessage(content, type) {
+    function addMessage(content, type, isLoading = false) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${type}`;
+        if (isLoading) {
+            messageDiv.classList.add('loading-message');
+        }
+        
         messageDiv.innerHTML = `
             <div class="message-content">${escapeHtml(content)}</div>
         `;
@@ -212,21 +271,38 @@
         chatArea.scrollTop = chatArea.scrollHeight;
     }
 
-    function getLastUserMessage() {
-        const userMessages = chatArea.querySelectorAll('.message.user .message-content');
-        if (userMessages.length > 0) {
-            return userMessages[userMessages.length - 1].textContent;
-        }
-        return null;
+    function addToolResult(result) {
+        const resultDiv = document.createElement('div');
+        resultDiv.className = 'message assistant';
+        resultDiv.innerHTML = `
+            <div class="message-content">
+                <strong>🛠️ Tool: ${result.toolName}</strong><br>
+                <pre>${escapeHtml(JSON.stringify(result.data, null, 2))}</pre>
+            </div>
+        `;
+        
+        chatArea.appendChild(resultDiv);
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function removeLoadingMessage() {
+        const loadingMessages = chatArea.querySelectorAll('.loading-message');
+        loadingMessages.forEach(msg => msg.remove());
     }
 
     function setLoading(loading) {
-        generateBtn.disabled = loading;
+        sendBtn.disabled = loading;
         if (loading) {
-            generateBtn.innerHTML = '<span class="btn-icon">⏳</span>Generating...';
+            sendBtn.innerHTML = '<span class="btn-icon">⏳</span>Thinking...';
         } else {
-            generateBtn.innerHTML = '<span class="btn-icon">🎯</span>Generate Todo List';
+            sendBtn.innerHTML = '<span class="btn-icon">🚀</span>Send';
         }
+    }
+
+    function handleError(message) {
+        setLoading(false);
+        removeLoadingMessage();
+        showError(message);
     }
 
     function showError(message) {
@@ -240,6 +316,9 @@
     }
 
     // Initialize
-    console.log('🦫 Cappy Chat Assistant initialized');
+    console.log('🦫 Cappy Agent initialized');
     promptInput.focus();
+    
+    // Request initial data
+    vscode.postMessage({ type: 'requestInitialData' });
 })();

@@ -2,6 +2,26 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
+interface AgentContext {
+    type: 'file' | 'task' | 'project' | 'search' | 'prevention';
+    name: string;
+    data: any;
+}
+
+interface AgentTool {
+    name: string;
+    displayName: string;
+    icon: string;
+    description: string;
+}
+
+interface LLMModel {
+    id: string;
+    name: string;
+    provider: 'openai' | 'anthropic' | 'local' | 'azure';
+    available: boolean;
+}
+
 export class ChatProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'cappy.chatView';
     private _view?: vscode.WebviewView;
@@ -31,11 +51,17 @@ export class ChatProvider implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(
             message => {
                 switch (message.type) {
-                    case 'generateTodoList':
-                        this.handleGenerateTodoList(message.prompt);
+                    case 'agentQuery':
+                        this.handleAgentQuery(message.prompt, message.model, message.context, message.tools);
                         break;
-                    case 'createTask':
-                        this.handleCreateTask(message.todoData);
+                    case 'requestContext':
+                        this.handleRequestContext();
+                        break;
+                    case 'requestTools':
+                        this.handleRequestTools();
+                        break;
+                    case 'requestInitialData':
+                        this.handleRequestInitialData();
                         break;
                 }
             },
@@ -44,22 +70,365 @@ export class ChatProvider implements vscode.WebviewViewProvider {
         );
     }
 
-    private async handleGenerateTodoList(prompt: string) {
+    private async handleAgentQuery(prompt: string, model: string, context: AgentContext[], tools: AgentTool[]) {
         try {
-            // Simulate AI processing for now
-            const todoItems = this.generateTodoFromPrompt(prompt);
+            // Simulate AI agent processing with Cappy tools
+            console.log(`Agent Query: ${prompt}`);
+            console.log(`Model: ${model}`);
+            console.log(`Context: ${JSON.stringify(context)}`);
+            console.log(`Tools: ${JSON.stringify(tools)}`);
+
+            // Process the query with context and tools
+            const response = await this.processAgentQuery(prompt, model, context, tools);
             
             // Send response back to webview
             this._view?.webview.postMessage({
-                type: 'todoGenerated',
-                data: todoItems
+                type: 'agentResponse',
+                data: response
             });
         } catch (error) {
+            console.error('Error processing agent query:', error);
             this._view?.webview.postMessage({
                 type: 'error',
-                message: `Error generating todo list: ${error}`
+                message: `Error processing query: ${error}`
             });
         }
+    }
+
+    private async processAgentQuery(prompt: string, model: string, context: AgentContext[], tools: AgentTool[]) {
+        // This is where we would integrate with actual LLM APIs
+        // For now, we'll simulate intelligent responses based on prompt analysis
+        
+        const promptLower = prompt.toLowerCase();
+        let response = {
+            content: '',
+            toolResults: [] as any[],
+            newContext: [] as AgentContext[]
+        };
+
+        // Analyze prompt for tool usage
+        if (promptLower.includes('create task') || promptLower.includes('@createtask')) {
+            response.content = '🦫 I\'ll help you create a new Cappy task. Let me analyze your requirements and generate a structured task.';
+            response.toolResults.push(await this.executeCreateTaskTool(prompt));
+        } else if (promptLower.includes('search') || promptLower.includes('@searchcode')) {
+            response.content = '🔍 Searching your codebase for relevant information...';
+            response.toolResults.push(await this.executeSearchTool(prompt));
+        } else if (promptLower.includes('analyze') || promptLower.includes('@analyzeproject')) {
+            response.content = '📊 Analyzing your project structure and providing insights...';
+            response.toolResults.push(await this.executeAnalyzeProjectTool());
+        } else if (promptLower.includes('prevention') || promptLower.includes('@preventionrules')) {
+            response.content = '🛡️ Checking prevention rules and best practices...';
+            response.toolResults.push(await this.executePreventionRulesTool());
+        } else {
+            // General AI response simulation
+            response.content = this.generateContextualResponse(prompt, context, model);
+        }
+
+        return response;
+    }
+
+    private generateContextualResponse(prompt: string, context: AgentContext[], model: string): string {
+        // Simulate intelligent response based on context
+        const hasProjectContext = context.some(c => c.type === 'project');
+        const hasFileContext = context.some(c => c.type === 'file');
+        const hasTaskContext = context.some(c => c.type === 'task');
+
+        let response = `🦫 Based on your project context`;
+        
+        if (hasProjectContext) {
+            response += ' and current workspace';
+        }
+        if (hasFileContext) {
+            response += ' and the files you\'re working on';
+        }
+        if (hasTaskContext) {
+            response += ' and active tasks';
+        }
+        
+        response += `, here's what I can help with:\n\n`;
+        
+        // Provide contextual suggestions
+        if (prompt.toLowerCase().includes('help')) {
+            response += `I'm your Cappy AI agent with access to all your project tools. I can:
+• 📝 Create and manage tasks with intelligent breakdowns
+• 🔍 Search your codebase and documentation  
+• 📊 Analyze project structure and dependencies
+• 🛡️ Apply prevention rules and best practices
+• 💡 Suggest improvements and optimizations
+• ⚡ Execute Cappy commands on your behalf
+
+Just describe what you want to accomplish, and I'll use the right tools to help you get there!`;
+        } else {
+            response += `I understand you want to: "${prompt}"\n\nLet me help you with that. I have access to your project context and can use Cappy tools to provide the best assistance. Would you like me to:
+
+• Break this down into actionable tasks?
+• Search for related code or documentation?
+• Analyze the current project structure?
+• Apply relevant prevention rules?
+
+Just let me know how you'd like to proceed!`;
+        }
+
+        return response;
+    }
+
+    private async executeCreateTaskTool(prompt: string) {
+        // Integrate with existing createTaskFile command
+        try {
+            const result = await vscode.commands.executeCommand('cappy.createTaskFile', {
+                title: this.extractTaskTitle(prompt),
+                description: prompt,
+                agent: true
+            });
+            
+            return {
+                toolName: 'Create Task',
+                data: {
+                    success: true,
+                    message: 'Task created successfully',
+                    result: result
+                }
+            };
+        } catch (error) {
+            return {
+                toolName: 'Create Task',
+                data: {
+                    success: false,
+                    error: error?.toString()
+                }
+            };
+        }
+    }
+
+    private async executeSearchTool(prompt: string) {
+        // Integrate with CappyRAG search
+        try {
+            const searchTerm = this.extractSearchTerm(prompt);
+            const result = await vscode.commands.executeCommand('cappy.query', {
+                query: searchTerm,
+                limit: 5
+            });
+            
+            return {
+                toolName: 'Search Code',
+                data: {
+                    searchTerm: searchTerm,
+                    results: result
+                }
+            };
+        } catch (error) {
+            return {
+                toolName: 'Search Code',
+                data: {
+                    error: error?.toString()
+                }
+            };
+        }
+    }
+
+    private async executeAnalyzeProjectTool() {
+        // Integrate with knowStack command
+        try {
+            const result = await vscode.commands.executeCommand('cappy.knowstack');
+            
+            return {
+                toolName: 'Analyze Project',
+                data: {
+                    stackAnalysis: result
+                }
+            };
+        } catch (error) {
+            return {
+                toolName: 'Analyze Project',
+                data: {
+                    error: error?.toString()
+                }
+            };
+        }
+    }
+
+    private async executePreventionRulesTool() {
+        // Get prevention rules from the project
+        try {
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                throw new Error('No workspace found');
+            }
+
+            const preventionRulesPath = path.join(workspaceRoot, '.cappy', 'prevention-rules.md');
+            let rules = 'No prevention rules found';
+            
+            if (fs.existsSync(preventionRulesPath)) {
+                rules = fs.readFileSync(preventionRulesPath, 'utf8');
+            }
+            
+            return {
+                toolName: 'Prevention Rules',
+                data: {
+                    rules: rules,
+                    path: preventionRulesPath
+                }
+            };
+        } catch (error) {
+            return {
+                toolName: 'Prevention Rules',
+                data: {
+                    error: error?.toString()
+                }
+            };
+        }
+    }
+
+    private extractTaskTitle(prompt: string): string {
+        // Simple extraction logic - could be improved with NLP
+        const lines = prompt.split('\n');
+        const firstLine = lines[0].trim();
+        
+        if (firstLine.length > 50) {
+            return firstLine.substring(0, 47) + '...';
+        }
+        
+        return firstLine || 'Agent Generated Task';
+    }
+
+    private extractSearchTerm(prompt: string): string {
+        // Extract search terms from prompt
+        const searchPatterns = [
+            /search for (.+)/i,
+            /find (.+)/i,
+            /look for (.+)/i,
+            /@searchcode (.+)/i
+        ];
+        
+        for (const pattern of searchPatterns) {
+            const match = prompt.match(pattern);
+            if (match) {
+                return match[1].trim();
+            }
+        }
+        
+        // Default to using the whole prompt
+        return prompt;
+    }
+
+    private async handleRequestContext() {
+        // Get available context from the current workspace
+        const context: AgentContext[] = [];
+        
+        try {
+            // Add current file context
+            const activeEditor = vscode.window.activeTextEditor;
+            if (activeEditor) {
+                context.push({
+                    type: 'file',
+                    name: path.basename(activeEditor.document.fileName),
+                    data: {
+                        path: activeEditor.document.fileName,
+                        language: activeEditor.document.languageId
+                    }
+                });
+            }
+            
+            // Add project context
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0];
+            if (workspaceRoot) {
+                context.push({
+                    type: 'project',
+                    name: path.basename(workspaceRoot.uri.fsPath),
+                    data: {
+                        path: workspaceRoot.uri.fsPath
+                    }
+                });
+            }
+            
+            // Add active task context
+            try {
+                const activeTask = await vscode.commands.executeCommand('cappy.getActiveTask');
+                if (activeTask) {
+                    context.push({
+                        type: 'task',
+                        name: 'Active Task',
+                        data: activeTask
+                    });
+                }
+            } catch (error) {
+                // No active task
+            }
+            
+            this._view?.webview.postMessage({
+                type: 'contextUpdate',
+                context: context
+            });
+        } catch (error) {
+            console.error('Error getting context:', error);
+        }
+    }
+
+    private async handleRequestTools() {
+        // Get available Cappy tools
+        const tools: AgentTool[] = [
+            {
+                name: 'createTask',
+                displayName: 'Create Task',
+                icon: '📝',
+                description: 'Create a new Cappy task'
+            },
+            {
+                name: 'searchCode',
+                displayName: 'Search Code',
+                icon: '🔍',
+                description: 'Search codebase with CappyRAG'
+            },
+            {
+                name: 'analyzeProject',
+                displayName: 'Analyze Project',
+                icon: '📊',
+                description: 'Run KnowStack analysis'
+            },
+            {
+                name: 'cappyQuery',
+                displayName: 'Cappy Query',
+                icon: '🧠',
+                description: 'Query Cappy knowledge base'
+            },
+            {
+                name: 'preventionRules',
+                displayName: 'Prevention Rules',
+                icon: '🛡️',
+                description: 'Check prevention rules'
+            },
+            {
+                name: 'workOnTask',
+                displayName: 'Work on Task',
+                icon: '⚡',
+                description: 'Execute current task step'
+            }
+        ];
+        
+        this._view?.webview.postMessage({
+            type: 'toolsUpdate',
+            tools: tools
+        });
+    }
+
+    private async handleRequestInitialData() {
+        // Send initial models list
+        const models: LLMModel[] = [
+            { id: 'gpt-4', name: 'GPT-4', provider: 'openai', available: true },
+            { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai', available: true },
+            { id: 'claude-3', name: 'Claude 3', provider: 'anthropic', available: true },
+            { id: 'local-llama', name: 'Local Llama', provider: 'local', available: false },
+            { id: 'local-codellama', name: 'Local CodeLlama', provider: 'local', available: false }
+        ];
+        
+        this._view?.webview.postMessage({
+            type: 'modelsList',
+            models: models
+        });
+        
+        // Also send initial context and tools
+        this.handleRequestContext();
+        this.handleRequestTools();
     }
 
     private generateTodoFromPrompt(prompt: string): any[] {
@@ -319,6 +688,9 @@ export class ChatProvider implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
+        // Get path to HTML template
+        const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'chat.html');
+        
         // Get path to resource on disk
         const stylePath = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'chat.css');
         const scriptPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'chat.js');
@@ -326,6 +698,26 @@ export class ChatProvider implements vscode.WebviewViewProvider {
         // Convert to webview URIs
         const styleUri = webview.asWebviewUri(stylePath);
         const scriptUri = webview.asWebviewUri(scriptPath);
+
+        try {
+            // Read HTML template
+            const fs = require('fs');
+            let htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
+            
+            // Replace placeholders with actual URIs
+            htmlContent = htmlContent
+                .replace('{STYLE_URI}', styleUri.toString())
+                .replace('{SCRIPT_URI}', scriptUri.toString());
+            
+            return htmlContent;
+        } catch (error) {
+            console.error('Error reading HTML template:', error);
+            // Fallback to inline HTML if file reading fails
+            return this._getFallbackHtml(styleUri, scriptUri);
+        }
+    }
+
+    private _getFallbackHtml(styleUri: vscode.Uri, scriptUri: vscode.Uri): string {
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -387,6 +779,7 @@ export class ChatProvider implements vscode.WebviewViewProvider {
     <script src="${scriptUri}"></script>
 </body>
 </html>`;
+
     }
 
     public show() {

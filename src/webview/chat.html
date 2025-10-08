@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="{STYLE_URI}" rel="stylesheet">
+    <title>Cappy Agent Chat</title>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="header">
+            <div class="header-top">
+                <h2>🦫 Cappy Agent</h2>
+                <div class="model-selector">
+                    <select id="modelSelect" class="model-dropdown">
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        <option value="claude-3">Claude 3</option>
+                        <option value="local-llama">Local Llama</option>
+                        <option value="local-codellama">Local CodeLlama</option>
+                    </select>
+                </div>
+            </div>
+            <div class="agent-status">
+                <span class="status-indicator active">🤖 Agent Mode</span>
+                <span class="context-indicator" id="contextIndicator">📄 Context Ready</span>
+            </div>
+            <p class="description">AI agent with full Cappy tools and project context</p>
+        </div>
+        
+        <div class="chat-area" id="chatArea">
+            <div class="welcome-message">
+                <div class="message assistant">
+                    <div class="message-content">
+                        <div class="agent-intro">
+                            <strong>🦫 Cappy Agent Ready</strong><br>
+                            I have access to your project context, all Cappy tools, and can help with:
+                            <ul>
+                                <li>📝 Creating and managing tasks</li>
+                                <li>🔍 Searching your codebase</li>
+                                <li>📊 Analyzing project structure</li>
+                                <li>🛡️ Applying prevention rules</li>
+                                <li>💡 Code suggestions and refactoring</li>
+                            </ul>
+                            What would you like to work on?
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <div class="context-pills" id="contextPills">
+                <!-- Context pills will be dynamically added here -->
+            </div>
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea 
+                        id="promptInput" 
+                        placeholder="Ask me anything about your project or describe what you want to build..."
+                        rows="3"></textarea>
+                    <div class="input-controls">
+                        <button id="attachContext" class="tool-btn" title="Attach Context">
+                            📎
+                        </button>
+                        <button id="useTools" class="tool-btn" title="Available Tools">
+                            🛠️
+                        </button>
+                        <button id="sendBtn" class="primary-btn">
+                            <span class="btn-icon">🚀</span>
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tools-panel" id="toolsPanel" style="display: none;">
+            <div class="tools-header">
+                <h4>Available Tools</h4>
+                <button id="closeTools" class="close-btn">×</button>
+            </div>
+            <div class="tools-grid">
+                <div class="tool-item" data-tool="createTask">
+                    <span class="tool-icon">📝</span>
+                    <span class="tool-name">Create Task</span>
+                </div>
+                <div class="tool-item" data-tool="searchCode">
+                    <span class="tool-icon">🔍</span>
+                    <span class="tool-name">Search Code</span>
+                </div>
+                <div class="tool-item" data-tool="analyzeProject">
+                    <span class="tool-icon">📊</span>
+                    <span class="tool-name">Analyze Project</span>
+                </div>
+                <div class="tool-item" data-tool="cappyQuery">
+                    <span class="tool-icon">🧠</span>
+                    <span class="tool-name">Cappy Query</span>
+                </div>
+                <div class="tool-item" data-tool="preventionRules">
+                    <span class="tool-icon">🛡️</span>
+                    <span class="tool-name">Prevention Rules</span>
+                </div>
+                <div class="tool-item" data-tool="workOnTask">
+                    <span class="tool-icon">⚡</span>
+                    <span class="tool-name">Work on Task</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{SCRIPT_URI}"></script>
+</body>
+</html>

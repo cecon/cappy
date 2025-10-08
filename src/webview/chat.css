@@ -1,4 +1,4 @@
-/* Chat Assistant Styles */
+/* Cappy Agent Chat Styles */
 body {
     margin: 0;
     padding: 0;
@@ -23,16 +23,79 @@ body {
     background-color: var(--vscode-sideBarSectionHeader-background);
 }
 
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
 .header h2 {
-    margin: 0 0 8px 0;
+    margin: 0;
     font-size: 16px;
     font-weight: 600;
     color: var(--vscode-sideBarTitle-foreground);
 }
 
-.header p {
+.model-selector {
+    position: relative;
+}
+
+.model-dropdown {
+    background-color: var(--vscode-dropdown-background);
+    color: var(--vscode-dropdown-foreground);
+    border: 1px solid var(--vscode-dropdown-border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-family: var(--vscode-font-family);
+    cursor: pointer;
+    min-width: 120px;
+}
+
+.model-dropdown:focus {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+    box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.agent-status {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background-color: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+}
+
+.status-indicator.active {
+    background-color: var(--vscode-gitDecoration-addedResourceForeground);
+    color: var(--vscode-sideBar-background);
+}
+
+.context-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+}
+
+.description {
     margin: 0;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--vscode-descriptionForeground);
     opacity: 0.8;
 }
@@ -41,7 +104,6 @@ body {
     flex: 1;
     overflow-y: auto;
     padding: 16px;
-    max-height: calc(50vh - 100px);
 }
 
 .message {
@@ -78,8 +140,21 @@ body {
     border: 1px solid var(--vscode-input-border);
 }
 
+.agent-intro {
+    line-height: 1.5;
+}
+
+.agent-intro ul {
+    margin: 8px 0 0 0;
+    padding-left: 16px;
+}
+
+.agent-intro li {
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
 .welcome-message {
-    text-align: center;
     margin-bottom: 20px;
 }
 
@@ -89,10 +164,46 @@ body {
     background-color: var(--vscode-sideBar-background);
 }
 
+.context-pills {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.context-pill {
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 12px;
+    padding: 4px 8px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+
+.context-pill .remove-context {
+    cursor: pointer;
+    margin-left: 4px;
+    opacity: 0.7;
+}
+
+.context-pill:hover .remove-context {
+    opacity: 1;
+}
+
 .input-container {
     display: flex;
     flex-direction: column;
     gap: 12px;
+}
+
+.input-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 #promptInput {
@@ -119,11 +230,37 @@ body {
     color: var(--vscode-input-placeholderForeground);
 }
 
+.input-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.tool-btn {
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border);
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    transition: all 0.2s;
+}
+
+.tool-btn:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
 .primary-btn {
     background-color: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
     border: none;
-    padding: 10px 16px;
+    padding: 8px 16px;
     border-radius: 4px;
     cursor: pointer;
     font-family: var(--vscode-font-family);
@@ -133,6 +270,8 @@ body {
     align-items: center;
     gap: 6px;
     transition: background-color 0.2s;
+    flex: 1;
+    justify-content: center;
 }
 
 .primary-btn:hover {
@@ -144,115 +283,92 @@ body {
     cursor: not-allowed;
 }
 
-.secondary-btn {
-    background-color: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
-    border: 1px solid var(--vscode-button-border);
-    padding: 8px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-family: var(--vscode-font-family);
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    transition: all 0.2s;
-}
-
-.secondary-btn:hover {
-    background-color: var(--vscode-button-secondaryHoverBackground);
-}
-
 .btn-icon {
     font-size: 14px;
 }
 
-.todo-section {
-    flex: 1;
-    padding: 16px;
-    border-top: 1px solid var(--vscode-sideBar-border);
+.tools-panel {
+    position: absolute;
+    bottom: 100px;
+    left: 16px;
+    right: 16px;
+    background-color: var(--vscode-sideBar-background);
+    border: 1px solid var(--vscode-sideBar-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    max-height: 300px;
     overflow-y: auto;
 }
 
-.section-header {
+.tools-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--vscode-sideBar-border);
 }
 
-.section-header h3 {
+.tools-header h4 {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
     color: var(--vscode-sideBarTitle-foreground);
 }
 
-.todo-list {
-    margin-bottom: 20px;
-}
-
-.todo-item {
+.close-btn {
+    background: none;
+    border: none;
+    color: var(--vscode-sideBar-foreground);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px;
-    margin-bottom: 8px;
-    background-color: var(--vscode-list-inactiveSelectionBackground);
-    border-radius: 6px;
-    border-left: 3px solid var(--vscode-button-background);
-    transition: all 0.2s;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
 }
 
-.todo-item:hover {
+.close-btn:hover {
     background-color: var(--vscode-list-hoverBackground);
 }
 
-.todo-item.completed {
-    opacity: 0.7;
-    border-left-color: var(--vscode-gitDecoration-addedResourceForeground);
+.tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    padding: 16px;
 }
 
-.todo-checkbox {
-    margin-top: 2px;
-}
-
-.todo-content {
-    flex: 1;
-    min-width: 0;
-}
-
-.todo-title {
-    font-weight: 500;
-    font-size: 13px;
-    margin-bottom: 4px;
-    color: var(--vscode-foreground);
-}
-
-.todo-description {
-    font-size: 12px;
-    color: var(--vscode-descriptionForeground);
-    line-height: 1.3;
-}
-
-.todo-item.completed .todo-title {
-    text-decoration: line-through;
-    opacity: 0.7;
-}
-
-.action-buttons {
+.tool-item {
     display: flex;
-    gap: 12px;
-    margin-top: 16px;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 8px;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background-color: var(--vscode-button-secondaryBackground);
 }
 
-.action-buttons .primary-btn {
-    flex: 1;
-    justify-content: center;
+.tool-item:hover {
+    background-color: var(--vscode-list-hoverBackground);
+    border-color: var(--vscode-focusBorder);
 }
 
-.action-buttons .secondary-btn {
-    min-width: auto;
+.tool-icon {
+    font-size: 20px;
+}
+
+.tool-name {
+    font-size: 11px;
+    font-weight: 500;
+    text-align: center;
+    color: var(--vscode-button-secondaryForeground);
 }
 
 /* Loading states */
@@ -301,11 +417,15 @@ body {
 
 /* Responsive adjustments */
 @media (max-width: 300px) {
-    .action-buttons {
-        flex-direction: column;
+    .input-controls {
+        flex-wrap: wrap;
     }
     
-    .section-header {
+    .tools-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .header-top {
         flex-direction: column;
         align-items: flex-start;
         gap: 8px;
