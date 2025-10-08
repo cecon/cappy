@@ -16,7 +16,7 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
         {
             enableScripts: true,
             retainContextWhenHidden: true,
-            localResourceRoots: []
+            localResourceRoots: [context.extensionUri]
         }
     );
 
@@ -110,14 +110,20 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
                         const path = await import('path');
                         const graphPagePath = path.join(context.extensionPath, 'out', 'webview', 'graph-page.html');
                         const d3JsPath = path.join(context.extensionPath, 'out', 'webview', 'd3.v7.min.js');
+                        const cssPath = path.join(context.extensionPath, 'out', 'webview', 'graph-page.css');
+                        const jsPath = path.join(context.extensionPath, 'out', 'webview', 'graph-page.js');
                         
                         console.log('[CappyRAG] Loading graph-page.html from:', graphPagePath);
                         console.log('[CappyRAG] Loading d3.v7.min.js from:', d3JsPath);
                         
                         let htmlContent = fs.readFileSync(graphPagePath, 'utf8');
                         const d3Content = fs.readFileSync(d3JsPath, 'utf8');
+                        const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf8') : '';
+                        const jsContent = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, 'utf8') : '';
                         
                         console.log('[CappyRAG] D3.js content loaded, size:', d3Content.length, 'bytes');
+                        console.log('[CappyRAG] CSS content loaded, size:', cssContent.length, 'bytes');
+                        console.log('[CappyRAG] JS content loaded, size:', jsContent.length, 'bytes');
                         
                         // Replace placeholder with inline D3.js using split/join to avoid template literal issues
                         const placeholder = '<!-- D3_PLACEHOLDER -->';
@@ -127,6 +133,10 @@ export async function openDocumentUploadUI(context: vscode.ExtensionContext, ini
                             const parts = htmlContent.split(placeholder);
                             htmlContent = parts[0] + '<script>' + d3Content + '</script>' + parts[1];
                         }
+                        
+                        // Replace external CSS and JS references with inline content
+                        htmlContent = htmlContent.replace('<link rel="stylesheet" href="graph-page.css">', '<style>' + cssContent + '</style>');
+                        htmlContent = htmlContent.replace('<script src="graph-page.js"></script>', '<script>' + jsContent + '</script>');
                         
                         const afterReplace = htmlContent.includes(placeholder);
                         console.log('[CappyRAG] D3 injection:', beforeReplace ? 'placeholder found' : 'placeholder NOT found', '→', afterReplace ? 'still there (FAILED)' : 'replaced (SUCCESS)');
