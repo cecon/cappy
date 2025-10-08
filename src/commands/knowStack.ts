@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { writeOutput } from '../utils/outputWriter';
 
 function getExtensionRoot(context?: vscode.ExtensionContext): string {
     const candidates = [
@@ -34,7 +33,6 @@ export async function runKnowStack(context?: vscode.ExtensionContext): Promise<s
     if (!workspaceFolder) {
         vscode.window.showWarningMessage('Cappy: open a workspace folder to run KnowStack.');
         const result = await readKnowStackScript(context);
-        writeOutput(result);
         return result;
     }
 
@@ -58,9 +56,6 @@ export async function runKnowStack(context?: vscode.ExtensionContext): Promise<s
 
         script = await readKnowStackScript(context);
     });
-
-    // Write result to .cappy/output.txt
-    writeOutput(script);
 
     return script;
 }

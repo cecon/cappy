@@ -3,7 +3,7 @@
   "displayName": "Cappy",
   "description": "AI coding companion with Single-Focus Workflow, CappyRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
   "icon": "assets/icon.png",
-  "version": "2.9.71",
+  "version": "2.9.72",
   "publisher": "eduardocecon",
   "engines": {
     "vscode": "^1.75.0",
@@ -303,8 +303,19 @@
     "languageModelTools": [
       {
         "name": "cappy_init",
-        "displayName": "Cappy: Initialize",
-        "modelDescription": "Initialize Cappy structure in the workspace (.cappy folder, config files, copilot-instructions.md)",
+        "displayName": "Cappy: Initialize Workspace",
+        "toolReferenceName": "cappyInit",
+        "modelDescription": "Initialize Cappy structure in the workspace (.cappy folder, config files, copilot-instructions.md). ALWAYS use this tool before any other Cappy operation in a new workspace.",
+        "userDescription": "Set up Cappy's file structure and configuration for the current workspace",
+        "icon": "$(symbol-folder)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappy",
+          "initialization",
+          "workspace setup",
+          "task management",
+          "extension_installed_by_tool"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -312,8 +323,19 @@
       },
       {
         "name": "cappy_knowstack",
-        "displayName": "Cappy: Know Stack",
-        "modelDescription": "Analyze the workspace and generate stack.md documentation with project structure and technology stack",
+        "displayName": "Cappy: Analyze Technology Stack",
+        "toolReferenceName": "cappyKnowStack",
+        "modelDescription": "Analyze the workspace and generate stack.md documentation with project structure, technology stack, dependencies, and architecture. Use this to understand the project before creating tasks.",
+        "userDescription": "Generate comprehensive documentation about the project's technology stack and structure",
+        "icon": "$(rocket)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappy",
+          "analysis",
+          "project structure",
+          "technology stack",
+          "documentation"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -321,8 +343,18 @@
       },
       {
         "name": "cappy_new_task",
-        "displayName": "Cappy: New Task",
-        "modelDescription": "Generate step-by-step script for creating a new Cappy task with category, description, and steps",
+        "displayName": "Cappy: New Task Script",
+        "toolReferenceName": "cappyNewTask",
+        "modelDescription": "Generate step-by-step script for creating a new Cappy task with category, description, and atomic steps. Use this to plan task creation before executing cappy_create_task.",
+        "userDescription": "Generate a guided script to create a new task with proper structure",
+        "icon": "$(notebook)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappy",
+          "task creation",
+          "task planning",
+          "workflow"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -331,7 +363,18 @@
       {
         "name": "cappy_create_task",
         "displayName": "Cappy: Create Task File",
-        "modelDescription": "Create XML task file with rich context injection and automatic prevention rules",
+        "toolReferenceName": "cappyCreateTask",
+        "modelDescription": "Create XML task file with rich context injection, automatic prevention rules, and semantic indexing. Use this after planning with cappy_new_task to create the actual task file.",
+        "userDescription": "Create a new task file with context orchestration and prevention rules",
+        "icon": "$(file-add)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappy",
+          "task creation",
+          "xml",
+          "context orchestration",
+          "prevention rules"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -339,8 +382,19 @@
       },
       {
         "name": "cappy_work_on_task",
-        "displayName": "Cappy: Work on Current Task",
-        "modelDescription": "Execute current task step with context-aware assistance and prevention rules verification",
+        "displayName": "Cappy: Execute Current Task",
+        "toolReferenceName": "cappyWorkOnTask",
+        "modelDescription": "Execute current task step with context-aware assistance, prevention rules verification, and progress tracking. Use this to work on the active task step-by-step.",
+        "userDescription": "Work on the current task step with AI assistance and safety checks",
+        "icon": "$(play-circle)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappy",
+          "task execution",
+          "workflow",
+          "context awareness",
+          "prevention"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -349,7 +403,17 @@
       {
         "name": "cappy_complete_task",
         "displayName": "Cappy: Complete Task",
-        "modelDescription": "Complete current task, capture learnings, update context metrics and move to history",
+        "toolReferenceName": "cappyCompleteTask",
+        "modelDescription": "Complete current task, capture learnings, update context metrics, extract prevention rules, and move to history. Use this when a task is fully finished.",
+        "userDescription": "Finalize the current task and capture learnings for future tasks",
+        "icon": "$(check-all)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappy",
+          "task completion",
+          "learning capture",
+          "knowledge base"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -357,8 +421,18 @@
       },
       {
         "name": "cappy_reindex",
-        "displayName": "Cappy: Reindex",
-        "modelDescription": "Rebuild semantic indexes for tasks, documentation and prevention rules",
+        "displayName": "Cappy: Rebuild Indexes",
+        "toolReferenceName": "cappyReindex",
+        "modelDescription": "Rebuild semantic indexes for tasks, documentation, and prevention rules. Use this after adding new docs, completing tasks, or when search results seem outdated.",
+        "userDescription": "Rebuild all semantic indexes for improved search and context retrieval",
+        "icon": "$(refresh)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappy",
+          "indexing",
+          "semantic search",
+          "maintenance"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -367,7 +441,18 @@
       {
         "name": "cappyrag_add_document",
         "displayName": "CappyRAG: Add Document",
-        "modelDescription": "Add a document to the CappyRAG knowledge base with semantic indexing and processing",
+        "toolReferenceName": "cappyRagAddDocument",
+        "modelDescription": "Add a document to the CappyRAG knowledge base with semantic indexing, chunking, and graph relationship extraction. Supports multiple formats (PDF, DOCX, MD, TXT, code files).",
+        "userDescription": "Add a document to the knowledge base with automatic processing and indexing",
+        "icon": "$(file-add)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappyrag",
+          "knowledge base",
+          "document processing",
+          "semantic indexing",
+          "rag"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -383,8 +468,20 @@
       },
       {
         "name": "cappyrag_query_knowledge_base",
-        "displayName": "CappyRAG: Query Knowledge Base",
-        "modelDescription": "Search the CappyRAG knowledge base using semantic and text-based search with relevance scoring",
+        "displayName": "CappyRAG: Search Knowledge Base",
+        "toolReferenceName": "cappyRagQuery",
+        "modelDescription": "Search the CappyRAG knowledge base using hybrid semantic and text-based search with relevance scoring, graph traversal, and context ranking. Returns most relevant information with sources.",
+        "userDescription": "Search the knowledge base for relevant information using AI-powered search",
+        "icon": "$(search)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappyrag",
+          "knowledge base",
+          "semantic search",
+          "hybrid search",
+          "rag",
+          "retrieval"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -405,7 +502,17 @@
       {
         "name": "cappyrag_get_stats",
         "displayName": "CappyRAG: Get Statistics",
-        "modelDescription": "Get comprehensive statistics about the CappyRAG knowledge base including document counts and storage metrics",
+        "toolReferenceName": "cappyRagStats",
+        "modelDescription": "Get comprehensive statistics about the CappyRAG knowledge base including document counts, storage metrics, index status, and processing history.",
+        "userDescription": "View statistics and health metrics of the knowledge base",
+        "icon": "$(graph)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappyrag",
+          "statistics",
+          "monitoring",
+          "knowledge base"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -413,8 +520,18 @@
       },
       {
         "name": "cappyrag_get_supported_formats",
-        "displayName": "CappyRAG: Get Supported Formats",
-        "modelDescription": "Get list of supported document formats for CappyRAG processing with format specifications",
+        "displayName": "CappyRAG: Supported Formats",
+        "toolReferenceName": "cappyRagFormats",
+        "modelDescription": "Get list of supported document formats for CappyRAG processing with format specifications, file size limits, and processing capabilities.",
+        "userDescription": "List all supported document formats and their specifications",
+        "icon": "$(file-code)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappyrag",
+          "formats",
+          "documentation",
+          "capabilities"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -422,8 +539,18 @@
       },
       {
         "name": "cappyrag_estimate_processing_time",
-        "displayName": "CappyRAG: Estimate Processing Time",
-        "modelDescription": "Estimate processing time for a document based on file size and complexity",
+        "displayName": "CappyRAG: Estimate Processing",
+        "toolReferenceName": "cappyRagEstimate",
+        "modelDescription": "Estimate processing time for a document based on file size, format complexity, and system load. Use before adding large documents to plan accordingly.",
+        "userDescription": "Estimate how long it will take to process a document",
+        "icon": "$(watch)",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "cappyrag",
+          "estimation",
+          "performance",
+          "planning"
+        ],
         "inputSchema": {
           "type": "object",
           "properties": {

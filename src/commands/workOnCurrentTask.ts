@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { writeOutput } from '../utils/outputWriter';
 import { getActiveTask } from './getActiveTask';
 
 /**
@@ -17,7 +15,6 @@ export async function workOnCurrentTask(): Promise<string> {
         const ws = vscode.workspace.workspaceFolders?.[0];
         if (!ws) {
             const message = "❌ Nenhum workspace aberto";
-            await writeOutput(message);
             return message;
         }
 
@@ -35,7 +32,6 @@ export async function workOnCurrentTask(): Promise<string> {
 <next-step>No active task found</next-step>
 <task-content></task-content>
 </work-current-task>`;
-            await writeOutput(message);
             return message;
         }
 
@@ -45,7 +41,6 @@ export async function workOnCurrentTask(): Promise<string> {
         
         if (!filePath) {
             const message = "❌ Não foi possível encontrar o caminho do arquivo da tarefa ativa";
-            await writeOutput(message);
             return message;
         }
 
@@ -71,12 +66,10 @@ export async function workOnCurrentTask(): Promise<string> {
 <task-content>${escapeXml(taskContent)}</task-content>
 </work-current-task>`;
 
-        await writeOutput(workOutput);
         return workOutput;
 
     } catch (error) {
         const message = `❌ Erro ao trabalhar na tarefa atual: ${error}`;
-        await writeOutput(message);
         return message;
     }
 }

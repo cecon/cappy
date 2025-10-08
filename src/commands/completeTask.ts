@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { writeOutput } from '../utils/outputWriter';
 
 /**
  * Moves an active task to history by:
@@ -15,7 +14,6 @@ export async function completeTask(): Promise<string> {
         const ws = vscode.workspace.workspaceFolders?.[0];
         if (!ws) {
             const message = "❌ Nenhum workspace aberto";
-            await writeOutput(message);
             return message;
         }
 
@@ -34,7 +32,6 @@ export async function completeTask(): Promise<string> {
         // Ensure directories exist
         if (!(await uriExists(tasksUri))) {
             const message = "❌ Diretório .cappy/tasks não encontrado";
-            await writeOutput(message);
             return message;
         }
 
@@ -51,7 +48,6 @@ export async function completeTask(): Promise<string> {
 
         if (activeFiles.length === 0) {
             const message = "❌ Nenhuma tarefa ativa encontrada para completar";
-            await writeOutput(message);
             return message;
         }
 
@@ -117,12 +113,10 @@ export async function completeTask(): Promise<string> {
 📍 Novo caminho: ${newFilePath}
 ⏰ Concluída em: ${completionTimestamp}`;
 
-        await writeOutput(message);
         return message;
 
     } catch (error) {
         const message = `❌ Erro ao mover tarefa para histórico: ${error}`;
-        await writeOutput(message);
         return message;
     }
 }

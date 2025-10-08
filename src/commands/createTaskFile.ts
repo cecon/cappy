@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { writeOutput } from '../utils/outputWriter';
 
 function getWorkspaceRoot(): string | null {
     const folder = vscode.workspace.workspaceFolders?.[0];
@@ -146,7 +145,6 @@ async function createTaskFile(context?: vscode.ExtensionContext, args?: Record<s
         const workspaceRoot = getWorkspaceRoot();
         if (!workspaceRoot) {
             const message = "❌ Nenhum workspace aberto";
-            await writeOutput(message);
             return message;
         }
 
@@ -168,7 +166,6 @@ async function createTaskFile(context?: vscode.ExtensionContext, args?: Record<s
         
         if (!fs.existsSync(templatePath)) {
             const message = "❌ Template de tarefa não encontrado";
-            await writeOutput(message);
             return message;
         }
 
@@ -245,12 +242,10 @@ ${preventionRulesXml}
 📄 Conteúdo XML:
 ${templateContent}`;
 
-        await writeOutput(output);
         return output;
 
     } catch (error) {
         const message = `❌ Erro ao criar arquivo de tarefa: ${error}`;
-        await writeOutput(message);
         return message;
     }
 }

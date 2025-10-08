@@ -1,14 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { writeOutput } from '../utils/outputWriter';
 
 export class RemovePreventionRuleCommand {
     async execute(): Promise<void> {
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
-                writeOutput('Erro: Nenhuma pasta de trabalho aberta');
+                
                 return;
             }
 
@@ -19,7 +18,7 @@ export class RemovePreventionRuleCommand {
             try {
                 await fs.promises.access(preventionRulesPath, fs.constants.F_OK);
             } catch {
-                writeOutput('Erro: Arquivo prevention-rules.xml não encontrado. Execute "Cappy: Initialize" primeiro.');
+                
                 return;
             }
 
@@ -30,7 +29,7 @@ export class RemovePreventionRuleCommand {
             const existingRules = this.extractExistingRules(xmlContent);
             
             if (existingRules.length === 0) {
-                writeOutput('Nenhuma prevention rule encontrada para remover');
+                
                 return;
             }
 
@@ -46,7 +45,7 @@ export class RemovePreventionRuleCommand {
             });
 
             if (!selectedItem) {
-                writeOutput('Operação cancelada pelo usuário');
+                
                 return;
             }
 
@@ -59,11 +58,11 @@ export class RemovePreventionRuleCommand {
             await fs.promises.writeFile(preventionRulesPath, updatedXml, 'utf8');
 
             // Output apenas o ID da rule removida
-            writeOutput(ruleIdToRemove);
+            
 
         } catch (error) {
             const errorMsg = `Erro ao remover prevention rule: ${error}`;
-            writeOutput(errorMsg);
+            
         }
     }
 

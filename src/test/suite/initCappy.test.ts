@@ -169,7 +169,8 @@ suite('🔨 InitCappy Command Test Suite', () => {
             assert.ok(giContent.includes('# Cappy specific - ignore only runtime files'), 'gitignore should include new header');
             assert.ok(giContent.includes('.cappy/history/'), 'gitignore should ignore history folder');
             assert.ok(giContent.includes('.cappy/tasks/'), 'gitignore should ignore tasks folder');
-            assert.ok(giContent.includes('.cappy/output.txt'), 'gitignore should ignore output.txt');
+            assert.ok(giContent.includes('.cappy/history/'), 'gitignore should ignore history folder');
+            assert.ok(giContent.includes('.cappy/tasks/'), 'gitignore should ignore tasks folder');
 
             console.log('✅ Configuration files test passed');
         } finally {
@@ -277,7 +278,8 @@ dist/`;
             assert.ok(gitignoreContent.includes('# Cappy specific - ignore only runtime files'), 'Should add new Cappy header');
             assert.ok(gitignoreContent.includes('.cappy/history/'), 'Should ignore history folder');
             assert.ok(gitignoreContent.includes('.cappy/tasks/'), 'Should ignore tasks folder');
-            assert.ok(gitignoreContent.includes('.cappy/output.txt'), 'Should ignore output.txt');
+            assert.ok(gitignoreContent.includes('.cappy/history/'), 'Should ignore history folder');
+            assert.ok(gitignoreContent.includes('.cappy/tasks/'), 'Should ignore tasks folder');
 
             console.log('✅ .gitignore update test passed');
         } finally {

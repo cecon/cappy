@@ -141,22 +141,11 @@ Usar separadores corretos para o sistema operacional.`;
         assert.notStrictEqual(taskId1Match[1], taskId2Match[1], 'Task IDs should be unique');
     });
 
-    test('Should write result to output.txt', async () => {
-        // Arrange
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceRoot) {
-            assert.fail('No workspace folder found');
-        }
-
-        const outputPath = path.join(workspaceRoot, '.cappy', 'output.txt');
-
-        // Act
-        await createTaskFile();
+    test('Should return success message', async () => {
+        // Arrange & Act
+        const result = await createTaskFile();
 
         // Assert
-        assert.ok(fs.existsSync(outputPath), 'Output file should be created');
-        
-        const outputContent = fs.readFileSync(outputPath, 'utf8');
-        assert.ok(outputContent.includes('✅ Arquivo de tarefa criado com sucesso'));
+        assert.ok(result.includes('✅ Arquivo de tarefa criado com sucesso'), 'Should return success message');
     });
 });

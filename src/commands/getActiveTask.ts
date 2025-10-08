@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { writeOutput } from '../utils/outputWriter';
 
 /**
  * Returns a standardized XML with task status information.
@@ -10,7 +9,6 @@ export async function getActiveTask(): Promise<string> {
         const ws = vscode.workspace.workspaceFolders?.[0];
         if (!ws) {
             const result = await generateTaskStatusXml(false, null, null, 0);
-            writeOutput(result);
             return result;
         }
 
@@ -27,7 +25,6 @@ export async function getActiveTask(): Promise<string> {
         
         if (!(await uriExists(tasksUri))) {
             const result = await generateTaskStatusXml(false, null, null, 0);
-            writeOutput(result);
             return result;
         }
 
@@ -41,7 +38,6 @@ export async function getActiveTask(): Promise<string> {
 
         if (activeFiles.length === 0) {
             const result = await generateTaskStatusXml(false, null, null, 0);
-            writeOutput(result);
             return result;
         }
 
@@ -62,13 +58,11 @@ export async function getActiveTask(): Promise<string> {
         const filePath = activeFileUri.fsPath;
         const result = await generateTaskStatusXml(true, filePath, lastModified, lineCount);
         
-        writeOutput(result);
         return result;
         
     } catch (error) {
         console.error('Error in getActiveTask:', error);
         const result = await generateTaskStatusXml(false, null, null, 0);
-        writeOutput(result);
         return result;
     }
 }

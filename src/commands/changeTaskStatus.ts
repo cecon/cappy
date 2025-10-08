@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { writeOutput } from '../utils/outputWriter';
 
 /**
  * Changes the status of a task file between active and paused.
@@ -14,14 +13,12 @@ export async function changeTaskStatus(fileName: string, newStatus: 'active' | '
         const ws = vscode.workspace.workspaceFolders?.[0];
         if (!ws) {
             const errorMsg = "❌ Nenhum workspace aberto";
-            writeOutput(errorMsg);
             return errorMsg;
         }
 
         // Validate status
         if (newStatus !== 'active' && newStatus !== 'paused') {
             const errorMsg = "❌ Status deve ser 'active' ou 'paused'";
-            writeOutput(errorMsg);
             return errorMsg;
         }
 
@@ -32,7 +29,6 @@ export async function changeTaskStatus(fileName: string, newStatus: 'active' | '
             await vscode.workspace.fs.stat(tasksDir);
         } catch {
             const errorMsg = "❌ Diretório .cappy/tasks não encontrado";
-            writeOutput(errorMsg);
             return errorMsg;
         }
 
@@ -61,7 +57,6 @@ export async function changeTaskStatus(fileName: string, newStatus: 'active' | '
 
         if (!currentFile) {
             const errorMsg = `❌ Arquivo de tarefa não encontrado: ${fileName}`;
-            writeOutput(errorMsg);
             return errorMsg;
         }
 
@@ -106,12 +101,10 @@ export async function changeTaskStatus(fileName: string, newStatus: 'active' | '
         }
 
         const successMsg = path.join(tasksDir.fsPath, newFileName);
-        writeOutput(successMsg);
         return successMsg;
 
     } catch (error) {
         const errorMsg = `❌ Erro ao alterar status da tarefa: ${error}`;
-        writeOutput(errorMsg);
         return errorMsg;
     }
 }

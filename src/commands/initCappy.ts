@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { writeOutputForced } from '../utils/outputWriter';
 import { FileManager } from '../utils/fileManager';
 
 export class InitCappyCommand {
@@ -25,7 +24,6 @@ export class InitCappyCommand {
                         vscode.window.showInformationMessage('Por favor, abra uma pasta manualmente via File > Open Folder');
                     }
                 }
-                writeOutputForced('Operação cancelada pelo usuário');
                 return false;
             }
 
@@ -133,16 +131,12 @@ export class InitCappyCommand {
                     '🎉 Cappy inicializado com sucesso! Use "Cappy: Create New Task" para começar.'
                 );
 
-                // Write result to .cappy/output.txt
-                writeOutputForced('Cappy inicializado com sucesso!');
-
                 return true;
             });
 
         } catch (error) {
             const errorMsg = `Erro ao inicializar Cappy: ${error}`;
             vscode.window.showErrorMessage(errorMsg);
-            writeOutputForced(errorMsg);
             return false;
         }
     }
@@ -388,8 +382,7 @@ export class InitCappyCommand {
         const header = '# Cappy specific - ignore only runtime files';
         const entries = [
             '.cappy/history/',
-            '.cappy/tasks/',
-            '.cappy/output.txt'
+            '.cappy/tasks/'
         ];
 
         let changed = false;

@@ -86,4 +86,4 @@ test-workspace/
 cappyrag-data/
 .cappy/history/
 .cappy/tasks/
-.cappy/output.txt
+# Cappy output file - REMOVED: Now using Language Model Tools directly

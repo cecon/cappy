@@ -36,7 +36,7 @@ src/
 ### Key Components
 - **Commands**: VS Code command handlers for Cappy operations
 - **File Manager**: Handles XML task files and configuration
-- **Output Writer**: Manages .cappy/output.txt for command results
+- **Language Model Tools**: Direct integration with VS Code Chat interface
 - **Environment Detector**: Detects project context
 
 ## Development Workflows
@@ -59,15 +59,15 @@ src/
 ## Cappy Methodology
 - Tasks are defined in XML format following XSD schema
 - Each task has context, execution steps, and validation checklists
-- Commands communicate through `.cappy/output.txt`
+- Commands communicate through Language Model Tools interface
 - Prevention rules system for automated quality checks
 
 ## AI Coding Instructions
 
 ### Command Execution Rules
-- **NEVER** execute Cappy commands in terminal - always use VS Code API
-- **ALWAYS** check `.cappy/output.txt` after command execution
-- If output.txt is empty, respond: "No output in .cappy/output.txt. Re-execute in VS Code."
+- **ALWAYS** use Language Model Tools for Cappy operations
+- Commands return data directly through the tool interface
+- Results are processed immediately without intermediate files
 
 ### Task Management
 - Only one active task at a time (marked with .ACTIVE.xml)

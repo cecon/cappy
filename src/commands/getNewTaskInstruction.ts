@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { writeOutput } from '../utils/outputWriter';
 
 function getWorkspaceRoot(): string | null {
     const folder = vscode.workspace.workspaceFolders?.[0];
@@ -127,9 +126,6 @@ export async function getNewTaskInstruction(context?: vscode.ExtensionContext, a
     // Debug: Log what we're writing
     console.log('DEBUG: Template content first 100 chars:', template.slice(0, 100));
     console.log('DEBUG: XMLOutput first 200 chars:', xmlOutput.slice(0, 200));
-
-    // Write result to .cappy/output.txt
-    writeOutput(xmlOutput);
 
     // Note: .cappy/instructions folder no longer used - removed local file persistence
 

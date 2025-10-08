@@ -1,14 +1,12 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { writeOutput } from '../utils/outputWriter';
 
 export class AddPreventionRuleCommand {
     async execute(): Promise<void> {
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (!workspaceFolder) {
-                writeOutput('Erro: Nenhuma pasta de trabalho aberta');
                 return;
             }
 
@@ -19,7 +17,6 @@ export class AddPreventionRuleCommand {
             try {
                 await fs.promises.access(preventionRulesPath, fs.constants.F_OK);
             } catch {
-                writeOutput('Erro: Arquivo prevention-rules.xml não encontrado. Execute "Cappy: Initialize" primeiro.');
                 return;
             }
 
@@ -30,7 +27,6 @@ export class AddPreventionRuleCommand {
             });
 
             if (!title) {
-                writeOutput('Operação cancelada: título é obrigatório');
                 return;
             }
 
@@ -40,7 +36,6 @@ export class AddPreventionRuleCommand {
             });
 
             if (!description) {
-                writeOutput('Operação cancelada: descrição é obrigatória');
                 return;
             }
 
@@ -50,7 +45,6 @@ export class AddPreventionRuleCommand {
             });
 
             if (!category) {
-                writeOutput('Operação cancelada: categoria é obrigatória');
                 return;
             }
 
@@ -77,11 +71,9 @@ export class AddPreventionRuleCommand {
             await fs.promises.writeFile(preventionRulesPath, updatedXml, 'utf8');
 
             // Output apenas o trecho da nova rule
-            writeOutput(newRuleXml);
 
         } catch (error) {
             const errorMsg = `Erro ao adicionar prevention rule: ${error}`;
-            writeOutput(errorMsg);
         }
     }
 
