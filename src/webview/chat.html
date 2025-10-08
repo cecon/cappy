@@ -4,106 +4,185 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="{STYLE_URI}" rel="stylesheet">
-    <title>Cappy Agent Chat</title>
+    <title>Cappy</title>
 </head>
 <body>
     <div class="chat-container">
-        <div class="header">
-            <div class="header-top">
-                <h2>🦫 Cappy Agent</h2>
+        <!-- Header with model selector -->
+        <div class="chat-header">
+            <div class="model-info">
                 <div class="model-selector">
-                    <select id="modelSelect" class="model-dropdown">
-                        <option value="gpt-4">GPT-4</option>
-                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                        <option value="claude-3">Claude 3</option>
-                        <option value="local-llama">Local Llama</option>
-                        <option value="local-codellama">Local CodeLlama</option>
-                    </select>
-                </div>
-            </div>
-            <div class="agent-status">
-                <span class="status-indicator active">🤖 Agent Mode</span>
-                <span class="context-indicator" id="contextIndicator">📄 Context Ready</span>
-            </div>
-            <p class="description">AI agent with full Cappy tools and project context</p>
-        </div>
-        
-        <div class="chat-area" id="chatArea">
-            <div class="welcome-message">
-                <div class="message assistant">
-                    <div class="message-content">
-                        <div class="agent-intro">
-                            <strong>🦫 Cappy Agent Ready</strong><br>
-                            I have access to your project context, all Cappy tools, and can help with:
-                            <ul>
-                                <li>📝 Creating and managing tasks</li>
-                                <li>🔍 Searching your codebase</li>
-                                <li>📊 Analyzing project structure</li>
-                                <li>🛡️ Applying prevention rules</li>
-                                <li>💡 Code suggestions and refactoring</li>
-                            </ul>
-                            What would you like to work on?
+                    <button class="model-button" id="modelButton">
+                        <span class="model-icon">🤖</span>
+                        <span class="model-name" id="modelName">GPT-4</span>
+                        <span class="model-arrow">▼</span>
+                    </button>
+                    <div class="model-dropdown" id="modelDropdown" style="display: none;">
+                        <div class="model-option" data-model="gpt-4">
+                            <span class="option-icon">🧠</span>
+                            <div class="option-info">
+                                <div class="option-name">GPT-4</div>
+                                <div class="option-desc">Most capable model</div>
+                            </div>
+                        </div>
+                        <div class="model-option" data-model="gpt-3.5-turbo">
+                            <span class="option-icon">⚡</span>
+                            <div class="option-info">
+                                <div class="option-name">GPT-3.5 Turbo</div>
+                                <div class="option-desc">Fast and efficient</div>
+                            </div>
+                        </div>
+                        <div class="model-option" data-model="claude-3">
+                            <span class="option-icon">🎭</span>
+                            <div class="option-info">
+                                <div class="option-name">Claude 3</div>
+                                <div class="option-desc">Anthropic's model</div>
+                            </div>
+                        </div>
+                        <div class="model-option" data-model="local-llama">
+                            <span class="option-icon">🦙</span>
+                            <div class="option-info">
+                                <div class="option-name">Local Llama</div>
+                                <div class="option-desc">Local model</div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <div class="input-area">
-            <div class="context-pills" id="contextPills">
-                <!-- Context pills will be dynamically added here -->
+
+        <!-- Chat messages area -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-container">
+                <div class="cappy-avatar">
+                    <span class="avatar-icon">🦫</span>
+                </div>
+                <div class="welcome-text">
+                    <h3>Hi, I'm Cappy</h3>
+                    <p>I'm an AI coding assistant that can help you with your development tasks. I have access to your project context and Cappy tools.</p>
+                </div>
+                <div class="quick-actions">
+                    <button class="quick-action" data-action="explain">
+                        <span class="action-icon">�</span>
+                        <span class="action-text">Explain this code</span>
+                    </button>
+                    <button class="quick-action" data-action="create-task">
+                        <span class="action-icon">📝</span>
+                        <span class="action-text">Create a task</span>
+                    </button>
+                    <button class="quick-action" data-action="analyze">
+                        <span class="action-icon">📊</span>
+                        <span class="action-text">Analyze project</span>
+                    </button>
+                    <button class="quick-action" data-action="search">
+                        <span class="action-icon">🔍</span>
+                        <span class="action-text">Search codebase</span>
+                    </button>
+                </div>
             </div>
-            <div class="input-container">
-                <div class="input-wrapper">
+        </div>
+
+        <!-- Input area -->
+        <div class="chat-input-container">
+            <div class="chat-attachments" id="chatAttachments"></div>
+            <div class="chat-input-wrapper">
+                <div class="chat-input-area">
+                    <button class="attach-button" id="attachButton" title="Attach context">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M7.775 3.275a.75.75 0 001.06 1.06l1.25-1.25a2 2 0 112.83 2.83l-2.5 2.5a2 2 0 01-2.83 0 .75.75 0 00-1.06 1.06 3.5 3.5 0 004.95 0l2.5-2.5a3.5 3.5 0 00-4.95-4.95l-1.25 1.25zm-4.69 9.64a2 2 0 010-2.83l2.5-2.5a2 2 0 012.83 0 .75.75 0 001.06-1.06 3.5 3.5 0 00-4.95 0l-2.5 2.5a3.5 3.5 0 004.95 4.95l1.25-1.25a.75.75 0 00-1.06-1.06l-1.25 1.25a2 2 0 01-2.83 0z"/>
+                        </svg>
+                    </button>
                     <textarea 
-                        id="promptInput" 
-                        placeholder="Ask me anything about your project or describe what you want to build..."
-                        rows="3"></textarea>
-                    <div class="input-controls">
-                        <button id="attachContext" class="tool-btn" title="Attach Context">
-                            📎
+                        id="chatInput" 
+                        placeholder="Ask Cappy..."
+                        rows="1"
+                        maxlength="8000"></textarea>
+                    <button class="send-button" id="sendButton" disabled>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M.5 1.163A1 1 0 011.97.28l12.868 6.837a1 1 0 010 1.766L1.969 15.72A1 1 0 01.5 14.837V10.33a1 1 0 01.816-.983L8.5 8 1.316 6.653A1 1 0 01.5 5.67V1.163z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="input-footer">
+                    <div class="context-info" id="contextInfo"></div>
+                    <div class="input-actions">
+                        <button class="tool-button" id="toolsButton" title="Available tools">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M7.775 3.275a.75.75 0 001.06 1.06l1.25-1.25a2 2 0 112.83 2.83l-2.5 2.5a2 2 0 01-2.83 0 .75.75 0 00-1.06 1.06 3.5 3.5 0 004.95 0l2.5-2.5a3.5 3.5 0 00-4.95-4.95l-1.25 1.25zm-4.69 9.64a2 2 0 010-2.83l2.5-2.5a2 2 0 012.83 0 .75.75 0 001.06-1.06 3.5 3.5 0 00-4.95 0l-2.5 2.5a3.5 3.5 0 004.95 4.95l1.25-1.25a.75.75 0 00-1.06-1.06l-1.25 1.25a2 2 0 01-2.83 0z"/>
+                            </svg>
+                            Tools
                         </button>
-                        <button id="useTools" class="tool-btn" title="Available Tools">
-                            🛠️
-                        </button>
-                        <button id="sendBtn" class="primary-btn">
-                            <span class="btn-icon">🚀</span>
-                            Send
-                        </button>
+                        <span class="char-count" id="charCount">0/8000</span>
                     </div>
                 </div>
             </div>
         </div>
-        
+
+        <!-- Tools panel -->
         <div class="tools-panel" id="toolsPanel" style="display: none;">
             <div class="tools-header">
                 <h4>Available Tools</h4>
-                <button id="closeTools" class="close-btn">×</button>
+                <button class="close-tools" id="closeTools">✕</button>
             </div>
-            <div class="tools-grid">
+            <div class="tools-list">
                 <div class="tool-item" data-tool="createTask">
-                    <span class="tool-icon">📝</span>
-                    <span class="tool-name">Create Task</span>
+                    <div class="tool-icon">📝</div>
+                    <div class="tool-info">
+                        <div class="tool-name">Create Task</div>
+                        <div class="tool-desc">Create a new Cappy task</div>
+                    </div>
                 </div>
                 <div class="tool-item" data-tool="searchCode">
-                    <span class="tool-icon">🔍</span>
-                    <span class="tool-name">Search Code</span>
+                    <div class="tool-icon">🔍</div>
+                    <div class="tool-info">
+                        <div class="tool-name">Search Code</div>
+                        <div class="tool-desc">Search your codebase</div>
+                    </div>
                 </div>
                 <div class="tool-item" data-tool="analyzeProject">
-                    <span class="tool-icon">📊</span>
-                    <span class="tool-name">Analyze Project</span>
-                </div>
-                <div class="tool-item" data-tool="cappyQuery">
-                    <span class="tool-icon">🧠</span>
-                    <span class="tool-name">Cappy Query</span>
-                </div>
-                <div class="tool-item" data-tool="preventionRules">
-                    <span class="tool-icon">🛡️</span>
-                    <span class="tool-name">Prevention Rules</span>
+                    <div class="tool-icon">📊</div>
+                    <div class="tool-info">
+                        <div class="tool-name">Analyze Project</div>
+                        <div class="tool-desc">Run project analysis</div>
+                    </div>
                 </div>
                 <div class="tool-item" data-tool="workOnTask">
-                    <span class="tool-icon">⚡</span>
-                    <span class="tool-name">Work on Task</span>
+                    <div class="tool-icon">⚡</div>
+                    <div class="tool-info">
+                        <div class="tool-name">Work on Task</div>
+                        <div class="tool-desc">Execute current task</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Context attach panel -->
+        <div class="attach-panel" id="attachPanel" style="display: none;">
+            <div class="attach-header">
+                <h4>Add Context</h4>
+                <button class="close-attach" id="closeAttach">✕</button>
+            </div>
+            <div class="attach-options">
+                <div class="attach-option" data-type="currentFile">
+                    <div class="attach-icon">�</div>
+                    <div class="attach-info">
+                        <div class="attach-name">Current File</div>
+                        <div class="attach-desc">Add the current file to context</div>
+                    </div>
+                </div>
+                <div class="attach-option" data-type="selection">
+                    <div class="attach-icon">✂️</div>
+                    <div class="attach-info">
+                        <div class="attach-name">Selection</div>
+                        <div class="attach-desc">Add current selection</div>
+                    </div>
+                </div>
+                <div class="attach-option" data-type="activeTask">
+                    <div class="attach-icon">📝</div>
+                    <div class="attach-info">
+                        <div class="attach-name">Active Task</div>
+                        <div class="attach-desc">Add current Cappy task</div>
+                    </div>
                 </div>
             </div>
         </div>

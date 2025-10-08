@@ -688,12 +688,12 @@ Just let me know how you'd like to proceed!`;
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
-        // Get path to HTML template
-        const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'chat.html');
+        // Get path to HTML template (compiled files are in out/ directory)
+        const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'out', 'webview', 'chat.html');
         
         // Get path to resource on disk
-        const stylePath = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'chat.css');
-        const scriptPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'webview', 'chat.js');
+        const stylePath = vscode.Uri.joinPath(this._extensionUri, 'out', 'webview', 'chat.css');
+        const scriptPath = vscode.Uri.joinPath(this._extensionUri, 'out', 'webview', 'chat.js');
         
         // Convert to webview URIs
         const styleUri = webview.asWebviewUri(stylePath);
@@ -712,76 +712,29 @@ Just let me know how you'd like to proceed!`;
             return htmlContent;
         } catch (error) {
             console.error('Error reading HTML template:', error);
-            // Fallback to inline HTML if file reading fails
-            return this._getFallbackHtml(styleUri, scriptUri);
+            // Fallback to basic HTML if file reading fails
+            return `
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Cappy Chat</title>
+                    <link rel="stylesheet" href="${styleUri}">
+                </head>
+                <body>
+                    <div id="app">
+                        <div class="error">
+                            <h3>🦫 Cappy Chat</h3>
+                            <p>Error loading chat interface. Please try reloading VS Code.</p>
+                        </div>
+                    </div>
+                    <script src="${scriptUri}"></script>
+                </body>
+                </html>
+            `;
         }
     }
-
-    private _getFallbackHtml(styleUri: vscode.Uri, scriptUri: vscode.Uri): string {
-
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="${styleUri}" rel="stylesheet">
-    <title>Cappy Task Chat</title>
-</head>
-<body>
-    <div class="chat-container">
-        <div class="header">
-            <h2>🦫 Task Assistant</h2>
-            <p>Describe your task and I'll create a todo list for you</p>
-        </div>
-        
-        <div class="chat-area" id="chatArea">
-            <div class="welcome-message">
-                <div class="message assistant">
-                    <div class="message-content">
-                        Welcome! I'm your task assistant. Describe what you want to accomplish and I'll help you break it down into actionable steps.
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="input-area">
-            <div class="input-container">
-                <textarea 
-                    id="promptInput" 
-                    placeholder="Describe your task... (e.g., 'Create a REST API for user management')"
-                    rows="3"></textarea>
-                <button id="generateBtn" class="primary-btn">
-                    <span class="btn-icon">🎯</span>
-                    Generate Todo List
-                </button>
-            </div>
-        </div>
-        
-        <div class="todo-section" id="todoSection" style="display: none;">
-            <div class="section-header">
-                <h3>Generated Todo List</h3>
-                <button id="editBtn" class="secondary-btn">✏️ Edit</button>
-            </div>
-            <div id="todoList" class="todo-list"></div>
-            <div class="action-buttons">
-                <button id="createTaskBtn" class="primary-btn">
-                    <span class="btn-icon">✅</span>
-                    Create Cappy Task
-                </button>
-                <button id="regenerateBtn" class="secondary-btn">
-                    <span class="btn-icon">🔄</span>
-                    Regenerate
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <script src="${scriptUri}"></script>
-</body>
-</html>`;
-
-    }
-
     public show() {
         if (this._view) {
             this._view.show?.(true);
