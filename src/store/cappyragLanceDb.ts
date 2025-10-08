@@ -546,6 +546,119 @@ export class CappyRAGLanceDatabase {
     }
 
     /**
+     * Clean orphaned entities and chunks (without any relationships)
+     * Returns statistics about cleaned items
+     */
+    async cleanOrphanedData(): Promise<{
+        deletedEntities: number;
+        deletedChunks: number;
+        remainingEntities: number;
+        remainingChunks: number;
+    }> {
+        await this.initialize();
+
+        console.log('🧹 [CappyRAG Cleanup] Starting orphaned data cleanup...');
+
+        let deletedEntities = 0;
+        let deletedChunks = 0;
+
+        try {
+            // Step 1: Get all relationships to build a set of referenced entity IDs
+            const relationships = await this.getRelationshipsAsync();
+            const referencedEntityIds = new Set<string>();
+            
+            relationships.forEach(rel => {
+                referencedEntityIds.add(rel.source);
+                referencedEntityIds.add(rel.target);
+            });
+
+            console.log(`   - Total relationships: ${relationships.length}`);
+            console.log(`   - Referenced entities: ${referencedEntityIds.size}`);
+
+            // Step 2: Find and delete orphaned entities
+            if (this.entitiesTable) {
+                const allEntities = await this.getEntitiesAsync();
+                const orphanedEntities = allEntities.filter(entity => 
+                    !referencedEntityIds.has(entity.id)
+                );
+
+                console.log(`   - Total entities: ${allEntities.length}`);
+                console.log(`   - Orphaned entities: ${orphanedEntities.length}`);
+
+                if (orphanedEntities.length > 0) {
+                    console.log(`\n   🗑️  Orphaned entities to be deleted:`);
+                    orphanedEntities.slice(0, 10).forEach((entity, idx) => {
+                        console.log(`      ${idx + 1}. ${entity.name} (${entity.type}) - ID: ${entity.id}`);
+                    });
+                    if (orphanedEntities.length > 10) {
+                        console.log(`      ... and ${orphanedEntities.length - 10} more`);
+                    }
+                    console.log('');
+                    
+                    // Delete orphaned entities
+                    for (const entity of orphanedEntities) {
+                        await this.entitiesTable.delete(`id = '${entity.id}'`);
+                        deletedEntities++;
+                    }
+                    console.log(`   ✅ Deleted ${deletedEntities} orphaned entities`);
+                }
+            }
+
+            // Step 3: Find and delete orphaned chunks (chunks without entities or relationships)
+            if (this.chunksTable) {
+                const allChunks = await this.getChunksAsync();
+                const orphanedChunks = allChunks.filter(chunk => 
+                    (!chunk.entities || chunk.entities.length === 0) &&
+                    (!chunk.relationships || chunk.relationships.length === 0)
+                );
+
+                console.log(`   - Total chunks: ${allChunks.length}`);
+                console.log(`   - Orphaned chunks: ${orphanedChunks.length}`);
+
+                if (orphanedChunks.length > 0) {
+                    console.log(`\n   🗑️  Orphaned chunks to be deleted:`);
+                    orphanedChunks.slice(0, 10).forEach((chunk, idx) => {
+                        const preview = chunk.content ? chunk.content.substring(0, 50) + '...' : '(no content)';
+                        console.log(`      ${idx + 1}. ${chunk.id} - ${preview}`);
+                    });
+                    if (orphanedChunks.length > 10) {
+                        console.log(`      ... and ${orphanedChunks.length - 10} more`);
+                    }
+                    console.log('');
+                    
+                    // Delete orphaned chunks
+                    for (const chunk of orphanedChunks) {
+                        await this.chunksTable.delete(`id = '${chunk.id}'`);
+                        deletedChunks++;
+                    }
+                    console.log(`   ✅ Deleted ${deletedChunks} orphaned chunks`);
+                }
+            }
+
+            // Step 4: Get final counts
+            const finalEntities = await this.getEntitiesAsync();
+            const finalChunks = await this.getChunksAsync();
+
+            console.log(`\n📊 Cleanup Summary:`);
+            console.log(`   - Entities deleted: ${deletedEntities}`);
+            console.log(`   - Chunks deleted: ${deletedChunks}`);
+            console.log(`   - Remaining entities: ${finalEntities.length}`);
+            console.log(`   - Remaining chunks: ${finalChunks.length}`);
+
+            return {
+                deletedEntities,
+                deletedChunks,
+                remainingEntities: finalEntities.length,
+                remainingChunks: finalChunks.length
+            };
+
+        } catch (error) {
+            console.error('❌ Error during cleanup:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Close connection
      */
     async close(): Promise<void> {

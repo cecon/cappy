@@ -1,5 +1,15 @@
 # 🎨 Melhorias Visuais do Knowledge Graph
 
+## Data: 08/10/2025
+
+### Normalização de Tipos no Sigma.js
+
+- Padronizamos os tipos enviados pelo backend (`Document`, `Entity`, etc.) para manter consistência em toda a stack.
+- A webview agora normaliza valores recebidos (ex.: `document`, `chunk`) antes de aplicar cores, ícones e tamanhos.
+- Resultado: entidades e documentos recém-indexados aparecem imediatamente com o estilo correto, evitando falsos negativos na análise visual.
+
+---
+
 ## Data: 05/10/2025
 
 ## Resumo

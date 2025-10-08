@@ -172,6 +172,11 @@
         "category": "CappyRAG"
       },
       {
+        "command": "cappy.CappyRAG.cleanOrphanedData",
+        "title": "🧹 CappyRAG: Clean Orphaned Entities & Chunks",
+        "category": "CappyRAG"
+      },
+      {
         "command": "cappyrag.getSupportedFormats",
         "title": "📃 CappyRAG: Get Supported Formats",
         "category": "CappyRAG"

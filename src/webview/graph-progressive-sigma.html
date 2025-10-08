@@ -250,6 +250,28 @@
             'Entity': 12,
             'Keyword': 12
         };
+
+        const typeNormalizationMap = {
+            document: 'Document',
+            section: 'Section',
+            entity: 'Entity',
+            keyword: 'Keyword',
+            chunk: 'Section',
+            symbol: 'Keyword'
+        };
+
+        function normalizeType(rawType) {
+            if (!rawType || typeof rawType !== 'string') {
+                return 'Keyword';
+            }
+
+            if (typeColors[rawType]) {
+                return rawType;
+            }
+
+            const normalized = typeNormalizationMap[rawType.toLowerCase()];
+            return normalized || 'Keyword';
+        }
         
         // Enviar ready para carregar nós raiz
         vscode.postMessage({ command: 'ready' });
@@ -284,7 +306,7 @@
             
             // Adicionar nós iniciais
             data.nodes.forEach(node => {
-                const type = node.type || 'Keyword';
+                const type = normalizeType(node.type);
                 const label = node.label || node.id;
                 
                 graph.addNode(node.id, {
@@ -334,7 +356,7 @@
         function customLabelRenderer(context, data, settings) {
             const size = settings.labelSize;
             const font = settings.labelWeight + ' ' + size + 'px ' + settings.labelFont;
-            const type = data.type || 'Keyword';
+            const type = normalizeType(data.type);
             const icon = typeIcons[type] || '🏷️';
             const label = data.label;
             
@@ -446,7 +468,7 @@
             hoveredNode = null;
             
             // Restaurar nó
-            const type = graph.getNodeAttribute(node, 'type');
+            const type = normalizeType(graph.getNodeAttribute(node, 'type'));
             graph.setNodeAttribute(node, 'size', typeSizes[type] || 12);
             graph.setNodeAttribute(node, 'highlighted', false);
             
@@ -498,7 +520,7 @@
             // Adicionar novos nós
             data.nodes.forEach(node => {
                 if (!graph.hasNode(node.id)) {
-                    const type = node.type || 'Keyword';
+                    const type = normalizeType(node.type);
                     const label = node.label || node.id;
                     
                     graph.addNode(node.id, {
@@ -520,7 +542,7 @@
             data.edges.forEach(edge => {
                 const edgeId = edge.id || `${edge.source}-${edge.target}`;
                 if (!graph.hasEdge(edgeId) && graph.hasNode(edge.source) && graph.hasNode(edge.target)) {
-                    const sourceType = graph.getNodeAttribute(edge.source, 'type');
+                    const sourceType = normalizeType(graph.getNodeAttribute(edge.source, 'type'));
                     
                     graph.addEdge(edge.source, edge.target, {
                         id: edgeId,

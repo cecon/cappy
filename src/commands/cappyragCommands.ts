@@ -1,12 +1,19 @@
 import * as vscode from 'vscode';
+import { cleanOrphanedDataCommand } from './cappyrag/cleanOrphanedDataCommand';
 
 /**
- * Register all LightRAG commands with VS Code
- * Temporarily simplified while LightRAG search is being reimplemented
+ * Register all CappyRAG commands with VS Code
  */
 export function registerCappyRAGCommands(context: vscode.ExtensionContext): void {
-    // Placeholder for LightRAG commands - will be implemented when search functionality is ready
-    console.log('LightRAG commands placeholder registered');
+    // Register cleanup command
+    const cleanupCommand = vscode.commands.registerCommand(
+        'cappy.CappyRAG.cleanOrphanedData',
+        () => cleanOrphanedDataCommand(context)
+    );
+    
+    context.subscriptions.push(cleanupCommand);
+    
+    console.log('CappyRAG commands registered (cleanup)');
 }
 
 // Placeholder functions

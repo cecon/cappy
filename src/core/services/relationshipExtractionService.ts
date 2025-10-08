@@ -60,14 +60,26 @@ export class RelationshipExtractionService {
         const existingRelationships = await this.getExistingRelationshipsForContext();
         const existingEntitiesInOtherDocs = await this.getEntitiesFromOtherDocuments(chunk.documentId);
         
+        // DEBUG LOG
+        console.log(`\n🔍 [CappyRAG Cross-Doc] Processing chunk from document: ${chunk.documentId}`);
+        console.log(`   - Current chunk entities: ${entities.length}`);
+        console.log(`   - Entities from other docs: ${existingEntitiesInOtherDocs.length}`);
+        if (existingEntitiesInOtherDocs.length > 0) {
+            console.log(`   - Other doc entities: ${existingEntitiesInOtherDocs.slice(0, 5).map(e => `${e.name} (${e.type})`).join(', ')}${existingEntitiesInOtherDocs.length > 5 ? '...' : ''}`);
+        }
+        
         const prompt = `
 You are building a knowledge graph. Extract relationships from this text, considering existing patterns.
 
 CONTEXT - EXISTING RELATIONSHIP PATTERNS:
 ${existingRelationships.slice(0, 15).map(r => `- ${r.type}: ${r.description}`).join('\n')}
 
-CONTEXT - ENTITIES FROM OTHER DOCUMENTS:
-${existingEntitiesInOtherDocs.slice(0, 10).map(e => `- ${e.name} (${e.type}) from ${e.sourceDocuments?.[0] || 'unknown'}`).join('\n')}
+CONTEXT - ENTITIES FROM OTHER DOCUMENTS (You MUST create relationships to these when relevant):
+${existingEntitiesInOtherDocs.length > 0 
+    ? existingEntitiesInOtherDocs.slice(0, 10).map(e => `- ${e.name} (${e.type}) from ${e.sourceDocuments?.[0] || 'unknown'}`).join('\n')
+    : '(No entities from other documents yet - this is the first document)'}
+
+⚠️ IMPORTANT: Create relationships between entities in this chunk AND entities from other documents when they are related!
 
 TEXT TO ANALYZE:
 ${chunk.text}
@@ -77,10 +89,14 @@ ${entities.map(e => `- ${e.name} (${e.type}): ${e.description}`).join('\n')}
 
 TASK:
 1. Extract relationships between entities in this chunk
-2. Find relationships to entities from other documents (cross-document links)
+2. **CRITICAL**: Find relationships to entities from other documents (cross-document links) - check if any entity in this chunk relates to entities listed in "ENTITIES FROM OTHER DOCUMENTS"
 3. Use consistent relationship types from existing patterns
 4. Create specific, technical descriptions
 5. Set weight based on relationship strength and evidence
+
+EXAMPLE CROSS-DOCUMENT RELATIONSHIP:
+If this chunk mentions "TypeScript" and "ENTITIES FROM OTHER DOCUMENTS" contains "Microsoft", 
+you should create: {"source": "TypeScript", "target": "Microsoft", "type": "developed_by", ...}
 
 RELATIONSHIP TYPES (use these patterns):
 - TECHNICAL: implements, uses, depends_on, extends, integrates_with
@@ -135,8 +151,19 @@ Return JSON format:
                 }
 
                 if (!sourceEntity || !targetEntity) {
-                    console.warn(`Relationship skipped: Entity not found - ${relData.source} -> ${relData.target}`);
+                    console.warn(`❌ Relationship skipped: Entity not found - ${relData.source} -> ${relData.target}`);
+                    console.warn(`   Available current entities: ${entities.map(e => e.name).join(', ')}`);
+                    console.warn(`   Available other doc entities: ${existingEntitiesInOtherDocs.length} total`);
                     continue;
+                }
+                
+                // Check if this is a cross-document relationship
+                const isCrossDocument = 
+                    (sourceEntity.sourceDocuments && !sourceEntity.sourceDocuments.includes(chunk.documentId)) ||
+                    (targetEntity.sourceDocuments && !targetEntity.sourceDocuments.includes(chunk.documentId));
+                
+                if (isCrossDocument) {
+                    console.log(`✅ Cross-document relationship found: ${sourceEntity.name} -> ${targetEntity.name} (${relData.type})`);
                 }
 
                 const relationship: Relationship = {

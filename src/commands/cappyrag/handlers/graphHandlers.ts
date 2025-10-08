@@ -203,7 +203,7 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
             nodes.push({
                 id: doc.id,
                 label: doc.title || doc.fileName,
-                type: 'document',
+                type: 'Document',
                 size: size,
                 color: categoryColor,
                 shape: 'circle',
@@ -287,7 +287,7 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
             nodes.push({
                 id: entity.id,
                 label: entity.name,
-                type: 'entity',
+                type: 'Entity',
                 size: size,
                 color: color,
                 shape: 'circle',
