@@ -1,8 +1,3 @@
-/**
- * Knowledge Graph - CappyRAG JavaScript
- * Main functionality for the graph visualization
- */
-
 // VS Code API
 const vscode = acquireVsCodeApi();
 
@@ -27,150 +22,16 @@ let filters = {
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     console.log('[Graph Page] Initializing...');
-    
-    // Check if D3 is loaded
-    if (typeof d3 === 'undefined') {
-        console.error('[Graph Page] D3.js not loaded!');
-        return;
-    }
-    console.log('[Graph Page] D3.js loaded successfully, version:', d3.version);
-    
-    // Check if SVG element exists
-    const svgElement = document.getElementById('graph-svg');
-    if (!svgElement) {
-        console.error('[Graph Page] SVG element not found in DOM!');
-        return;
-    }
-    console.log('[Graph Page] SVG element found:', svgElement);
-    
     if (!dataRequested) {
         dataRequested = true;
-        // Simple request without filters
         requestGraphData();
     }
 });
 
-// Request graph data from extension - simplified
+// Request graph data from extension
 function requestGraphData() {
     console.log('[Graph Page] Requesting graph data...');
     vscode.postMessage({ command: 'getGraphData' });
-}
-
-// Build query filters from UI
-function buildQueryFilters() {
-    const filters = {
-        search: document.getElementById('search-input')?.value || '',
-        nodeTypes: {
-            documents: document.getElementById('filter-documents')?.checked || false,
-            entities: document.getElementById('filter-entities')?.checked || false,
-            chunks: document.getElementById('filter-chunks')?.checked || false,
-            relationships: document.getElementById('filter-relationships')?.checked || false
-        },
-        category: document.getElementById('category-filter')?.value || '',
-        dateRange: {
-            from: document.getElementById('date-from')?.value || null,
-            to: document.getElementById('date-to')?.value || null
-        },
-        relationshipType: document.getElementById('relationship-filter')?.value || '',
-        minConnections: parseInt(document.getElementById('min-connections')?.value || '0')
-    };
-
-    return filters;
-}
-
-// Generate Cypher-like query preview
-function generateQueryPreview(filters) {
-    let queryParts = [];
-    
-    // Node type matching
-    const nodeTypes = [];
-    if (filters.nodeTypes.documents) nodeTypes.push('Document');
-    if (filters.nodeTypes.entities) nodeTypes.push('Entity');
-    if (filters.nodeTypes.chunks) nodeTypes.push('Chunk');
-    
-    if (nodeTypes.length > 0) {
-        const nodeTypesStr = nodeTypes.join('|');
-        queryParts.push(`MATCH (n:${nodeTypesStr})`);
-    } else {
-        queryParts.push('MATCH (n)');
-    }
-
-    // Where conditions
-    const conditions = [];
-    
-    if (filters.search) {
-        conditions.push(`n.title CONTAINS "${filters.search}" OR n.content CONTAINS "${filters.search}"`);
-    }
-    
-    if (filters.category) {
-        conditions.push(`n.category = "${filters.category}"`);
-    }
-    
-    if (filters.dateRange.from) {
-        conditions.push(`n.created >= date("${filters.dateRange.from}")`);
-    }
-    
-    if (filters.dateRange.to) {
-        conditions.push(`n.created <= date("${filters.dateRange.to}")`);
-    }
-    
-    if (filters.minConnections > 0) {
-        conditions.push(`size((n)--()) >= ${filters.minConnections}`);
-    }
-
-    if (conditions.length > 0) {
-        queryParts.push(`WHERE ${conditions.join(' AND ')}`);
-    }
-
-    // Include relationships if requested
-    if (filters.nodeTypes.relationships && filters.relationshipType) {
-        queryParts.push(`OPTIONAL MATCH (n)-[r:${filters.relationshipType}]-(m)`);
-        queryParts.push('RETURN n, r, m');
-    } else {
-        queryParts.push('RETURN n');
-    }
-
-    return queryParts.join('\n');
-}
-
-// Apply filters and reload data
-function applyFilters() {
-    const filters = buildQueryFilters();
-    const queryPreview = generateQueryPreview(filters);
-    
-    // Update query preview
-    const previewElement = document.getElementById('query-preview');
-    if (previewElement) {
-        previewElement.innerHTML = `<code>${queryPreview}</code>`;
-    }
-    
-    // Update button state
-    const applyBtn = document.querySelector('.apply-filter-btn');
-    if (applyBtn) {
-        applyBtn.textContent = '🔄 Executing Query...';
-        applyBtn.disabled = true;
-    }
-    
-    // Reset graph state
-    isInitialized = false;
-    dataRequested = false;
-    
-    // Show loading
-    const loading = document.getElementById('loading');
-    if (loading) {
-        loading.style.display = 'flex';
-        loading.innerHTML = `
-            <div class="loading-spinner"></div>
-            <div style="margin-top: 16px;">Executing query on LanceDB...</div>
-            <div style="margin-top: 8px; font-size: 12px; color: #858585;">
-                <code>${queryPreview}</code>
-            </div>
-        `;
-    }
-    
-    // Request new data with filters
-    dataRequested = true;
-    requestGraphData(filters);
 }
 
 // Handle messages from extension
@@ -205,42 +66,15 @@ function goBack() {
 
 // Initialize D3.js graph
 function initializeGraph() {
-    console.log('[Render] initializeGraph called with graphData:', graphData);
-    
-    if (!graphData) {
-        console.error('[Render] No graphData available');
-        return;
-    }
-    
-    if (!graphData.nodes) {
-        console.error('[Render] No nodes in graphData');
-        return;
-    }
-    
-    if (!graphData.edges) {
-        console.error('[Render] No edges in graphData');
-        return;
-    }
-    
-    console.log('[Render] Rendering graph with', graphData.nodes.length, 'nodes');
+    if (!graphData || !graphData.nodes || !graphData.edges) return;
 
     const width = window.innerWidth - 280;
     const height = window.innerHeight - 48 - 49; // header + stats bar
-    
-    console.log('[Render] Canvas size:', width, 'x', height);
 
     // Setup SVG
-    const svgElement = document.getElementById('graph-svg');
-    if (!svgElement) {
-        console.error('[Render] SVG element not found!');
-        return;
-    }
-    
     svg = d3.select('#graph-svg')
         .attr('width', width)
         .attr('height', height);
-        
-    console.log('[Render] SVG setup complete');
 
     // Setup zoom
     zoom = d3.zoom()
@@ -279,22 +113,12 @@ function initializeGraph() {
 
 // Render graph
 function renderGraph() {
-    console.log('[Render] renderGraph called');
-    console.log('[Render] graphData exists:', !!graphData);
-    console.log('[Render] graphData.nodes exists:', !!graphData?.nodes);
-    console.log('[Render] simulation exists:', !!simulation);
-    console.log('[Render] g exists:', !!g);
-    
-    if (!graphData || !graphData.nodes || !simulation) {
-        console.error('[Render] Missing required variables for rendering');
-        return;
-    }
+    if (!graphData || !graphData.nodes || !simulation) return;
 
     console.log('[Render] Rendering graph with', graphData.nodes.length, 'nodes');
 
     // Clear existing
     g.selectAll('*').remove();
-    console.log('[Render] Cleared existing elements');
 
     // Draw edges
     const links = g.append('g')
@@ -305,8 +129,6 @@ function renderGraph() {
         .attr('stroke', '#3c3c3c')
         .attr('stroke-width', 1)
         .attr('opacity', 0.6);
-        
-    console.log('[Render] Created', graphData.edges.length, 'links');
 
     // Draw nodes
     const nodeGroup = g.append('g');
@@ -337,8 +159,6 @@ function renderGraph() {
                     .attr('stroke-width', 2);
             }
         });
-
-    console.log('[Render] Created node groups');
 
     // Add circles
     nodes.append('circle')
@@ -532,86 +352,45 @@ function exportImage() {
 // ============ FILTER FUNCTIONS ============
 
 function setupFilters() {
-    // Search input - now triggers backend query instead of frontend filter
+    // Search input
     const searchInput = document.getElementById('search-input');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                updateQueryPreview();
-            }, 300);
-        });
-    }
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            filters.search = e.target.value.toLowerCase();
+            applyFilters();
+        }, 300);
+    });
 
-    // Type checkboxes - now trigger backend reload
-    const typeCheckboxes = ['filter-documents', 'filter-entities', 'filter-chunks', 'filter-relationships'];
-    typeCheckboxes.forEach(id => {
-        const checkbox = document.getElementById(id);
-        if (checkbox) {
-            checkbox.addEventListener('change', updateQueryPreview);
-        }
+    // Type checkboxes
+    document.getElementById('filter-documents').addEventListener('change', (e) => {
+        filters.types.document = e.target.checked;
+        applyFilters();
+    });
+    document.getElementById('filter-entities').addEventListener('change', (e) => {
+        filters.types.entity = e.target.checked;
+        applyFilters();
+    });
+    document.getElementById('filter-relationships').addEventListener('change', (e) => {
+        filters.types.relationship = e.target.checked;
+        applyFilters();
+    });
+    document.getElementById('filter-chunks').addEventListener('change', (e) => {
+        filters.types.chunk = e.target.checked;
+        applyFilters();
     });
 
     // Category filter
-    const categoryFilter = document.getElementById('category-filter');
-    if (categoryFilter) {
-        categoryFilter.addEventListener('change', updateQueryPreview);
-    }
+    document.getElementById('category-filter').addEventListener('change', (e) => {
+        filters.category = e.target.value;
+        console.log('[Filter] Category changed to:', filters.category);
+        applyFilters();
+    });
 
-    // Date range filters
-    const dateFromInput = document.getElementById('date-from');
-    const dateToInput = document.getElementById('date-to');
-    if (dateFromInput) {
-        dateFromInput.addEventListener('change', updateQueryPreview);
-    }
-    if (dateToInput) {
-        dateToInput.addEventListener('change', updateQueryPreview);
-    }
-
-    // Relationship type filter
-    const relationshipFilter = document.getElementById('relationship-filter');
-    if (relationshipFilter) {
-        relationshipFilter.addEventListener('change', updateQueryPreview);
-    }
-
-    // Connection strength slider
-    const minConnectionsSlider = document.getElementById('min-connections');
-    const minConnectionsValue = document.getElementById('min-connections-value');
-    if (minConnectionsSlider && minConnectionsValue) {
-        minConnectionsSlider.addEventListener('input', (e) => {
-            minConnectionsValue.textContent = e.target.value;
-            updateQueryPreview();
-        });
-    }
-
-    // Initial query preview
-    updateQueryPreview();
+    // Date range is handled by timeline drag selection
 }
 
-// Update query preview without executing
-function updateQueryPreview() {
-    const filters = buildQueryFilters();
-    const queryPreview = generateQueryPreview(filters);
-    
-    const previewElement = document.getElementById('query-preview');
-    if (previewElement) {
-        previewElement.innerHTML = `<code>${queryPreview}</code>`;
-    }
-}
-
-// Update query preview without executing
-function updateQueryPreview() {
-    const filters = buildQueryFilters();
-    const queryPreview = generateQueryPreview(filters);
-    
-    const previewElement = document.getElementById('query-preview');
-    if (previewElement) {
-        previewElement.innerHTML = `<code>${queryPreview}</code>`;
-    }
-}
-
-// Legacy filter function - now redirects to new system
-function applyFiltersLegacy() {
+function applyFilters() {
     if (!originalGraphData) return;
 
     console.log('[Filters] Applying filters:', filters);

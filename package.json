@@ -584,7 +584,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./ && npm run copy-assets && npm run copy-mcp-package",
-    "copy-assets": "node -e \"const fs=require('fs'),path=require('path');const src='src/commands/cappyrag/templates',dest='out/commands/cappyrag/templates';fs.mkdirSync(dest,{recursive:true});['dashboard.css','dashboard.js'].forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dest,f)));const webviewSrc='src/webview',webviewDest='out/webview';fs.mkdirSync(webviewDest,{recursive:true});fs.readdirSync(webviewSrc).filter(f=>f.endsWith('.html')||f.endsWith('.js')).forEach(f=>fs.copyFileSync(path.join(webviewSrc,f),path.join(webviewDest,f)))\"",
+    "copy-assets": "node -e \"const fs=require('fs'),path=require('path');const src='src/commands/cappyrag/templates',dest='out/commands/cappyrag/templates';fs.mkdirSync(dest,{recursive:true});['dashboard.css','dashboard.js'].forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dest,f)));const webviewSrc='src/webview',webviewDest='out/webview';fs.mkdirSync(webviewDest,{recursive:true});fs.readdirSync(webviewSrc).filter(f=>f.endsWith('.html')||f.endsWith('.js')||f.endsWith('.css')).forEach(f=>fs.copyFileSync(path.join(webviewSrc,f),path.join(webviewDest,f)))\"",
     "copy-mcp-package": "node -e \"const fs=require('fs');fs.mkdirSync('out/mcp-standalone',{recursive:true});fs.writeFileSync('out/mcp-standalone/package.json',JSON.stringify({type:'module'},null,2))\"",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
