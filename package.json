@@ -482,9 +482,9 @@
         }
       },
       {
-        "name": "cappyrag_query_knowledge_base",
-        "displayName": "CappyRAG: Search Knowledge Base",
-        "toolReferenceName": "cappyRagQuery",
+        "name": "cappy_query",
+        "displayName": "Cappy: Query Knowledge Base",
+        "toolReferenceName": "cappyQuery",
         "modelDescription": "Search the CappyRAG knowledge base using hybrid semantic and text-based search with relevance scoring, graph traversal, and context ranking. Returns most relevant information with sources.",
         "userDescription": "Search the knowledge base for relevant information using AI-powered search",
         "icon": "$(search)",

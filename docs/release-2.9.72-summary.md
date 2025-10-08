@@ -94,7 +94,7 @@ Ctrl+Alt+I (ou ícone de chat)
 ```
 @cappyInit
 @cappyKnowStack
-@cappyRagQuery
+@cappyQuery
 ```
 
 ### 4. Use no chat
