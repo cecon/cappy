@@ -203,7 +203,7 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
             nodes.push({
                 id: doc.id,
                 label: doc.title || doc.fileName,
-                type: 'Document',
+                type: 'document',
                 size: size,
                 color: categoryColor,
                 shape: 'circle',
@@ -287,7 +287,7 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
             nodes.push({
                 id: entity.id,
                 label: entity.name,
-                type: 'Entity',
+                type: 'entity',
                 size: size,
                 color: color,
                 shape: 'circle',
@@ -453,7 +453,7 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
                 id: chunk.id,
                 label: chunkTitle,
                 type: 'chunk',
-                size: 5,
+                size: 7,
                 color: '#8b5cf6',
                 shape: 'rect',
                 opacity: 0.7,
@@ -526,6 +526,47 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
                 const chunkConn = connectionCounts.get(chunk.id)!;
                 chunkConn.incoming++;
             }
+
+            // Connect chunk to its entities to visualize mentions
+            if (chunkEntities.length > 0) {
+                chunkEntities.forEach((entityId: string) => {
+                    if (!entityId || !connectionCounts.has(entityId)) {
+                        return;
+                    }
+
+                    const edgeId = `${chunk.id}-mentions-${entityId}`;
+                    edges.push({
+                        id: edgeId,
+                        source: chunk.id,
+                        target: entityId,
+                        label: 'mentions',
+                        type: 'line',
+                        size: 1.5,
+                        color: '#a855f7',
+                        opacity: 0.5,
+                        metadata: {
+                            relationshipType: 'MENTIONS',
+                            description: 'Chunk references entity',
+                            weight: 0.4,
+                            confidence: 0.9,
+                            bidirectional: false,
+                            created: chunk.created,
+                            sourceChunk: chunk.id,
+                            targetEntity: entityId
+                        },
+                        state: {
+                            highlighted: false,
+                            selected: false,
+                            visible: true
+                        }
+                    });
+
+                    const chunkConn = connectionCounts.get(chunk.id)!;
+                    chunkConn.outgoing++;
+                    const entityConn = connectionCounts.get(entityId)!;
+                    entityConn.incoming++;
+                });
+            }
         });
 
         // Update all nodes with final connection counts
@@ -537,6 +578,7 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
                 node.connections.total = counts.incoming + counts.outgoing;
                 
                 // Recalculate size based on final connections
+                const normalizedType = (node.type || '').toLowerCase();
                 const importance = calculateImportance(
                     node.connections.total,
                     node.metadata.confidence || 0.8,
@@ -546,14 +588,18 @@ export async function handleGetGraphData(panel: vscode.WebviewPanel): Promise<vo
                 node.metrics.importance = importance;
                 
                 // Update size
-                if (node.type === 'document') {
+                if (normalizedType === 'document') {
                     const baseSize = 15;
                     const sizeMultiplier = 1 + (node.connections.total * 0.1) + (importance * 0.5);
                     node.size = Math.min(baseSize * sizeMultiplier, 40);
-                } else if (node.type === 'entity') {
+                } else if (normalizedType === 'entity') {
                     const baseSize = 10;
                     const sizeMultiplier = 1 + (node.connections.total * 0.1) + (importance * 0.5);
                     node.size = Math.min(baseSize * sizeMultiplier, 35);
+                } else if (normalizedType === 'chunk') {
+                    const baseSize = 7;
+                    const sizeMultiplier = 1 + (node.connections.total * 0.08) + (importance * 0.4);
+                    node.size = Math.min(baseSize * sizeMultiplier, 18);
                 }
             }
         });

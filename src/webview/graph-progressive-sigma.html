@@ -202,6 +202,10 @@
             <div class="legend-color" style="background: linear-gradient(135deg, #9f7aea, #6b46c1);"></div>
             <span class="legend-text">🔗 Entity</span>
         </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, #a855f7, #7c3aed);"></div>
+            <span class="legend-text">🧩 Chunk</span>
+        </div>
     </div>
     
     <div id="graph-container"></div>
@@ -232,7 +236,8 @@
             'Document': '#4299e1',
             'Section': '#48bb78',
             'Entity': '#9f7aea',
-            'Keyword': '#ed8936'
+            'Keyword': '#ed8936',
+            'Chunk': '#a855f7'
         };
         
         // Ícones por tipo
@@ -240,7 +245,8 @@
             'Document': '📄',
             'Section': '📝',
             'Entity': '🔗',
-            'Keyword': '🏷️'
+            'Keyword': '🏷️',
+            'Chunk': '🧩'
         };
         
         // Tamanhos por tipo
@@ -248,7 +254,8 @@
             'Document': 20,
             'Section': 15,
             'Entity': 12,
-            'Keyword': 12
+            'Keyword': 12,
+            'Chunk': 10
         };
 
         const typeNormalizationMap = {
@@ -256,7 +263,7 @@
             section: 'Section',
             entity: 'Entity',
             keyword: 'Keyword',
-            chunk: 'Section',
+            chunk: 'Chunk',
             symbol: 'Keyword'
         };
 
@@ -477,7 +484,7 @@
                 const [source, target] = graph.extremities(edge);
                 if (source === node || target === node) {
                     graph.setEdgeAttribute(edge, 'size', 2);
-                    const sourceType = graph.getNodeAttribute(source, 'type');
+                    const sourceType = normalizeType(graph.getNodeAttribute(source, 'type'));
                     graph.setEdgeAttribute(edge, 'color', typeColors[sourceType] || '#4a5568');
                 }
             });
@@ -491,7 +498,8 @@
         function showTooltip(node) {
             const tooltip = document.getElementById('tooltip');
             const label = graph.getNodeAttribute(node, 'label');
-            const type = graph.getNodeAttribute(node, 'type');
+            const rawType = graph.getNodeAttribute(node, 'type');
+            const type = normalizeType(rawType);
             const icon = typeIcons[type] || '🏷️';
             
             tooltip.querySelector('.tooltip-title').textContent = icon + ' ' + label;

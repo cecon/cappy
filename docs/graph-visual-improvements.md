@@ -8,6 +8,12 @@
 - A webview agora normaliza valores recebidos (ex.: `document`, `chunk`) antes de aplicar cores, ícones e tamanhos.
 - Resultado: entidades e documentos recém-indexados aparecem imediatamente com o estilo correto, evitando falsos negativos na análise visual.
 
+### Conexões de Chunks com Entidades
+
+- O backend agora adiciona arestas `MENTIONS` conectando chunks às entidades referenciadas.
+- Mantivemos os tipos em minúsculo no payload para preservar compatibilidade com filtros e legendas existentes nas views D3.
+- O Sigma.js continua exibindo as cores e ícones certos graças à normalização local; filtros e reset voltaram a responder normalmente.
+
 ---
 
 ## Data: 05/10/2025
