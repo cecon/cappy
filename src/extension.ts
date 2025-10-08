@@ -19,6 +19,7 @@ import { FileManager } from "./utils/fileManager";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 import { registerLanguageModelTools } from "./utils/languageModelTools";
 import { EmbeddedMCPServer } from "./tools/embeddedMCPServer";
+import { ChatProvider } from "./ui/chatProvider";
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -531,6 +532,22 @@ async function ensureLanguageModelToolsSetting() {
       }
     );
 
+    // Register Chat Provider for Task Assistant
+    const chatProvider = new ChatProvider(context.extensionUri, context);
+    const chatViewProvider = vscode.window.registerWebviewViewProvider(
+      ChatProvider.viewType,
+      chatProvider
+    );
+
+    // Register chat command
+    const chatCommand = vscode.commands.registerCommand(
+      "cappy.chat",
+      () => {
+        chatProvider.show();
+        vscode.commands.executeCommand('workbench.view.extension.cappy-chat');
+      }
+    );
+
     // Register all commands
     context.subscriptions.push(
       initCommand,
@@ -557,7 +574,10 @@ async function ensureLanguageModelToolsSetting() {
       // MCP Commands
       mcpAddDocumentCommand,
       mcpQueryCommand,
-      mcpGetStatsCommand
+      mcpGetStatsCommand,
+      // Chat Assistant
+      chatCommand,
+      chatViewProvider
     );
 
     // Register LightRAG commands

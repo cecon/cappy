@@ -1,0 +1,313 @@
+/* Chat Assistant Styles */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    background-color: var(--vscode-sideBar-background);
+    color: var(--vscode-sideBar-foreground);
+    height: 100vh;
+    overflow: hidden;
+}
+
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 0;
+}
+
+.header {
+    padding: 16px;
+    border-bottom: 1px solid var(--vscode-sideBar-border);
+    background-color: var(--vscode-sideBarSectionHeader-background);
+}
+
+.header h2 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--vscode-sideBarTitle-foreground);
+}
+
+.header p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.8;
+}
+
+.chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    max-height: calc(50vh - 100px);
+}
+
+.message {
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.message.user {
+    align-items: flex-end;
+}
+
+.message.assistant {
+    align-items: flex-start;
+}
+
+.message-content {
+    max-width: 90%;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.message.user .message-content {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.message.assistant .message-content {
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+}
+
+.welcome-message {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.input-area {
+    padding: 16px;
+    border-top: 1px solid var(--vscode-sideBar-border);
+    background-color: var(--vscode-sideBar-background);
+}
+
+.input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#promptInput {
+    width: 100%;
+    min-height: 60px;
+    padding: 12px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    font-family: var(--vscode-font-family);
+    font-size: 13px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+#promptInput:focus {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+    box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+#promptInput::placeholder {
+    color: var(--vscode-input-placeholderForeground);
+}
+
+.primary-btn {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 10px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background-color 0.2s;
+}
+
+.primary-btn:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.primary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.secondary-btn {
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border);
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.secondary-btn:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.btn-icon {
+    font-size: 14px;
+}
+
+.todo-section {
+    flex: 1;
+    padding: 16px;
+    border-top: 1px solid var(--vscode-sideBar-border);
+    overflow-y: auto;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vscode-sideBarTitle-foreground);
+}
+
+.todo-list {
+    margin-bottom: 20px;
+}
+
+.todo-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+    background-color: var(--vscode-list-inactiveSelectionBackground);
+    border-radius: 6px;
+    border-left: 3px solid var(--vscode-button-background);
+    transition: all 0.2s;
+}
+
+.todo-item:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.todo-item.completed {
+    opacity: 0.7;
+    border-left-color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.todo-checkbox {
+    margin-top: 2px;
+}
+
+.todo-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.todo-title {
+    font-weight: 500;
+    font-size: 13px;
+    margin-bottom: 4px;
+    color: var(--vscode-foreground);
+}
+
+.todo-description {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.3;
+}
+
+.todo-item.completed .todo-title {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.action-buttons .primary-btn {
+    flex: 1;
+    justify-content: center;
+}
+
+.action-buttons .secondary-btn {
+    min-width: auto;
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid var(--vscode-button-background);
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--vscode-scrollbarSlider-background);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--vscode-scrollbarSlider-activeBackground);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+/* Responsive adjustments */
+@media (max-width: 300px) {
+    .action-buttons {
+        flex-direction: column;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+}

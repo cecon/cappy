@@ -194,6 +194,12 @@
         "command": "cappy.removeCopilotConfig",
         "title": "🔄 Cappy: Remove Copilot Configuration",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.chat",
+        "title": "💬 Cappy: Open Task Chat",
+        "category": "Cappy",
+        "icon": "$(comment-discussion)"
       }
     ],
     "configuration": {
@@ -277,6 +283,24 @@
           "description": "Glob patterns for files and directories to exclude from indexing"
         }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cappy-chat",
+          "title": "Cappy Task Chat",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "cappy-chat": [
+        {
+          "id": "cappy.chatView",
+          "name": "Task Assistant",
+          "type": "webview"
+        }
+      ]
     },
     "snippets": [
       {
