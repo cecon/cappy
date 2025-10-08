@@ -297,12 +297,12 @@ export function registerLanguageModelTools(context: vscode.ExtensionContext) {
       }
     );
 
-    // Register cappyrag.queryKnowledgeBase tool
+    // Register cappy.query tool
     const cappyragQueryDisposable = lm.registerTool(
       'cappyrag_query_knowledge_base',
       {
         name: 'cappyrag_query_knowledge_base',
-        displayName: 'CappyRAG: Query Knowledge Base',
+        displayName: 'Cappy: Query Knowledge Base',
         modelDescription: 'Query the CappyRAG knowledge base using hybrid search (vector + keyword) to retrieve relevant entities, relationships and document chunks. Returns contextualized information with similarity scores.',
         inputSchema: {
           type: 'object',
@@ -327,7 +327,7 @@ export function registerLanguageModelTools(context: vscode.ExtensionContext) {
         ): Promise<vscode.LanguageModelToolResult> => {
           try {
             const result = await vscode.commands.executeCommand(
-              'cappyrag.queryKnowledgeBase',
+              'cappy.query',
               options.input.query,
               options.input.limit || 10
             ) as string;

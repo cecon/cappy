@@ -187,9 +187,9 @@
         "category": "CappyRAG"
       },
       {
-        "command": "cappyrag.queryKnowledgeBase",
-        "title": "🔍 CappyRAG: Query Knowledge Base",
-        "category": "CappyRAG"
+        "command": "cappy.query",
+        "title": "🔍 Cappy: Query",
+        "category": "Cappy"
       },
       {
         "command": "cappy.configureCopilot",

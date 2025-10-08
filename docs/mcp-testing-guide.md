@@ -171,7 +171,7 @@ Após verificar que o MCP está configurado:
 
 1. **Testar comandos MCP:**
    - `cappyrag.addDocument`
-   - `cappyrag.queryKnowledgeBase`
+   - `cappy.query`
    - `cappyrag.getStats`
 
 2. **Integrar com Copilot Chat:**
