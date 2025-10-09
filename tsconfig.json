@@ -12,7 +12,7 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "ignoreDeprecations": "6.0"
+    
   },
   "exclude": [
     "node_modules", 
@@ -32,6 +32,8 @@
     "src/ui/uiManager.ts",
     "src/commands/lightragSearch.ts",
     "src/test/**",
-    "src/webview/chat-app/**"
+    "src/webview/chat-app/**",
+    "src/components/chat-new/**",
+    "src/components/TestChatPage.tsx"
   ]
 }

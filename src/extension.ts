@@ -19,8 +19,6 @@ import { FileManager } from "./utils/fileManager";
 import { EnvironmentDetector } from "./utils/environmentDetector";
 import { registerLanguageModelTools } from "./utils/languageModelTools";
 import { EmbeddedMCPServer } from "./tools/embeddedMCPServer";
-import { ChatProvider } from "./ui/chatProvider";
-import { EnhancedChainExecutor, ChainExecutor } from "./core/langchain/chainExecutor";
 import { executeCappyChainDemo, executeQuickToolDemo, listChainTemplates, executeChainTemplate } from "./commands/chainDemo";
 import * as path from 'path';
 import * as fs from 'fs';
@@ -583,21 +581,8 @@ async function ensureLanguageModelToolsSetting() {
       }
     );
 
-    // Register Chat Provider for Task Assistant
-    const chatProvider = new ChatProvider(context.extensionUri, context);
-    const chatViewProvider = vscode.window.registerWebviewViewProvider(
-      ChatProvider.viewType,
-      chatProvider
-    );
-
-    // Register chat command
-    const chatCommand = vscode.commands.registerCommand(
-      "cappy.chat",
-      () => {
-        chatProvider.show();
-        vscode.commands.executeCommand('workbench.view.extension.cappy-chat');
-      }
-    );
+    // TODO: Implement new chat system with LangGraph and assistant-ui
+    // const newChatProvider = new NewChatProvider(context.extensionUri, context);
 
     // Register all commands
     context.subscriptions.push(
@@ -630,10 +615,10 @@ async function ensureLanguageModelToolsSetting() {
       // MCP Commands
       mcpAddDocumentCommand,
       mcpQueryCommand,
-      mcpGetStatsCommand,
-      // Chat Assistant
-      chatCommand,
-      chatViewProvider
+      mcpGetStatsCommand
+      // TODO: Chat Assistant - awaiting assistant-ui integration
+      // chatCommand,
+      // chatViewProvider
     );
 
     // Register LightRAG commands
