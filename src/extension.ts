@@ -20,6 +20,8 @@ import { EnvironmentDetector } from "./utils/environmentDetector";
 import { registerLanguageModelTools } from "./utils/languageModelTools";
 import { EmbeddedMCPServer } from "./tools/embeddedMCPServer";
 import { ChatProvider } from "./ui/chatProvider";
+import { EnhancedChainExecutor, ChainExecutor } from "./core/langchain/chainExecutor";
+import { executeCappyChainDemo, executeQuickToolDemo, listChainTemplates, executeChainTemplate } from "./commands/chainDemo";
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -417,6 +419,55 @@ async function ensureLanguageModelToolsSetting() {
       }
     );
 
+    // CappyChain Demo Commands
+    const cappyChainDemoCommand = vscode.commands.registerCommand(
+      "cappy.chain.demo",
+      async () => {
+        try {
+          await executeCappyChainDemo(context);
+        } catch (error) {
+          console.error("CappyChain demo error:", error);
+          vscode.window.showErrorMessage(`CappyChain demo failed: ${error}`);
+        }
+      }
+    );
+
+    const cappyChainQuickDemoCommand = vscode.commands.registerCommand(
+      "cappy.chain.quickDemo",
+      async () => {
+        try {
+          await executeQuickToolDemo();
+        } catch (error) {
+          console.error("CappyChain quick demo error:", error);
+          vscode.window.showErrorMessage(`CappyChain quick demo failed: ${error}`);
+        }
+      }
+    );
+
+    const cappyChainListTemplatesCommand = vscode.commands.registerCommand(
+      "cappy.chain.listTemplates",
+      async () => {
+        try {
+          await listChainTemplates();
+        } catch (error) {
+          console.error("CappyChain list templates error:", error);
+          vscode.window.showErrorMessage(`Failed to list templates: ${error}`);
+        }
+      }
+    );
+
+    const cappyChainExecuteTemplateCommand = vscode.commands.registerCommand(
+      "cappy.chain.executeTemplate",
+      async () => {
+        try {
+          await executeChainTemplate();
+        } catch (error) {
+          console.error("CappyChain execute template error:", error);
+          vscode.window.showErrorMessage(`Template execution failed: ${error}`);
+        }
+      }
+    );
+
     // Document Upload UI Command
     const documentUploadCommand = vscode.commands.registerCommand(
       "cappyrag.uploadUI",
@@ -571,6 +622,11 @@ async function ensureLanguageModelToolsSetting() {
       miniRAGPopulateSampleCommand,
       miniRAGPauseWatcherCommand,
       documentUploadCommand,
+      // CappyChain Commands
+      cappyChainDemoCommand,
+      cappyChainQuickDemoCommand,
+      cappyChainListTemplatesCommand,
+      cappyChainExecuteTemplateCommand,
       // MCP Commands
       mcpAddDocumentCommand,
       mcpQueryCommand,

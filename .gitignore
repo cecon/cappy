@@ -9,6 +9,7 @@ yarn.lock
 # Build outputs
 out/
 dist/
+src/webview/chat-dist/
 *.vsix
 
 # VS Code settings

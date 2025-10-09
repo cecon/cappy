@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { ChainExecutor } from '../core/langchain/chainExecutor';
 
 /**
  * Register Cappy tools for Language Model (Copilot)

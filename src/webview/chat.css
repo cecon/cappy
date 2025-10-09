@@ -27,11 +27,29 @@ body {
     border-bottom: 1px solid var(--vscode-panel-border);
     background-color: var(--vscode-sideBar-background);
     flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .model-info {
     display: flex;
     align-items: center;
+}
+
+.context-indicator {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    background-color: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    padding: 6px 10px;
+    border-radius: 999px;
+    transition: border-color 0.1s ease, color 0.1s ease;
+}
+
+.context-indicator.active {
+    color: var(--vscode-foreground);
+    border-color: var(--vscode-focusBorder);
 }
 
 .model-selector {
@@ -88,6 +106,13 @@ body {
     overflow: hidden;
 }
 
+.model-empty {
+    padding: 12px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    text-align: center;
+}
+
 .model-option {
     display: flex;
     align-items: center;
@@ -104,6 +129,11 @@ body {
 .model-option.selected {
     background-color: var(--vscode-list-activeSelectionBackground);
     color: var(--vscode-list-activeSelectionForeground);
+}
+
+.model-option.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .option-icon {
@@ -417,6 +447,10 @@ body {
     color: var(--vscode-descriptionForeground);
 }
 
+.char-count.warning {
+    color: var(--vscode-errorForeground);
+}
+
 /* Panels */
 .tools-panel, .attach-panel {
     position: absolute;
@@ -478,6 +512,13 @@ body {
 
 .tool-item:hover, .attach-option:hover {
     background-color: var(--vscode-list-hoverBackground);
+}
+
+.tool-empty {
+    padding: 12px;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    text-align: center;
 }
 
 .tool-icon, .attach-icon {
@@ -556,6 +597,56 @@ body {
     30% {
         opacity: 1;
     }
+}
+
+/* Streaming indicator */
+.message.streaming .message-content {
+    position: relative;
+}
+
+.message.streaming .message-content::after {
+    content: '▊';
+    display: inline-block;
+    margin-left: 2px;
+    animation: blink 1s infinite;
+    color: var(--vscode-textLink-foreground);
+}
+
+@keyframes blink {
+    0%, 49% {
+        opacity: 1;
+    }
+    50%, 100% {
+        opacity: 0;
+    }
+}
+
+/* Code blocks in messages */
+.message-content code {
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+}
+
+.message-content pre {
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.inline-code {
+    background: var(--vscode-textCodeBlock-background);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: var(--vscode-editor-font-family);
+}
+
+.code-block {
+    background: var(--vscode-textCodeBlock-background);
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 8px 0;
 }
 
 /* Responsive */

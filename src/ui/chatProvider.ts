@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { ChainExecutor } from '../core/langchain/chainExecutor';
 
 interface AgentContext {
     type: 'file' | 'task' | 'project' | 'search' | 'prevention';
@@ -400,8 +401,15 @@ You can suggest using these tools when relevant. Always be helpful, concise, and
             newContext: [] as AgentContext[]
         };
 
-        // Analyze prompt for tool usage
-        if (promptLower.includes('create task') || promptLower.includes('@createtask')) {
+        // Analyze prompt for tool usage or chain execution
+        const chainExecutor = ChainExecutor.getInstance();
+        const suggestedChain = chainExecutor.selectChainForPrompt(prompt);
+
+        if (suggestedChain) {
+            // Execute LangChain-style pipeline
+            response.content = '🔗 I detected you want to use a specialized workflow. Executing chain pipeline...';
+            response.toolResults.push(await this.executeChainTool(prompt, suggestedChain));
+        } else if (promptLower.includes('create task') || promptLower.includes('@createtask')) {
             response.content = '🦫 I\'ll help you create a new Cappy task. Let me analyze your requirements and generate a structured task.';
             response.toolResults.push(await this.executeCreateTaskTool(prompt));
         } else if (promptLower.includes('search') || promptLower.includes('@searchcode')) {
@@ -469,18 +477,24 @@ Just let me know how you'd like to proceed!`;
     private async executeCreateTaskTool(prompt: string) {
         // Integrate with existing createTaskFile command
         try {
+            const taskTitle = this.extractTaskTitle(prompt);
+            const category = this.extractTaskCategory(prompt);
+            
             const result = await vscode.commands.executeCommand('cappy.createTaskFile', {
-                title: this.extractTaskTitle(prompt),
+                title: taskTitle,
                 description: prompt,
-                agent: true
+                area: category,
+                priority: 'media',
+                estimate: '30min'
             });
             
             return {
                 toolName: 'Create Task',
                 data: {
                     success: true,
-                    message: 'Task created successfully',
-                    result: result
+                    message: `Task created successfully: ${taskTitle}`,
+                    result: result,
+                    category: category
                 }
             };
         } catch (error) {
@@ -583,6 +597,42 @@ Just let me know how you'd like to proceed!`;
         }
         
         return firstLine || 'Agent Generated Task';
+    }
+
+    private extractTaskCategory(prompt: string): string {
+        const promptLower = prompt.toLowerCase();
+        
+        // Try to detect category from prompt content
+        if (promptLower.includes('bug') || promptLower.includes('fix') || promptLower.includes('erro')) {
+            return 'bugfix';
+        }
+        if (promptLower.includes('test') || promptLower.includes('teste')) {
+            return 'testing';
+        }
+        if (promptLower.includes('refactor') || promptLower.includes('refatorar')) {
+            return 'refactor';
+        }
+        if (promptLower.includes('doc') || promptLower.includes('document')) {
+            return 'documentation';
+        }
+        if (promptLower.includes('deploy') || promptLower.includes('ci/cd')) {
+            return 'deployment';
+        }
+        if (promptLower.includes('auth') || promptLower.includes('login') || promptLower.includes('security')) {
+            return 'security';
+        }
+        if (promptLower.includes('api') || promptLower.includes('endpoint')) {
+            return 'api';
+        }
+        if (promptLower.includes('ui') || promptLower.includes('interface') || promptLower.includes('frontend')) {
+            return 'frontend';
+        }
+        if (promptLower.includes('database') || promptLower.includes('db') || promptLower.includes('backend')) {
+            return 'backend';
+        }
+        
+        // Default to feature if no specific category detected
+        return 'feature';
     }
 
     private extractSearchTerm(prompt: string): string {
@@ -1025,6 +1075,36 @@ Just let me know how you'd like to proceed!`;
             `;
         }
     }
+
+    private async executeChainTool(prompt: string, chainId: string) {
+        try {
+            const chainExecutor = ChainExecutor.getInstance();
+            const result = await chainExecutor.executeTemplate(chainId, prompt);
+            
+            return {
+                toolName: 'CappyChain',
+                data: {
+                    success: true,
+                    chainId: chainId,
+                    chainName: result.chainName || 'Unknown Chain',
+                    stepsExecuted: result.history?.length || 0,
+                    result: result.result,
+                    message: `Chain "${chainId}" executed successfully with ${result.history?.length || 0} steps`
+                }
+            };
+        } catch (error) {
+            return {
+                toolName: 'CappyChain',
+                data: {
+                    success: false,
+                    chainId: chainId,
+                    error: error?.toString(),
+                    message: `Chain execution failed: ${error}`
+                }
+            };
+        }
+    }
+
     public show() {
         if (this._view) {
             this._view.show?.(true);

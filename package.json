@@ -151,6 +151,16 @@
         "category": "CappyRAG"
       },
       {
+        "command": "cappy.executeChain",
+        "title": "🔗 Cappy: Execute Chain",
+        "category": "Cappy"
+      },
+      {
+        "command": "cappy.executeChainWithSelection",
+        "title": "🔗 Cappy: Execute Chain with Selection",
+        "category": "Cappy"
+      },
+      {
         "command": "cappyrag.populateSampleData",
         "title": "🔨 CappyRAG: Populate Sample Data",
         "category": "CappyRAG"
@@ -200,6 +210,30 @@
         "title": "💬 Cappy: Open Task Chat",
         "category": "Cappy",
         "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "cappy.chainDemo",
+        "title": "🔗 CappyChain: Demo",
+        "category": "CappyChain",
+        "icon": "$(symbol-event)"
+      },
+      {
+        "command": "cappy.chainQuickDemo",
+        "title": "⚡ CappyChain: Quick Tool Demo",
+        "category": "CappyChain",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "cappy.chainListTemplates",
+        "title": "📋 CappyChain: List Templates",
+        "category": "CappyChain",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "cappy.chainExecuteTemplate",
+        "title": "🚀 CappyChain: Execute Template",
+        "category": "CappyChain",
+        "icon": "$(play)"
       }
     ],
     "configuration": {
@@ -242,7 +276,12 @@
               },
               "provider": {
                 "type": "string",
-                "enum": ["openai", "anthropic", "local", "azure"],
+                "enum": [
+                  "openai",
+                  "anthropic",
+                  "local",
+                  "azure"
+                ],
                 "description": "Model provider"
               },
               "apiKey": {
@@ -263,7 +302,11 @@
         },
         "cappy.chat.ollama.models": {
           "type": "array",
-          "default": ["llama2", "codellama", "mistral"],
+          "default": [
+            "llama2",
+            "codellama",
+            "mistral"
+          ],
           "description": "Ollama models to show in Cappy Chat (if Ollama is installed)",
           "items": {
             "type": "string"
@@ -626,8 +669,9 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./ && npm run copy-assets && npm run copy-mcp-package",
-    "copy-assets": "node -e \"const fs=require('fs'),path=require('path');const src='src/commands/cappyrag/templates',dest='out/commands/cappyrag/templates';fs.mkdirSync(dest,{recursive:true});['dashboard.css','dashboard.js'].forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dest,f)));const webviewSrc='src/webview',webviewDest='out/webview';fs.mkdirSync(webviewDest,{recursive:true});fs.readdirSync(webviewSrc).filter(f=>f.endsWith('.html')||f.endsWith('.js')||f.endsWith('.css')).forEach(f=>fs.copyFileSync(path.join(webviewSrc,f),path.join(webviewDest,f)))\"",
+    "build:webview": "vite build --config src/webview/chat-app/vite.config.ts",
+    "compile": "npm run build:webview && tsc -p ./ && npm run copy-assets && npm run copy-mcp-package",
+    "copy-assets": "node -e \"const fs=require('fs'),path=require('path');const src='src/commands/cappyrag/templates',dest='out/commands/cappyrag/templates';fs.mkdirSync(dest,{recursive:true});['dashboard.css','dashboard.js'].forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dest,f)));const webviewSrc='src/webview',webviewDest='out/webview';fs.mkdirSync(webviewDest,{recursive:true});fs.readdirSync(webviewSrc).filter(f=>f.endsWith('.html')||f.endsWith('.css')||f.endsWith('.js')).forEach(f=>fs.copyFileSync(path.join(webviewSrc,f),path.join(webviewDest,f)));const chatDist='src/webview/chat-dist';if(fs.existsSync(chatDist)){fs.readdirSync(chatDist).forEach(f=>{fs.copyFileSync(path.join(chatDist,f),path.join(webviewDest,f));});}\"",
     "copy-mcp-package": "node -e \"const fs=require('fs');fs.mkdirSync('out/mcp-standalone',{recursive:true});fs.writeFileSync('out/mcp-standalone/package.json',JSON.stringify({type:'module'},null,2))\"",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
@@ -642,17 +686,23 @@
     "@types/glob": "^8.0.0",
     "@types/mocha": "^10.0.0",
     "@types/node": "16.x",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
     "@types/sinon": "^17.0.4",
     "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^5.45.0",
     "@typescript-eslint/parser": "^5.45.0",
+    "@vitejs/plugin-react": "^3.1.0",
     "@vscode/test-electron": "^2.2.0",
     "@vscode/vsce": "^3.6.0",
     "eslint": "^8.28.0",
     "glob": "^8.0.3",
     "mocha": "^10.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "sinon": "^21.0.0",
-    "typescript": "^4.9.4"
+    "typescript": "^4.9.4",
+    "vite": "^4.5.3"
   },
   "dependencies": {
     "@lancedb/lancedb": "^0.22.1",
