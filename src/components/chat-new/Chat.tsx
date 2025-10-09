@@ -1,32 +1,91 @@
-import React, { useState, useCallback } from 'react';
-import { AssistantProvider, AssistantMessage, ComposerPrimitive } from '@assistant-ui/react';
-import { LangGraphRuntime, Message } from '../../services/langgraph/runtime';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import './Chat.css';
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: Date;
+}
 
 interface ChatProps {
   className?: string;
 }
 
-export const chatComponent: React.FC<ChatProps> = ({ className }) => {
-  const [runtime] = useState(() => new LangGraphRuntime());
+// Declare vscode API available in webview context
+declare global {
+  interface Window {
+    vscodeApi?: any;
+    logMessage?: (message: string) => void;
+    logError?: (message: string) => void;
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/naming-convention
+export default function Chat({ className }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Listen for messages from the extension
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data;
+      
+      switch (message.type) {
+        case 'chatResponse': {
+          // Add assistant response to messages
+          const assistantMsg: Message = {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: message.content,
+            createdAt: new Date()
+          };
+          setMessages(prev => [...prev, assistantMsg]);
+          setIsLoading(false);
+          break;
+        }
+        case 'error':
+          window.logError?.(message.message);
+          setIsLoading(false);
+          break;
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) {
       return;
     }
 
+    // Add user message immediately
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content,
+      createdAt: new Date()
+    };
+    setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
-    try {
-      const response = await runtime.processMessage(content);
-      setMessages(runtime.getMessages());
-    } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
-    } finally {
-      setIsLoading(false);
+    setInputValue('');
+
+    // Send message to extension for processing
+    window.vscodeApi?.postMessage({
+      type: 'sendMessage',
+      content
+    });
+  }, [isLoading]);
+
+  const handleSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputValue.trim()) {
+      handleSendMessage(inputValue);
     }
-  }, [runtime, isLoading]);
+  }, [inputValue, handleSendMessage]);
 
   return (
     <div className={`chat-container ${className || ''}`}>
@@ -50,27 +109,22 @@ export const chatComponent: React.FC<ChatProps> = ({ className }) => {
       </div>
       
       <div className="composer-container">
-        <ComposerPrimitive.Root onSubmit={(e) => {
-          e.preventDefault();
-          const formData = new FormData(e.currentTarget);
-          const message = formData.get('message') as string;
-          if (message) {
-            handleSendMessage(message);
-            e.currentTarget.reset();
-          }
-        }}>
-          <ComposerPrimitive.Input 
+        <form onSubmit={handleSubmit}>
+          <input
+            ref={inputRef}
+            type="text"
             name="message"
-            placeholder="Digite sua mensagem..." 
+            placeholder="Digite sua mensagem..."
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
             disabled={isLoading}
+            autoComplete="off"
           />
-          <ComposerPrimitive.Send disabled={isLoading}>
+          <button type="submit" disabled={isLoading || !inputValue.trim()}>
             {isLoading ? 'Enviando...' : 'Enviar'}
-          </ComposerPrimitive.Send>
-        </ComposerPrimitive.Root>
+          </button>
+        </form>
       </div>
     </div>
   );
-};
-
-export default chatComponent;
+}

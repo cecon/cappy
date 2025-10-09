@@ -1,4 +1,14 @@
-import { LangGraphChatEngine } from "./engine";
+// Use a lighter web engine when bundling for the webview
+// Fallback to Node engine in extension runtime if needed
+let engineCtor: any;
+try {
+  // In bundling for web, prefer the web engine
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  engineCtor = require('./engine.web').LangGraphChatEngine;
+} catch {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  engineCtor = require('./engine').LangGraphChatEngine;
+}
 
 export interface Message {
   id: string;
@@ -8,11 +18,11 @@ export interface Message {
 }
 
 export class LangGraphRuntime {
-  private engine: LangGraphChatEngine;
+  private readonly engine: InstanceType<typeof engineCtor>;
   private messages: Message[] = [];
 
   constructor() {
-    this.engine = new LangGraphChatEngine();
+  this.engine = new engineCtor();
   }
 
   async processMessage(userMessage: string): Promise<Message> {

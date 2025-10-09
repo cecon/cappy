@@ -668,11 +668,13 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run compile && npm run build:chat",
     "compile": "tsc -p ./ && npm run copy-assets && npm run copy-mcp-package",
+    "build:chat": "node build-chat.js",
     "copy-assets": "node -e \"const fs=require('fs'),path=require('path');const src='src/commands/cappyrag/templates',dest='out/commands/cappyrag/templates';fs.mkdirSync(dest,{recursive:true});['dashboard.css','dashboard.js'].forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dest,f)));const webviewSrc='src/webview',webviewDest='out/webview';if(fs.existsSync(webviewSrc)){fs.mkdirSync(webviewDest,{recursive:true});fs.readdirSync(webviewSrc).filter(f=>f.endsWith('.html')||f.endsWith('.css')||f.endsWith('.js')).forEach(f=>fs.copyFileSync(path.join(webviewSrc,f),path.join(webviewDest,f)));}\"",
     "copy-mcp-package": "node -e \"const fs=require('fs');fs.mkdirSync('out/mcp-standalone',{recursive:true});fs.writeFileSync('out/mcp-standalone/package.json',JSON.stringify({type:'module'},null,2))\"",
     "watch": "tsc -watch -p ./",
+    "watch:chat": "node build-chat.js --watch",
     "lint": "eslint src --ext ts",
     "test": "npm run compile && node ./out/test/runTest.js",
     "test-simple": "npm run compile && echo 'Simple tests compiled successfully - check VS Code test output'",
@@ -694,6 +696,7 @@
     "@vitejs/plugin-react": "^3.1.0",
     "@vscode/test-electron": "^2.2.0",
     "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.19.0",
     "eslint": "^8.28.0",
     "glob": "^8.0.3",
     "mocha": "^10.1.0",

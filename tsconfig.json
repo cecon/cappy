@@ -32,8 +32,9 @@
     "src/ui/uiManager.ts",
     "src/commands/lightragSearch.ts",
     "src/test/**",
-    "src/webview/chat-app/**",
     "src/components/chat-new/**",
-    "src/components/TestChatPage.tsx"
+    "src/components/TestChatPage.tsx",
+    "src/services/langgraph/adapter.ts",
+    "src/services/tools/terminal/terminalTool.ts"
   ]
 }

@@ -1,5 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { terminalTool } from "../tools/terminal/terminalTool";
+// import { terminalTool } from "../tools/terminal/terminalTool";
 
 export const langGraphConfig = {
   model: new ChatOpenAI({
@@ -10,9 +10,9 @@ export const langGraphConfig = {
   }),
   
   tools: [
-    terminalTool,
+    // terminalTool, // Disabled for production build
     // Add more tools here as needed
-  ],
+  ] as any[],
   
   // LangGraph specific configurations
   graph: {

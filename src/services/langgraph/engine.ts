@@ -1,6 +1,6 @@
 import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
-import { terminalTool } from "../tools/terminal/terminalTool";
+// import { terminalTool } from "../tools/terminal/terminalTool"; // Disabled for production
 import langGraphConfig from "./config";
 
 // Estado simplificado do chat

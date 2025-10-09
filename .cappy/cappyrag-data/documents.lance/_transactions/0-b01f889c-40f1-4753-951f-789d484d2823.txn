@@ -1,4 +1,0 @@
-$b01f889c-40f1-4753-951f-789d484d2823²¯"id ÿÿÿÿÿÿÿÿÿ*string8Zdefault'title ÿÿÿÿÿÿÿÿÿ*string8Zdefault-description ÿÿÿÿÿÿÿÿÿ*string8Zdefault*category ÿÿÿÿÿÿÿÿÿ*string8Zdefault$tags ÿÿÿÿÿÿÿÿÿ*list8Zdefaultitem *string8Zdefault*filePath ÿÿÿÿÿÿÿÿÿ*string8Zdefault*fileName ÿÿÿÿÿÿÿÿÿ*string8Zdefault*fileSize ÿÿÿÿÿÿÿÿÿ*double8Zdefault)content	 ÿÿÿÿÿÿÿÿÿ*string8Zdefault(status
- ÿÿÿÿÿÿÿÿÿ*string8Zdefault3processingResults ÿÿÿÿÿÿÿÿÿ*struct0Zdefault entities *int328Zdefault%relationships *int328Zdefaultchunks *int328Zdefault'processingTime *string8Zdefault)created ÿÿÿÿÿÿÿÿÿ*string8Zdefault)updated ÿÿÿÿÿÿÿÿÿ*string8Zdefault"'
-lance.auto_cleanup.older_than14days"!
-lance.auto_cleanup.interval20

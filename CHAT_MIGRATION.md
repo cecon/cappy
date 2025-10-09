@@ -126,6 +126,53 @@ export const langGraphConfig = {
 - [x] ✅ Migrar interface para assistant-ui
 - [x] ✅ Integrar LangGraph com assistant-ui  
 - [x] ✅ Remover código legado do chat
+- [x] ✅ Integrar com VS Code Extension (ChatViewProvider)
+- [x] ✅ Criar build system para React component (esbuild)
+- [x] ✅ Registrar provider e comandos no extension.ts
+- [x] ✅ Configurar viewsContainer no package.json
 - [ ] 🚧 Testar integração completa
-- [ ] 🚧 Integrar com VS Code Extension
 - [ ] 🚧 Implementar persistência de conversas
+
+## 🚀 Integração em Produção (Concluída)
+
+### Arquivos Criados/Modificados
+
+1. **`src/ui/chatViewProvider.ts`** - Provider VS Code para webview do chat
+2. **`src/components/chat-new/chatBundle.tsx`** - Entry point React para bundle
+3. **`build-chat.js`** - Script esbuild para bundle React
+4. **`src/extension.ts`** - Registrado ChatViewProvider e comando cappy.chat
+5. **`package.json`** - Adicionado scripts e dependência esbuild
+
+### Como Usar em Produção
+
+1. **Build da extensão**:
+   ```bash
+   npm run compile     # Compila TypeScript + build React
+   ```
+
+2. **Abrir Chat**:
+   - Command Palette: `Cappy: Open Task Chat`
+   - Ou clique no ícone na Activity Bar: "Cappy Task Chat"
+
+3. **Features Disponíveis**:
+   - ✅ Interface React moderna com assistant-ui
+   - ✅ Integração com LangGraph para orquestração
+   - ✅ Terminal tool para executar comandos
+   - ✅ Acesso ao contexto do workspace
+   - ✅ Informações da task ativa
+
+### Arquitetura de Produção
+
+```
+VS Code Extension (TypeScript)
+    ↓
+ChatViewProvider (WebviewViewProvider)
+    ↓
+Webview (HTML + React Bundle)
+    ↓
+Chat Component (React + assistant-ui)
+    ↓
+LangGraphRuntime → LangGraphChatEngine
+    ↓
+Tools (terminal, workspace, tasks)
+```

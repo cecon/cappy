@@ -21,10 +21,11 @@
   background-color: #f8fafc;
 }
 
-.composer-container > div {
+.composer-container form {
   display: flex;
   gap: 8px;
   align-items: center;
+  width: 100%;
 }
 
 .composer-container input {
