@@ -37,7 +37,12 @@ export function createChatService(agent: ChatAgentPort, history: ChatHistoryPort
       session.updatedAt = Date.now()
       await history.save(session)
 
-      const context: ChatContext = { sessionId: session.id }
+      // Pass message history (excluding current message) to the agent
+      const previousMessages = session.messages.slice(0, -1)
+      const context: ChatContext = { 
+        sessionId: session.id,
+        history: previousMessages
+      }
       return agent.processMessage(msg, context)
     },
   }

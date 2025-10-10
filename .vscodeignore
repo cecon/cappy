@@ -1,0 +1,16 @@
+# Exclude large/unnecessary folders from the VSIX
+node_modules/
+old/
+docs/
+.vscode/
+.git/
+.gitignore
+.vscodeignore
+**/*.map
+**/*.test.*
+**/__tests__/**
+**/resources/**/raw/**
+# Keep built output and extension entry
+!out/**
+!resources/**
+# Include package.json, README, LICENSE by default

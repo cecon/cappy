@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { createChatService } from './domains/chat/services/chat-service';
 import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
 import { createInMemoryHistory } from './adapters/secondary/history/in-memory-history';
-import { ChatPanel } from './adapters/primary/vscode/chat/ChatPanel';
+import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvider';
+import { CreateFileTool } from './adapters/secondary/tools/create-file-tool';
 import type { ChatSession } from './domains/chat/entities/session';
 
 /**
@@ -14,6 +15,11 @@ import type { ChatSession } from './domains/chat/entities/session';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🦫 Cappy extension is now active! (React + Vite version)');
+
+    // Register Language Model Tools
+    const createFileTool = vscode.lm.registerTool('cappy_create_file', new CreateFileTool());
+    context.subscriptions.push(createFileTool);
+    console.log('✅ Registered Language Model Tool: cappy_create_file');
     
     // Register the graph visualization command
     const openGraphCommand = vscode.commands.registerCommand('cappy.openGraph', () => {
@@ -27,10 +33,10 @@ export function activate(context: vscode.ExtensionContext) {
     const history = createInMemoryHistory();
     const chatService = createChatService(agent, history);
 
-    // Register TreeDataProvider for the Chat view (sidebar)
-    const chatTreeProvider = new ChatTreeProvider(history);
+    // Register WebviewView Provider for Chat in the sidebar
+    const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
     context.subscriptions.push(
-        vscode.window.registerTreeDataProvider('cappy.chatView', chatTreeProvider)
+        vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
     );
 
     // Command to focus the custom Cappy activity container
@@ -40,42 +46,22 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(focusActivityCommand);
 
-    // Register command to open Chat panel
-    // Open selected session in ChatPanel
+    // Command to focus and load a session in the chat view
     const openChatCommand = vscode.commands.registerCommand('cappy.openChat', async (session?: ChatSession) => {
-        ChatPanel.createOrShow(context, chatService, session ?? null);
+        await vscode.commands.executeCommand('cappy.chatView.focus');
+        if (session) {
+            await chatViewProvider.loadSession(session);
+        }
     });
     context.subscriptions.push(openChatCommand);
 
-    // New session command
+    // New session command - creates and loads a new session
     const newSessionCommand = vscode.commands.registerCommand('cappy.chat.newSession', async () => {
         const session = await chatService.startSession('New Chat');
-        chatTreeProvider.refresh();
-        ChatPanel.createOrShow(context, chatService, session);
+        await vscode.commands.executeCommand('cappy.chatView.focus');
+        await chatViewProvider.loadSession(session);
     });
     context.subscriptions.push(newSessionCommand);
-
-    // Rename session command
-    const renameSessionCommand = vscode.commands.registerCommand('cappy.chat.renameSession', async (session: ChatSession) => {
-        const newTitle = await vscode.window.showInputBox({ prompt: 'Novo nome da sessão', value: session.title });
-        if (newTitle && newTitle !== session.title) {
-            session.title = newTitle;
-            session.updatedAt = Date.now();
-            await history.save(session);
-            chatTreeProvider.refresh();
-        }
-    });
-    context.subscriptions.push(renameSessionCommand);
-
-    // Delete session command
-    const deleteSessionCommand = vscode.commands.registerCommand('cappy.chat.deleteSession', async (session: ChatSession) => {
-        const confirm = await vscode.window.showWarningMessage(`Apagar sessão "${session.title}"?`, { modal: true }, 'Apagar');
-        if (confirm === 'Apagar') {
-            await history.delete(session.id);
-            chatTreeProvider.refresh();
-        }
-    });
-    context.subscriptions.push(deleteSessionCommand);
     
     // Add a Status Bar shortcut to open the graph
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -144,15 +130,8 @@ async function openGraphVisualization(context: vscode.ExtensionContext) {
  * @param extensionUri - Extension URI
  * @returns HTML content string
  */
-function getGraphWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
-    // Get the local path to main script run in the webview
-    const scriptPathOnDisk = vscode.Uri.joinPath(extensionUri, 'out', 'main.js');
-    const scriptUri = webview.asWebviewUri(scriptPathOnDisk);
-
-    // Get the local path to CSS
-    const stylesPathOnDisk = vscode.Uri.joinPath(extensionUri, 'out', 'main.css');
-    const stylesUri = webview.asWebviewUri(stylesPathOnDisk);
-
+function getGraphWebviewContent(webview: vscode.Webview, _extensionUri: vscode.Uri): string {
+    void _extensionUri; // Parâmetro mantido para compatibilidade
     // Use a nonce to whitelist which scripts can be run
     const nonce = getNonce();
 
@@ -165,7 +144,6 @@ function getGraphWebviewContent(webview: vscode.Webview, extensionUri: vscode.Ur
               script-src 'nonce-${nonce}' ${webview.cspSource};
               img-src ${webview.cspSource} data:;">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link href="${stylesUri}" rel="stylesheet">
         <title>Cappy Knowledge Graph</title>
         <style>
             body, html {
@@ -207,20 +185,19 @@ function getGraphWebviewContent(webview: vscode.Webview, extensionUri: vscode.Ur
         <div id="root">
             <div class="loading">
                 <div class="loading-spinner"></div>
-                <h2>🦫 Loading Cappy Knowledge Graph...</h2>
-                <p>Preparing graph visualization with React + D3.js</p>
+                <h2>🦫 Cappy Knowledge Graph</h2>
+                <p>Graph visualization será implementado em breve...</p>
+                <p>Por enquanto, teste o chat na sidebar!</p>
             </div>
         </div>
         <script nonce="${nonce}">
             // VS Code API
             const vscode = acquireVsCodeApi();
             
-            // Initialize React app
+            // Initialize
             window.addEventListener('load', () => {
                 // Signal that webview is ready
                 vscode.postMessage({ command: 'ready' });
-                
-                // TODO: Load React graph component
                 console.log('🦫 Graph webview loaded');
             });
             
@@ -232,7 +209,6 @@ function getGraphWebviewContent(webview: vscode.Webview, extensionUri: vscode.Ur
                 });
             });
         </script>
-        <script nonce="${nonce}" src="${scriptUri}"></script>
     </body>
     </html>`;
 }
@@ -253,54 +229,4 @@ export function deactivate() {
     console.log('🦫 Cappy extension deactivated');
 }
 
-/**
- * Minimal TreeDataProvider for the Chat view in the Activity Bar.
- * Shows an empty state for now; will be wired to Chat sessions later.
- */
-class ChatTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<vscode.TreeItem | undefined | void> = new vscode.EventEmitter<vscode.TreeItem | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
-
-    private history: ReturnType<typeof createInMemoryHistory>;
-
-    constructor(history: ReturnType<typeof createInMemoryHistory>) {
-        this.history = history;
-    }
-    refresh(): void {
-        this._onDidChangeTreeData.fire();
-    }
-
-    getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
-        return element;
-    }
-
-    async getChildren(): Promise<vscode.TreeItem[]> {
-        const sessions = await this.history.list();
-        if (!sessions.length) {
-            const info = new vscode.TreeItem('Nenhuma sessão de chat', vscode.TreeItemCollapsibleState.None);
-            info.description = 'Use o menu ou palette para criar uma nova sessão.';
-            info.iconPath = new vscode.ThemeIcon('comment');
-            return [info];
-        }
-        return sessions.map(session => {
-            const item = new ChatSessionTreeItem(session);
-            return item;
-        });
-    }
-}
-
-class ChatSessionTreeItem extends vscode.TreeItem {
-    session: ChatSession;
-    constructor(session: ChatSession) {
-        super(session.title, vscode.TreeItemCollapsibleState.None);
-        this.session = session;
-        this.description = new Date(session.updatedAt).toLocaleString();
-        this.iconPath = new vscode.ThemeIcon('comment-discussion');
-        this.contextValue = 'chatSession';
-        this.command = {
-            command: 'cappy.openChat',
-            title: 'Abrir Chat',
-            arguments: [session]
-        };
-    }
-}
+// TreeDataProvider removido - agora usamos WebviewView diretamente na sidebar

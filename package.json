@@ -57,6 +57,24 @@
         "command": "cappy.openChat",
         "title": "💬 Cappy: Open Chat",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.chat.newSession",
+        "title": "New Chat Session",
+        "category": "Cappy",
+        "icon": "$(add)"
+      },
+      {
+        "command": "cappy.chat.renameSession",
+        "title": "Rename Session",
+        "category": "Cappy",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "cappy.chat.deleteSession",
+        "title": "Delete Session",
+        "category": "Cappy",
+        "icon": "$(trash)"
       }
     ],
     "viewsContainers": {
@@ -64,7 +82,7 @@
         {
           "id": "cappy",
           "title": "Cappy",
-          "icon": "resources/icons/cappy-activity.svg"
+          "icon": "$(robot)"
         }
       ]
     },
@@ -73,8 +91,8 @@
         {
           "id": "cappy.chatView",
           "name": "Chat",
-          "type": "tree",
-          "icon": "resources/icons/cappy-activity.svg"
+          "type": "webview",
+          "icon": "$(comment-discussion)"
         }
       ]
     },
@@ -94,6 +112,18 @@
           "command": "cappy.openChat",
           "when": "true",
           "group": "cappy"
+        },
+        {
+          "command": "cappy.chat.newSession",
+          "when": "true",
+          "group": "cappy"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "cappy.chat.newSession",
+          "when": "view == cappy.chatView",
+          "group": "navigation"
         }
       ]
     },
@@ -109,7 +139,27 @@
       "title": "Cappy",
       "properties": {}
     },
-    "languageModelTools": []
+    "languageModelTools": [
+      {
+        "name": "cappy_create_file",
+        "displayName": "Create File",
+        "modelDescription": "Creates a new file in the workspace with the specified content. Use this when the user asks to create a file.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Relative path from workspace root where the file should be created"
+            },
+            "content": {
+              "type": "string",
+              "description": "Content to write to the file"
+            }
+          },
+          "required": ["path", "content"]
+        }
+      }
+    ]
   },
   "scripts": {
     "dev": "vite",
@@ -123,8 +173,13 @@
     "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.11.28",
+    "@assistant-ui/react-markdown": "^0.11.1",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

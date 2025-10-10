@@ -22,8 +22,14 @@ export default defineConfig({
       }
     },
     target: 'es2020',
-    minify: 'esbuild'
+    minify: 'esbuild',
+    // Important: use relative paths for VS Code webview
+    assetsInlineLimit: 0,
+    cssCodeSplit: false
   },
+  
+  // Use relative base for webview compatibility
+  base: './',
   
   // Development server configuration
   server: {
