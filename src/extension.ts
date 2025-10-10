@@ -16,6 +16,19 @@ export function activate(context: vscode.ExtensionContext) {
     });
     
     context.subscriptions.push(openGraphCommand);
+
+    // Register a minimal TreeDataProvider for the Chat view so the Activity Bar container renders properly
+    const chatTreeProvider = new ChatTreeProvider();
+    context.subscriptions.push(
+        vscode.window.registerTreeDataProvider('cappy.chatView', chatTreeProvider)
+    );
+
+    // Command to focus the custom Cappy activity container
+    const focusActivityCommand = vscode.commands.registerCommand('cappy.focusActivity', async () => {
+        // Built-in command for custom view containers: workbench.view.extension.<containerId>
+        await vscode.commands.executeCommand('workbench.view.extension.cappy');
+    });
+    context.subscriptions.push(focusActivityCommand);
     
     // Add a Status Bar shortcut to open the graph
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -191,4 +204,29 @@ function getNonce(): string {
 
 export function deactivate() {
     console.log('🦫 Cappy extension deactivated');
+}
+
+/**
+ * Minimal TreeDataProvider for the Chat view in the Activity Bar.
+ * Shows an empty state for now; will be wired to Chat sessions later.
+ */
+class ChatTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<vscode.TreeItem | undefined | void> = new vscode.EventEmitter<vscode.TreeItem | undefined | void>();
+    readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
+
+    refresh(): void {
+        this._onDidChangeTreeData.fire();
+    }
+
+    getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
+        return element;
+    }
+
+    getChildren(): Thenable<vscode.TreeItem[]> {
+        // Placeholder empty view
+        const info = new vscode.TreeItem('No chat sessions yet', vscode.TreeItemCollapsibleState.None);
+        info.description = 'Use Command Palette: Cappy: New Chat (coming soon)';
+        info.iconPath = new vscode.ThemeIcon('comment');
+        return Promise.resolve([info]);
+    }
 }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <!-- Capybara silhouette -->
+  <path d="M36 156c0-40 32-72 72-72h32c40 0 72 32 72 72 0 24-20 44-44 44H80c-24 0-44-20-44-44z" fill="#8B5E3C"/>
+  <circle cx="94" cy="132" r="6" fill="#1F1F1F"/>
+  <path d="M70 152c8 6 18 10 30 10" stroke="#3A2A1F" stroke-width="6" stroke-linecap="round"/>
+  <!-- Ear -->
+  <path d="M140 92c10-6 20-8 28-6 4 2 6 6 4 10-4 8-14 12-24 10-6-2-10-6-8-14z" fill="#6E4A2F"/>
+  <!-- Nose -->
+  <circle cx="170" cy="152" r="4" fill="#3A2A1F"/>
+  <!-- AI star (in Gemini-like sparkle style) -->
+  <g transform="translate(184,64)">
+    <path d="M24 0l4 12 12 4-12 4-4 12-4-12-12-4 12-4 4-12z" fill="#7BC6FF"/>
+    <circle cx="24" cy="24" r="6" fill="#9AD6FF"/>
+  </g>
+</svg>

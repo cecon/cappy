@@ -33,8 +33,7 @@
     "language-model-tools"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onCommand:cappy.openGraph"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "capabilities": {
@@ -48,12 +47,41 @@
         "command": "cappy.openGraph",
         "title": "📊 Cappy: Open Graph",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.focusActivity",
+        "title": "Cappy: Focus Activity View",
+        "category": "Cappy"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cappy",
+          "title": "Cappy",
+          "icon": "resources/icons/cappy-activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "cappy": [
+        {
+          "id": "cappy.chatView",
+          "name": "Chat",
+          "type": "tree",
+          "icon": "resources/icons/cappy-activity.svg"
+        }
+      ]
+    },
     "menus": {
       "commandPalette": [
         {
           "command": "cappy.openGraph",
+          "when": "true",
+          "group": "cappy"
+        },
+        {
+          "command": "cappy.focusActivity",
           "when": "true",
           "group": "cappy"
         }
