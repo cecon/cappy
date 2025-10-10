@@ -2,11 +2,10 @@
   "name": "cappy",
   "displayName": "Cappy",
   "description": "AI coding companion with Single-Focus Workflow, CappyRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
-  "icon": "assets/icon.png",
-  "version": "2.9.101",
+  "version": "3.0.0",
   "publisher": "eduardocecon",
   "engines": {
-    "vscode": "^1.75.0",
+    "vscode": "^1.105.0",
     "cursor": ">=0.1.0"
   },
   "categories": [
@@ -35,17 +34,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onLanguageModelTool:cappy_init",
-    "onLanguageModelTool:cappy_knowstack",
-    "onLanguageModelTool:cappy_create_task",
-    "onLanguageModelTool:cappy_work_on_task",
-    "onLanguageModelTool:cappy_complete_task",
-    "onLanguageModelTool:cappy_reindex",
-    "onLanguageModelTool:cappyrag_add_document",
-    "onLanguageModelTool:cappy_query",
-    "onLanguageModelTool:cappyrag_get_stats",
-    "onLanguageModelTool:cappyrag_get_supported_formats",
-    "onLanguageModelTool:cappyrag_estimate_processing_time"
+    "onCommand:cappy.openGraph"
   ],
   "main": "./out/extension.js",
   "capabilities": {
@@ -56,681 +45,63 @@
   "contributes": {
     "commands": [
       {
-        "command": "cappy.init",
-        "title": "🦫 Initialize Cappy",
+        "command": "cappy.openGraph",
+        "title": "📊 Cappy: Open Graph",
         "category": "Cappy"
-      },
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "cappy.openGraph",
+          "when": "true",
+          "group": "cappy"
+        }
+      ]
+    },
+    "keybindings": [
       {
-        "command": "cappy.knowstack",
-        "title": "🧠 Cappy: KnowStack",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.runknowstack",
-        "title": "🧠 Cappy: KnowStack (alias)",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.knowtask",
-        "title": "🧠 Cappy: KnowStack (typo alias)",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.viewTelemetryTerms",
-        "title": "📄 Cappy: Ver Termos de Telemetria",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.getActiveTask",
-        "title": "📄 Cappy: Get Active Task (XML content)",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.version",
-        "title": "📦 Cappy: Get Version",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.createTaskFile",
-        "title": "📝 Cappy: Create Task File",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.changeTaskStatus",
-        "title": "🔄 Cappy: Change Task Status",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.completeTask",
-        "title": "✅ Cappy: Complete Task",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.addPreventionRule",
-        "title": "➕ Cappy: Add Prevention Rule",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.removePreventionRule",
-        "title": "➖ Cappy: Remove Prevention Rule",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.workOnCurrentTask",
-        "title": "🎯 Cappy: Work on Current Task",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.reindex",
-        "title": "🔄 Cappy: Reindex Files",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappyrag.indexWorkspace",
-        "title": "🔍 CappyRAG: Index Workspace",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappyrag.search",
-        "title": "🔎 CappyRAG: Search",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappyrag.openGraph",
-        "title": "📊 CappyRAG: Open Graph",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappyrag.indexFile",
-        "title": "📄 CappyRAG: Index File",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappyrag.pauseWatcher",
-        "title": "⏸️ CappyRAG: Pause Watcher",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappy.executeChain",
-        "title": "🔗 Cappy: Execute Chain",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.executeChainWithSelection",
-        "title": "🔗 Cappy: Execute Chain with Selection",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappyrag.populateSampleData",
-        "title": "🔨 CappyRAG: Populate Sample Data",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappyrag.uploadUI",
-        "title": "📄 CappyRAG: Upload Documents",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappyrag.getStats",
-        "title": "📊 CappyRAG: Get Knowledge Base Stats",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappy.CappyRAG.cleanOrphanedData",
-        "title": "🧹 CappyRAG: Clean Orphaned Entities & Chunks",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappyrag.getSupportedFormats",
-        "title": "📃 CappyRAG: Get Supported Formats",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappyrag.estimateProcessingTime",
-        "title": "⏱️ CappyRAG: Estimate Processing Time",
-        "category": "CappyRAG"
-      },
-      {
-        "command": "cappy.query",
-        "title": "🔍 Cappy: Query",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.configureCopilot",
-        "title": "🤖 Cappy: Configure Copilot Instructions",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.removeCopilotConfig",
-        "title": "🔄 Cappy: Remove Copilot Configuration",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.chat",
-        "title": "💬 Cappy: Open Task Chat",
-        "category": "Cappy",
-        "icon": "$(comment-discussion)"
-      },
-      {
-        "command": "cappy.chainDemo",
-        "title": "🔗 CappyChain: Demo",
-        "category": "CappyChain",
-        "icon": "$(symbol-event)"
-      },
-      {
-        "command": "cappy.chainQuickDemo",
-        "title": "⚡ CappyChain: Quick Tool Demo",
-        "category": "CappyChain",
-        "icon": "$(zap)"
-      },
-      {
-        "command": "cappy.chainListTemplates",
-        "title": "📋 CappyChain: List Templates",
-        "category": "CappyChain",
-        "icon": "$(list-flat)"
-      },
-      {
-        "command": "cappy.chainExecuteTemplate",
-        "title": "🚀 CappyChain: Execute Template",
-        "category": "CappyChain",
-        "icon": "$(play)"
+        "command": "cappy.openGraph",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g",
+        "when": "editorTextFocus"
       }
     ],
     "configuration": {
       "title": "Cappy",
-      "properties": {
-        "cappy.autoUpdateCopilotContext": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically update Copilot context when prevention rules change"
-        },
-        "cappy.maxPreventionRules": {
-          "type": "number",
-          "default": 50,
-          "description": "Maximum number of prevention rules to include in Copilot context"
-        },
-        "cappy.taskTimeEstimation": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable automatic task time estimation and atomicity analysis"
-        },
-        "cappy.showNotifications": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show notifications for Cappy events"
-        },
-        "cappy.chat.customModels": {
-          "type": "array",
-          "default": [],
-          "description": "Custom LLM models configuration",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Unique identifier for the model"
-              },
-              "name": {
-                "type": "string",
-                "description": "Display name for the model"
-              },
-              "provider": {
-                "type": "string",
-                "enum": [
-                  "openai",
-                  "anthropic",
-                  "local",
-                  "azure"
-                ],
-                "description": "Model provider"
-              },
-              "apiKey": {
-                "type": "string",
-                "description": "API key for the model (optional)"
-              },
-              "endpoint": {
-                "type": "string",
-                "description": "Custom endpoint URL (optional)"
-              },
-              "available": {
-                "type": "boolean",
-                "default": true,
-                "description": "Whether the model is available for use"
-              }
-            }
-          }
-        },
-        "cappy.chat.ollama.models": {
-          "type": "array",
-          "default": [
-            "llama2",
-            "codellama",
-            "mistral"
-          ],
-          "description": "Ollama models to show in Cappy Chat (if Ollama is installed)",
-          "items": {
-            "type": "string"
-          }
-        },
-        "cappyrag.model": {
-          "type": "string",
-          "enum": [
-            "fast",
-            "quality"
-          ],
-          "default": "fast",
-          "description": "Model type for embeddings: fast (lightweight) or quality (better accuracy)"
-        },
-        "cappyrag.topK": {
-          "type": "number",
-          "default": 10,
-          "minimum": 1,
-          "maximum": 100,
-          "description": "Number of top results to return in searches"
-        },
-        "cappyrag.maxStorageGB": {
-          "type": "number",
-          "default": 2,
-          "minimum": 0.1,
-          "maximum": 50,
-          "description": "Maximum storage limit in GB for LanceDB and cache"
-        },
-        "cappyrag.maxNodes": {
-          "type": "number",
-          "default": 10000,
-          "minimum": 100,
-          "maximum": 100000,
-          "description": "Maximum number of nodes in the graph"
-        },
-        "cappyrag.maxEdges": {
-          "type": "number",
-          "default": 50000,
-          "minimum": 1000,
-          "maximum": 500000,
-          "description": "Maximum number of edges in the graph"
-        },
-        "cappyrag.excludeGlobs": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "node_modules/**",
-            ".git/**",
-            "dist/**",
-            "build/**",
-            "out/**",
-            "*.vsix",
-            "*.jpg",
-            "*.png",
-            "*.gif",
-            "*.pdf",
-            "*.zip"
-          ],
-          "description": "Glob patterns for files and directories to exclude from indexing"
-        }
-      }
+      "properties": {}
     },
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "cappy-chat",
-          "title": "Cappy Task Chat",
-          "icon": "$(comment-discussion)"
-        }
-      ]
-    },
-    "views": {
-      "cappy-chat": [
-        {
-          "id": "cappy.chatView",
-          "name": "Task Assistant",
-          "type": "webview"
-        }
-      ]
-    },
-    "snippets": [
-      {
-        "language": "markdown",
-        "path": "./snippets/capybara.json"
-      }
-    ],
-    "languages": [
-      {
-        "id": "cappy-task-xml",
-        "aliases": [
-          "Cappy Task XML",
-          "cappy-task"
-        ],
-        "extensions": [
-          ".task.xml"
-        ],
-        "configuration": "./language-configuration.json"
-      }
-    ],
-    "grammars": [
-      {
-        "language": "markdown",
-        "scopeName": "text.html.markdown.cappy",
-        "path": "./syntaxes/forge-task.tmLanguage.json"
-      },
-      {
-        "language": "cappy-task-xml",
-        "scopeName": "text.xml.cappy.task",
-        "path": "./syntaxes/cappy-task-xml.tmLanguage.json"
-      }
-    ],
-    "languageModelTools": [
-      {
-        "name": "cappy_init",
-        "displayName": "Cappy: Initialize Workspace",
-        "toolReferenceName": "cappyInit",
-        "modelDescription": "Initialize Cappy structure in the workspace (.cappy folder, config files, copilot-instructions.md). ALWAYS use this tool before any other Cappy operation in a new workspace.",
-        "userDescription": "Set up Cappy's file structure and configuration for the current workspace",
-        "icon": "$(symbol-folder)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappy",
-          "initialization",
-          "workspace setup",
-          "task management",
-          "extension_installed_by_tool"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
-      },
-      {
-        "name": "cappy_knowstack",
-        "displayName": "Cappy: Analyze Technology Stack",
-        "toolReferenceName": "cappyKnowStack",
-        "modelDescription": "Analyze the workspace and generate stack.md documentation with project structure, technology stack, dependencies, and architecture. Use this to understand the project before creating tasks.",
-        "userDescription": "Generate comprehensive documentation about the project's technology stack and structure",
-        "icon": "$(rocket)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappy",
-          "analysis",
-          "project structure",
-          "technology stack",
-          "documentation"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
-      },
-      {
-        "name": "cappy_create_task",
-        "displayName": "Cappy: Create Task File",
-        "toolReferenceName": "cappyCreateTask",
-        "modelDescription": "Create XML task file with rich context injection, automatic prevention rules, and semantic indexing. Use this to create task files directly without needing a separate planning step.",
-        "userDescription": "Create a new task file with context orchestration and prevention rules",
-        "icon": "$(file-add)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappy",
-          "task creation",
-          "xml",
-          "context orchestration",
-          "prevention rules"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
-      },
-      {
-        "name": "cappy_work_on_task",
-        "displayName": "Cappy: Execute Current Task",
-        "toolReferenceName": "cappyWorkOnTask",
-        "modelDescription": "Execute current task step with context-aware assistance, prevention rules verification, and progress tracking. Use this to work on the active task step-by-step.",
-        "userDescription": "Work on the current task step with AI assistance and safety checks",
-        "icon": "$(play-circle)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappy",
-          "task execution",
-          "workflow",
-          "context awareness",
-          "prevention"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
-      },
-      {
-        "name": "cappy_complete_task",
-        "displayName": "Cappy: Complete Task",
-        "toolReferenceName": "cappyCompleteTask",
-        "modelDescription": "Complete current task, capture learnings, update context metrics, extract prevention rules, and move to history. Use this when a task is fully finished.",
-        "userDescription": "Finalize the current task and capture learnings for future tasks",
-        "icon": "$(check-all)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappy",
-          "task completion",
-          "learning capture",
-          "knowledge base"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
-      },
-      {
-        "name": "cappy_reindex",
-        "displayName": "Cappy: Rebuild Indexes",
-        "toolReferenceName": "cappyReindex",
-        "modelDescription": "Rebuild semantic indexes for tasks, documentation, and prevention rules. Use this after adding new docs, completing tasks, or when search results seem outdated.",
-        "userDescription": "Rebuild all semantic indexes for improved search and context retrieval",
-        "icon": "$(refresh)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappy",
-          "indexing",
-          "semantic search",
-          "maintenance"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
-      },
-      {
-        "name": "cappyrag_add_document",
-        "displayName": "CappyRAG: Add Document",
-        "toolReferenceName": "cappyRagAddDocument",
-        "modelDescription": "Add a document to the CappyRAG knowledge base with semantic indexing, chunking, and graph relationship extraction. Supports multiple formats (PDF, DOCX, MD, TXT, code files).",
-        "userDescription": "Add a document to the knowledge base with automatic processing and indexing",
-        "icon": "$(file-add)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappyrag",
-          "knowledge base",
-          "document processing",
-          "semantic indexing",
-          "rag"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "filePath": {
-              "type": "string",
-              "description": "Absolute path to the document file to add"
-            }
-          },
-          "required": [
-            "filePath"
-          ]
-        }
-      },
-      {
-        "name": "cappy_query",
-        "displayName": "Cappy: Query Knowledge Base",
-        "toolReferenceName": "cappyQuery",
-        "modelDescription": "Search the CappyRAG knowledge base using hybrid semantic and text-based search with relevance scoring, graph traversal, and context ranking. Returns most relevant information with sources.",
-        "userDescription": "Search the knowledge base for relevant information using AI-powered search",
-        "icon": "$(search)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappyrag",
-          "knowledge base",
-          "semantic search",
-          "hybrid search",
-          "rag",
-          "retrieval"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "query": {
-              "type": "string",
-              "description": "The search query to find relevant information"
-            },
-            "limit": {
-              "type": "number",
-              "description": "Maximum number of results to return (default: 10)"
-            }
-          },
-          "required": [
-            "query"
-          ]
-        }
-      },
-      {
-        "name": "cappyrag_get_stats",
-        "displayName": "CappyRAG: Get Statistics",
-        "toolReferenceName": "cappyRagStats",
-        "modelDescription": "Get comprehensive statistics about the CappyRAG knowledge base including document counts, storage metrics, index status, and processing history.",
-        "userDescription": "View statistics and health metrics of the knowledge base",
-        "icon": "$(graph)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappyrag",
-          "statistics",
-          "monitoring",
-          "knowledge base"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
-      },
-      {
-        "name": "cappyrag_get_supported_formats",
-        "displayName": "CappyRAG: Supported Formats",
-        "toolReferenceName": "cappyRagFormats",
-        "modelDescription": "Get list of supported document formats for CappyRAG processing with format specifications, file size limits, and processing capabilities.",
-        "userDescription": "List all supported document formats and their specifications",
-        "icon": "$(file-code)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappyrag",
-          "formats",
-          "documentation",
-          "capabilities"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
-      },
-      {
-        "name": "cappyrag_estimate_processing_time",
-        "displayName": "CappyRAG: Estimate Processing",
-        "toolReferenceName": "cappyRagEstimate",
-        "modelDescription": "Estimate processing time for a document based on file size, format complexity, and system load. Use before adding large documents to plan accordingly.",
-        "userDescription": "Estimate how long it will take to process a document",
-        "icon": "$(watch)",
-        "canBeReferencedInPrompt": true,
-        "tags": [
-          "cappyrag",
-          "estimation",
-          "performance",
-          "planning"
-        ],
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "filePath": {
-              "type": "string",
-              "description": "Absolute path to the document file"
-            }
-          },
-          "required": [
-            "filePath"
-          ]
-        }
-      }
-    ]
+    "languageModelTools": []
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile && npm run build:chat",
-    "compile": "tsc -p ./ && npm run copy-assets && npm run copy-mcp-package",
-    "build:chat": "node build-chat.js",
-    "copy-assets": "node -e \"const fs=require('fs'),path=require('path');const src='src/commands/cappyrag/templates',dest='out/commands/cappyrag/templates';fs.mkdirSync(dest,{recursive:true});['dashboard.css','dashboard.js'].forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dest,f)));const webviewSrc='src/webview',webviewDest='out/webview';if(fs.existsSync(webviewSrc)){fs.mkdirSync(webviewDest,{recursive:true});fs.readdirSync(webviewSrc).filter(f=>f.endsWith('.html')||f.endsWith('.css')||f.endsWith('.js')).forEach(f=>fs.copyFileSync(path.join(webviewSrc,f),path.join(webviewDest,f)));}\"",
-    "copy-mcp-package": "node -e \"const fs=require('fs');fs.mkdirSync('out/mcp-standalone',{recursive:true});fs.writeFileSync('out/mcp-standalone/package.json',JSON.stringify({type:'module'},null,2))\"",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "vscode:prepublish": "npm run compile-extension",
+    "compile-extension": "tsc src/extension.ts --outDir out --target ES2020 --module commonjs --moduleResolution node --strict",
     "watch": "tsc -watch -p ./",
-    "watch:chat": "node build-chat.js --watch",
-    "lint": "eslint src --ext ts",
-    "test": "npm run compile && node ./out/test/runTest.js",
-    "test-simple": "npm run compile && echo 'Simple tests compiled successfully - check VS Code test output'",
-    "test-watch": "npm run test -- --watch",
-    "test-folder-structure": "npm run compile && echo 'Teste de estrutura de pastas compilado com sucesso'",
-    "package": "npm version patch && npm run compile && vsce package --dependencies",
+    "package": "npm version patch && npm run compile-extension && vsce package --dependencies",
     "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix"
   },
-  "devDependencies": {
-    "@types/glob": "^8.0.0",
-    "@types/mocha": "^10.0.0",
-    "@types/node": "16.x",
-    "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
-    "@types/sinon": "^17.0.4",
-    "@types/vscode": "^1.74.0",
-    "@typescript-eslint/eslint-plugin": "^5.45.0",
-    "@typescript-eslint/parser": "^5.45.0",
-    "@vitejs/plugin-react": "^3.1.0",
-    "@vscode/test-electron": "^2.2.0",
-    "@vscode/vsce": "^3.6.0",
-    "esbuild": "^0.19.0",
-    "eslint": "^8.28.0",
-    "glob": "^8.0.3",
-    "mocha": "^10.1.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "sinon": "^21.0.0",
-    "typescript": "^5.3.3",
-    "vite": "^4.5.3"
-  },
   "dependencies": {
-    "@assistant-ui/react": "^0.11.28",
-    "@lancedb/lancedb": "^0.22.1",
-    "@langchain/core": "^0.3.12",
-    "@langchain/langgraph": "^0.2.14",
-    "@langchain/openai": "^0.3.2",
-    "@modelcontextprotocol/sdk": "^1.19.1",
-    "@noble/hashes": "^1.8.0",
-    "@xenova/transformers": "^2.17.2",
-    "date-fns": "^2.29.3",
-    "langchain": "^0.3.2",
-    "zod": "^3.22.4"
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   },
-  "overrides": {
-    "zod": "^3.22.4"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/cecon/cappy.git"
-  },
-  "bugs": {
-    "url": "https://github.com/cecon/cappy/issues"
-  },
-  "homepage": "https://github.com/cecon/cappy#readme",
-  "license": "MIT",
-  "author": "",
-  "type": "commonjs"
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "@types/node": "^24.6.0",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@types/vscode": "^1.105.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "@vscode/vsce": "^3.6.2",
+    "eslint": "^9.36.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.22",
+    "globals": "^16.4.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.45.0",
+    "vite": "^7.1.7"
+  }
 }

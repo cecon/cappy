@@ -1,40 +1,7 @@
 {
-  "compilerOptions": {
-    "module": "commonjs",
-    "target": "ES2020",
-  "lib": ["ES2020", "DOM"],
-    "outDir": "out",
-    "rootDir": "src",
-    "sourceMap": true,
-    "strict": true,
-    "moduleResolution": "node",
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    
-  },
-  "exclude": [
-    "node_modules", 
-    ".vscode-test",
-    "src/core/hashing.ts",
-    "src/indexer/**",
-    "src/store/**",
-    "src/indexer.disabled/**",
-    "src/store.disabled/**",
-    "src/query/**",
-    "src/commands/reindexCommand.ts",
-    "src/core/lightgraph.ts",
-    "src/core/chunking.ts",
-    "src/core/chunking-test.ts",
-    "src/graph/**",
-    "src/ui/statusBar.ts",
-    "src/ui/uiManager.ts",
-    "src/commands/lightragSearch.ts",
-    "src/test/**",
-    "src/components/chat-new/**",
-    "src/components/TestChatPage.tsx",
-    "src/services/langgraph/adapter.ts",
-    "src/services/tools/terminal/terminalTool.ts"
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
   ]
 }
