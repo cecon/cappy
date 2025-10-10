@@ -52,6 +52,11 @@
         "command": "cappy.focusActivity",
         "title": "Cappy: Focus Activity View",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.openChat",
+        "title": "💬 Cappy: Open Chat",
+        "category": "Cappy"
       }
     ],
     "viewsContainers": {
@@ -82,6 +87,11 @@
         },
         {
           "command": "cappy.focusActivity",
+          "when": "true",
+          "group": "cappy"
+        },
+        {
+          "command": "cappy.openChat",
           "when": "true",
           "group": "cappy"
         }

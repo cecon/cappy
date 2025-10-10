@@ -1,4 +1,9 @@
 import * as vscode from 'vscode';
+import { createChatService } from './domains/chat/services/chat-service';
+import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
+import { createInMemoryHistory } from './adapters/secondary/history/in-memory-history';
+import { ChatPanel } from './adapters/primary/vscode/chat/ChatPanel';
+import type { ChatSession } from './domains/chat/entities/session';
 
 /**
  * Cappy Extension - React + Vite Version
@@ -17,8 +22,13 @@ export function activate(context: vscode.ExtensionContext) {
     
     context.subscriptions.push(openGraphCommand);
 
-    // Register a minimal TreeDataProvider for the Chat view so the Activity Bar container renders properly
-    const chatTreeProvider = new ChatTreeProvider();
+    // Create adapters and service for chat
+    const agent = new LangGraphChatEngine();
+    const history = createInMemoryHistory();
+    const chatService = createChatService(agent, history);
+
+    // Register TreeDataProvider for the Chat view (sidebar)
+    const chatTreeProvider = new ChatTreeProvider(history);
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('cappy.chatView', chatTreeProvider)
     );
@@ -29,6 +39,43 @@ export function activate(context: vscode.ExtensionContext) {
         await vscode.commands.executeCommand('workbench.view.extension.cappy');
     });
     context.subscriptions.push(focusActivityCommand);
+
+    // Register command to open Chat panel
+    // Open selected session in ChatPanel
+    const openChatCommand = vscode.commands.registerCommand('cappy.openChat', async (session?: ChatSession) => {
+        ChatPanel.createOrShow(context, chatService, session ?? null);
+    });
+    context.subscriptions.push(openChatCommand);
+
+    // New session command
+    const newSessionCommand = vscode.commands.registerCommand('cappy.chat.newSession', async () => {
+        const session = await chatService.startSession('New Chat');
+        chatTreeProvider.refresh();
+        ChatPanel.createOrShow(context, chatService, session);
+    });
+    context.subscriptions.push(newSessionCommand);
+
+    // Rename session command
+    const renameSessionCommand = vscode.commands.registerCommand('cappy.chat.renameSession', async (session: ChatSession) => {
+        const newTitle = await vscode.window.showInputBox({ prompt: 'Novo nome da sessão', value: session.title });
+        if (newTitle && newTitle !== session.title) {
+            session.title = newTitle;
+            session.updatedAt = Date.now();
+            await history.save(session);
+            chatTreeProvider.refresh();
+        }
+    });
+    context.subscriptions.push(renameSessionCommand);
+
+    // Delete session command
+    const deleteSessionCommand = vscode.commands.registerCommand('cappy.chat.deleteSession', async (session: ChatSession) => {
+        const confirm = await vscode.window.showWarningMessage(`Apagar sessão "${session.title}"?`, { modal: true }, 'Apagar');
+        if (confirm === 'Apagar') {
+            await history.delete(session.id);
+            chatTreeProvider.refresh();
+        }
+    });
+    context.subscriptions.push(deleteSessionCommand);
     
     // Add a Status Bar shortcut to open the graph
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -214,6 +261,11 @@ class ChatTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<vscode.TreeItem | undefined | void> = new vscode.EventEmitter<vscode.TreeItem | undefined | void>();
     readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
+    private history: ReturnType<typeof createInMemoryHistory>;
+
+    constructor(history: ReturnType<typeof createInMemoryHistory>) {
+        this.history = history;
+    }
     refresh(): void {
         this._onDidChangeTreeData.fire();
     }
@@ -222,11 +274,33 @@ class ChatTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
         return element;
     }
 
-    getChildren(): Thenable<vscode.TreeItem[]> {
-        // Placeholder empty view
-        const info = new vscode.TreeItem('No chat sessions yet', vscode.TreeItemCollapsibleState.None);
-        info.description = 'Use Command Palette: Cappy: New Chat (coming soon)';
-        info.iconPath = new vscode.ThemeIcon('comment');
-        return Promise.resolve([info]);
+    async getChildren(): Promise<vscode.TreeItem[]> {
+        const sessions = await this.history.list();
+        if (!sessions.length) {
+            const info = new vscode.TreeItem('Nenhuma sessão de chat', vscode.TreeItemCollapsibleState.None);
+            info.description = 'Use o menu ou palette para criar uma nova sessão.';
+            info.iconPath = new vscode.ThemeIcon('comment');
+            return [info];
+        }
+        return sessions.map(session => {
+            const item = new ChatSessionTreeItem(session);
+            return item;
+        });
+    }
+}
+
+class ChatSessionTreeItem extends vscode.TreeItem {
+    session: ChatSession;
+    constructor(session: ChatSession) {
+        super(session.title, vscode.TreeItemCollapsibleState.None);
+        this.session = session;
+        this.description = new Date(session.updatedAt).toLocaleString();
+        this.iconPath = new vscode.ThemeIcon('comment-discussion');
+        this.contextValue = 'chatSession';
+        this.command = {
+            command: 'cappy.openChat',
+            title: 'Abrir Chat',
+            arguments: [session]
+        };
     }
 }
