@@ -1,14 +1,16 @@
 import * as vscode from 'vscode'
 import type { ChatAgentPort, ChatContext } from '../../../domains/chat/ports/agent-port'
 import type { Message } from '../../../domains/chat/entities/message'
+import type { UserPrompt } from '../../../domains/chat/entities/prompt'
 
 /**
  * Chat engine using GitHub Copilot's LLM via VS Code Language Model API
  * 
  * Uses vscode.lm.selectChatModels to access Copilot models.
- * Supports: streaming responses, tool calling, reasoning display
+ * Supports: streaming responses, tool calling, reasoning display, user prompts
  */
 export class LangGraphChatEngine implements ChatAgentPort {
+  private promptResolvers: Map<string, (response: string) => void> = new Map()
   async *processMessage(message: Message, context: ChatContext): AsyncIterable<string> {
     try {
       // Emit reasoning start
@@ -83,9 +85,36 @@ export class LangGraphChatEngine implements ChatAgentPort {
         if (part instanceof vscode.LanguageModelTextPart) {
           yield part.value
         } else if (part instanceof vscode.LanguageModelToolCallPart) {
-          // Tool call detected - show inline status
-          const toolName = part.name.replace('cappy_', '').replace(/_/g, ' ')
-          yield `\n\n�️ *Using tool: ${toolName}*\n\n`
+          // Tool call detected - request user confirmation
+          const toolName = part.name.replace('cappy_', '')
+          const messageId = Date.now().toString()
+          
+          // Create prompt for user confirmation
+          const prompt: UserPrompt = {
+            messageId,
+            promptType: 'confirm',
+            question: `A ferramenta "${toolName}" será executada. Deseja confirmar?`,
+            toolCall: {
+              name: toolName,
+              input: part.input
+            }
+          }
+          
+          // Send prompt to frontend
+          yield `\n<!-- userPrompt:start -->\n`
+          yield JSON.stringify(prompt)
+          yield `\n<!-- userPrompt:end -->\n`
+          
+          // Wait for user response
+          const confirmed = await this.waitForUserResponse(messageId)
+          
+          if (!confirmed) {
+            yield `\n\n❌ **Operação cancelada pelo usuário**\n\n`
+            continue
+          }
+          
+          // User confirmed - execute tool
+          yield `\n\n🔧 *Executando: ${toolName}*\n\n`
           
           try {
             // Invoke the tool
@@ -147,6 +176,39 @@ export class LangGraphChatEngine implements ChatAgentPort {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         yield `\n\n❌ Error: ${errorMessage}\n`
       }
+    }
+  }
+
+  /**
+   * Wait for user response to a prompt
+   * Returns true if user confirmed, false if cancelled
+   */
+  private async waitForUserResponse(messageId: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      // Set up resolver that will be called when frontend sends response
+      this.promptResolvers.set(messageId, (response: string) => {
+        this.promptResolvers.delete(messageId)
+        resolve(response === 'yes' || response === 'true' || response === 'confirm')
+      })
+
+      // Timeout after 60 seconds
+      setTimeout(() => {
+        if (this.promptResolvers.has(messageId)) {
+          this.promptResolvers.delete(messageId)
+          resolve(false) // Default to cancel on timeout
+        }
+      }, 60000)
+    })
+  }
+
+  /**
+   * Handle user prompt response from frontend
+   * This method should be called by the ChatPanel when it receives a userPromptResponse
+   */
+  public handleUserPromptResponse(messageId: string, response: string): void {
+    const resolver = this.promptResolvers.get(messageId)
+    if (resolver) {
+      resolver(response)
     }
   }
 }

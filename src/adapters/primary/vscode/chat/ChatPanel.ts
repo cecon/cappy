@@ -83,7 +83,7 @@ export class ChatPanel {
     })
   }
 
-  private async onMessage(msg: { type: string; sessionId?: string; content?: string; [k: string]: unknown }) {
+  private async onMessage(msg: { type: string; sessionId?: string; content?: string; messageId?: string; response?: string; [k: string]: unknown }) {
     switch (msg.type) {
       case 'sendMessage': {
         await this.ensureSession()
@@ -97,6 +97,21 @@ export class ChatPanel {
           this.panel.webview.postMessage({ type: 'streamToken', messageId, token })
         }
         this.panel.webview.postMessage({ type: 'streamEnd', messageId })
+        break
+      }
+      case 'userPromptResponse': {
+        // Forward user prompt response to chat engine
+        if (msg.messageId && msg.response !== undefined) {
+          const agent = this.chat.getAgent()
+          
+          // Check if agent has handleUserPromptResponse method (for LangGraphChatEngine)
+          if ('handleUserPromptResponse' in agent && typeof agent.handleUserPromptResponse === 'function') {
+            console.log(`[ChatPanel] Forwarding user prompt response: ${msg.messageId} -> ${msg.response}`)
+            agent.handleUserPromptResponse(msg.messageId, msg.response)
+          } else {
+            console.warn('[ChatPanel] Agent does not support handleUserPromptResponse')
+          }
+        }
         break
       }
       default:

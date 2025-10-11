@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { 
   AssistantRuntimeProvider, 
   useLocalRuntime, 
@@ -12,6 +12,8 @@ import {
 import './ChatView.css';
 import cappyIcon from '../assets/cappy-icon.svg';
 import userIcon from '../assets/user-icon.svg';
+import { PromptMessage } from './PromptMessage';
+import type { UserPrompt } from '../domains/chat/entities/prompt';
 
 interface ChatViewProps {
   sessionId?: string;
@@ -24,9 +26,20 @@ interface VsCodeApi {
   getState: () => unknown;
 }
 
+// Custom events for prompt handling
+interface PromptRequestEvent extends CustomEvent {
+  detail: {
+    prompt: UserPrompt;
+    resolve: (response: string) => void;
+  };
+}
+
 declare global {
   interface Window {
     vscodeApi: VsCodeApi;
+  }
+  interface WindowEventMap {
+    'prompt-request': PromptRequestEvent;
   }
 }
 
@@ -38,6 +51,20 @@ class VSCodeChatAdapter implements ChatModelAdapter {
   constructor(vscode: VsCodeApi, sessionId?: string) {
     this.vscode = vscode;
     this.sessionId = sessionId;
+  }
+
+  private async promptUser(promptData: UserPrompt): Promise<string> {
+    // Use custom event to communicate with React component
+    return new Promise<string>((resolve) => {
+      const event = new CustomEvent('prompt-request', {
+        detail: {
+          prompt: promptData,
+          resolve
+        }
+      }) as PromptRequestEvent;
+      
+      window.dispatchEvent(event);
+    });
   }
 
   async *run(options: ChatModelRunOptions): AsyncGenerator<ChatModelRunResult, void> {
@@ -105,7 +132,9 @@ class VSCodeChatAdapter implements ChatModelAdapter {
       let accumulatedReasoning = '';
       let hasYieldedReasoning = false;
       let isInReasoningBlock = false;
+      let isInPromptBlock = false;
       let reasoningBuffer = '';
+      let promptBuffer = '';
       
       while (!isDone) {
         // Check if we have reasoning to show from initial thinking event
@@ -142,6 +171,45 @@ class VSCodeChatAdapter implements ChatModelAdapter {
               hasYieldedReasoning = true;
               reasoningBuffer = '';
             }
+            continue;
+          }
+          
+          // Check for user prompt markers
+          if (token.includes('<!-- userPrompt:start -->')) {
+            isInPromptBlock = true;
+            promptBuffer = '';
+            continue;
+          }
+          
+          if (token.includes('<!-- userPrompt:end -->')) {
+            isInPromptBlock = false;
+            if (promptBuffer) {
+              // Parse prompt JSON
+              try {
+                const promptData = JSON.parse(promptBuffer.trim());
+                
+                // Wait for user response
+                const response = await this.promptUser(promptData);
+                
+                // Send response back to backend
+                this.vscode.postMessage({
+                  type: 'userPromptResponse',
+                  messageId: promptData.messageId,
+                  response: response
+                });
+                
+                promptBuffer = '';
+              } catch (error) {
+                console.error('Failed to parse prompt:', error);
+                promptBuffer = '';
+              }
+            }
+            continue;
+          }
+          
+          // If we're in a prompt block, accumulate to prompt buffer
+          if (isInPromptBlock) {
+            promptBuffer += token;
             continue;
           }
           
@@ -202,11 +270,35 @@ class VSCodeChatAdapter implements ChatModelAdapter {
 export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
   const vscode = useRef(window.vscodeApi);
   
+  // State for current prompt
+  const [currentPrompt, setCurrentPrompt] = useState<UserPrompt | null>(null);
+  const promptResolverRef = useRef<((response: string) => void) | null>(null);
+  
   // Create adapter
   const adapter = useRef(new VSCodeChatAdapter(vscode.current, sessionId)).current;
   
   // Create runtime with adapter (adapter is first parameter)
   const runtime = useLocalRuntime(adapter);
+
+  // Listen for prompt requests from adapter
+  useEffect(() => {
+    const handlePromptRequest = (event: PromptRequestEvent) => {
+      setCurrentPrompt(event.detail.prompt);
+      promptResolverRef.current = event.detail.resolve;
+    };
+
+    window.addEventListener('prompt-request', handlePromptRequest as EventListener);
+    return () => window.removeEventListener('prompt-request', handlePromptRequest as EventListener);
+  }, []);
+
+  // Handle prompt response
+  const handlePromptResponse = (response: string) => {
+    if (promptResolverRef.current) {
+      promptResolverRef.current(response);
+      promptResolverRef.current = null;
+    }
+    setCurrentPrompt(null);
+  };
 
   // Listen for session loaded messages to update runtime
   useEffect(() => {
@@ -279,6 +371,16 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
                 ),
               }}
             />
+            
+            {/* Render prompt message if there's one pending */}
+            {currentPrompt && (
+              <div style={{ padding: '16px' }}>
+                <PromptMessage
+                  prompt={currentPrompt}
+                  onResponse={handlePromptResponse}
+                />
+              </div>
+            )}
           </ThreadPrimitive.Viewport>
 
           <ComposerPrimitive.Root className="chat-input-container">

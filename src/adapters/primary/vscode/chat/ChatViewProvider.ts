@@ -138,8 +138,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private _getHtmlForWebview(webview: vscode.Webview) {
+    // Add cache buster to force reload of assets
+    const cacheBuster = Date.now()
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'out', 'main.js'))
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'out', 'style.css'))
+    
+    const scriptWithCache = `${scriptUri}?v=${cacheBuster}`
+    const styleWithCache = `${styleUri}?v=${cacheBuster}`
 
     // Generate nonce for inline scripts
     const nonce = this.getNonce()
@@ -160,7 +165,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="${csp}">
-  <link rel="stylesheet" href="${styleUri}">
+  <link rel="stylesheet" href="${styleWithCache}">
   <title>Cappy Chat</title>
   <style>
     html, body, #root {
@@ -201,7 +206,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     
     console.log('[Cappy Webview] Ready, loading React...');
   </script>
-  <script type="module" src="${scriptUri}"></script>
+  <script type="module" src="${scriptWithCache}"></script>
 </body>
 </html>`
   }

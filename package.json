@@ -82,7 +82,7 @@
         {
           "id": "cappy",
           "title": "Cappy",
-          "icon": "$(robot)"
+          "icon": "resources/icons/cappy-activity.svg"
         }
       ]
     },

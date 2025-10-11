@@ -11,10 +11,14 @@ function genId() {
 export interface ChatService {
   startSession(title?: string): Promise<ChatSession>
   sendMessage(session: ChatSession, content: string): Promise<AsyncIterable<string>>
+  getAgent(): ChatAgentPort
 }
 
 export function createChatService(agent: ChatAgentPort, history: ChatHistoryPort): ChatService {
   return {
+    getAgent() {
+      return agent
+    },
     async startSession(title = 'New Chat') {
       const session: ChatSession = {
         id: genId(),
