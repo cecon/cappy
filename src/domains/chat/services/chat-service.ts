@@ -38,12 +38,44 @@ export function createChatService(agent: ChatAgentPort, history: ChatHistoryPort
       await history.save(session)
 
       // Pass message history (excluding current message) to the agent
+      // Only include messages that are already complete (both user and assistant pairs)
       const previousMessages = session.messages.slice(0, -1)
+      
+      console.log(`📊 Session ${session.id} - Total messages in session: ${session.messages.length}`)
+      console.log(`📊 Previous messages being sent to agent: ${previousMessages.length}`)
+      console.log(`📊 Last 3 messages:`, previousMessages.slice(-3).map(m => ({
+        author: m.author,
+        content: m.content.substring(0, 50) + '...'
+      })))
+      
       const context: ChatContext = { 
         sessionId: session.id,
         history: previousMessages
       }
-      return agent.processMessage(msg, context)
+      
+      // Create async generator that also saves the assistant response
+      async function* streamAndSave() {
+        let assistantContent = ''
+        const stream = await agent.processMessage(msg, context)
+        
+        for await (const token of stream) {
+          assistantContent += token
+          yield token
+        }
+        
+        // Save assistant response after streaming completes
+        const assistantMsg: Message = {
+          id: genId(),
+          author: 'assistant',
+          content: assistantContent,
+          timestamp: Date.now(),
+        }
+        session.messages.push(assistantMsg)
+        session.updatedAt = Date.now()
+        await history.save(session)
+      }
+      
+      return streamAndSave()
     },
   }
 }

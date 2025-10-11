@@ -48,18 +48,30 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Command to focus and load a session in the chat view
     const openChatCommand = vscode.commands.registerCommand('cappy.openChat', async (session?: ChatSession) => {
-        await vscode.commands.executeCommand('cappy.chatView.focus');
-        if (session) {
-            await chatViewProvider.loadSession(session);
+        try {
+            await vscode.commands.executeCommand('cappy.chatView.focus');
+            // Wait a bit for the view to be ready before loading session
+            if (session) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                await chatViewProvider.loadSession(session);
+            }
+        } catch (error) {
+            console.error('Error opening chat:', error);
         }
     });
     context.subscriptions.push(openChatCommand);
 
     // New session command - creates and loads a new session
     const newSessionCommand = vscode.commands.registerCommand('cappy.chat.newSession', async () => {
-        const session = await chatService.startSession('New Chat');
-        await vscode.commands.executeCommand('cappy.chatView.focus');
-        await chatViewProvider.loadSession(session);
+        try {
+            const session = await chatService.startSession('New Chat');
+            await vscode.commands.executeCommand('cappy.chatView.focus');
+            // Wait a bit for the view to be ready before loading session
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await chatViewProvider.loadSession(session);
+        } catch (error) {
+            console.error('Error creating new session:', error);
+        }
     });
     context.subscriptions.push(newSessionCommand);
     

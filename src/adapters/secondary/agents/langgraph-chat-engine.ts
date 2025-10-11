@@ -6,11 +6,15 @@ import type { Message } from '../../../domains/chat/entities/message'
  * Chat engine using GitHub Copilot's LLM via VS Code Language Model API
  * 
  * Uses vscode.lm.selectChatModels to access Copilot models.
- * Future: Add tool calling, planning, and multi-step workflows.
+ * Supports: streaming responses, tool calling, reasoning display
  */
 export class LangGraphChatEngine implements ChatAgentPort {
   async *processMessage(message: Message, context: ChatContext): AsyncIterable<string> {
     try {
+      // Emit reasoning start
+      yield '<!-- reasoning:start -->\n'
+      yield '🔍 Selecionando modelo apropriado...\n'
+      
       // Select a Copilot chat model
       const models = await vscode.lm.selectChatModels({
         vendor: 'copilot',
@@ -18,6 +22,7 @@ export class LangGraphChatEngine implements ChatAgentPort {
       })
 
       if (models.length === 0) {
+        yield '<!-- reasoning:end -->\n'
         yield '❌ No Copilot models available. Make sure you have:\n'
         yield '1. GitHub Copilot extension installed\n'
         yield '2. GitHub Copilot subscription active\n'
@@ -26,6 +31,9 @@ export class LangGraphChatEngine implements ChatAgentPort {
       }
 
       const model = models[0]
+      yield `✅ Usando modelo: ${model.family}\n`
+      yield `📊 Processando contexto de ${context.history.length} mensagens...\n`
+      yield '<!-- reasoning:end -->\n'
 
       // Build message array for the model
       const messages: vscode.LanguageModelChatMessage[] = [
@@ -37,8 +45,11 @@ export class LangGraphChatEngine implements ChatAgentPort {
         )
       ]
 
-      // Add conversation history from context
-      for (const msg of context.history) {
+      // Add conversation history from context (limit to last 10 messages to avoid context overflow)
+      const recentHistory = context.history.slice(-10)
+      console.log(`💬 Adding ${recentHistory.length} messages to context (total history: ${context.history.length})`)
+      
+      for (const msg of recentHistory) {
         if (msg.author === 'user') {
           messages.push(vscode.LanguageModelChatMessage.User(msg.content))
         } else if (msg.author === 'assistant') {
@@ -48,6 +59,8 @@ export class LangGraphChatEngine implements ChatAgentPort {
 
       // Add the current user message
       messages.push(vscode.LanguageModelChatMessage.User(message.content))
+      
+      console.log(`📨 Sending ${messages.length} messages to model (1 system + ${recentHistory.length} history + 1 current)`)
 
       // Get available tools
       const tools = vscode.lm.tools
@@ -70,8 +83,9 @@ export class LangGraphChatEngine implements ChatAgentPort {
         if (part instanceof vscode.LanguageModelTextPart) {
           yield part.value
         } else if (part instanceof vscode.LanguageModelToolCallPart) {
-          // Tool call detected
-          yield `\n🔧 Using tool: ${part.name}\n`
+          // Tool call detected - show inline status
+          const toolName = part.name.replace('cappy_', '').replace(/_/g, ' ')
+          yield `\n\n�️ *Using tool: ${toolName}*\n\n`
           
           try {
             // Invoke the tool
@@ -83,6 +97,16 @@ export class LangGraphChatEngine implements ChatAgentPort {
               },
               new vscode.CancellationTokenSource().token
             )
+            
+            // Show tool result inline
+            const resultText = toolResult.content
+              .filter(c => c instanceof vscode.LanguageModelTextPart)
+              .map(c => (c as vscode.LanguageModelTextPart).value)
+              .join('')
+            
+            if (resultText) {
+              yield `${resultText}\n\n`
+            }
             
             // Add tool result to conversation and continue
             messages.push(vscode.LanguageModelChatMessage.Assistant([part]))
@@ -100,7 +124,7 @@ export class LangGraphChatEngine implements ChatAgentPort {
             }
           } catch (toolError) {
             const errorMsg = toolError instanceof Error ? toolError.message : 'Unknown error'
-            yield `\n❌ Tool error: ${errorMsg}\n`
+            yield `\n\n❌ **Tool error:** ${errorMsg}\n\n`
           }
         }
       }

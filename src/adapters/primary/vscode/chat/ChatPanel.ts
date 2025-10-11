@@ -7,13 +7,25 @@ export class ChatPanel {
 
   static createOrShow(context: vscode.ExtensionContext, chat: ChatService, session: ChatSession | null = null) {
     const column = vscode.ViewColumn.Two
+    
+    // If panel already exists, just reveal it
     if (ChatPanel.current) {
-      ChatPanel.current.panel.reveal(column)
-      if (session) {
-        ChatPanel.current.session = session
-        ChatPanel.current.loadSession(session)
+      try {
+        ChatPanel.current.panel.reveal(column)
+        if (session) {
+          ChatPanel.current.session = session
+          ChatPanel.current.loadSession(session)
+        }
+      } catch (error) {
+        console.error('[ChatPanel] Error revealing panel:', error);
+        // If error, dispose current and create new
+        ChatPanel.current.panel.dispose();
+        ChatPanel.current = undefined;
       }
-      return ChatPanel.current
+      
+      if (ChatPanel.current) {
+        return ChatPanel.current;
+      }
     }
 
     const panel = vscode.window.createWebviewPanel(
@@ -97,11 +109,14 @@ export class ChatPanel {
     const scriptUri = this.panel.webview.asWebviewUri(vscode.Uri.joinPath(outPath, 'main.js'))
     const styleUri = this.panel.webview.asWebviewUri(vscode.Uri.joinPath(outPath, 'style.css'))
 
-    // CSP for React/Vite webview
+    // Generate nonce for inline scripts
+    const nonce = this.getNonce()
+
+    // CSP for React/Vite webview - more restrictive
     const csp = [
       "default-src 'none'",
-      `style-src ${this.panel.webview.cspSource} 'unsafe-inline'`,
-      `script-src ${this.panel.webview.cspSource} 'unsafe-inline' 'unsafe-eval'`,
+      `style-src ${this.panel.webview.cspSource} 'unsafe-inline'`, // Keep unsafe-inline for styled-components/emotion if needed
+      `script-src ${this.panel.webview.cspSource} 'nonce-${nonce}'`, // Use nonce instead of unsafe-inline/unsafe-eval
       `font-src ${this.panel.webview.cspSource}`,
       `img-src ${this.panel.webview.cspSource} https: data:`,
       `connect-src ${this.panel.webview.cspSource}`
@@ -139,7 +154,7 @@ export class ChatPanel {
 </head>
 <body>
   <div id="root"></div>
-  <script>
+  <script nonce="${nonce}">
     // Debug: log errors and confirm vscode API
     window.addEventListener('error', (e) => {
       console.error('[Cappy Webview] Error:', e.message, e.filename, e.lineno);
@@ -151,5 +166,14 @@ export class ChatPanel {
   <script type="module" src="${scriptUri}"></script>
 </body>
 </html>`
+  }
+
+  private getNonce() {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < 32; i++) {
+      text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
   }
 }

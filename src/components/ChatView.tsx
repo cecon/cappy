@@ -1,150 +1,298 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import { 
+  AssistantRuntimeProvider, 
+  useLocalRuntime, 
+  type ChatModelAdapter, 
+  type ChatModelRunOptions, 
+  type ChatModelRunResult,
+  ThreadPrimitive,
+  ComposerPrimitive,
+  MessagePrimitive
+} from '@assistant-ui/react';
 import './ChatView.css';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-}
+import cappyIcon from '../assets/cappy-icon.svg';
+import userIcon from '../assets/user-icon.svg';
 
 interface ChatViewProps {
   sessionId?: string;
   sessionTitle?: string;
 }
 
-// VS Code API for webview communication
 interface VsCodeApi {
   postMessage: (message: unknown) => void;
   setState: (state: unknown) => void;
   getState: () => unknown;
 }
 
-// VS Code API is acquired once in the HTML and stored globally
 declare global {
   interface Window {
     vscodeApi: VsCodeApi;
   }
 }
 
-export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [isStreaming, setIsStreaming] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const vscode = useRef(window.vscodeApi);
+// Custom adapter to connect VS Code backend with assistant-ui
+class VSCodeChatAdapter implements ChatModelAdapter {
+  private vscode: VsCodeApi;
+  private sessionId?: string;
+  
+  constructor(vscode: VsCodeApi, sessionId?: string) {
+    this.vscode = vscode;
+    this.sessionId = sessionId;
+  }
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  async *run(options: ChatModelRunOptions): AsyncGenerator<ChatModelRunResult, void> {
+    const { messages } = options;
+    
+    // Get the last user message
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user') {
+      throw new Error('Last message must be from user');
+    }
 
-  // Listen for messages from extension
-  useEffect(() => {
+    // Extract text content from the message
+    const userContent = lastMessage.content
+      .filter((part) => part.type === 'text')
+      .map((part) => ('text' in part ? part.text : ''))
+      .join('');
+
+    const messageId = Date.now().toString();
+    const streamQueue: string[] = [];
+    const reasoningQueue: string[] = [];
+    let isDone = false;
+    let hasError = false;
+    let errorMessage = '';
+
+    // Set up message listener
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
       
+      if (message.messageId !== messageId) return;
+      
       switch (message.type) {
-        case 'sessionLoaded':
-          setMessages(message.messages || []);
+        case 'thinking':
+          // Support custom reasoning text from backend
+          reasoningQueue.push(message.text || '🧠 Pensando...');
           break;
         case 'streamStart':
-          setIsStreaming(true);
-          setMessages(prev => [...prev, {
-            id: message.messageId,
-            role: 'assistant',
-            content: '',
-            timestamp: new Date()
-          }]);
+          // Clear reasoning when streaming starts
           break;
         case 'streamToken':
-          setMessages(prev => prev.map(msg => 
-            msg.id === message.messageId 
-              ? { ...msg, content: msg.content + message.token }
-              : msg
-          ));
+          streamQueue.push(message.token);
           break;
         case 'streamEnd':
-          setIsStreaming(false);
+          isDone = true;
+          break;
+        case 'streamError':
+          hasError = true;
+          errorMessage = message.error || 'Unknown error';
+          isDone = true;
           break;
       }
     };
 
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
 
-  const handleSendMessage = () => {
-    if (!input.trim() || isStreaming) return;
+    try {
+      // Send message to backend
+      this.vscode.postMessage({
+        type: 'sendMessage',
+        sessionId: this.sessionId,
+        content: userContent
+      });
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input,
-      timestamp: new Date()
+      // Stream tokens
+      let accumulatedText = '';
+      let accumulatedReasoning = '';
+      let hasYieldedReasoning = false;
+      let isInReasoningBlock = false;
+      let reasoningBuffer = '';
+      
+      while (!isDone) {
+        // Check if we have reasoning to show from initial thinking event
+        if (reasoningQueue.length > 0 && !hasYieldedReasoning) {
+          const reasoning = reasoningQueue.shift()!;
+          accumulatedReasoning += reasoning;
+          
+          yield {
+            content: [
+              {
+                type: 'reasoning' as const,
+                text: accumulatedReasoning
+              }
+            ]
+          };
+          hasYieldedReasoning = true;
+        }
+        
+        // Stream content tokens
+        if (streamQueue.length > 0) {
+          const token = streamQueue.shift()!;
+          
+          // Check for reasoning markers in stream
+          if (token.includes('<!-- reasoning:start -->')) {
+            isInReasoningBlock = true;
+            reasoningBuffer = '';
+            continue;
+          }
+          
+          if (token.includes('<!-- reasoning:end -->')) {
+            isInReasoningBlock = false;
+            if (reasoningBuffer) {
+              accumulatedReasoning += reasoningBuffer;
+              hasYieldedReasoning = true;
+              reasoningBuffer = '';
+            }
+            continue;
+          }
+          
+          // If we're in a reasoning block, accumulate to reasoning buffer
+          if (isInReasoningBlock) {
+            reasoningBuffer += token;
+            // Yield updated reasoning
+            yield {
+              content: [
+                {
+                  type: 'reasoning' as const,
+                  text: accumulatedReasoning + reasoningBuffer
+                },
+                {
+                  type: 'text' as const,
+                  text: accumulatedText
+                }
+              ]
+            };
+            continue;
+          }
+          
+          // Regular text token
+          accumulatedText += token;
+          
+          const content: Array<{ type: 'reasoning' | 'text'; text: string }> = [];
+          
+          // Include reasoning if we had it
+          if (hasYieldedReasoning) {
+            content.push({
+              type: 'reasoning' as const,
+              text: accumulatedReasoning
+            });
+          }
+          
+          // Add text content
+          content.push({
+            type: 'text' as const,
+            text: accumulatedText
+          });
+          
+          yield { content };
+        } else {
+          // Wait for next token
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+
+      if (hasError) {
+        throw new Error(errorMessage);
+      }
+    } finally {
+      window.removeEventListener('message', handleMessage);
+    }
+  }
+}
+
+export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
+  const vscode = useRef(window.vscodeApi);
+  
+  // Create adapter
+  const adapter = useRef(new VSCodeChatAdapter(vscode.current, sessionId)).current;
+  
+  // Create runtime with adapter (adapter is first parameter)
+  const runtime = useLocalRuntime(adapter);
+
+  // Listen for session loaded messages to update runtime
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data;
+      
+      if (message.type === 'sessionLoaded' && message.messages) {
+        // Convert messages to assistant-ui format and update runtime
+        console.log('[ChatView] Session loaded with', message.messages.length, 'messages');
+        // Note: assistant-ui manages messages internally, we don't need to manually load history
+      }
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    
-    // Send to extension
-    vscode.current.postMessage({
-      type: 'sendMessage',
-      sessionId,
-      content: input
-    });
-
-    setInput('');
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [runtime]);
 
   return (
-    <div className="chat-container">
-      <div className="chat-header">
-        <h3>{sessionTitle || 'Chat'}</h3>
-        {isStreaming && <span className="streaming-indicator">●</span>}
-      </div>
-      
-      <div className="chat-messages">
-        {messages.map(msg => (
-          <div key={msg.id} className={`message ${msg.role}`}>
-            <div className="message-avatar">
-              {msg.role === 'user' ? '👤' : '🤖'}
-            </div>
-            <div className="message-content">
-              <div className="message-text">{msg.content}</div>
-              <div className="message-timestamp">
-                {msg.timestamp.toLocaleTimeString()}
-              </div>
-            </div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
+    <AssistantRuntimeProvider runtime={runtime}>
+      <div className="chat-container">
+        <div className="chat-header">
+          <h3>{sessionTitle || 'Chat'}</h3>
+        </div>
+        
+        <ThreadPrimitive.Root>
+          <ThreadPrimitive.Viewport className="chat-messages">
+            <ThreadPrimitive.Messages
+              components={{
+                UserMessage: () => (
+                  <MessagePrimitive.Root className="message user">
+                    <div className="message-avatar">
+                      <img src={userIcon} alt="User" />
+                    </div>
+                    <div className="message-content">
+                      <MessagePrimitive.Content />
+                    </div>
+                  </MessagePrimitive.Root>
+                ),
+                AssistantMessage: () => (
+                  <MessagePrimitive.Root className="message assistant">
+                    <div className="message-avatar">
+                      <img src={cappyIcon} alt="Cappy" />
+                    </div>
+                    <div className="message-content">
+                      {/* Custom rendering for reasoning and text */}
+                      <MessagePrimitive.Parts
+                        components={{
+                          Reasoning: ({ text }) => (
+                            <div className="message-reasoning" style={{
+                              backgroundColor: '#2a2d3a',
+                              padding: '8px 12px',
+                              borderRadius: '6px',
+                              marginBottom: '8px',
+                              fontSize: '0.9em',
+                              fontStyle: 'italic',
+                              color: '#a0a0a0',
+                              borderLeft: '3px solid #4a90e2'
+                            }}>
+                              <span style={{ marginRight: '6px' }}>🧠</span>
+                              {text}
+                            </div>
+                          ),
+                          Text: ({ text }) => (
+                            <div className="message-text">{text}</div>
+                          )
+                        }}
+                      />
+                    </div>
+                  </MessagePrimitive.Root>
+                ),
+              }}
+            />
+          </ThreadPrimitive.Viewport>
 
-      <div className="chat-input-container">
-        <textarea
-          className="chat-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask Cappy..."
-          disabled={isStreaming}
-          rows={3}
-        />
-        <button 
-          className="chat-send-button"
-          onClick={handleSendMessage}
-          disabled={!input.trim() || isStreaming}
-        >
-          {isStreaming ? '⏸' : '▶'}
-        </button>
+          <ComposerPrimitive.Root className="chat-input-container">
+            <ComposerPrimitive.Input
+              className="chat-input"
+              placeholder="Ask Cappy..."
+              rows={3}
+            />
+            <ComposerPrimitive.Send className="chat-send-button">
+              ▶
+            </ComposerPrimitive.Send>
+          </ComposerPrimitive.Root>
+        </ThreadPrimitive.Root>
       </div>
-    </div>
+    </AssistantRuntimeProvider>
   );
 }

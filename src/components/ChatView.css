@@ -25,10 +25,23 @@
   color: #cccccc;
 }
 
+.thinking-indicator {
+  color: #c792ea;
+  font-size: 12px;
+  font-weight: 500;
+  animation: thinking 1.5s ease-in-out infinite;
+}
+
 .streaming-indicator {
   color: #007acc;
-  font-size: 20px;
+  font-size: 12px;
+  font-weight: 500;
   animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes thinking {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 @keyframes pulse {
@@ -84,8 +97,40 @@
 }
 
 .message-avatar {
-  font-size: 24px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #2d2d30;
+  border: 2px solid #3e3e42;
+}
+
+.message-avatar img {
+  width: 20px;
+  height: 20px;
+  color: #cccccc;
+}
+
+.message.user .message-avatar {
+  background-color: #007acc;
+  border-color: #005a9e;
+}
+
+.message.user .message-avatar img {
+  color: white;
+  filter: brightness(0) invert(1);
+}
+
+.message.assistant .message-avatar {
+  background-color: #2d2d30;
+  border-color: #6e6e6e;
+}
+
+.message.assistant .message-avatar img {
+  color: #cccccc;
 }
 
 .message-content {
