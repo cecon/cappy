@@ -33,3 +33,8 @@ old/
 *.njsproj
 *.sln
 *.sw?
+
+# LanceDB data
+.cappy/data/
+.cappy/*.lance
+.cappy/indexes/

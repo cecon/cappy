@@ -156,7 +156,10 @@
               "description": "Content to write to the file"
             }
           },
-          "required": ["path", "content"]
+          "required": [
+            "path",
+            "content"
+          ]
         }
       }
     ]
@@ -167,23 +170,29 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "vscode:prepublish": "npm run compile-extension",
-    "compile-extension": "tsc src/extension.ts --outDir out --target ES2020 --module commonjs --moduleResolution node --strict",
-    "watch": "tsc -watch -p ./",
+    "compile-extension": "tsc -p tsconfig.extension.json",
+    "watch": "tsc -watch -p tsconfig.extension.json",
     "package": "npm version patch && npm run compile-extension && vsce package --dependencies",
     "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",
+    "@lancedb/lancedb": "^0.22.2",
+    "@typescript-eslint/parser": "^8.46.0",
+    "@xenova/transformers": "^2.17.2",
+    "gray-matter": "^4.0.3",
+    "kuzu-wasm": "^0.11.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
+    "reagraph": "^4.30.5",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
-    "@types/node": "^24.6.0",
+    "@types/node": "^24.7.2",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
     "@types/vscode": "^1.105.0",
