@@ -273,7 +273,11 @@ class VSCodeChatAdapter implements ChatModelAdapter {
 }
 
 export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
+  console.log('[ChatView] Component mounting...')
+  console.log('[ChatView] sessionId:', sessionId, 'sessionTitle:', sessionTitle)
+  
   const vscode = useRef(window.vscodeApi);
+  console.log('[ChatView] VSCode API:', vscode.current ? 'available' : 'MISSING')
   
   // State for current prompt
   const [currentPrompt, setCurrentPrompt] = useState<UserPrompt | null>(null);
