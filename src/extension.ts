@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { createChatService } from './domains/chat/services/chat-service';
 import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
 import { createInMemoryHistory } from './adapters/secondary/history/in-memory-history';
+import { ChatPanel } from './adapters/primary/vscode/chat/ChatPanel';
 import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvider';
 import { GraphPanel } from './adapters/primary/vscode/graph/GraphPanel';
 import { CreateFileTool } from './adapters/secondary/tools/create-file-tool';
@@ -41,7 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
     const history = createInMemoryHistory();
     const chatService = createChatService(agent, history);
 
-    // Register WebviewView Provider for Chat in the sidebar
+    // Register Chat View Provider for sidebar
     const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
@@ -54,29 +55,21 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(focusActivityCommand);
 
-    // Command to focus and load a session in the chat view
+    // Command to open chat in a panel
     const openChatCommand = vscode.commands.registerCommand('cappy.openChat', async (session?: ChatSession) => {
         try {
-            await vscode.commands.executeCommand('cappy.chatView.focus');
-            // Wait a bit for the view to be ready before loading session
-            if (session) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                await chatViewProvider.loadSession(session);
-            }
+            ChatPanel.createOrShow(context, chatService, session);
         } catch (error) {
             console.error('Error opening chat:', error);
         }
     });
     context.subscriptions.push(openChatCommand);
 
-    // New session command - creates and loads a new session
+    // New session command - creates and opens a new session
     const newSessionCommand = vscode.commands.registerCommand('cappy.chat.newSession', async () => {
         try {
             const session = await chatService.startSession('New Chat');
-            await vscode.commands.executeCommand('cappy.chatView.focus');
-            // Wait a bit for the view to be ready before loading session
-            await new Promise(resolve => setTimeout(resolve, 100));
-            await chatViewProvider.loadSession(session);
+            ChatPanel.createOrShow(context, chatService, session);
         } catch (error) {
             console.error('Error creating new session:', error);
         }
