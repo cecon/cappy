@@ -174,8 +174,8 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "vscode:prepublish": "npm run compile-extension",
-    "compile-extension": "tsc -p tsconfig.extension.json",
-    "watch": "tsc -watch -p tsconfig.extension.json",
+    "compile-extension": "tsc src/extension.ts --outDir out --target ES2020 --module commonjs --moduleResolution node --strict",
+    "watch": "tsc -watch -p ./",
     "package": "npm version patch && npm run compile-extension && vsce package --dependencies",
     "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix"
   },

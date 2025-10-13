@@ -95,21 +95,26 @@ class VSCodeChatAdapter implements ChatModelAdapter {
       
       if (message.messageId !== messageId) return;
       
+      console.log('[VSCodeChatAdapter] Received message:', message.type, message);
+      
       switch (message.type) {
         case 'thinking':
           // Support custom reasoning text from backend
           reasoningQueue.push(message.text || '🧠 Pensando...');
           break;
         case 'streamStart':
-          // Clear reasoning when streaming starts
+          console.log('[VSCodeChatAdapter] Stream started');
           break;
         case 'streamToken':
+          console.log('[VSCodeChatAdapter] Token received:', message.token.substring(0, 50));
           streamQueue.push(message.token);
           break;
         case 'streamEnd':
+          console.log('[VSCodeChatAdapter] Stream ended');
           isDone = true;
           break;
         case 'streamError':
+          console.error('[VSCodeChatAdapter] Stream error:', message.error);
           hasError = true;
           errorMessage = message.error || 'Unknown error';
           isDone = true;

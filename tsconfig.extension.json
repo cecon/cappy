@@ -24,6 +24,11 @@
     "src/**/*.tsx",
     "src/main.tsx",
     "src/App.tsx",
-    "src/components/**"
+    "src/components/**",
+    "src/adapters/secondary/parsers",
+    "src/adapters/secondary/vector",
+    "src/domains/graph/use-cases/__tests__",
+    "src/lib",
+    "src/services"
   ]
 }
