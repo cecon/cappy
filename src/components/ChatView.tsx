@@ -7,8 +7,7 @@ import {
   type ChatModelRunResult,
   ThreadPrimitive,
   ComposerPrimitive,
-  MessagePrimitive,
-  useMessage
+  MessagePrimitive
 } from '@assistant-ui/react';
 import './ChatView.css';
 import cappyIcon from '../assets/cappy-icon.svg';
@@ -357,19 +356,21 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
                     </div>
                   </MessagePrimitive.Root>
                 ),
-                AssistantMessage: () => {
-                  const message = useMessage();
-                  
-                  return (
-                    <MessagePrimitive.Root className="message assistant">
-                      <div className="message-avatar">
-                        <img src={cappyIcon} alt="Cappy" />
-                      </div>
-                      <div className="message-content">
-                        {message.content.map((part: any, idx: number) => {
-                          if ('type' in part && part.type === 'reasoning') {
+                AssistantMessage: () => (
+                  <MessagePrimitive.Root className="message assistant">
+                    <div className="message-avatar">
+                      <img src={cappyIcon} alt="Cappy" />
+                    </div>
+                    <div className="message-content">
+                      <MessagePrimitive.Content components={{
+                        Text: (props: any) => {
+                          const text = props.text || (props.part && 'text' in props.part ? props.part.text : '');
+                          const type = props.part && 'type' in props.part ? props.part.type : 'text';
+                          
+                          // Check if this is a reasoning part
+                          if (type === 'reasoning') {
                             return (
-                              <div key={idx} className="message-reasoning" style={{
+                              <div className="message-reasoning" style={{
                                 backgroundColor: '#2a2d3a',
                                 padding: '8px 12px',
                                 borderRadius: '6px',
@@ -380,23 +381,17 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
                                 borderLeft: '3px solid #4a90e2'
                               }}>
                                 <span style={{ marginRight: '6px' }}>🧠</span>
-                                {'text' in part ? part.text : ''}
+                                {text}
                               </div>
                             );
                           }
-                          if (part.type === 'text') {
-                            return (
-                              <div key={idx} className="message-text">
-                                {'text' in part ? part.text : ''}
-                              </div>
-                            );
-                          }
-                          return null;
-                        })}
-                      </div>
-                    </MessagePrimitive.Root>
-                  );
-                },
+                          // Regular text
+                          return <div className="message-text">{text}</div>;
+                        }
+                      }} />
+                    </div>
+                  </MessagePrimitive.Root>
+                ),
               }}
             />
             
