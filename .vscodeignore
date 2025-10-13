@@ -1,5 +1,6 @@
 # Exclude large/unnecessary folders from the VSIX
-node_modules/
+# Note: We need node_modules for production dependencies like @lancedb/lancedb
+# The --dependencies flag should handle including only production deps
 old/
 docs/
 .vscode/

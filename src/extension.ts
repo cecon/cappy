@@ -3,6 +3,7 @@ import { createChatService } from './domains/chat/services/chat-service';
 import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
 import { createInMemoryHistory } from './adapters/secondary/history/in-memory-history';
 import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvider';
+import { GraphPanel } from './adapters/primary/vscode/graph/GraphPanel';
 import { CreateFileTool } from './adapters/secondary/tools/create-file-tool';
 import type { ChatSession } from './domains/chat/entities/session';
 
@@ -21,9 +22,16 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(createFileTool);
     console.log('✅ Registered Language Model Tool: cappy_create_file');
     
+    // Create output channel for graph logs
+    const graphOutputChannel = vscode.window.createOutputChannel('Cappy Graph');
+    context.subscriptions.push(graphOutputChannel);
+    
+    // Create graph panel instance
+    const graphPanel = new GraphPanel(context, graphOutputChannel);
+    
     // Register the graph visualization command
-    const openGraphCommand = vscode.commands.registerCommand('cappy.openGraph', () => {
-        openGraphVisualization(context);
+    const openGraphCommand = vscode.commands.registerCommand('cappy.openGraph', async () => {
+        await graphPanel.show();
     });
     
     context.subscriptions.push(openGraphCommand);
@@ -97,145 +105,7 @@ export function activate(context: vscode.ExtensionContext) {
  * 
  * @param context - Extension context
  */
-async function openGraphVisualization(context: vscode.ExtensionContext) {
-    // Create the webview panel
-    const panel = vscode.window.createWebviewPanel(
-        'cappyGraphVisualization',
-        'Cappy: Open Graph',
-        vscode.ViewColumn.One,
-        {
-            enableScripts: true,
-            retainContextWhenHidden: true,
-            localResourceRoots: [
-                vscode.Uri.joinPath(context.extensionUri, 'out'),
-                vscode.Uri.joinPath(context.extensionUri, 'dist')
-            ]
-        }
-    );
-
-    // Set the webview HTML content
-    panel.webview.html = getGraphWebviewContent(panel.webview, context.extensionUri);
-
-    // Handle messages from the webview
-    panel.webview.onDidReceiveMessage(
-        async (message) => {
-            switch (message.command) {
-                case 'ready':
-                    vscode.window.showInformationMessage('Graph visualization ready!');
-                    break;
-                case 'error':
-                    vscode.window.showErrorMessage(`Graph error: ${message.error}`);
-                    break;
-                default:
-                    console.log('Unknown message from graph webview:', message);
-            }
-        },
-        undefined,
-        context.subscriptions
-    );
-}
-
-/**
- * Generates the HTML content for the graph webview
- * 
- * @param webview - Webview instance
- * @param extensionUri - Extension URI
- * @returns HTML content string
- */
-function getGraphWebviewContent(webview: vscode.Webview, _extensionUri: vscode.Uri): string {
-    void _extensionUri; // Parâmetro mantido para compatibilidade
-    // Use a nonce to whitelist which scripts can be run
-    const nonce = getNonce();
-
-    return `<!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; 
-              style-src ${webview.cspSource} 'unsafe-inline'; 
-              script-src 'nonce-${nonce}' ${webview.cspSource};
-              img-src ${webview.cspSource} data:;">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cappy Knowledge Graph</title>
-        <style>
-            body, html {
-                margin: 0;
-                padding: 0;
-                height: 100vh;
-                background-color: var(--vscode-editor-background);
-                color: var(--vscode-editor-foreground);
-                font-family: var(--vscode-font-family);
-            }
-            #root {
-                height: 100vh;
-                display: flex;
-                flex-direction: column;
-            }
-            .loading {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                flex-direction: column;
-                gap: 16px;
-            }
-            .loading-spinner {
-                width: 40px;
-                height: 40px;
-                border: 3px solid var(--vscode-progressBar-background);
-                border-top: 3px solid var(--vscode-progressBar-foreground);
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-            }
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        </style>
-    </head>
-    <body>
-        <div id="root">
-            <div class="loading">
-                <div class="loading-spinner"></div>
-                <h2>🦫 Cappy Knowledge Graph</h2>
-                <p>Graph visualization será implementado em breve...</p>
-                <p>Por enquanto, teste o chat na sidebar!</p>
-            </div>
-        </div>
-        <script nonce="${nonce}">
-            // VS Code API
-            const vscode = acquireVsCodeApi();
-            
-            // Initialize
-            window.addEventListener('load', () => {
-                // Signal that webview is ready
-                vscode.postMessage({ command: 'ready' });
-                console.log('🦫 Graph webview loaded');
-            });
-            
-            // Error handling
-            window.addEventListener('error', (event) => {
-                vscode.postMessage({ 
-                    command: 'error', 
-                    error: event.error?.message || 'Unknown error'
-                });
-            });
-        </script>
-    </body>
-    </html>`;
-}
-
-/**
- * Generates a nonce for Content Security Policy
- */
-function getNonce(): string {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
-}
+// Old implementation removed - now using GraphPanel class
 
 export function deactivate() {
     console.log('🦫 Cappy extension deactivated');
