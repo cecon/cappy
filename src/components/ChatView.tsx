@@ -7,7 +7,8 @@ import {
   type ChatModelRunResult,
   ThreadPrimitive,
   ComposerPrimitive,
-  MessagePrimitive
+  MessagePrimitive,
+  useMessage
 } from '@assistant-ui/react';
 import './ChatView.css';
 import cappyIcon from '../assets/cappy-icon.svg';
@@ -125,12 +126,13 @@ class VSCodeChatAdapter implements ChatModelAdapter {
     window.addEventListener('message', handleMessage);
 
     try {
-      // Send message to backend
+      // Send message to backend with messageId
       console.log('[VSCodeChatAdapter] Sending message to backend, messageId:', messageId);
       this.vscode.postMessage({
         type: 'sendMessage',
         sessionId: this.sessionId,
-        content: userContent
+        content: userContent,
+        messageId: messageId  // ✅ CRITICAL: Send messageId so backend uses the same one
       });
 
       // Stream tokens
@@ -355,38 +357,46 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
                     </div>
                   </MessagePrimitive.Root>
                 ),
-                AssistantMessage: () => (
-                  <MessagePrimitive.Root className="message assistant">
-                    <div className="message-avatar">
-                      <img src={cappyIcon} alt="Cappy" />
-                    </div>
-                    <div className="message-content">
-                      {/* Custom rendering for reasoning and text */}
-                      <MessagePrimitive.Parts
-                        components={{
-                          Reasoning: ({ text }) => (
-                            <div className="message-reasoning" style={{
-                              backgroundColor: '#2a2d3a',
-                              padding: '8px 12px',
-                              borderRadius: '6px',
-                              marginBottom: '8px',
-                              fontSize: '0.9em',
-                              fontStyle: 'italic',
-                              color: '#a0a0a0',
-                              borderLeft: '3px solid #4a90e2'
-                            }}>
-                              <span style={{ marginRight: '6px' }}>🧠</span>
-                              {text}
-                            </div>
-                          ),
-                          Text: ({ text }) => (
-                            <div className="message-text">{text}</div>
-                          )
-                        }}
-                      />
-                    </div>
-                  </MessagePrimitive.Root>
-                ),
+                AssistantMessage: () => {
+                  const message = useMessage();
+                  
+                  return (
+                    <MessagePrimitive.Root className="message assistant">
+                      <div className="message-avatar">
+                        <img src={cappyIcon} alt="Cappy" />
+                      </div>
+                      <div className="message-content">
+                        {message.content.map((part: any, idx: number) => {
+                          if ('type' in part && part.type === 'reasoning') {
+                            return (
+                              <div key={idx} className="message-reasoning" style={{
+                                backgroundColor: '#2a2d3a',
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                marginBottom: '8px',
+                                fontSize: '0.9em',
+                                fontStyle: 'italic',
+                                color: '#a0a0a0',
+                                borderLeft: '3px solid #4a90e2'
+                              }}>
+                                <span style={{ marginRight: '6px' }}>🧠</span>
+                                {'text' in part ? part.text : ''}
+                              </div>
+                            );
+                          }
+                          if (part.type === 'text') {
+                            return (
+                              <div key={idx} className="message-text">
+                                {'text' in part ? part.text : ''}
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    </MessagePrimitive.Root>
+                  );
+                },
               }}
             />
             

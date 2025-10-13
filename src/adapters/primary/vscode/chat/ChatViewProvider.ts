@@ -10,11 +10,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView
   private session: ChatSession | null = null
   private messageHandler: ChatMessageHandler
+  private extensionUri: vscode.Uri
+  private chat: ChatService
   
-  constructor(
-    private extensionUri: vscode.Uri,
-    private chat: ChatService
-  ) {
+  constructor(extensionUri: vscode.Uri, chat: ChatService) {
+    this.extensionUri = extensionUri
+    this.chat = chat
     this.messageHandler = new ChatMessageHandler({
       chat: this.chat,
       getSession: () => this.session,

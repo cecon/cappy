@@ -1,3 +1,4 @@
+Nunca use `vsce package --no-dependencie` as dependencias são obrigatórias
 <!-- CAPPY INI -->
 # CAPPY — Manual de Comandos (Orquestração de Contexto)
 

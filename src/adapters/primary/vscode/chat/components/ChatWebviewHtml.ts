@@ -94,11 +94,14 @@ export class ChatWebviewHtml {
   <script nonce="${nonce}">
     ${this.generateInlineScript(scriptUri)}
   </script>
-  <script type="module" src="${scriptUri}" onload="console.log('[Cappy Webview] Script loaded')" onerror="console.error('[Cappy Webview] Script load error')"></script>`
+  <script type="module" src="${scriptUri}" nonce="${nonce}"></script>`
   }
 
   private generateInlineScript(scriptUri: vscode.Uri): string {
     return `
+    // Acquire VS Code API and make it globally available
+    window.vscodeApi = acquireVsCodeApi();
+    
     // Debug: log errors and confirm vscode API
     window.addEventListener('error', (e) => {
       console.error('[Cappy Webview] Error:', e.message, e.filename, e.lineno, e.error);
@@ -107,6 +110,7 @@ export class ChatWebviewHtml {
     
     window.addEventListener('load', () => {
       console.log('[Cappy Webview] Window loaded');
+      console.log('[Cappy Webview] Script loaded successfully');
       setTimeout(() => {
         const root = document.getElementById('root');
         console.log('[Cappy Webview] Root element:', root ? 'exists' : 'missing');
