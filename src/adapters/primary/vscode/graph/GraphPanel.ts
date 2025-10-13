@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { IndexingService } from '../../../../services/indexing-service';
 import { ConfigService } from '../../../../services/config-service';
 import { EmbeddingService } from '../../../../services/embedding-service';
@@ -292,8 +293,51 @@ export class GraphPanel {
         const nonce = this.getNonce();
         const cspSource = this.panel!.webview.cspSource;
 
-        // In development, we'll use a placeholder
-        // In production, this would load the built React app
+        // Try to load the built React app
+        const graphHtmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'out', 'graph.html');
+        
+        // Load the built HTML file if it exists
+        try {
+            let htmlContent = fs.readFileSync(graphHtmlPath.fsPath, 'utf8');
+            
+            // Get webview URIs for all assets
+            const graphJsUri = this.panel!.webview.asWebviewUri(
+                vscode.Uri.joinPath(this.context.extensionUri, 'out', 'graph.js')
+            );
+            const indexJsUri = this.panel!.webview.asWebviewUri(
+                vscode.Uri.joinPath(this.context.extensionUri, 'out', 'index.js')
+            );
+            const styleUri = this.panel!.webview.asWebviewUri(
+                vscode.Uri.joinPath(this.context.extensionUri, 'out', 'style.css')
+            );
+
+            // Replace relative paths with webview URIs
+            htmlContent = htmlContent
+                .replace('./graph.js', graphJsUri.toString())
+                .replace('./index.js', indexJsUri.toString())
+                .replace('./style.css', styleUri.toString());
+
+            // Add CSP meta tag if not present
+            if (!htmlContent.includes('Content-Security-Policy')) {
+                htmlContent = htmlContent.replace(
+                    '<meta name="viewport"',
+                    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource};">
+    <meta name="viewport"`
+                );
+            }
+
+            // Add nonce to script tags
+            htmlContent = htmlContent.replace(
+                /<script type="module"/g,
+                `<script type="module" nonce="${nonce}"`
+            );
+
+            return htmlContent;
+        } catch (error) {
+            this.log(`⚠️ Could not load built React app, using fallback HTML: ${error}`);
+        }
+
+        // Fallback HTML if React app not built
         return `<!DOCTYPE html>
         <html lang="en">
         <head>

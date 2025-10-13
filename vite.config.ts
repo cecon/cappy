@@ -11,9 +11,10 @@ export default defineConfig({
     outDir: 'out',
     rollupOptions: {
       input: {
-        // Main React app entry point for webviews
+        // Main React app entry point (Chat View)
         main: path.resolve(import.meta.dirname, 'index.html'),
-        // Could add more entry points for different webviews
+        // Graph WebView entry point
+        graph: path.resolve(import.meta.dirname, 'graph.html'),
       },
       output: {
         entryFileNames: '[name].js',
