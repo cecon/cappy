@@ -21,7 +21,7 @@ export class ChatMessageHandler {
   async handle(msg: { type: string; sessionId?: string; content?: string; messageId?: string; response?: string; [k: string]: unknown }) {
     switch (msg.type) {
       case 'sendMessage':
-        await this.handleSendMessage(msg.content || '')
+        await this.handleSendMessage(msg.content || '', msg.messageId)
         break
       
       case 'userPromptResponse':
@@ -34,20 +34,23 @@ export class ChatMessageHandler {
     }
   }
 
-  private async handleSendMessage(content: string) {
+  private async handleSendMessage(content: string, messageId?: string) {
     await this.options.ensureSession()
     const session = this.options.getSession()
     if (!session) return
 
-    const messageId = Date.now().toString()
-    this.options.postMessage({ type: 'streamStart', messageId })
+    // Use provided messageId or generate new one
+    const msgId = messageId || Date.now().toString()
+    console.log('[ChatMessageHandler] Processing message with ID:', msgId)
+    
+    this.options.postMessage({ type: 'streamStart', messageId: msgId })
 
     const stream = await this.options.chat.sendMessage(session, content)
     for await (const token of stream) {
-      this.options.postMessage({ type: 'streamToken', messageId, token })
+      this.options.postMessage({ type: 'streamToken', messageId: msgId, token })
     }
     
-    this.options.postMessage({ type: 'streamEnd', messageId })
+    this.options.postMessage({ type: 'streamEnd', messageId: msgId })
   }
 
   private async handleUserPromptResponse(messageId: string | undefined, response: string | undefined) {

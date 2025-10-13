@@ -126,6 +126,7 @@ class VSCodeChatAdapter implements ChatModelAdapter {
 
     try {
       // Send message to backend
+      console.log('[VSCodeChatAdapter] Sending message to backend, messageId:', messageId);
       this.vscode.postMessage({
         type: 'sendMessage',
         sessionId: this.sessionId,
@@ -140,8 +141,11 @@ class VSCodeChatAdapter implements ChatModelAdapter {
       let isInPromptBlock = false;
       let reasoningBuffer = '';
       let promptBuffer = '';
+      let loopCount = 0;
+      const maxLoops = 60000; // 60s timeout (60000 * 10ms)
       
-      while (!isDone) {
+      while (!isDone && loopCount < maxLoops) {
+        loopCount++;
         // Check if we have reasoning to show from initial thinking event
         if (reasoningQueue.length > 0 && !hasYieldedReasoning) {
           const reasoning = reasoningQueue.shift()!;
@@ -261,6 +265,11 @@ class VSCodeChatAdapter implements ChatModelAdapter {
           // Wait for next token
           await new Promise(resolve => setTimeout(resolve, 10));
         }
+      }
+
+      if (loopCount >= maxLoops) {
+        console.error('[VSCodeChatAdapter] Timeout waiting for response');
+        throw new Error('Timeout waiting for response from backend');
       }
 
       if (hasError) {
