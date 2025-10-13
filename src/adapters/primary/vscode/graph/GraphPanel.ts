@@ -317,11 +317,17 @@ export class GraphPanel {
                 .replace('./index.js', indexJsUri.toString())
                 .replace('./style.css', styleUri.toString());
 
+            // Remove modulepreload link (causes CSP issues)
+            htmlContent = htmlContent.replace(
+                /<link rel="modulepreload"[^>]*>/g,
+                ''
+            );
+
             // Add CSP meta tag if not present
             if (!htmlContent.includes('Content-Security-Policy')) {
                 htmlContent = htmlContent.replace(
                     '<meta name="viewport"',
-                    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource};">
+                    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${cspSource}; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource};">
     <meta name="viewport"`
                 );
             }

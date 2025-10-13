@@ -78,14 +78,17 @@ Click each tab:
 **Solution**: 
 ```bash
 npm run build
+npm run compile-extension
+code --install-extension cappy-3.0.2.vsix --force
 ```
-Then restart the Extension Development Host (Ctrl+R in debug window)
+Then **reload VS Code window** (Cmd+R or Ctrl+R)
 
 ### Problem: CSP errors in console
-Check `GraphPanel.ts` CSP configuration includes:
+**Fixed**: GraphPanel now removes `<link rel="modulepreload">` and adds proper nonce to scripts.
+CSP configuration:
 ```
 style-src 'unsafe-inline'
-script-src 'nonce-{nonce}'
+script-src 'nonce-{nonce}' {cspSource}
 ```
 
 ### Problem: "Could not load built React app"

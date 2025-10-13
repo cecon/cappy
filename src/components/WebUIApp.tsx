@@ -11,48 +11,55 @@ function WebUIApp() {
   const [currentTab, setCurrentTab] = useState('documents');
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
-      <Tabs value={currentTab} onValueChange={setCurrentTab} className="flex h-full flex-col">
-        <Header currentTab={currentTab} onTabChange={setCurrentTab} />
-        
-        <div className="relative flex-1 overflow-hidden">
-          <TabsContent 
-            value="documents" 
-            className="absolute inset-0 overflow-auto m-0"
-          >
-            <DocumentsPage />
-          </TabsContent>
-          
-          <TabsContent 
-            value="knowledge-graph" 
-            className="absolute inset-0 overflow-auto m-0"
-          >
-            <GraphPage />
-          </TabsContent>
-          
-          <TabsContent 
-            value="retrieval" 
-            className="absolute inset-0 overflow-auto m-0"
-          >
-            <RetrievalPage />
-          </TabsContent>
-          
-          <TabsContent 
-            value="api" 
-            className="absolute inset-0 overflow-auto m-0"
-          >
-            <ApiPage />
-          </TabsContent>
-        </div>
-      </Tabs>
+    <div className="webui-shell text-foreground">
+      <div className="webui-content">
+        <Tabs
+          value={currentTab}
+          defaultValue="documents"
+          onValueChange={setCurrentTab}
+          className="flex h-full flex-col"
+        >
+          <Header currentTab={currentTab} onTabChange={setCurrentTab} />
 
-      {/* Status Bar */}
-      <div className="flex h-6 items-center border-t border-border/40 bg-muted px-4 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-          <span>Ready</span>
+          <div className="flex-1 overflow-hidden">
+            <TabsContent
+              value="documents"
+              className="h-full overflow-auto"
+            >
+              <DocumentsPage />
+            </TabsContent>
+
+            <TabsContent
+              value="knowledge-graph"
+              className="h-full overflow-auto"
+            >
+              <GraphPage />
+            </TabsContent>
+
+            <TabsContent
+              value="retrieval"
+              className="h-full overflow-auto"
+            >
+              <RetrievalPage />
+            </TabsContent>
+
+            <TabsContent
+              value="api"
+              className="h-full overflow-auto"
+            >
+              <ApiPage />
+            </TabsContent>
+          </div>
+        </Tabs>
+
+        {/* Status Bar */}
+        <div className="webui-status">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+            <span>Ready</span>
+          </div>
+          <span className="ml-auto">Cappy v3.0.2</span>
         </div>
-        <span className="ml-auto">Cappy v3.0.2</span>
       </div>
     </div>
   );

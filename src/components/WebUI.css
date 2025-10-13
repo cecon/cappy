@@ -24,26 +24,26 @@
   --radius: 0.5rem;
 }
 
-.dark {
-  /* Colors - Dark Theme */
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
+.dark, body {
+  /* VS Code Dark Theme Colors */
+  --background: 220 13% 18%;
+  --foreground: 210 11% 71%;
+  --card: 217 19% 27%;
+  --card-foreground: 210 11% 71%;
+  --popover: 220 13% 18%;
+  --popover-foreground: 210 11% 71%;
   --primary: 142.1 70.6% 45.3%;
-  --primary-foreground: 144.9 80.4% 10%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 217 19% 27%;
+  --secondary-foreground: 210 11% 71%;
+  --muted: 217 19% 27%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 217 19% 27%;
+  --accent-foreground: 210 11% 71%;
+  --destructive: 0 63% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 217 19% 27%;
+  --input: 220 13% 18%;
   --ring: 142.1 70.6% 45.3%;
 }
 
@@ -89,4 +89,218 @@ body {
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+/* Application Shell */
+.webui-shell {
+  position: relative;
+  min-height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at -10% -10%, rgba(16, 185, 129, 0.25), transparent 55%),
+    radial-gradient(circle at 82% 0%, rgba(59, 130, 246, 0.2), transparent 50%),
+    radial-gradient(circle at 20% 85%, rgba(99, 102, 241, 0.18), transparent 50%),
+    hsl(var(--background));
+}
+
+.webui-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(15, 23, 42, 0.85) 40%, rgba(15, 23, 42, 0.95) 100%);
+  pointer-events: none;
+}
+
+.webui-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.1), transparent 45%);
+  pointer-events: none;
+}
+
+.webui-content {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.85) 100%);
+  border-left: 1px solid rgba(255, 255, 255, 0.02);
+  border-right: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.webui-status {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 18px;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.18) 0%, rgba(59, 130, 246, 0.12) 45%, transparent 100%);
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Layout Utilities */
+.webui-page {
+  height: 100%;
+  overflow-y: auto;
+  padding: 32px 0 48px;
+}
+
+.webui-section {
+  width: min(1100px, 96%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.webui-stat-card {
+  padding: 18px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.12) 0%, rgba(15, 23, 42, 0.5) 100%);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.35);
+}
+
+.webui-stat-card .value {
+  font-size: 26px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  letter-spacing: 0.01em;
+}
+
+.webui-stat-card .label {
+  margin-top: 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+}
+
+.webui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.15);
+  color: rgba(110, 231, 183, 0.95);
+  letter-spacing: 0.04em;
+}
+
+.webui-callout {
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: linear-gradient(120deg, rgba(16, 185, 129, 0.18), rgba(56, 189, 248, 0.12));
+  border: 1px solid rgba(16, 185, 129, 0.24);
+  color: hsl(var(--foreground));
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.25);
+}
+
+.webui-callout strong {
+  font-weight: 600;
+  color: rgba(110, 231, 183, 0.95);
+}
+
+.webui-timeline {
+  position: relative;
+  padding-left: 18px;
+}
+
+.webui-timeline::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.25), rgba(148, 163, 184, 0));
+}
+
+.webui-timeline li {
+  position: relative;
+  margin-bottom: 16px;
+  padding-left: 12px;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+}
+
+.webui-timeline li::before {
+  content: '';
+  position: absolute;
+  left: -17px;
+  top: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid rgba(110, 231, 183, 0.6);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.webui-grid-soft {
+  display: grid;
+  gap: 18px;
+}
+
+@media (min-width: 768px) {
+  .webui-grid-soft {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .webui-grid-soft {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Page Layout Improvements */
+#root {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: hsl(var(--background));
+}
+
+/* Better Card Styling */
+.card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Improve text readability */
+h1, h2, h3, h4, h5, h6 {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+/* Better button hover states */
+button:hover {
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+}
+
+/* Input styling */
+input, textarea {
+  background: hsl(var(--input));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.5rem 0.75rem;
+}
+
+input:focus, textarea:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }
