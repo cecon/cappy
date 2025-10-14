@@ -20,6 +20,8 @@ export class ChatMessageHandler {
   }
 
   async handle(msg: { type: string; sessionId?: string; content?: string; text?: string; history?: Array<{role: string; content: string}>; messageId?: string; response?: string; [k: string]: unknown }) {
+    console.log('[ChatMessageHandler] Received message:', { type: msg.type, messageId: msg.messageId, response: msg.response })
+    
     switch (msg.type) {
       case 'sendMessage':
         await this.handleSendMessage(
@@ -53,7 +55,8 @@ export class ChatMessageHandler {
     const onPromptRequest = (prompt: UserPrompt) => {
       this.options.postMessage({ 
         type: 'promptRequest',
-        messageId: msgId, // Add messageId so frontend can match
+        messageId: msgId, // Streaming messageId for frontend to match
+        promptMessageId: prompt.messageId, // Prompt messageId for backend response
         prompt 
       })
     }
@@ -68,9 +71,15 @@ export class ChatMessageHandler {
   }
 
   private async handleUserPromptResponse(messageId: string | undefined, response: string | undefined) {
-    if (!messageId || response === undefined) return
+    console.log('[ChatMessageHandler] handleUserPromptResponse called with:', { messageId, response })
+    
+    if (!messageId || response === undefined) {
+      console.warn('[ChatMessageHandler] Invalid messageId or response')
+      return
+    }
 
     const agent = this.options.chat.getAgent()
+    console.log('[ChatMessageHandler] Agent type:', agent?.constructor?.name)
     
     if ('handleUserPromptResponse' in agent && typeof agent.handleUserPromptResponse === 'function') {
       console.log(`[ChatMessageHandler] Forwarding user prompt response: ${messageId} -> ${response}`)

@@ -98,11 +98,11 @@ class VSCodeChatAdapter implements ChatModelAdapter {
           isDone = true;
           break;
         case "promptRequest":
-          console.log("[VSCodeChatAdapter] Prompt request received:", message.prompt);
-          console.log("[VSCodeChatAdapter] Auto-approving tool call");
+          console.log("[VSCodeChatAdapter] Prompt request received:", message);
+          console.log("[VSCodeChatAdapter] Auto-approving tool call with promptMessageId:", message.promptMessageId);
           this.vscode.postMessage({
             type: "userPromptResponse",
-            messageId: message.prompt.id,
+            messageId: message.promptMessageId, // Use promptMessageId for backend to match
             response: "yes", // Backend expects 'yes', 'true', or 'confirm'
           });
           break;
