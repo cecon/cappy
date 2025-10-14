@@ -124,8 +124,10 @@ class VSCodeChatAdapter implements ChatModelAdapter {
           break;
         case "promptRequest": {
           console.log("[VSCodeChatAdapter] Prompt request received:", message);
+          console.log("[VSCodeChatAdapter] promptMessageId:", message.promptMessageId);
+          console.log("[VSCodeChatAdapter] prompt data:", message.prompt);
           
-          // Create pending tool call and wait for user confirmation
+          // Create pending tool call FIRST (before adding marker)
           const userDecision = new Promise<boolean>((resolve) => {
             const pendingTool: PendingToolCall = {
               messageId: message.promptMessageId,
@@ -134,11 +136,14 @@ class VSCodeChatAdapter implements ChatModelAdapter {
               question: message.prompt?.question || "Execute tool?",
               resolver: resolve,
             };
+            console.log("[VSCodeChatAdapter] Adding to pendingToolCalls:", pendingTool);
             this.pendingToolCalls.set(message.promptMessageId, pendingTool);
+            console.log("[VSCodeChatAdapter] Map size after set:", this.pendingToolCalls.size);
           });
 
           // Yield tool call UI to show confirmation buttons
           fullText += `\n\n__TOOL_CALL_PENDING__:${message.promptMessageId}\n\n`;
+          console.log("[VSCodeChatAdapter] Added marker to text");
 
           // Wait for user decision (this will pause execution until button click)
           const approved = await userDecision;
@@ -372,8 +377,15 @@ export function ChatView({ sessionId }: ChatViewProps) {
                         Text: ({ text }: { text: string }) => {
                           // Detecta se há um tool pendente nesta mensagem
                           const pendingMatch = text.match(/__TOOL_CALL_PENDING__:(.+)$/);
-                          const pendingMessageId = pendingMatch?.[1];
+                          const pendingMessageId = pendingMatch?.[1]?.trim();
+                          
+                          console.log("[Text Component] Raw text:", text);
+                          console.log("[Text Component] Pending match:", pendingMatch);
+                          console.log("[Text Component] Pending messageId:", pendingMessageId);
+                          console.log("[Text Component] Adapter pendingToolCalls size:", adapter.pendingToolCalls.size);
+                          
                           const pendingTool = pendingMessageId ? adapter.pendingToolCalls.get(pendingMessageId) : null;
+                          console.log("[Text Component] Found pendingTool:", pendingTool);
 
                           // Remove o marker do texto exibido
                           const cleanText = text.replace(/__TOOL_CALL_PENDING__:.+$/, '').trim();
@@ -391,6 +403,11 @@ export function ChatView({ sessionId }: ChatViewProps) {
                                 </div>
                               )}
                               {pendingTool && <ToolCallConfirmation adapter={adapter} pendingTool={pendingTool} />}
+                              {!pendingTool && pendingMessageId && (
+                                <div className="text-red-500 text-xs">
+                                  Debug: Tool not found in Map. ID: {pendingMessageId}
+                                </div>
+                              )}
                             </>
                           );
                         }

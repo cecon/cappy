@@ -63,7 +63,38 @@ export class ChatMessageHandler {
 
     // Pass history and callback to chat service
     const stream = await this.options.chat.sendMessage(session, content, history, onPromptRequest)
+    let accumulatedText = ''
+    
     for await (const token of stream) {
+      accumulatedText += token
+      
+      // Check if we have a complete __PROMPT_REQUEST__ marker
+      const promptMatch = accumulatedText.match(/__PROMPT_REQUEST__:(.+?)(?:\n\n|$)/)
+      if (promptMatch) {
+        try {
+          const promptData = JSON.parse(promptMatch[1])
+          console.log('[ChatMessageHandler] Detected promptRequest:', promptData)
+          
+          // Send promptRequest message to frontend
+          this.options.postMessage({ 
+            type: 'promptRequest',
+            messageId: msgId, // Streaming messageId for frontend to match
+            promptMessageId: promptData.messageId, // Prompt messageId for backend response
+            prompt: {
+              question: promptData.question,
+              toolCall: promptData.toolCall
+            }
+          })
+          
+          // Remove the marker from accumulated text but keep streaming other content
+          accumulatedText = accumulatedText.replace(/__PROMPT_REQUEST__:.+?(?:\n\n|$)/, '')
+          continue // Don't send the marker as a token
+        } catch (e) {
+          console.warn('[ChatMessageHandler] Failed to parse promptRequest:', e)
+        }
+      }
+      
+      // Send normal tokens
       this.options.postMessage({ type: 'streamToken', messageId: msgId, token })
     }
     

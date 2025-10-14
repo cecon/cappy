@@ -26,6 +26,22 @@ Primary duties:
  * Supports: streaming responses, tool calling, reasoning display
  */
 export class LangGraphChatEngine implements ChatAgentPort {
+  private promptResolvers = new Map<string, (response: string) => void>()
+
+  handleUserPromptResponse(messageId: string, response: string): void {
+    const resolver = this.promptResolvers.get(messageId)
+    if (resolver) {
+      resolver(response)
+      this.promptResolvers.delete(messageId)
+    }
+  }
+
+  private waitForUserResponse(messageId: string): Promise<string> {
+    return new Promise((resolve) => {
+      this.promptResolvers.set(messageId, resolve)
+    })
+  }
+
   async *processMessage(message: Message, context: ChatContext): AsyncIterable<string> {
     try {
       // Emit reasoning start
@@ -152,7 +168,27 @@ export class LangGraphChatEngine implements ChatAgentPort {
           const toolName = part.name.replace('cappy_', '')
 
           console.log('[LangGraphChatEngine] Tool call detected:', toolName)
-          console.log('[LangGraphChatEngine] Auto-executing without confirmation')
+          
+          // Send prompt request to frontend for user confirmation
+          const promptMessageId = `prompt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          
+          // Yield special marker that ChatMessageHandler will parse into promptRequest
+          yield `__PROMPT_REQUEST__:${JSON.stringify({
+            messageId: promptMessageId,
+            question: `Execute ${toolName}?`,
+            toolCall: {
+              name: toolName,
+              input: part.input
+            }
+          })}\n\n`
+
+          // Wait for user response (frontend will send userPromptResponse)
+          const userResponse = await this.waitForUserResponse(promptMessageId)
+          
+          if (userResponse !== 'yes') {
+            yield `\n\n❌ Tool execution denied by user\n\n`
+            return
+          }
 
           yield `\n\n🔧 Executing: ${toolName}\n\n`
 
