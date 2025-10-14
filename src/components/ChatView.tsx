@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { 
+import { useEffect, useRef, useState } from "react";
+import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
   ComposerPrimitive,
@@ -7,15 +7,14 @@ import {
   useLocalRuntime,
   type ChatModelAdapter,
   type ChatModelRunOptions,
-  type ChatModelRunResult
-} from '@assistant-ui/react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
-import cappyIcon from '../assets/cappy-icon.svg';
-import userIcon from '../assets/user-icon.svg';
-import { PromptMessage } from './PromptMessage';
-import type { UserPrompt } from '../domains/chat/entities/prompt';
+  type ChatModelRunResult,
+} from "@assistant-ui/react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import userIcon from "../assets/user-icon.svg";
+import { PromptMessage } from "./PromptMessage";
+import type { UserPrompt } from "../domains/chat/entities/prompt";
 
 interface ChatViewProps {
   sessionId?: string;
@@ -40,12 +39,12 @@ declare global {
     vscodeApi: VsCodeApi;
   }
   interface WindowEventMap {
-    'prompt-request': PromptRequestEvent;
+    "prompt-request": PromptRequestEvent;
   }
 }
 
 interface TextContentPart {
-  type: 'text';
+  type: "text";
   text: string;
 }
 
@@ -53,114 +52,128 @@ interface TextContentPart {
 class VSCodeChatAdapter implements ChatModelAdapter {
   private vscode: VsCodeApi;
   private sessionId?: string;
-  
+
   constructor(vscode: VsCodeApi, sessionId?: string) {
     this.vscode = vscode;
     this.sessionId = sessionId;
   }
 
-  async *run(options: ChatModelRunOptions): AsyncGenerator<ChatModelRunResult, void> {
+  async *run(
+    options: ChatModelRunOptions
+  ): AsyncGenerator<ChatModelRunResult, void> {
     const { messages } = options;
     const lastMessage = messages[messages.length - 1];
-    
-    if (!lastMessage || lastMessage.role !== 'user') {
-      throw new Error('Last message must be from user');
+
+    if (!lastMessage || lastMessage.role !== "user") {
+      throw new Error("Last message must be from user");
     }
 
     const userContent = lastMessage.content
-      .filter((part): part is TextContentPart => part.type === 'text')
+      .filter((part): part is TextContentPart => part.type === "text")
       .map((part) => part.text)
-      .join('');
+      .join("");
 
     // @assistant-ui already provides full conversation history in messages
     // We just need to send the entire history to backend
-    console.log('[VSCodeChatAdapter] Total messages in conversation:', messages.length);
-    console.log('[VSCodeChatAdapter] Last message:', userContent.substring(0, 50) + '...');
+    console.log(
+      "[VSCodeChatAdapter] Total messages in conversation:",
+      messages.length
+    );
+    console.log(
+      "[VSCodeChatAdapter] Last message:",
+      userContent.substring(0, 50) + "..."
+    );
 
     const messageId = Date.now().toString();
-    let fullText = '';
+    let fullText = "";
     let isDone = false;
     let hasError = false;
-    let errorMessage = '';
+    let errorMessage = "";
 
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
-      
+
       // Handle prompt requests (no messageId check needed)
-      if (message.type === 'promptRequest') {
-        console.log('[VSCodeChatAdapter] Received promptRequest:', message.prompt);
-        const promptEvent = new CustomEvent('prompt-request', {
+      if (message.type === "promptRequest") {
+        console.log(
+          "[VSCodeChatAdapter] Received promptRequest:",
+          message.prompt
+        );
+        const promptEvent = new CustomEvent("prompt-request", {
           detail: {
             prompt: message.prompt as UserPrompt,
             resolve: (response: string) => {
-              console.log('[VSCodeChatAdapter] Sending user response:', response);
-              this.vscode.postMessage({
-                type: 'userPromptResponse',
-                messageId: message.prompt.messageId,
+              console.log(
+                "[VSCodeChatAdapter] Sending user response:",
                 response
+              );
+              this.vscode.postMessage({
+                type: "userPromptResponse",
+                messageId: message.prompt.messageId,
+                response,
               });
-            }
-          }
+            },
+          },
         });
         window.dispatchEvent(promptEvent);
         return;
       }
-      
+
       // Handle stream messages (require messageId match)
       if (message.messageId !== messageId) return;
-      
+
       switch (message.type) {
-        case 'streamToken':
+        case "streamToken":
           // Accumulate all text (reasoning + content)
           fullText += message.token;
           break;
-        case 'streamEnd':
+        case "streamEnd":
           isDone = true;
           break;
-        case 'streamError':
+        case "streamError":
           hasError = true;
-          errorMessage = message.error || 'Unknown error';
+          errorMessage = message.error || "Unknown error";
           isDone = true;
           break;
       }
     };
 
-    window.addEventListener('message', handleMessage);
+    window.addEventListener("message", handleMessage);
 
     try {
       // Send entire conversation history from @assistant-ui to backend
       // Convert messages to simple format
-      const history = messages.slice(0, -1).map(msg => ({
+      const history = messages.slice(0, -1).map((msg) => ({
         role: msg.role,
         content: msg.content
-          .filter((part): part is TextContentPart => part.type === 'text')
-          .map(part => part.text)
-          .join('')
+          .filter((part): part is TextContentPart => part.type === "text")
+          .map((part) => part.text)
+          .join(""),
       }));
 
       // Send message with history
       this.vscode.postMessage({
-        type: 'sendMessage',
+        type: "sendMessage",
         messageId,
         text: userContent,
-        history,  // Send full conversation history
-        sessionId: this.sessionId
+        history, // Send full conversation history
+        sessionId: this.sessionId,
       });
 
       // Yield accumulated text periodically (filter out reasoning markers)
       let lastYieldedLength = 0;
-      
+
       while (!isDone) {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
         if (fullText.length > lastYieldedLength) {
           // Remove reasoning markers for display
           const displayText = fullText
-            .replace(/<!-- reasoning:start -->/g, '')
-            .replace(/<!-- reasoning:end -->/g, '');
-          
+            .replace(/<!-- reasoning:start -->/g, "")
+            .replace(/<!-- reasoning:end -->/g, "");
+
           yield {
-            content: [{ type: 'text', text: displayText }]
+            content: [{ type: "text", text: displayText }],
           };
           lastYieldedLength = fullText.length;
         }
@@ -173,15 +186,15 @@ class VSCodeChatAdapter implements ChatModelAdapter {
       // Final yield (filter reasoning markers)
       if (fullText) {
         const displayText = fullText
-          .replace(/<!-- reasoning:start -->/g, '')
-          .replace(/<!-- reasoning:end -->/g, '');
-        
+          .replace(/<!-- reasoning:start -->/g, "")
+          .replace(/<!-- reasoning:end -->/g, "");
+
         yield {
-          content: [{ type: 'text', text: displayText }]
+          content: [{ type: "text", text: displayText }],
         };
       }
     } finally {
-      window.removeEventListener('message', handleMessage);
+      window.removeEventListener("message", handleMessage);
     }
   }
 }
@@ -190,23 +203,32 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
   const vscode = useRef(window.vscodeApi);
   const [currentPrompt, setCurrentPrompt] = useState<UserPrompt | null>(null);
   const promptResolverRef = useRef<((response: string) => void) | null>(null);
-  
-  const adapter = useRef(new VSCodeChatAdapter(vscode.current, sessionId)).current;
+
+  const adapter = useRef(
+    new VSCodeChatAdapter(vscode.current, sessionId)
+  ).current;
   const runtime = useLocalRuntime(adapter);
 
   useEffect(() => {
     const handlePromptRequest = (event: PromptRequestEvent) => {
-      console.log('[ChatView] Prompt request received:', event.detail.prompt);
+      console.log("[ChatView] Prompt request received:", event.detail.prompt);
       setCurrentPrompt(event.detail.prompt);
       promptResolverRef.current = event.detail.resolve;
     };
 
-    window.addEventListener('prompt-request', handlePromptRequest as EventListener);
-    return () => window.removeEventListener('prompt-request', handlePromptRequest as EventListener);
+    window.addEventListener(
+      "prompt-request",
+      handlePromptRequest as EventListener
+    );
+    return () =>
+      window.removeEventListener(
+        "prompt-request",
+        handlePromptRequest as EventListener
+      );
   }, []);
 
   const handlePromptResponse = (response: string) => {
-    console.log('[ChatView] User responded:', response);
+    console.log("[ChatView] User responded:", response);
     if (promptResolverRef.current) {
       promptResolverRef.current(response);
       promptResolverRef.current = null;
@@ -216,65 +238,102 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--vscode-editor-background)' }}>
-        <div style={{ padding: '12px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
-          <h3 style={{ margin: 0, color: 'var(--vscode-foreground)' }}>{sessionTitle || 'Chat'}</h3>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100vh",
+          backgroundColor: "var(--vscode-editor-background)",
+        }}
+      >
+        <div
+          style={{
+            padding: "12px",
+            borderBottom: "1px solid var(--vscode-panel-border)",
+          }}
+        >
+          <h3 style={{ margin: 0, color: "var(--vscode-foreground)" }}>
+            {sessionTitle || "Chat"}
+          </h3>
         </div>
-        
-        <ThreadPrimitive.Root style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <ThreadPrimitive.Viewport style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+
+        <ThreadPrimitive.Root
+          style={{ flex: 1, display: "flex", flexDirection: "column" }}
+        >
+          <ThreadPrimitive.Viewport
+            style={{ flex: 1, overflowY: "auto", padding: "16px" }}
+          >
             <ThreadPrimitive.Messages
               components={{
                 UserMessage: () => (
-                  <MessagePrimitive.Root style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
-                      <img src={userIcon} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <MessagePrimitive.Root
+                    style={{
+                      display: "flex",
+                      gap: "12px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <img
+                        src={userIcon}
+                        alt="User"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
                     </div>
-                    <div style={{ flex: 1, color: 'var(--vscode-foreground)' }}>
+                    <div style={{ flex: 1, color: "var(--vscode-foreground)" }}>
                       <MessagePrimitive.Content />
                     </div>
                   </MessagePrimitive.Root>
                 ),
                 AssistantMessage: () => (
-                  <MessagePrimitive.Root style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
-                      <img src={cappyIcon} alt="Cappy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
-                    <div style={{ flex: 1, color: 'var(--vscode-foreground)' }}>
-                      <MessagePrimitive.Content 
-                        components={{
-                          Text: ({ text }: { text: string }) => (
-                            <ReactMarkdown 
-                              remarkPlugins={[remarkGfm]}
-                              rehypePlugins={[rehypeHighlight]}
-                            >
-                              {text}
-                            </ReactMarkdown>
-                          )
-                        }}
-                      />
-                    </div>
+                  <MessagePrimitive.Root
+                    style={{
+                      display: "flex",
+                      gap: "12px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <MessagePrimitive.Content
+                      components={{
+                        Text: ({ text }: { text: string }) => (
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeHighlight]}
+                          >
+                            {text}
+                          </ReactMarkdown>
+                        ),
+                      }}
+                    />
                   </MessagePrimitive.Root>
-                )
+                ),
               }}
             />
           </ThreadPrimitive.Viewport>
 
-          <div style={{ padding: '12px', borderTop: '1px solid var(--vscode-panel-border)' }}>
-            <ComposerPrimitive.Root style={{ display: 'flex', gap: '8px' }}>
-              <ComposerPrimitive.Input 
-                placeholder="Digite sua mensagem..." 
-                autoFocus
-              />
-              <ComposerPrimitive.Send>
-                ➤
-              </ComposerPrimitive.Send>
-            </ComposerPrimitive.Root>
-          </div>
+          <ComposerPrimitive.Root style={{ display: "flex", gap: "8px" }}>
+            <ComposerPrimitive.Input
+              placeholder="Digite sua mensagem..."
+              autoFocus
+            />
+            <ComposerPrimitive.Send>➤</ComposerPrimitive.Send>
+          </ComposerPrimitive.Root>
         </ThreadPrimitive.Root>
 
         {currentPrompt && (
-          <PromptMessage 
+          <PromptMessage
             prompt={currentPrompt}
             onResponse={handlePromptResponse}
           />
