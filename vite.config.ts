@@ -26,7 +26,7 @@ export default defineConfig({
     minify: 'esbuild',
     // Important: use relative paths for VS Code webview
     assetsInlineLimit: 0,
-    cssCodeSplit: false
+    cssCodeSplit: true
   },
   
   // Use relative base for webview compatibility

@@ -12,8 +12,6 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import 'highlight.js/styles/vs2015.css';
-import './ChatView.css';
 import cappyIcon from '../assets/cappy-icon.svg';
 import userIcon from '../assets/user-icon.svg';
 import { PromptMessage } from './PromptMessage';
@@ -218,38 +216,34 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <div className="chat-container">
-        <div className="chat-header">
-          <h3>{sessionTitle || 'Chat'}</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--vscode-editor-background)' }}>
+        <div style={{ padding: '12px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
+          <h3 style={{ margin: 0, color: 'var(--vscode-foreground)' }}>{sessionTitle || 'Chat'}</h3>
         </div>
         
-        <ThreadPrimitive.Root className="chat-thread">
-          <ThreadPrimitive.Viewport className="chat-messages">
+        <ThreadPrimitive.Root style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <ThreadPrimitive.Viewport style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
             <ThreadPrimitive.Messages
               components={{
                 UserMessage: () => (
-                  <MessagePrimitive.Root className="message user">
-                    <div className="message-avatar">
-                      <img src={userIcon} alt="User" />
+                  <MessagePrimitive.Root style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+                      <img src={userIcon} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
-                    <div className="message-content">
-                      <MessagePrimitive.Content 
-                        components={{
-                          Text: ({ text }) => <span>{text}</span>
-                        }}
-                      />
+                    <div style={{ flex: 1, color: 'var(--vscode-foreground)' }}>
+                      <MessagePrimitive.Content />
                     </div>
                   </MessagePrimitive.Root>
                 ),
                 AssistantMessage: () => (
-                  <MessagePrimitive.Root className="message assistant">
-                    <div className="message-avatar">
-                      <img src={cappyIcon} alt="Cappy" />
+                  <MessagePrimitive.Root style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
+                      <img src={cappyIcon} alt="Cappy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
-                    <div className="message-content">
+                    <div style={{ flex: 1, color: 'var(--vscode-foreground)' }}>
                       <MessagePrimitive.Content 
                         components={{
-                          Text: ({ text }) => (
+                          Text: ({ text }: { text: string }) => (
                             <ReactMarkdown 
                               remarkPlugins={[remarkGfm]}
                               rehypePlugins={[rehypeHighlight]}
@@ -266,15 +260,14 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
             />
           </ThreadPrimitive.Viewport>
 
-          <div className="chat-composer">
-            <ComposerPrimitive.Root>
+          <div style={{ padding: '12px', borderTop: '1px solid var(--vscode-panel-border)' }}>
+            <ComposerPrimitive.Root style={{ display: 'flex', gap: '8px' }}>
               <ComposerPrimitive.Input 
-                className="chat-input"
                 placeholder="Digite sua mensagem..." 
                 autoFocus
               />
-              <ComposerPrimitive.Send className="chat-send-button">
-                <span>➤</span>
+              <ComposerPrimitive.Send>
+                ➤
               </ComposerPrimitive.Send>
             </ComposerPrimitive.Root>
           </div>

@@ -5,6 +5,7 @@ import { ChatPanel } from './adapters/primary/vscode/chat/ChatPanel';
 import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvider';
 import { GraphPanel } from './adapters/primary/vscode/graph/GraphPanel';
 import { CreateFileTool } from './adapters/secondary/tools/create-file-tool';
+import { FetchWebTool } from './adapters/secondary/tools/fetch-web-tool';
 import type { ChatSession } from './domains/chat/entities/session';
 
 /**
@@ -21,6 +22,10 @@ export function activate(context: vscode.ExtensionContext) {
     const createFileTool = vscode.lm.registerTool('cappy_create_file', new CreateFileTool());
     context.subscriptions.push(createFileTool);
     console.log('✅ Registered Language Model Tool: cappy_create_file');
+
+    const fetchWebTool = vscode.lm.registerTool('cappy_fetch_web', new FetchWebTool());
+    context.subscriptions.push(fetchWebTool);
+    console.log('✅ Registered Language Model Tool: cappy_fetch_web');
     
     // Create output channel for graph logs
     const graphOutputChannel = vscode.window.createOutputChannel('Cappy Graph');

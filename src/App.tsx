@@ -1,5 +1,4 @@
 import { ChatView } from './components/ChatView'
-import './App.css'
 
 console.log('[React App] Loading...')
 
