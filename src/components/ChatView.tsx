@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
@@ -12,8 +12,6 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { PromptMessage } from "./PromptMessage";
-import type { UserPrompt } from "../domains/chat/entities/prompt";
 
 interface ChatViewProps {
   sessionId?: string;
@@ -26,19 +24,9 @@ interface VsCodeApi {
   getState: () => unknown;
 }
 
-interface PromptRequestEvent extends CustomEvent {
-  detail: {
-    prompt: UserPrompt;
-    resolve: (response: string) => void;
-  };
-}
-
 declare global {
   interface Window {
     vscodeApi: VsCodeApi;
-  }
-  interface WindowEventMap {
-    "prompt-request": PromptRequestEvent;
   }
 }
 
@@ -91,32 +79,6 @@ class VSCodeChatAdapter implements ChatModelAdapter {
 
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
-
-      // Handle prompt requests (no messageId check needed)
-      if (message.type === "promptRequest") {
-        console.log(
-          "[VSCodeChatAdapter] Received promptRequest:",
-          message.prompt
-        );
-        const promptEvent = new CustomEvent("prompt-request", {
-          detail: {
-            prompt: message.prompt as UserPrompt,
-            resolve: (response: string) => {
-              console.log(
-                "[VSCodeChatAdapter] Sending user response:",
-                response
-              );
-              this.vscode.postMessage({
-                type: "userPromptResponse",
-                messageId: message.prompt.messageId,
-                response,
-              });
-            },
-          },
-        });
-        window.dispatchEvent(promptEvent);
-        return;
-      }
 
       // Handle stream messages (require messageId match)
       if (message.messageId !== messageId) return;
@@ -200,68 +162,23 @@ class VSCodeChatAdapter implements ChatModelAdapter {
 
 export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
   const vscode = useRef(window.vscodeApi);
-  const [currentPrompt, setCurrentPrompt] = useState<UserPrompt | null>(null);
-  const promptResolverRef = useRef<((response: string) => void) | null>(null);
 
   const adapter = useRef(
     new VSCodeChatAdapter(vscode.current, sessionId)
   ).current;
   const runtime = useLocalRuntime(adapter);
 
-  useEffect(() => {
-    const handlePromptRequest = (event: PromptRequestEvent) => {
-      console.log("[ChatView] Prompt request received:", event.detail.prompt);
-      setCurrentPrompt(event.detail.prompt);
-      promptResolverRef.current = event.detail.resolve;
-    };
-
-    window.addEventListener(
-      "prompt-request",
-      handlePromptRequest as EventListener
-    );
-    return () =>
-      window.removeEventListener(
-        "prompt-request",
-        handlePromptRequest as EventListener
-      );
-  }, []);
-
-  const handlePromptResponse = (response: string) => {
-    console.log("[ChatView] User responded:", response);
-    if (promptResolverRef.current) {
-      promptResolverRef.current(response);
-      promptResolverRef.current = null;
-    }
-    setCurrentPrompt(null);
-  };
-
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          height: "100vh",
-          backgroundColor: "var(--vscode-editor-background)",
-        }}
-      >
-        <div
-          style={{
-            padding: "12px",
-            borderBottom: "1px solid var(--vscode-panel-border)",
-          }}
-        >
-          <h3 style={{ margin: 0, color: "var(--vscode-foreground)" }}>
+      <div className="flex flex-col h-screen bg-[var(--vscode-editor-background)]">
+        <div className="p-3 border-b border-[var(--vscode-panel-border)]">
+          <h3 className="m-0 text-[var(--vscode-foreground)]">
             {sessionTitle || "Chat"}
           </h3>
         </div>
 
-        <ThreadPrimitive.Root
-          style={{ flex: 1, display: "flex", flexDirection: "column" }}
-        >
-          <ThreadPrimitive.Viewport
-            style={{ flex: 1, overflowY: "auto", padding: "16px" }}
-          >
+        <ThreadPrimitive.Root className="flex flex-col flex-1">
+          <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto p-4">
             <ThreadPrimitive.Messages
               components={{
                 UserMessage: () => (
@@ -280,7 +197,7 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
                           >
                             {text}
                           </ReactMarkdown>
-                        ),
+                        )
                       }}
                     />
                   </MessagePrimitive.Root>
@@ -289,21 +206,15 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
             />
           </ThreadPrimitive.Viewport>
 
-          <ComposerPrimitive.Root>
+          <ComposerPrimitive.Root className="flex gap-2 p-3 border-t border-[var(--vscode-panel-border)]">
             <ComposerPrimitive.Input
               placeholder="Digite sua mensagem..."
               autoFocus
+              className="flex-1"
             />
             <ComposerPrimitive.Send>➤</ComposerPrimitive.Send>
           </ComposerPrimitive.Root>
         </ThreadPrimitive.Root>
-
-        {currentPrompt && (
-          <PromptMessage
-            prompt={currentPrompt}
-            onResponse={handlePromptResponse}
-          />
-        )}
       </div>
     </AssistantRuntimeProvider>
   );

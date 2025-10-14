@@ -9,7 +9,6 @@ O backend agora envia **reasoning progressivo** durante o processamento:
 ```typescript
 // Backend emite reasoning detalhado
 yield '<!-- reasoning:start -->\n'
-yield '🔍 Selecionando modelo apropriado...\n'
 yield `✅ Usando modelo: ${model.family}\n`
 yield `📊 Processando contexto de ${context.history.length} mensagens...\n`
 yield '<!-- reasoning:end -->\n'

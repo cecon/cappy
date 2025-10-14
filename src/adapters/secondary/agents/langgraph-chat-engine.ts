@@ -31,8 +31,7 @@ export class LangGraphChatEngine implements ChatAgentPort {
   async *processMessage(message: Message, context: ChatContext): AsyncIterable<string> {
     try {
       // Emit reasoning start
-      yield '<!-- reasoning:start -->\n'
-      yield '🔍 Selecionando modelo apropriado...\n'
+      yield '<!-- reasoning:start -->\n'      
       
       // Select a Copilot chat model
       const models = await vscode.lm.selectChatModels({
@@ -42,10 +41,10 @@ export class LangGraphChatEngine implements ChatAgentPort {
 
       if (models.length === 0) {
         yield '<!-- reasoning:end -->\n'
-        yield '❌ No Copilot models available. Make sure you have:\n'
+        yield 'No Copilot models available. Make sure you have:\n'
         yield '1. GitHub Copilot extension installed\n'
         yield '2. GitHub Copilot subscription active\n'
-        yield '3. Signed in to GitHub in VS Code'
+        yield '3. Signed in to GitHub in VS Code\n'
         return
       }
 
@@ -125,17 +124,17 @@ export class LangGraphChatEngine implements ChatAgentPort {
               const savedInfo = await this.persistPlanFromText(combinedAssistantText)
               if (savedInfo) {
                 planSaved = true
-                yield `\n\n✅ Plano salvo em \`${savedInfo.relativePath}\`\n\n`
+                yield `\n\nPlan saved to \`${savedInfo.relativePath}\`\n\n`
               } else {
-                yield '\n\n⚠️ Não foi possível localizar um bloco JSON válido para salvar.\n\n'
+                yield '\n\nCould not find a valid JSON block to save.\n\n'
               }
             } catch (persistError) {
-              const persistMessage = persistError instanceof Error ? persistError.message : 'Erro desconhecido ao salvar o plano.'
-              yield `\n\n⚠️ Não foi possível salvar o plano automaticamente: ${persistMessage}\n\n`
+              const persistMessage = persistError instanceof Error ? persistError.message : 'Unknown error saving plan.'
+              yield `\n\nCould not save plan automatically: ${persistMessage}\n\n`
             }
 
             if (planSaved) {
-              yield 'Precisa de mais alguma coisa? (responda "sim" ou "não")\n'
+              yield 'Do you need anything else? (reply "yes" or "no")\n'
             }
 
             return
@@ -183,11 +182,11 @@ export class LangGraphChatEngine implements ChatAgentPort {
           console.log('[LangGraphChatEngine] User response received:', confirmed)
 
           if (!confirmed) {
-            yield `\n\n❌ **Operação cancelada pelo usuário**\n\n`
+            yield `\n\nOperation cancelled by user\n\n`
             return
           }
 
-          yield `\n\n🔧 *Executando: ${toolName}*\n\n`
+          yield `\n\nExecuting: ${toolName}\n\n`
 
           try {
             const toolResult = await vscode.lm.invokeTool(
@@ -212,31 +211,31 @@ export class LangGraphChatEngine implements ChatAgentPort {
             messages.push(vscode.LanguageModelChatMessage.User([toolResultPart]))
           } catch (toolError) {
             const errorMsg = toolError instanceof Error ? toolError.message : 'Unknown error'
-            yield `\n\n❌ **Tool error:** ${errorMsg}\n\n`
+            yield `\n\nTool error: ${errorMsg}\n\n`
             return
           }
         }
       }
 
-      yield `\n\n⚠️ Limite de iterações agentic atingido. Ajuste a solicitação ou conclua manualmente.\n\n`
+      yield `\n\nAgentic iteration limit reached. Please adjust your request or complete manually.\n\n`
     } catch (error) {
       if (error instanceof vscode.LanguageModelError) {
-        yield `\n\n❌ Language Model Error: ${error.message}\n\n`
+        yield `\n\nLanguage Model Error: ${error.message}\n\n`
         
         // Handle specific error codes
         if (error.code === 'NoPermissions') {
-          yield '⚠️ You need to grant permission to use the language model.\n'
-          yield 'The first request will show a consent dialog.'
+          yield 'You need to grant permission to use the language model.\n'
+          yield 'The first request will show a consent dialog.\n'
         } else if (error.code === 'NotFound') {
-          yield '⚠️ The requested model was not found.\n'
-          yield 'Make sure GitHub Copilot is installed and active.'
+          yield 'The requested model was not found.\n'
+          yield 'Make sure GitHub Copilot is installed and active.\n'
         } else if (error.code === 'Blocked') {
-          yield '⚠️ Request blocked due to quota or rate limits.\n'
-          yield 'Please try again later.'
+          yield 'Request blocked due to quota or rate limits.\n'
+          yield 'Please try again later.\n'
         }
       } else {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        yield `\n\n❌ Error: ${errorMessage}\n`
+        yield `\n\nError: ${errorMessage}\n`
       }
     }
   }
