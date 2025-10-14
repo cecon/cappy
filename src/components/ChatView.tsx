@@ -12,7 +12,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { SendHorizontalIcon, CircleStopIcon } from "lucide-react";
+import { SendHorizontalIcon, CircleStopIcon, CheckIcon, XIcon } from "lucide-react";
 
 interface ChatViewProps {
   sessionId?: string;
@@ -36,14 +36,39 @@ interface TextContentPart {
   text: string;
 }
 
+interface PendingToolCall {
+  messageId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  question: string;
+  resolver: (approved: boolean) => void;
+}
+
 // Ultra-simplified adapter - just stream tokens directly
 class VSCodeChatAdapter implements ChatModelAdapter {
   private vscode: VsCodeApi;
   private sessionId?: string;
+  public pendingToolCalls: Map<string, PendingToolCall> = new Map();
 
   constructor(vscode: VsCodeApi, sessionId?: string) {
     this.vscode = vscode;
     this.sessionId = sessionId;
+  }
+
+  public approveToolCall(messageId: string) {
+    const pending = this.pendingToolCalls.get(messageId);
+    if (pending) {
+      pending.resolver(true);
+      this.pendingToolCalls.delete(messageId);
+    }
+  }
+
+  public denyToolCall(messageId: string) {
+    const pending = this.pendingToolCalls.get(messageId);
+    if (pending) {
+      pending.resolver(false);
+      this.pendingToolCalls.delete(messageId);
+    }
   }
 
   async *run(
@@ -78,7 +103,7 @@ class VSCodeChatAdapter implements ChatModelAdapter {
     let hasError = false;
     let errorMessage = "";
 
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       const message = event.data;
 
       // Handle stream messages (require messageId match)
@@ -97,15 +122,43 @@ class VSCodeChatAdapter implements ChatModelAdapter {
           errorMessage = message.error || "Unknown error";
           isDone = true;
           break;
-        case "promptRequest":
+        case "promptRequest": {
           console.log("[VSCodeChatAdapter] Prompt request received:", message);
-          console.log("[VSCodeChatAdapter] Auto-approving tool call with promptMessageId:", message.promptMessageId);
+          
+          // Create pending tool call and wait for user confirmation
+          const userDecision = new Promise<boolean>((resolve) => {
+            const pendingTool: PendingToolCall = {
+              messageId: message.promptMessageId,
+              toolName: message.prompt?.toolCall?.name || "unknown",
+              args: message.prompt?.toolCall?.input || {},
+              question: message.prompt?.question || "Execute tool?",
+              resolver: resolve,
+            };
+            this.pendingToolCalls.set(message.promptMessageId, pendingTool);
+          });
+
+          // Yield tool call UI to show confirmation buttons
+          fullText += `\n\n__TOOL_CALL_PENDING__:${message.promptMessageId}\n\n`;
+
+          // Wait for user decision (this will pause execution until button click)
+          const approved = await userDecision;
+
+          // Send response to backend
           this.vscode.postMessage({
             type: "userPromptResponse",
-            messageId: message.promptMessageId, // Use promptMessageId for backend to match
-            response: "yes", // Backend expects 'yes', 'true', or 'confirm'
+            messageId: message.promptMessageId,
+            response: approved ? "yes" : "no",
           });
+
+          // Update text to show result
+          if (approved) {
+            fullText += `✅ Tool approved\n\n`;
+          } else {
+            fullText += `❌ Tool denied\n\n`;
+            isDone = true;
+          }
           break;
+        }
       }
     };
 
@@ -227,6 +280,55 @@ const ComposerAction: FC = () => {
   );
 };
 
+const ToolCallConfirmation: FC<{ adapter: VSCodeChatAdapter; pendingTool: PendingToolCall }> = ({ adapter, pendingTool }) => {
+  const handleApprove = () => {
+    adapter.approveToolCall(pendingTool.messageId);
+  };
+
+  const handleDeny = () => {
+    adapter.denyToolCall(pendingTool.messageId);
+  };
+
+  return (
+    <div className="my-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex-1">
+          <div className="font-medium text-sm mb-1">🔧 {pendingTool.toolName}</div>
+          <div className="text-xs text-muted-foreground mb-2">
+            {pendingTool.question}
+          </div>
+          {Object.keys(pendingTool.args).length > 0 && (
+            <details className="text-xs">
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                View parameters
+              </summary>
+              <pre className="mt-2 overflow-auto max-h-32 p-2 rounded bg-muted">
+                {JSON.stringify(pendingTool.args, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={handleApprove}
+          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <CheckIcon className="size-3" />
+          Allow
+        </button>
+        <button
+          onClick={handleDeny}
+          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+        >
+          <XIcon className="size-3" />
+          Deny
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const Composer: FC = () => {
   return (
     <ComposerPrimitive.Root className="focus-within:border-ring/20 flex w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in">
@@ -267,16 +369,31 @@ export function ChatView({ sessionId }: ChatViewProps) {
                   <div className="max-w-[80%] rounded-2xl bg-gray-100 dark:bg-gray-800 px-4 py-2">
                     <MessagePrimitive.Content
                       components={{
-                        Text: ({ text }: { text: string }) => (
-                          <div className="prose dark:prose-invert max-w-none">
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm]}
-                              rehypePlugins={[rehypeHighlight]}
-                            >
-                              {text}
-                            </ReactMarkdown>
-                          </div>
-                        )
+                        Text: ({ text }: { text: string }) => {
+                          // Detecta se há um tool pendente nesta mensagem
+                          const pendingMatch = text.match(/__TOOL_CALL_PENDING__:(.+)$/);
+                          const pendingMessageId = pendingMatch?.[1];
+                          const pendingTool = pendingMessageId ? adapter.pendingToolCalls.get(pendingMessageId) : null;
+
+                          // Remove o marker do texto exibido
+                          const cleanText = text.replace(/__TOOL_CALL_PENDING__:.+$/, '').trim();
+
+                          return (
+                            <>
+                              {cleanText && (
+                                <div className="prose dark:prose-invert max-w-none">
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    rehypePlugins={[rehypeHighlight]}
+                                  >
+                                    {cleanText}
+                                  </ReactMarkdown>
+                                </div>
+                              )}
+                              {pendingTool && <ToolCallConfirmation adapter={adapter} pendingTool={pendingTool} />}
+                            </>
+                          );
+                        }
                       }}
                     />
                   </div>

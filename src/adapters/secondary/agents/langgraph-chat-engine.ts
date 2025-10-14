@@ -157,25 +157,48 @@ export class LangGraphChatEngine implements ChatAgentPort {
           yield `\n\n🔧 Executing: ${toolName}\n\n`
 
           try {
-            const toolResult = await vscode.lm.invokeTool(
-              part.name,
-              {
-                input: part.input,
-                toolInvocationToken: undefined
-              },
-              cancellationSource.token
-            )
+            let resultText = ''
 
-            const resultText = toolResult.content
-              .filter(c => c instanceof vscode.LanguageModelTextPart)
-              .map(c => (c as vscode.LanguageModelTextPart).value)
-              .join('')
+            // Execute tools directly without VS Code confirmation
+            if (toolName === 'create_file') {
+              const input = part.input as { path: string; content: string }
+              const filePath = path.isAbsolute(input.path)
+                ? input.path
+                : path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '', input.path)
+              
+              const fileUri = vscode.Uri.file(filePath)
+              const content = Buffer.from(input.content, 'utf-8')
+              
+              await vscode.workspace.fs.writeFile(fileUri, content)
+              resultText = `✅ File created: ${input.path}`
+              
+              // Open the file
+              const doc = await vscode.workspace.openTextDocument(fileUri)
+              await vscode.window.showTextDocument(doc)
+            } else {
+              // For other tools, use VS Code invokeTool (will show confirmation)
+              const toolResult = await vscode.lm.invokeTool(
+                part.name,
+                {
+                  input: part.input,
+                  toolInvocationToken: undefined
+                },
+                cancellationSource.token
+              )
+
+              resultText = toolResult.content
+                .filter(c => c instanceof vscode.LanguageModelTextPart)
+                .map(c => (c as vscode.LanguageModelTextPart).value)
+                .join('')
+            }
 
             if (resultText) {
               yield `${resultText}\n\n`
             }
 
-            const toolResultPart = new vscode.LanguageModelToolResultPart(part.callId, toolResult.content)
+            // Add tool result to conversation
+            const toolResultContent = [new vscode.LanguageModelTextPart(resultText)]
+            const toolResultPart = new vscode.LanguageModelToolResultPart(part.callId, toolResultContent)
             messages.push(vscode.LanguageModelChatMessage.User([toolResultPart]))
           } catch (toolError) {
             const errorMsg = toolError instanceof Error ? toolError.message : 'Unknown error'
