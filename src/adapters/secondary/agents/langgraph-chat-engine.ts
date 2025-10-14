@@ -1,7 +1,24 @@
 import * as vscode from 'vscode'
+import * as path from 'path'
 import type { ChatAgentPort, ChatContext } from '../../../domains/chat/ports/agent-port'
 import type { Message } from '../../../domains/chat/entities/message'
 import type { UserPrompt } from '../../../domains/chat/entities/prompt'
+
+const MAX_AGENT_STEPS = 8
+
+const SYSTEM_PROMPT = `
+You are Cappy, an AI planning assistant integrated into VS Code.
+You specialize in producing development-plan JSON files saved under .cappy/tasks/{timestamp}_plan_{slug}.json.
+Primary duties:
+- Collect missing requirements and confirm assumptions before drafting the plan.
+- Structure every proposal with contexts (array of named resources with kind, location, whyItMatters) and steps (id, objective, instructions list, deliverables, acceptanceCriteria, dependencies, contextRefs, estimatedEffort).
+- Recommend validation checklists and prevention rules relevant to each step.
+- Answer in the same language as the user unless explicitly instructed otherwise.
+- When uncertain, ask clarifying questions before continuing.
+- Operate agentically: run an iterative THINK → PLAN → ACTION → REVIEW loop until the task is complete. Use clear bullet lists for PLAN and REVIEW sections.
+- Mark intermediate turns that require more work with \`<!-- agent:continue -->\`. Mark the final output with \`<!-- agent:done -->\` and ensure it contains the finalized JSON draft.
+- After salvar o arquivo, sempre pergunte "Precisa de mais alguma coisa? (responda 'sim' ou 'não')" e, em caso afirmativo, conduza perguntas de follow-up uma a uma até ter clareza da nova tarefa.
+`.trim()
 
 /**
  * Chat engine using GitHub Copilot's LLM via VS Code Language Model API
@@ -37,12 +54,7 @@ export class LangGraphChatEngine implements ChatAgentPort {
 
       // Build message array for the model
       const messages: vscode.LanguageModelChatMessage[] = [
-        vscode.LanguageModelChatMessage.User(
-          'You are Cappy, an AI coding assistant integrated into VS Code. ' +
-          'You help developers write code, debug issues, understand codebases, and improve productivity. ' +
-          'Be concise, helpful, and provide actionable advice. ' +
-          'Use markdown formatting for code blocks.'
-        )
+        vscode.LanguageModelChatMessage.User(SYSTEM_PROMPT)
       ]
 
       // Add conversation history from context (limit to last 10 messages to avoid context overflow)
@@ -77,18 +89,72 @@ export class LangGraphChatEngine implements ChatAgentPort {
         tools: cappyTools
       }
       
-      const response = await model.sendRequest(messages, options, new vscode.CancellationTokenSource().token)
+      const cancellationSource = new vscode.CancellationTokenSource()
 
-      // Process response stream - handle both text and tool calls
-      for await (const part of response.stream) {
-        if (part instanceof vscode.LanguageModelTextPart) {
-          yield part.value
-        } else if (part instanceof vscode.LanguageModelToolCallPart) {
-          // Tool call detected - request user confirmation
+      for (let step = 1; step <= MAX_AGENT_STEPS; step++) {
+        console.log(`[LangGraphChatEngine] Agentic step ${step} starting`)
+        const response = await model.sendRequest(messages, options, cancellationSource.token)
+
+  const assistantParts: (vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart)[] = []
+        const toolCalls: vscode.LanguageModelToolCallPart[] = []
+
+        for await (const part of response.stream) {
+          if (part instanceof vscode.LanguageModelTextPart) {
+            assistantParts.push(part)
+            yield part.value
+          } else if (part instanceof vscode.LanguageModelToolCallPart) {
+            assistantParts.push(part)
+            toolCalls.push(part)
+          }
+        }
+
+        if (assistantParts.length > 0) {
+          messages.push(vscode.LanguageModelChatMessage.Assistant(assistantParts))
+        }
+
+        const combinedAssistantText = assistantParts
+          .filter((part): part is vscode.LanguageModelTextPart => part instanceof vscode.LanguageModelTextPart)
+          .map(part => part.value)
+          .join('')
+
+        if (combinedAssistantText) {
+          if (combinedAssistantText.includes('<!-- agent:done -->')) {
+            let planSaved = false
+
+            try {
+              const savedInfo = await this.persistPlanFromText(combinedAssistantText)
+              if (savedInfo) {
+                planSaved = true
+                yield `\n\n✅ Plano salvo em \`${savedInfo.relativePath}\`\n\n`
+              } else {
+                yield '\n\n⚠️ Não foi possível localizar um bloco JSON válido para salvar.\n\n'
+              }
+            } catch (persistError) {
+              const persistMessage = persistError instanceof Error ? persistError.message : 'Erro desconhecido ao salvar o plano.'
+              yield `\n\n⚠️ Não foi possível salvar o plano automaticamente: ${persistMessage}\n\n`
+            }
+
+            if (planSaved) {
+              yield 'Precisa de mais alguma coisa? (responda "sim" ou "não")\n'
+            }
+
+            return
+          }
+
+          if (combinedAssistantText.includes('<!-- agent:continue -->')) {
+            continue
+          }
+        }
+
+        if (toolCalls.length === 0) {
+          console.log('[LangGraphChatEngine] No tool calls detected, finishing agentic loop')
+          return
+        }
+
+        for (const part of toolCalls) {
           const toolName = part.name.replace('cappy_', '')
           const messageId = Date.now().toString()
-          
-          // Create prompt for user confirmation
+
           const prompt: UserPrompt = {
             messageId,
             promptType: 'confirm',
@@ -98,76 +164,61 @@ export class LangGraphChatEngine implements ChatAgentPort {
               input: part.input
             }
           }
-          
-          // Send prompt to frontend via callback (if available)
+
           console.log('[LangGraphChatEngine] Tool call detected:', toolName)
           console.log('[LangGraphChatEngine] onPromptRequest available:', !!context.onPromptRequest)
-          
+
           if (context.onPromptRequest) {
             console.log('[LangGraphChatEngine] Sending prompt via callback')
             context.onPromptRequest(prompt)
           } else {
             console.log('[LangGraphChatEngine] Sending prompt via HTML markers (fallback)')
-            // Fallback: yield as HTML markers (for backward compatibility)
             yield `\n<!-- userPrompt:start -->\n`
             yield JSON.stringify(prompt)
             yield `\n<!-- userPrompt:end -->\n`
           }
-          
-          // Wait for user response
+
           console.log('[LangGraphChatEngine] Waiting for user response:', messageId)
           const confirmed = await this.waitForUserResponse(messageId)
           console.log('[LangGraphChatEngine] User response received:', confirmed)
-          
+
           if (!confirmed) {
             yield `\n\n❌ **Operação cancelada pelo usuário**\n\n`
-            continue
+            return
           }
-          
-          // User confirmed - execute tool
+
           yield `\n\n🔧 *Executando: ${toolName}*\n\n`
-          
+
           try {
-            // Invoke the tool
             const toolResult = await vscode.lm.invokeTool(
-              part.name, 
+              part.name,
               {
                 input: part.input,
-                toolInvocationToken: undefined // Not in a chat participant context
+                toolInvocationToken: undefined
               },
-              new vscode.CancellationTokenSource().token
+              cancellationSource.token
             )
-            
-            // Show tool result inline
+
             const resultText = toolResult.content
               .filter(c => c instanceof vscode.LanguageModelTextPart)
               .map(c => (c as vscode.LanguageModelTextPart).value)
               .join('')
-            
+
             if (resultText) {
               yield `${resultText}\n\n`
             }
-            
-            // Add tool result to conversation and continue
-            messages.push(vscode.LanguageModelChatMessage.Assistant([part]))
-            
-            // Create tool result part with callId
+
             const toolResultPart = new vscode.LanguageModelToolResultPart(part.callId, toolResult.content)
             messages.push(vscode.LanguageModelChatMessage.User([toolResultPart]))
-            
-            // Get follow-up response from model with tool result
-            const followUp = await model.sendRequest(messages, options, new vscode.CancellationTokenSource().token)
-            for await (const followUpPart of followUp.stream) {
-              if (followUpPart instanceof vscode.LanguageModelTextPart) {
-                yield followUpPart.value
-              }
-            }
           } catch (toolError) {
             const errorMsg = toolError instanceof Error ? toolError.message : 'Unknown error'
             yield `\n\n❌ **Tool error:** ${errorMsg}\n\n`
+            return
           }
         }
       }
+
+      yield `\n\n⚠️ Limite de iterações agentic atingido. Ajuste a solicitação ou conclua manualmente.\n\n`
     } catch (error) {
       if (error instanceof vscode.LanguageModelError) {
         yield `\n\n❌ Language Model Error: ${error.message}\n\n`
@@ -188,6 +239,84 @@ export class LangGraphChatEngine implements ChatAgentPort {
         yield `\n\n❌ Error: ${errorMessage}\n`
       }
     }
+  }
+
+  private extractJsonPlan(rawText: string): { json: string; data: unknown } | null {
+    const codeBlockMatch = rawText.match(/```json\s*([\s\S]*?)```/i)
+    const fallbackMatch = rawText.match(/```\s*([\s\S]*?)```/i)
+    const directMatch = rawText.match(/\{[\s\S]*\}/)
+
+    const candidate = codeBlockMatch?.[1]?.trim() ?? fallbackMatch?.[1]?.trim() ?? directMatch?.[0]?.trim()
+
+    if (!candidate) {
+      return null
+    }
+
+    try {
+      const data = JSON.parse(candidate)
+      return { json: candidate, data }
+    } catch {
+      return null
+    }
+  }
+
+  private static slugify(value: string): string {
+    return value
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase() || 'plan'
+  }
+
+  private async persistPlanFromText(rawText: string): Promise<{ absolutePath: string; relativePath: string } | null> {
+    const extracted = this.extractJsonPlan(rawText)
+
+    if (!extracted) {
+      return null
+    }
+
+    if (typeof extracted.data !== 'object' || extracted.data === null) {
+      throw new Error('O plano final precisa ser um objeto JSON.')
+    }
+
+    const planObject = extracted.data as Record<string, unknown>
+    const slugSource = this.getSlugSource(planObject)
+    const slug = LangGraphChatEngine.slugify(slugSource)
+    const timestamp = new Date().toISOString().replace(/[:.-]/g, '')
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+    if (!workspaceFolder) {
+      throw new Error('Workspace não encontrado para salvar o plano.')
+    }
+
+    const tasksDirUri = vscode.Uri.joinPath(workspaceFolder.uri, '.cappy', 'tasks')
+    await vscode.workspace.fs.createDirectory(tasksDirUri)
+
+    const fileName = `${timestamp}_plan_${slug}.json`
+    const fileUri = vscode.Uri.joinPath(tasksDirUri, fileName)
+    const fileContent = Buffer.from(JSON.stringify(planObject, null, 2), 'utf8')
+
+    await vscode.workspace.fs.writeFile(fileUri, fileContent)
+
+    return {
+      absolutePath: fileUri.fsPath,
+      relativePath: path.relative(workspaceFolder.uri.fsPath, fileUri.fsPath)
+    }
+  }
+
+  private getSlugSource(plan: Record<string, unknown>): string {
+    const id = plan.id
+    if (typeof id === 'string' && id.trim().length > 0) {
+      return id.trim()
+    }
+
+    const title = plan.title
+    if (typeof title === 'string' && title.trim().length > 0) {
+      return title.trim()
+    }
+
+    return 'plan'
   }
 
   /**
