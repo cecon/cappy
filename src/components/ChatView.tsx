@@ -12,7 +12,6 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import userIcon from "../assets/user-icon.svg";
 import { PromptMessage } from "./PromptMessage";
 import type { UserPrompt } from "../domains/chat/entities/prompt";
 
@@ -266,45 +265,12 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
             <ThreadPrimitive.Messages
               components={{
                 UserMessage: () => (
-                  <MessagePrimitive.Root
-                    style={{
-                      display: "flex",
-                      gap: "12px",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        overflow: "hidden",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <img
-                        src={userIcon}
-                        alt="User"
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                        }}
-                      />
-                    </div>
-                    <div style={{ flex: 1, color: "var(--vscode-foreground)" }}>
-                      <MessagePrimitive.Content />
-                    </div>
+                  <MessagePrimitive.Root>
+                    <MessagePrimitive.Content />
                   </MessagePrimitive.Root>
                 ),
                 AssistantMessage: () => (
-                  <MessagePrimitive.Root
-                    style={{
-                      display: "flex",
-                      gap: "12px",
-                      marginBottom: "16px",
-                    }}
-                  >
+                  <MessagePrimitive.Root>
                     <MessagePrimitive.Content
                       components={{
                         Text: ({ text }: { text: string }) => (
@@ -323,7 +289,7 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
             />
           </ThreadPrimitive.Viewport>
 
-          <ComposerPrimitive.Root style={{ display: "flex", gap: "8px" }}>
+          <ComposerPrimitive.Root>
             <ComposerPrimitive.Input
               placeholder="Digite sua mensagem..."
               autoFocus
