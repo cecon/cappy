@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import 'highlight.js/styles/vs2015.css'
+import './index.generated.css'
 import App from './App.tsx'
 
 console.log('[React Main] Starting...')

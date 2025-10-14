@@ -52,7 +52,8 @@ export class ChatMessageHandler {
     // Callback to send prompt requests to frontend
     const onPromptRequest = (prompt: UserPrompt) => {
       this.options.postMessage({ 
-        type: 'promptRequest', 
+        type: 'promptRequest',
+        messageId: msgId, // Add messageId so frontend can match
         prompt 
       })
     }
