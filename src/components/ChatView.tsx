@@ -170,9 +170,9 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <div className="flex flex-col h-screen bg-[var(--vscode-editor-background)]">
-        <div className="p-3 border-b border-[var(--vscode-panel-border)]">
-          <h3 className="m-0 text-[var(--vscode-foreground)]">
+      <div className="flex flex-col h-screen bg-vscode-background">
+        <div className="p-3 border-b border-vscode-border">
+          <h3 className="m-0 text-vscode-foreground">
             {sessionTitle || "Chat"}
           </h3>
         </div>
@@ -206,13 +206,15 @@ export function ChatView({ sessionId, sessionTitle }: ChatViewProps) {
             />
           </ThreadPrimitive.Viewport>
 
-          <ComposerPrimitive.Root className="flex gap-2 p-3 border-t border-[var(--vscode-panel-border)]">
+          <ComposerPrimitive.Root className="flex gap-2 p-3 border-t border-vscode-border">
             <ComposerPrimitive.Input
               placeholder="Digite sua mensagem..."
               autoFocus
-              className="flex-1"
+              className="flex-1 bg-vscode-input-background text-vscode-input-foreground"
             />
-            <ComposerPrimitive.Send>➤</ComposerPrimitive.Send>
+            <ComposerPrimitive.Send className="px-3 py-2 bg-vscode-button-background text-vscode-button-foreground rounded hover:opacity-90">
+              ➤
+            </ComposerPrimitive.Send>
           </ComposerPrimitive.Root>
         </ThreadPrimitive.Root>
       </div>

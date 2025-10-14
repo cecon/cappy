@@ -36,7 +36,7 @@ export class ChatWebviewHtml {
     const outPath = vscode.Uri.joinPath(this.options.extensionUri, 'out')
     return {
       scriptUri: this.options.webview.asWebviewUri(vscode.Uri.joinPath(outPath, 'main.js')),
-      styleUri: this.options.webview.asWebviewUri(vscode.Uri.joinPath(outPath, 'style.css'))
+      styleUri: this.options.webview.asWebviewUri(vscode.Uri.joinPath(outPath, 'main.css'))
     }
   }
 

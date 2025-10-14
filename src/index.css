@@ -1,3 +1,22 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme inline {
+  --color-vscode-background: var(--vscode-editor-background);
+  --color-vscode-foreground: var(--vscode-foreground);
+  --color-vscode-border: var(--vscode-panel-border);
+  --color-vscode-input-background: var(--vscode-input-background);
+  --color-vscode-input-foreground: var(--vscode-input-foreground);
+  --color-vscode-button-background: var(--vscode-button-background);
+  --color-vscode-button-foreground: var(--vscode-button-foreground);
+  --color-vscode-button-secondary-background: var(--vscode-button-secondaryBackground);
+  --color-vscode-button-secondary-foreground: var(--vscode-button-secondaryForeground);
+}
+
+@layer base {
+  * {
+    @apply border-vscode-border;
+  }
+  body {
+    @apply bg-vscode-background text-vscode-foreground m-0 p-0 min-w-80 min-h-screen overflow-hidden;
+  }
+}
