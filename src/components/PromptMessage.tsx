@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { MessagePrimitive } from '@assistant-ui/react'
 import type { UserPrompt } from '../domains/chat/entities/prompt'
 
 interface PromptMessageProps {
@@ -28,9 +27,17 @@ export const PromptMessage = ({ prompt, onResponse }: PromptMessageProps) => {
   }
   
   return (
-    <MessagePrimitive.Root className="message-prompt">
+    <div 
+      className="message-prompt"
+      role="dialog"
+      aria-labelledby="prompt-question"
+      aria-live="polite"
+    >
       <div className="message-content">
-        <div className="prompt-question">
+        <div 
+          id="prompt-question"
+          className="prompt-question"
+        >
           ❓ {prompt.question}
         </div>
         
@@ -98,6 +105,6 @@ export const PromptMessage = ({ prompt, onResponse }: PromptMessageProps) => {
           </div>
         )}
       </div>
-    </MessagePrimitive.Root>
+    </div>
   )
 }

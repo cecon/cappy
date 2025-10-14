@@ -33,8 +33,6 @@ export class LangGraphChatEngine implements ChatAgentPort {
       }
 
       const model = models[0]
-      yield `✅ Usando modelo: ${model.family}\n`
-      yield `📊 Processando contexto de ${context.history.length} mensagens...\n`
       yield '<!-- reasoning:end -->\n'
 
       // Build message array for the model
@@ -73,8 +71,9 @@ export class LangGraphChatEngine implements ChatAgentPort {
       console.log(`📝 Sending ${messages.length} messages to model`)
       console.log(`💬 Last message: ${message.content.substring(0, 50)}...`)
 
-      // Send request with tools enabled
+      // Send request with tools enabled and justification
       const options: vscode.LanguageModelChatRequestOptions = {
+        justification: 'Cappy chat assistant is processing user request with available tools',
         tools: cappyTools
       }
       
@@ -100,13 +99,25 @@ export class LangGraphChatEngine implements ChatAgentPort {
             }
           }
           
-          // Send prompt to frontend
-          yield `\n<!-- userPrompt:start -->\n`
-          yield JSON.stringify(prompt)
-          yield `\n<!-- userPrompt:end -->\n`
+          // Send prompt to frontend via callback (if available)
+          console.log('[LangGraphChatEngine] Tool call detected:', toolName)
+          console.log('[LangGraphChatEngine] onPromptRequest available:', !!context.onPromptRequest)
+          
+          if (context.onPromptRequest) {
+            console.log('[LangGraphChatEngine] Sending prompt via callback')
+            context.onPromptRequest(prompt)
+          } else {
+            console.log('[LangGraphChatEngine] Sending prompt via HTML markers (fallback)')
+            // Fallback: yield as HTML markers (for backward compatibility)
+            yield `\n<!-- userPrompt:start -->\n`
+            yield JSON.stringify(prompt)
+            yield `\n<!-- userPrompt:end -->\n`
+          }
           
           // Wait for user response
+          console.log('[LangGraphChatEngine] Waiting for user response:', messageId)
           const confirmed = await this.waitForUserResponse(messageId)
+          console.log('[LangGraphChatEngine] User response received:', confirmed)
           
           if (!confirmed) {
             yield `\n\n❌ **Operação cancelada pelo usuário**\n\n`

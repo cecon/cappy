@@ -1,5 +1,6 @@
 import type { ChatService } from '../../../../../domains/chat/services/chat-service'
 import type { ChatSession } from '../../../../../domains/chat/entities/session'
+import type { UserPrompt } from '../../../../../domains/chat/entities/prompt'
 
 export interface MessageHandlerOptions {
   chat: ChatService
@@ -18,10 +19,14 @@ export class ChatMessageHandler {
     this.options = options
   }
 
-  async handle(msg: { type: string; sessionId?: string; content?: string; messageId?: string; response?: string; [k: string]: unknown }) {
+  async handle(msg: { type: string; sessionId?: string; content?: string; text?: string; history?: Array<{role: string; content: string}>; messageId?: string; response?: string; [k: string]: unknown }) {
     switch (msg.type) {
       case 'sendMessage':
-        await this.handleSendMessage(msg.content || '', msg.messageId)
+        await this.handleSendMessage(
+          msg.text || msg.content || '', 
+          msg.history || [],
+          msg.messageId
+        )
         break
       
       case 'userPromptResponse':
@@ -34,18 +39,26 @@ export class ChatMessageHandler {
     }
   }
 
-  private async handleSendMessage(content: string, messageId?: string) {
+  private async handleSendMessage(content: string, history: Array<{role: string; content: string}>, messageId?: string) {
     await this.options.ensureSession()
     const session = this.options.getSession()
     if (!session) return
 
     // Use provided messageId or generate new one
     const msgId = messageId || Date.now().toString()
-    console.log('[ChatMessageHandler] Processing message with ID:', msgId)
     
     this.options.postMessage({ type: 'streamStart', messageId: msgId })
 
-    const stream = await this.options.chat.sendMessage(session, content)
+    // Callback to send prompt requests to frontend
+    const onPromptRequest = (prompt: UserPrompt) => {
+      this.options.postMessage({ 
+        type: 'promptRequest', 
+        prompt 
+      })
+    }
+
+    // Pass history and callback to chat service
+    const stream = await this.options.chat.sendMessage(session, content, history, onPromptRequest)
     for await (const token of stream) {
       this.options.postMessage({ type: 'streamToken', messageId: msgId, token })
     }

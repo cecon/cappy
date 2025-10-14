@@ -1,5 +1,9 @@
-/* ChatView - Copilot-inspired Dark Theme */
+/* ============================================
+   ChatView - VS Code Dark Theme Override
+   @assistant-ui handles most styling
+   ============================================ */
 
+/* Main container - fixed height layout */
 .chat-container {
   display: flex;
   flex-direction: column;
@@ -7,8 +11,101 @@
   background-color: #1e1e1e;
   color: #cccccc;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  overflow: hidden;
 }
 
+/* ============================================
+   Markdown Content Styling
+   ============================================ */
+
+.message-content p {
+  margin: 0 0 8px 0;
+}
+
+.message-content p:last-child {
+  margin-bottom: 0;
+}
+
+.message-content code {
+  background-color: #1e1e1e;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.message-content pre {
+  background-color: #1e1e1e;
+  border: 1px solid #3e3e42;
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.message-content pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  display: block;
+}
+
+.message-content ul,
+.message-content ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.message-content li {
+  margin: 4px 0;
+}
+
+.message-content h1,
+.message-content h2,
+.message-content h3 {
+  margin: 12px 0 8px 0;
+  font-weight: 600;
+}
+
+.message-content h1 {
+  font-size: 18px;
+}
+
+.message-content h2 {
+  font-size: 16px;
+}
+
+.message-content h3 {
+  font-size: 14px;
+}
+
+.message-content strong {
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.message-content em {
+  font-style: italic;
+  color: #c792ea;
+}
+
+.message-content blockquote {
+  border-left: 3px solid #007acc;
+  padding-left: 12px;
+  margin: 8px 0;
+  color: #a0a0a0;
+}
+
+.message-content a {
+  color: #4a90e2;
+  text-decoration: none;
+}
+
+.message-content a:hover {
+  text-decoration: underline;
+}
+
+/* Header - minimal custom styling */
 .chat-header {
   display: flex;
   align-items: center;
@@ -16,6 +113,7 @@
   padding: 12px 16px;
   background-color: #252526;
   border-bottom: 1px solid #3e3e42;
+  flex-shrink: 0;
 }
 
 .chat-header h3 {
@@ -25,39 +123,24 @@
   color: #cccccc;
 }
 
-.thinking-indicator {
-  color: #c792ea;
-  font-size: 12px;
-  font-weight: 500;
-  animation: thinking 1.5s ease-in-out infinite;
+/* Thread root - flex container for proper scroll behavior */
+.chat-thread {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.streaming-indicator {
-  color: #007acc;
-  font-size: 12px;
-  font-weight: 500;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes thinking {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
+/* Messages viewport - scrollable area (overrides @assistant-ui) */
 .chat-messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
 }
 
+/* Custom scrollbar for VS Code theme */
 .chat-messages::-webkit-scrollbar {
   width: 10px;
 }
@@ -75,25 +158,11 @@
   background: #4e4e4e;
 }
 
+/* Message styling overrides for VS Code theme */
 .message {
   display: flex;
   gap: 12px;
-  animation: fadeIn 0.3s ease-in;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.message.user .message-content {
-  background-color: #2d2d30;
-  border-left: 3px solid #007acc;
-}
-
-.message.assistant .message-content {
-  background-color: #252526;
-  border-left: 3px solid #6e6e6e;
+  margin-bottom: 16px;
 }
 
 .message-avatar {
@@ -111,7 +180,6 @@
 .message-avatar img {
   width: 20px;
   height: 20px;
-  color: #cccccc;
 }
 
 .message.user .message-avatar {
@@ -120,17 +188,7 @@
 }
 
 .message.user .message-avatar img {
-  color: white;
   filter: brightness(0) invert(1);
-}
-
-.message.assistant .message-avatar {
-  background-color: #2d2d30;
-  border-color: #6e6e6e;
-}
-
-.message.assistant .message-avatar img {
-  color: #cccccc;
 }
 
 .message-content {
@@ -140,23 +198,29 @@
   line-height: 1.6;
 }
 
-.message-text {
-  white-space: pre-wrap;
-  word-wrap: break-word;
+.message.user .message-content {
+  background-color: #2d2d30;
+  border-left: 3px solid #007acc;
 }
 
-.message-timestamp {
-  margin-top: 8px;
-  font-size: 11px;
-  color: #858585;
+.message.assistant .message-content {
+  background-color: #252526;
+  border-left: 3px solid #6e6e6e;
 }
 
-.chat-input-container {
-  display: flex;
-  gap: 8px;
+/* Composer - Fixed at bottom */
+.chat-composer {
+  flex-shrink: 0;
   padding: 16px;
   background-color: #252526;
   border-top: 1px solid #3e3e42;
+}
+
+/* ComposerPrimitive styles */
+.chat-composer > div {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
 }
 
 .chat-input {
@@ -171,15 +235,12 @@
   resize: none;
   outline: none;
   transition: border-color 0.2s;
+  max-height: 120px;
+  min-height: 40px;
 }
 
 .chat-input:focus {
   border-color: #007acc;
-}
-
-.chat-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .chat-input::placeholder {
@@ -195,6 +256,11 @@
   font-size: 16px;
   cursor: pointer;
   transition: background-color 0.2s;
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chat-send-button:hover:not(:disabled) {
@@ -204,6 +270,7 @@
 .chat-send-button:disabled {
   background-color: #3e3e42;
   cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* ============================================

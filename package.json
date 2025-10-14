@@ -4,6 +4,10 @@
   "description": "AI coding companion with Single-Focus Workflow, CappyRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
   "version": "3.0.2",
   "publisher": "eduardocecon",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cecon/cappy"
+  },
   "engines": {
     "vscode": "^1.105.0",
     "cursor": ">=0.1.0"
@@ -173,8 +177,12 @@
   },
   "dependencies": {
     "@assistant-ui/react": "^0.11.28",
+    "@assistant-ui/react-langgraph": "^0.7.2",
     "@assistant-ui/react-markdown": "^0.11.1",
+    "@assistant-ui/react-ui": "^0.2.0",
     "@lancedb/lancedb": "^0.22.2",
+    "@langchain/core": "^0.3.78",
+    "@langchain/langgraph": "^0.4.9",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-tabs": "^1.1.13",

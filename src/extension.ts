@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { createChatService } from './domains/chat/services/chat-service';
 import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
-import { createInMemoryHistory } from './adapters/secondary/history/in-memory-history';
 import { ChatPanel } from './adapters/primary/vscode/chat/ChatPanel';
 import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvider';
 import { GraphPanel } from './adapters/primary/vscode/graph/GraphPanel';
@@ -39,8 +38,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Create adapters and service for chat
     const agent = new LangGraphChatEngine();
-    const history = createInMemoryHistory();
-    const chatService = createChatService(agent, history);
+    const chatService = createChatService(agent);
 
     // Register Chat View Provider for sidebar
     const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
