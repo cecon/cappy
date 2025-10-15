@@ -4,24 +4,9 @@
 
 export type PromptType = 'confirm' | 'input' | 'select'
 
-export interface ToolCallInfo {
-  name: string
-  input: unknown
-}
-
 export interface UserPrompt {
   messageId: string
-  promptType: PromptType
-  question: string
   options?: string[]
-  defaultValue?: string
-  toolCall?: ToolCallInfo
-}
-
-export interface UserPromptResponse {
-  messageId: string
-  response: string
-  cancelled?: boolean
 }
 
 /**

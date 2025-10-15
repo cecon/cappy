@@ -1,12 +1,7 @@
 import * as vscode from 'vscode';
-import { createChatService } from './domains/chat/services/chat-service';
-import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
-import { ChatPanel } from './adapters/primary/vscode/chat/ChatPanel';
-import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvider';
 import { GraphPanel } from './adapters/primary/vscode/graph/GraphPanel';
 import { CreateFileTool } from './adapters/secondary/tools/create-file-tool';
 import { FetchWebTool } from './adapters/secondary/tools/fetch-web-tool';
-import type { ChatSession } from './domains/chat/entities/session';
 
 /**
  * Cappy Extension - React + Vite Version
@@ -41,43 +36,12 @@ export function activate(context: vscode.ExtensionContext) {
     
     context.subscriptions.push(openGraphCommand);
 
-    // Create adapters and service for chat
-    const agent = new LangGraphChatEngine();
-    const chatService = createChatService(agent);
-
-    // Register Chat View Provider for sidebar
-    const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
-    context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, chatViewProvider)
-    );
-
     // Command to focus the custom Cappy activity container
     const focusActivityCommand = vscode.commands.registerCommand('cappy.focusActivity', async () => {
         // Built-in command for custom view containers: workbench.view.extension.<containerId>
         await vscode.commands.executeCommand('workbench.view.extension.cappy');
     });
     context.subscriptions.push(focusActivityCommand);
-
-    // Command to open chat in a panel
-    const openChatCommand = vscode.commands.registerCommand('cappy.openChat', async (session?: ChatSession) => {
-        try {
-            ChatPanel.createOrShow(context, chatService, session);
-        } catch (error) {
-            console.error('Error opening chat:', error);
-        }
-    });
-    context.subscriptions.push(openChatCommand);
-
-    // New session command - creates and opens a new session
-    const newSessionCommand = vscode.commands.registerCommand('cappy.chat.newSession', async () => {
-        try {
-            const session = await chatService.startSession('New Chat');
-            ChatPanel.createOrShow(context, chatService, session);
-        } catch (error) {
-            console.error('Error creating new session:', error);
-        }
-    });
-    context.subscriptions.push(newSessionCommand);
     
     // Add a Status Bar shortcut to open the graph
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);

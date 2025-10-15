@@ -56,29 +56,6 @@
         "command": "cappy.focusActivity",
         "title": "Cappy: Focus Activity View",
         "category": "Cappy"
-      },
-      {
-        "command": "cappy.openChat",
-        "title": "💬 Cappy: Open Chat",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.chat.newSession",
-        "title": "New Chat Session",
-        "category": "Cappy",
-        "icon": "$(add)"
-      },
-      {
-        "command": "cappy.chat.renameSession",
-        "title": "Rename Session",
-        "category": "Cappy",
-        "icon": "$(edit)"
-      },
-      {
-        "command": "cappy.chat.deleteSession",
-        "title": "Delete Session",
-        "category": "Cappy",
-        "icon": "$(trash)"
       }
     ],
     "viewsContainers": {
@@ -91,13 +68,7 @@
       ]
     },
     "views": {
-      "cappy": [
-        {
-          "id": "cappy.chatView",
-          "name": "Chat",
-          "type": "webview"
-        }
-      ]
+      "cappy": []
     },
     "menus": {
       "commandPalette": [
@@ -108,16 +79,6 @@
         },
         {
           "command": "cappy.focusActivity",
-          "when": "true",
-          "group": "cappy"
-        },
-        {
-          "command": "cappy.openChat",
-          "when": "true",
-          "group": "cappy"
-        },
-        {
-          "command": "cappy.chat.newSession",
           "when": "true",
           "group": "cappy"
         }
