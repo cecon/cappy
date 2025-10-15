@@ -109,7 +109,9 @@ class VSCodeChatAdapter implements ChatModelAdapter {
           isDone = true;
           break;
         case "promptRequest": {
-          // Create pending tool call FIRST (before adding marker)
+          console.log('[ChatView] Received promptRequest:', message.promptMessageId);
+          
+          // Create pending tool call and add to map
           const userDecision = new Promise<boolean>((resolve) => {
             const pendingTool: PendingToolCall = {
               messageId: message.promptMessageId,
@@ -119,13 +121,18 @@ class VSCodeChatAdapter implements ChatModelAdapter {
               resolver: resolve,
             };
             this.pendingToolCalls.set(message.promptMessageId, pendingTool);
+            console.log('[ChatView] Added pending tool call:', pendingTool);
           });
 
-          // Yield tool call UI to show confirmation buttons
+          // Add marker to text
           fullText += `\n\n__TOOL_CALL_PENDING__:${message.promptMessageId}\n\n`;
-
-          // Wait for user decision (this will pause execution until button click)
+          console.log('[ChatView] Added marker to fullText:', fullText.substring(fullText.length - 100));
+          
+          // The periodic yield loop below will pick up this change and render the UI
+          
+          // Wait for user decision
           const approved = await userDecision;
+          console.log('[ChatView] User decision:', approved);
 
           // Send response to backend
           this.vscode.postMessage({

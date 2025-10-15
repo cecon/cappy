@@ -5,7 +5,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'cappy.chatView';
   
   private extensionUri: vscode.Uri;
-  private view?: vscode.WebviewView;
   private chatService: ChatService;
   private sessionId?: string;
   
@@ -16,12 +15,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
-    _context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
   ) {
     console.log('🔧 [ChatViewProvider] Resolving webview view...');
-    
-    this.view = webviewView;
     
     webviewView.webview.options = {
       enableScripts: true,
