@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { GraphPanel } from './adapters/primary/vscode/graph/GraphPanel';
+import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvider';
 import { CreateFileTool } from './adapters/secondary/tools/create-file-tool';
 import { FetchWebTool } from './adapters/secondary/tools/fetch-web-tool';
+import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
+import { createChatService } from './domains/chat/services/chat-service';
 
 /**
  * Cappy Extension - React + Vite Version
@@ -36,12 +39,18 @@ export function activate(context: vscode.ExtensionContext) {
     
     context.subscriptions.push(openGraphCommand);
 
-    // Command to focus the custom Cappy activity container
-    const focusActivityCommand = vscode.commands.registerCommand('cappy.focusActivity', async () => {
-        // Built-in command for custom view containers: workbench.view.extension.<containerId>
-        await vscode.commands.executeCommand('workbench.view.extension.cappy');
-    });
-    context.subscriptions.push(focusActivityCommand);
+    // Create chat service with LangGraph engine (includes tools)
+    const chatEngine = new LangGraphChatEngine();
+    const chatService = createChatService(chatEngine);
+
+    // Register Chat View Provider for sidebar
+    const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
+    const chatViewDisposable = vscode.window.registerWebviewViewProvider(
+        ChatViewProvider.viewType, 
+        chatViewProvider
+    );
+    context.subscriptions.push(chatViewDisposable);
+    console.log('✅ Registered Chat View Provider: cappy.chatView');
     
     // Add a Status Bar shortcut to open the graph
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);

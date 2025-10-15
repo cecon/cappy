@@ -53,8 +53,8 @@
         "category": "Cappy"
       },
       {
-        "command": "cappy.focusActivity",
-        "title": "Cappy: Focus Activity View",
+        "command": "cappy.openChat",
+        "title": "💬 Cappy: Open Chat",
         "category": "Cappy"
       }
     ],
@@ -68,7 +68,13 @@
       ]
     },
     "views": {
-      "cappy": []
+      "cappy": [
+        {
+          "id": "cappy.chatView",
+          "name": "Chat",
+          "type": "webview"
+        }
+      ]
     },
     "menus": {
       "commandPalette": [
@@ -78,7 +84,7 @@
           "group": "cappy"
         },
         {
-          "command": "cappy.focusActivity",
+          "command": "cappy.openChat",
           "when": "true",
           "group": "cappy"
         }
@@ -131,7 +137,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "vscode:prepublish": "npm run compile-extension",
-    "compile-extension": "tsc src/extension.ts --outDir out --target ES2020 --module commonjs --moduleResolution node --strict --skipLibCheck",
+    "compile-extension": "tsc --project tsconfig.extension.json",
     "watch": "tsc -watch -p ./",
     "package": "npm version patch && npm run compile-extension && vsce package --dependencies",
     "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix"

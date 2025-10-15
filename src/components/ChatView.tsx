@@ -1,4 +1,4 @@
-import { useRef, type FC } from "react";
+import { useRef } from "react";
 import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
@@ -16,13 +16,10 @@ import { SendHorizontalIcon, CircleStopIcon, CheckIcon, XIcon } from "lucide-rea
 
 interface ChatViewProps {
   sessionId?: string;
-  sessionTitle?: string;
 }
 
 interface VsCodeApi {
   postMessage: (message: unknown) => void;
-  setState: (state: unknown) => void;
-  getState: () => unknown;
 }
 
 declare global {
@@ -86,17 +83,6 @@ class VSCodeChatAdapter implements ChatModelAdapter {
       .map((part) => part.text)
       .join("");
 
-    // @assistant-ui already provides full conversation history in messages
-    // We just need to send the entire history to backend
-    console.log(
-      "[VSCodeChatAdapter] Total messages in conversation:",
-      messages.length
-    );
-    console.log(
-      "[VSCodeChatAdapter] Last message:",
-      userContent.substring(0, 50) + "..."
-    );
-
     const messageId = Date.now().toString();
     let fullText = "";
     let isDone = false;
@@ -123,10 +109,6 @@ class VSCodeChatAdapter implements ChatModelAdapter {
           isDone = true;
           break;
         case "promptRequest": {
-          console.log("[VSCodeChatAdapter] Prompt request received:", message);
-          console.log("[VSCodeChatAdapter] promptMessageId:", message.promptMessageId);
-          console.log("[VSCodeChatAdapter] prompt data:", message.prompt);
-          
           // Create pending tool call FIRST (before adding marker)
           const userDecision = new Promise<boolean>((resolve) => {
             const pendingTool: PendingToolCall = {
@@ -136,14 +118,11 @@ class VSCodeChatAdapter implements ChatModelAdapter {
               question: message.prompt?.question || "Execute tool?",
               resolver: resolve,
             };
-            console.log("[VSCodeChatAdapter] Adding to pendingToolCalls:", pendingTool);
             this.pendingToolCalls.set(message.promptMessageId, pendingTool);
-            console.log("[VSCodeChatAdapter] Map size after set:", this.pendingToolCalls.size);
           });
 
           // Yield tool call UI to show confirmation buttons
           fullText += `\n\n__TOOL_CALL_PENDING__:${message.promptMessageId}\n\n`;
-          console.log("[VSCodeChatAdapter] Added marker to text");
 
           // Wait for user decision (this will pause execution until button click)
           const approved = await userDecision;
@@ -169,7 +148,6 @@ class VSCodeChatAdapter implements ChatModelAdapter {
 
     // Handle abort signal
     const handleAbort = () => {
-      console.log("[VSCodeChatAdapter] Stream cancelled by user");
       isDone = true;
       hasError = true;
       errorMessage = "Cancelled by user";
@@ -243,12 +221,10 @@ class VSCodeChatAdapter implements ChatModelAdapter {
   }
 }
 
-const TooltipIconButton: FC<{
-  tooltip: string;
-  variant: string;
+const IconButton = ({ className, children }: {
   className: string;
   children: React.ReactNode;
-}> = ({ className, children }) => {
+}) => {
   return (
     <button className={className} type="submit">
       {children}
@@ -256,36 +232,28 @@ const TooltipIconButton: FC<{
   );
 };
 
-const ComposerAction: FC = () => {
+const ComposerAction = () => {
   return (
     <>
       <ThreadPrimitive.If running={false}>
         <ComposerPrimitive.Send asChild>
-          <TooltipIconButton
-            tooltip="Send"
-            variant="default"
-            className="my-2.5 size-8 p-2 transition-opacity ease-in rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
-          >
+          <IconButton className="my-2.5 size-8 p-2 transition-opacity ease-in rounded-md bg-primary text-primary-foreground hover:bg-primary/90">
             <SendHorizontalIcon className="size-full" />
-          </TooltipIconButton>
+          </IconButton>
         </ComposerPrimitive.Send>
       </ThreadPrimitive.If>
       <ThreadPrimitive.If running>
         <ComposerPrimitive.Cancel asChild>
-          <TooltipIconButton
-            tooltip="Cancel"
-            variant="default"
-            className="my-2.5 size-8 p-2 transition-opacity ease-in rounded-md bg-destructive text-primary-foreground hover:bg-destructive/90"
-          >
+          <IconButton className="my-2.5 size-8 p-2 transition-opacity ease-in rounded-md bg-destructive text-primary-foreground hover:bg-destructive/90">
             <CircleStopIcon className="size-full" />
-          </TooltipIconButton>
+          </IconButton>
         </ComposerPrimitive.Cancel>
       </ThreadPrimitive.If>
     </>
   );
 };
 
-const ToolCallConfirmation: FC<{ adapter: VSCodeChatAdapter; pendingTool: PendingToolCall }> = ({ adapter, pendingTool }) => {
+const ToolCallConfirmation = ({ adapter, pendingTool }: { adapter: VSCodeChatAdapter; pendingTool: PendingToolCall }) => {
   const handleApprove = () => {
     adapter.approveToolCall(pendingTool.messageId);
   };
@@ -334,7 +302,7 @@ const ToolCallConfirmation: FC<{ adapter: VSCodeChatAdapter; pendingTool: Pendin
   );
 };
 
-const Composer: FC = () => {
+const Composer = () => {
   return (
     <ComposerPrimitive.Root className="focus-within:border-ring/20 flex w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in">
       <ComposerPrimitive.Input
@@ -378,14 +346,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
                           // Detecta se há um tool pendente nesta mensagem
                           const pendingMatch = text.match(/__TOOL_CALL_PENDING__:(.+)$/);
                           const pendingMessageId = pendingMatch?.[1]?.trim();
-                          
-                          console.log("[Text Component] Raw text:", text);
-                          console.log("[Text Component] Pending match:", pendingMatch);
-                          console.log("[Text Component] Pending messageId:", pendingMessageId);
-                          console.log("[Text Component] Adapter pendingToolCalls size:", adapter.pendingToolCalls.size);
-                          
                           const pendingTool = pendingMessageId ? adapter.pendingToolCalls.get(pendingMessageId) : null;
-                          console.log("[Text Component] Found pendingTool:", pendingTool);
 
                           // Remove o marker do texto exibido
                           const cleanText = text.replace(/__TOOL_CALL_PENDING__:.+$/, '').trim();
@@ -403,11 +364,6 @@ export function ChatView({ sessionId }: ChatViewProps) {
                                 </div>
                               )}
                               {pendingTool && <ToolCallConfirmation adapter={adapter} pendingTool={pendingTool} />}
-                              {!pendingTool && pendingMessageId && (
-                                <div className="text-red-500 text-xs">
-                                  Debug: Tool not found in Map. ID: {pendingMessageId}
-                                </div>
-                              )}
                             </>
                           );
                         }
