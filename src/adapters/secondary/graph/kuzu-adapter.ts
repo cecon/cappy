@@ -76,49 +76,58 @@ export class KuzuAdapter implements GraphStorePort {
       
       console.log(`📁 Kuzu: Using database file: ${dbFilePath}`);
 
-      // Change to the parent directory before creating the database
-      // This fixes the getcwd() error in kuzu-wasm
+      // Create database with absolute path to avoid getcwd() issues
+      // Kuzu needs the path without extension for the database directory
+      const dbPathWithoutExt = dbFilePath.replace(/\.kuzu$/, '');
+      console.log(`📁 Kuzu: Database path (no ext): ${dbPathWithoutExt}`);
+      
+      // Save and change to parent directory to fix getcwd() issue in kuzu-wasm
+      // The WASM module internally calls getcwd() which can fail if the current
+      // working directory doesn't exist or isn't accessible
       const originalCwd = process.cwd();
+      let cwdChanged = false;
+      
       try {
+        // Change to parent directory and stay there during entire initialization
         process.chdir(parentDir);
+        cwdChanged = true;
+        console.log(`📁 Changed CWD to: ${parentDir}`);
         
-        // Create database (will reuse if exists)
-        this.db = new kuzu.Database(path.basename(dbFilePath));
+        // Create database with just the filename (relative to new CWD)
+        const dbName = path.basename(dbPathWithoutExt);
+        console.log(`📁 Creating Kuzu database: ${dbName}`);
+        this.db = new kuzu.Database(dbName);
         this.conn = new kuzu.Connection(this.db);
-      } finally {
-        // Restore original working directory
-        try {
-          process.chdir(originalCwd);
-        } catch (e) {
-          console.warn('⚠️ Could not restore working directory:', e);
+        
+        if (!this.conn) {
+          throw new Error('Failed to create Kuzu connection');
         }
-      }
+        
+        console.log(`✅ Kuzu database and connection created successfully`);
 
-      if (!this.conn) {
-        throw new Error('Failed to create Kuzu connection');
-      }
+        // Create schema for File nodes
+        console.log(`📊 Creating File table...`);
+        await this.conn.query(`
+          CREATE NODE TABLE IF NOT EXISTS File (
+            path STRING PRIMARY KEY,
+            language STRING,
+            linesOfCode INT64
+          )
+        `);
 
-      // Create schema for File nodes
-      await this.conn.query(`
-        CREATE NODE TABLE IF NOT EXISTS File (
-          path STRING PRIMARY KEY,
-          language STRING,
-          linesOfCode INT64
-        )
-      `);
-
-      // Create schema for Chunk nodes
-      await this.conn.query(`
-        CREATE NODE TABLE IF NOT EXISTS Chunk (
-          id STRING PRIMARY KEY,
-          filePath STRING,
-          lineStart INT64,
-          lineEnd INT64,
-          chunkType STRING,
-          symbolName STRING,
-          symbolKind STRING
-        )
-      `);
+        // Create schema for Chunk nodes
+        console.log(`📊 Creating Chunk table...`);
+        await this.conn.query(`
+          CREATE NODE TABLE IF NOT EXISTS Chunk (
+            id STRING PRIMARY KEY,
+            filePath STRING,
+            lineStart INT64,
+            lineEnd INT64,
+            chunkType STRING,
+            symbolName STRING,
+            symbolKind STRING
+          )
+        `);
 
       // Create schema for Workspace nodes
       await this.conn.query(`
