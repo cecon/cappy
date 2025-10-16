@@ -1,8 +1,55 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '../ui/Card';
 import Button from '../ui/Button';
+import GraphVisualizer from '../GraphVisualizer';
 
 const GraphPage: React.FC = () => {
+  type VSCodeApi = { postMessage: (message: unknown) => void };
+  type WindowWithVSCode = Window & { vscodeApi?: VSCodeApi };
+
+  const vscodeApi = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      const w = window as WindowWithVSCode & { acquireVsCodeApi?: () => VSCodeApi };
+      if (w.vscodeApi) return w.vscodeApi;
+      if (typeof w.acquireVsCodeApi === 'function') {
+        const api = w.acquireVsCodeApi();
+        w.vscodeApi = api;
+        return api;
+      }
+    }
+    return undefined;
+  }, []);
+
+  const [dbStatus, setDbStatus] = useState<{ exists: boolean; created?: boolean; path?: string } | null>(null);
+  const [graph, setGraph] = useState<{ nodes: Array<{ id: string; label: string }>; edges: Array<{ id: string; source: string; target: string; label?: string }> } | null>(null);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const message = event.data as { type?: string; exists?: boolean; created?: boolean; path?: string; nodes?: Array<{ id: string; label: string }>; edges?: Array<{ id: string; source: string; target: string; label?: string }> };
+      if (message?.type === 'db-status') {
+        setDbStatus({ exists: !!message.exists, created: !!message.created, path: message.path });
+      }
+      if (message?.type === 'subgraph') {
+        if (message.nodes && message.edges) {
+          setGraph({ nodes: message.nodes, edges: message.edges });
+        }
+      }
+    };
+
+    window.addEventListener('message', handler);
+    // Ask for current status on mount
+    vscodeApi?.postMessage({ type: 'get-db-status' });
+    return () => window.removeEventListener('message', handler);
+  }, [vscodeApi]);
+
+  const handleResetDb = () => {
+    vscodeApi?.postMessage({ type: 'kuzu-reset' });
+  };
+
+  const loadGraph = (depth: number) => {
+    vscodeApi?.postMessage({ type: 'load-subgraph', depth: Math.min(10, Math.max(0, depth)) });
+  };
+
   return (
     <div className="webui-page">
       <div className="webui-section space-y-6">
@@ -35,26 +82,65 @@ const GraphPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="relative flex flex-1 flex-col items-center justify-center gap-5 overflow-hidden bg-gradient-to-br from-emerald-500/10 via-transparent to-indigo-500/10">
-                <div className="absolute inset-x-6 top-6 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-                  <span className="webui-chip">No graph loaded</span>
-                  <span className="webui-chip">0 nodes · 0 edges</span>
+              <div className="relative flex flex-1 flex-col gap-4 overflow-auto bg-gradient-to-br from-emerald-500/10 via-transparent to-indigo-500/10 p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span className="webui-chip">{graph ? 'Subgraph loaded' : 'No graph loaded'}</span>
+                  <span className="webui-chip">{graph ? `${graph.nodes.length} nodes · ${graph.edges.length} edges` : '0 nodes · 0 edges'}</span>
                 </div>
-                <div className="text-8xl opacity-30 drop-shadow-lg">�</div>
-                <div className="text-center space-y-2 px-4">
-                  <h3 className="text-xl font-semibold text-foreground">Graph visualization coming next</h3>
-                  <p className="text-sm text-muted-foreground max-w-lg leading-relaxed">
-                    The interactive React + Reagraph canvas will render here. Index documents to unlock graph insights, community detection and rich exploration tools.
-                  </p>
+                <div className="flex items-center gap-2">
+                  <Button variant="primary" size="sm" onClick={() => loadGraph(2)}>Load Graph</Button>
+                  <Button variant="outline" size="sm" onClick={() => loadGraph(4)}>4 levels</Button>
+                  <Button variant="outline" size="sm" onClick={() => loadGraph(6)}>6 levels</Button>
+                  <Button variant="outline" size="sm" onClick={() => loadGraph(10)}>10 levels</Button>
                 </div>
-                <Button variant="primary" className="px-6 py-2 text-sm shadow-lg">
-                  🚀 Load Graph Snapshot
-                </Button>
+                {graph && graph.nodes.length > 0 ? (
+                  <GraphVisualizer nodes={graph.nodes} edges={graph.edges} />
+                ) : (
+                  <div className="flex flex-1 items-center justify-center text-center">
+                    <div className="space-y-3">
+                      <div className="text-6xl opacity-30">📊</div>
+                      <h3 className="text-lg font-semibold">No graph data yet</h3>
+                      <p className="text-sm text-muted-foreground max-w-md">
+                        Click "Load Graph" to visualize the knowledge graph with nodes and relationships
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
 
           <div className="space-y-6">
+            <Card className="shadow-lg border border-border/60">
+              <CardContent className="pt-6 space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  🧪 Kuzu Explorer
+                </h3>
+                <div className="text-sm text-muted-foreground space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span>Status</span>
+                    <span className="webui-chip">
+                      {dbStatus ? (dbStatus.exists ? 'Ready' : 'Missing') : 'Unknown'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Created Now</span>
+                    <span className="webui-chip">{dbStatus?.created ? 'Yes' : 'No'}</span>
+                  </div>
+                  <div className="truncate text-xs text-foreground/80">
+                    {dbStatus?.path || '—'}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => vscodeApi?.postMessage({ type: 'get-db-status' })}>
+                    🔄 Refresh
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={handleResetDb}>
+                    🗑️ Reset DB
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
             <Card className="shadow-lg border border-border/60">
               <CardContent className="pt-6 space-y-4">
                 <h3 className="text-lg font-semibold flex items-center gap-2">

@@ -77,6 +77,16 @@ export interface GraphStorePort {
   deleteFileNodes(filePath: string): Promise<void>;
 
   /**
+   * Deletes a file and all its associated data
+   */
+  deleteFile(filePath: string): Promise<void>;
+
+    /**
+     * Lists all files in the database
+     */
+    listAllFiles(): Promise<Array<{ path: string; language: string; linesOfCode: number }>>;
+
+  /**
    * Closes the connection
    */
   close(): Promise<void>;

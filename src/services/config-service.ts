@@ -152,6 +152,8 @@ export class ConfigService {
  * Creates a new ConfigService instance
  */
 export function createConfigService(_context: vscode.ExtensionContext): ConfigService {
+  // Parameter reserved for future use; mark as intentionally unused
+  void _context
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
   if (!workspaceRoot) {
     throw new Error('No workspace folder found');

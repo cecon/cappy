@@ -91,6 +91,15 @@ body {
   animation: spin 1s linear infinite;
 }
 
+/* Utility: hide scrollbars (used in header tab overflow) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;    /* Firefox */
+}
+
 /* Application Shell */
 .webui-shell {
   position: relative;
@@ -267,7 +276,7 @@ body {
   height: 100vh;
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: auto;
   background: hsl(var(--background));
 }
 
