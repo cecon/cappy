@@ -12,7 +12,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { SendHorizontalIcon, CircleStopIcon, CheckIcon, XIcon } from "lucide-react";
+import { SendHorizontalIcon, CircleStopIcon } from "lucide-react";
+import { ToolCallConfirmation, type PendingToolCall } from "./tools";
 
 interface ChatViewProps {
   sessionId?: string;
@@ -31,14 +32,6 @@ declare global {
 interface TextContentPart {
   type: "text";
   text: string;
-}
-
-interface PendingToolCall {
-  messageId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  question: string;
-  resolver: (approved: boolean) => void;
 }
 
 // Ultra-simplified adapter - just stream tokens directly
@@ -260,55 +253,6 @@ const ComposerAction = () => {
   );
 };
 
-const ToolCallConfirmation = ({ adapter, pendingTool }: { adapter: VSCodeChatAdapter; pendingTool: PendingToolCall }) => {
-  const handleApprove = () => {
-    adapter.approveToolCall(pendingTool.messageId);
-  };
-
-  const handleDeny = () => {
-    adapter.denyToolCall(pendingTool.messageId);
-  };
-
-  return (
-    <div className="my-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
-      <div className="flex items-start gap-3">
-        <div className="flex-1">
-          <div className="font-medium text-sm mb-1">🔧 {pendingTool.toolName}</div>
-          <div className="text-xs text-muted-foreground mb-2">
-            {pendingTool.question}
-          </div>
-          {Object.keys(pendingTool.args).length > 0 && (
-            <details className="text-xs">
-              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                View parameters
-              </summary>
-              <pre className="mt-2 overflow-auto max-h-32 p-2 rounded bg-muted">
-                {JSON.stringify(pendingTool.args, null, 2)}
-              </pre>
-            </details>
-          )}
-        </div>
-      </div>
-      <div className="mt-3 flex gap-2">
-        <button
-          onClick={handleApprove}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <CheckIcon className="size-3" />
-          Allow
-        </button>
-        <button
-          onClick={handleDeny}
-          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
-        >
-          <XIcon className="size-3" />
-          Deny
-        </button>
-      </div>
-    </div>
-  );
-};
-
 const Composer = () => {
   return (
     <ComposerPrimitive.Root className="focus-within:border-ring/20 flex w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in">
@@ -350,13 +294,25 @@ export function ChatView({ sessionId }: ChatViewProps) {
                     <MessagePrimitive.Content
                       components={{
                         Text: ({ text }: { text: string }) => {
-                          // Detecta se há um tool pendente nesta mensagem
-                          const pendingMatch = text.match(/__TOOL_CALL_PENDING__:(.+)$/);
+                          // Detecta se há um tool pendente nesta mensagem (pode estar em qualquer lugar do texto)
+                          const pendingMatch = text.match(/__TOOL_CALL_PENDING__:([^\s\n]+)/);
                           const pendingMessageId = pendingMatch?.[1]?.trim();
                           const pendingTool = pendingMessageId ? adapter.pendingToolCalls.get(pendingMessageId) : null;
 
+                          console.log('[ChatView.Text] text:', text.substring(0, 200));
+                          console.log('[ChatView.Text] pendingMatch:', pendingMatch);
+                          console.log('[ChatView.Text] pendingMessageId:', pendingMessageId);
+                          console.log('[ChatView.Text] pendingTool:', pendingTool);
+                          console.log('[ChatView.Text] adapter.pendingToolCalls size:', adapter.pendingToolCalls.size);
+
                           // Remove o marker do texto exibido
-                          const cleanText = text.replace(/__TOOL_CALL_PENDING__:.+$/, '').trim();
+                          const cleanText = text.replace(/__TOOL_CALL_PENDING__:[^\s\n]+/g, '').trim();
+
+                          // Cria objeto de actions para o componente
+                          const actions = {
+                            approveToolCall: (id: string) => adapter.approveToolCall(id),
+                            denyToolCall: (id: string) => adapter.denyToolCall(id)
+                          };
 
                           return (
                             <>
@@ -370,7 +326,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
                                   </ReactMarkdown>
                                 </div>
                               )}
-                              {pendingTool && <ToolCallConfirmation adapter={adapter} pendingTool={pendingTool} />}
+                              {pendingTool && <ToolCallConfirmation pendingTool={pendingTool} actions={actions} />}
                             </>
                           );
                         }
