@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 import { IndexingService } from '../../../../services/indexing-service';
 import { ConfigService } from '../../../../services/config-service';
 import { EmbeddingService } from '../../../../services/embedding-service';
@@ -16,6 +17,8 @@ export class GraphPanel {
     private isInitializing = false;
     private readonly context: vscode.ExtensionContext;
     private readonly outputChannel: vscode.OutputChannel;
+    private graphDbCreated = false;
+    private kuzuPath: string | null = null;
 
     constructor(
         context: vscode.ExtensionContext,
@@ -44,7 +47,8 @@ export class GraphPanel {
                 retainContextWhenHidden: true,
                 localResourceRoots: [
                     vscode.Uri.joinPath(this.context.extensionUri, 'dist'),
-                    vscode.Uri.joinPath(this.context.extensionUri, 'out')
+                    vscode.Uri.joinPath(this.context.extensionUri, 'out'),
+                    vscode.Uri.joinPath(this.context.extensionUri, 'resources')
                 ]
             }
         );
@@ -100,9 +104,19 @@ export class GraphPanel {
             const embeddingService = new EmbeddingService();
             await embeddingService.initialize();
 
-            // Create adapters with paths from config
+            // Ensure base data dir and Kuzu database exist (create empty if missing)
+            const baseDataDir = path.join(workspaceRoot, '.cappy', 'data');
+            if (!fs.existsSync(baseDataDir)) {
+                fs.mkdirSync(baseDataDir, { recursive: true });
+                this.log(`🆕 Created base data folder: ${baseDataDir}`);
+            } else {
+                this.log(`📁 Base data folder exists: ${baseDataDir}`);
+            }
             const lanceDBPath = configService.getLanceDBPath(workspaceRoot);
             const kuzuPath = configService.getKuzuPath(workspaceRoot);
+            this.kuzuPath = kuzuPath;
+            await this.ensureKuzuDatabase(kuzuPath);
+            this.sendMessage({ type: 'db-status', exists: true, created: this.graphDbCreated, path: kuzuPath });
 
             const vectorStore = new LanceDBAdapter(lanceDBPath, embeddingService);
             const graphStore = new KuzuAdapter(kuzuPath);
@@ -110,6 +124,15 @@ export class GraphPanel {
             // Initialize adapters
             await vectorStore.initialize();
             await graphStore.initialize();
+            // Create a workspace node labeled by the workspace name (Kuzu-only API)
+            try {
+                this.log(`🔧 Creating workspace node: ${workspaceFolder.name}`);
+                await (graphStore as KuzuAdapter).ensureWorkspaceNode(workspaceFolder.name);
+                this.log(`✅ Workspace node ensured: ${workspaceFolder.name}`);
+            } catch (e) {
+                this.log(`❌ Could not ensure workspace node: ${e}`);
+                console.error('Workspace node error:', e);
+            }
 
             // Create indexing service
             this.indexingService = new IndexingService(
@@ -120,6 +143,20 @@ export class GraphPanel {
 
             this.log('✅ Indexing services initialized');
             this.sendMessage({ type: 'status', status: 'ready' });
+
+            // Load initial graph to show workspace node
+            try {
+                this.log('🔍 Loading initial graph...');
+                const sub = await graphStore.getSubgraph(undefined, 2);
+                this.log(`📊 Initial graph loaded: ${sub.nodes.length} nodes, ${sub.edges.length} edges`);
+                if (sub.nodes.length > 0) {
+                    this.log(`   First node: ${sub.nodes[0].id} (${sub.nodes[0].label})`);
+                }
+                this.sendMessage({ type: 'subgraph', nodes: sub.nodes, edges: sub.edges });
+            } catch (e) {
+                this.log(`❌ Could not load initial graph: ${e}`);
+                console.error('Load graph error:', e);
+            }
 
             // Index workspace
             await this.indexWorkspace();
@@ -178,10 +215,32 @@ export class GraphPanel {
     /**
      * Handles messages from webview
      */
-    private async handleMessage(message: { type: string; query?: string; filePath?: string; line?: number }) {
+    private async handleMessage(message: { type: string; query?: string; filePath?: string; line?: number; depth?: number; payload?: unknown }) {
         switch (message.type) {
             case 'ready':
                 this.log('✅ Webview ready');
+                break;
+            case 'load-subgraph':
+                try {
+                    const depth = message.depth ?? 2;
+                    if (!this.indexingService) { break; }
+                    type GraphStoreLike = { getSubgraph?: (seeds: string[] | undefined, depth: number) => Promise<{ nodes: unknown[]; edges: unknown[] }> };
+                    const svc = this.indexingService as unknown as { graphStore?: GraphStoreLike };
+                    const graphStore = svc.graphStore;
+                    if (graphStore && typeof graphStore.getSubgraph === 'function') {
+                        const sub = await graphStore.getSubgraph(undefined, Math.min(10, Math.max(0, depth)));
+                        this.sendMessage({ type: 'subgraph', nodes: sub.nodes, edges: sub.edges });
+                    }
+                } catch (e) {
+                    this.sendMessage({ type: 'error', error: `Load subgraph failed: ${e instanceof Error ? e.message : String(e)}` });
+                }
+                break;
+            case 'get-db-status':
+                if (this.kuzuPath) {
+                    const exists = fs.existsSync(this.kuzuPath);
+                    const status = { type: 'db-status', exists, created: this.graphDbCreated, path: this.kuzuPath };
+                    this.sendMessage(status);
+                }
                 break;
 
             case 'search':
@@ -193,6 +252,9 @@ export class GraphPanel {
             case 'refresh':
                 await this.indexWorkspace();
                 break;
+            case 'kuzu-reset':
+                await this.resetKuzu();
+                break;
 
             case 'open-file':
                 if (message.filePath) {
@@ -200,8 +262,52 @@ export class GraphPanel {
                 }
                 break;
 
+            // Documents page actions
+            case 'documents/upload-requested':
+                this.log('📤 Documents: upload dialog requested');
+                break;
+            case 'documents/upload-selected': {
+                const payload = (message.payload ?? {}) as { files?: Array<{ name: string; type: string; size: number }> };
+                this.log(`📥 Documents: ${payload.files?.length ?? 0} file(s) selected`);
+                // TODO: Wire ingestion pipeline to handle provided files metadata
+                break;
+            }
+            case 'documents/scan-workspace':
+                this.log('🔍 Documents: scan workspace');
+                await this.triggerWorkspaceScan();
+                break;
+            case 'documents/configure-sources':
+                this.log('⚙️ Documents: open settings for sources');
+                await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:eduardocecon.cappy');
+                break;
+
             default:
                 this.log(`⚠️ Unknown message type: ${message.type}`);
+        }
+    }
+
+    private async triggerWorkspaceScan() {
+        try {
+            if (!this.indexingService) {
+                await this.initializeIndexing();
+            }
+            if (!this.indexingService) {
+                this.log('❌ IndexingService not available');
+                return;
+            }
+            this.sendMessage({ type: 'status', status: 'indexing' });
+            // If IndexingService exposes a fullRescan method, use it; otherwise fallback to indexWorkspace
+            const svc = this.indexingService as unknown as { fullRescan?: () => Promise<unknown> };
+            const stats = typeof svc.fullRescan === 'function'
+                ? await svc.fullRescan()
+                : await this.indexWorkspace();
+            this.sendMessage({ type: 'status', status: 'ready' });
+            if (stats) {
+                this.sendMessage({ type: 'graph-data', data: { stats } });
+            }
+        } catch (e) {
+            this.log(`❌ Workspace scan failed: ${e}`);
+            this.sendMessage({ type: 'error', error: String(e) });
         }
     }
 
@@ -287,10 +393,33 @@ export class GraphPanel {
     }
 
     /**
+     * Ensures the Kuzu database folder exists; creates an empty structure if missing
+     */
+    private async ensureKuzuDatabase(dbPath: string) {
+        try {
+            if (!fs.existsSync(dbPath)) {
+                fs.mkdirSync(dbPath, { recursive: true });
+                this.graphDbCreated = true;
+                this.log(`🆕 Created Kuzu DB folder: ${dbPath}`);
+                // Optional marker file for visibility
+                const marker = `${dbPath}/README.txt`;
+                if (!fs.existsSync(marker)) {
+                    fs.writeFileSync(marker, 'Cappy Kuzu DB — created automatically.');
+                }
+            } else {
+                this.graphDbCreated = false;
+                this.log(`📁 Kuzu DB folder exists: ${dbPath}`);
+            }
+        } catch (error) {
+            this.log(`❌ Failed to prepare Kuzu DB folder: ${error}`);
+        }
+    }
+
+    /**
      * Gets webview HTML content
      */
     private getWebviewContent(): string {
-        const nonce = this.getNonce();
+    const nonce = this.getNonce();
         const cspSource = this.panel!.webview.cspSource;
 
         // Try to load the built React app
@@ -307,15 +436,37 @@ export class GraphPanel {
             const indexJsUri = this.panel!.webview.asWebviewUri(
                 vscode.Uri.joinPath(this.context.extensionUri, 'out', 'index.js')
             );
-            const styleUri = this.panel!.webview.asWebviewUri(
-                vscode.Uri.joinPath(this.context.extensionUri, 'out', 'style.css')
+            // CSS built for the graph webview
+            const graphCssUri = this.panel!.webview.asWebviewUri(
+                vscode.Uri.joinPath(this.context.extensionUri, 'out', 'graph.css')
+            );
+
+            // Prepare favicon
+            const faviconUri = this.panel!.webview.asWebviewUri(
+                vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'cappy-activity.svg')
             );
 
             // Replace relative paths with webview URIs
             htmlContent = htmlContent
                 .replace('./graph.js', graphJsUri.toString())
                 .replace('./index.js', indexJsUri.toString())
-                .replace('./style.css', styleUri.toString());
+                .replace('./graph.css', graphCssUri.toString());
+
+            // Inject favicon
+            if (!htmlContent.includes('rel="icon"')) {
+                htmlContent = htmlContent.replace(
+                    '</head>',
+                    `  <link rel="icon" type="image/svg+xml" href="${faviconUri}">\n</head>`
+                );
+            }
+
+            // Force-enable scrolling inside the webview (override global hidden rules)
+            if (!htmlContent.includes('cappy-scroll-override')) {
+                htmlContent = htmlContent.replace(
+                    '</head>',
+                    `<style id="cappy-scroll-override">html,body{overflow:auto !important;}#root{overflow:auto !important;}</style>\n</head>`
+                );
+            }
 
             // Remove modulepreload link (causes CSP issues)
             htmlContent = htmlContent.replace(
@@ -366,7 +517,7 @@ export class GraphPanel {
                     font-family: var(--vscode-font-family);
                     background: var(--vscode-editor-background);
                     color: var(--vscode-editor-foreground);
-                    overflow: hidden;
+                    overflow: auto;
                 }
 
                 #root {
@@ -598,7 +749,9 @@ export class GraphPanel {
             </div>
 
             <script nonce="${nonce}">
-                const vscode = acquireVsCodeApi();
+                const __w = window as any;
+                const vscode = __w.vscodeApi ?? acquireVsCodeApi();
+                if (!__w.vscodeApi) { __w.vscodeApi = vscode; }
 
                 // State
                 let state = {
@@ -740,5 +893,24 @@ export class GraphPanel {
             text += possible.charAt(Math.floor(Math.random() * possible.length));
         }
         return text;
+    }
+
+    /**
+     * Resets the Kuzu database by recreating its folder and notifying the webview
+     */
+    private async resetKuzu() {
+        try {
+            if (!this.kuzuPath) return;
+            // Remove and recreate
+            if (fs.existsSync(this.kuzuPath)) {
+                fs.rmSync(this.kuzuPath, { recursive: true, force: true });
+                this.log(`🗑️ Removed Kuzu DB folder: ${this.kuzuPath}`);
+            }
+            await this.ensureKuzuDatabase(this.kuzuPath);
+            this.sendMessage({ type: 'db-status', exists: true, created: this.graphDbCreated, path: this.kuzuPath });
+        } catch (error) {
+            this.log(`❌ Failed to reset Kuzu DB: ${error}`);
+            this.sendMessage({ type: 'error', error: `Reset failed: ${error instanceof Error ? error.message : String(error)}` });
+        }
     }
 }

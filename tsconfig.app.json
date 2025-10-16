@@ -24,5 +24,11 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/services/**",
+    "src/adapters/primary/vscode/**",
+    "src/adapters/secondary/graph/**",
+    "src/domains/graph/ports/**"
+  ]
 }

@@ -1,0 +1,63 @@
+# Cappy Ignore Patterns
+# Similar to .gitignore - files and directories to exclude from indexing
+
+# Dependencies
+node_modules/
+bower_components/
+jspm_packages/
+vendor/
+
+# Build outputs
+dist/
+build/
+out/
+target/
+*.min.js
+*.min.css
+
+# Cappy data
+.cappy/
+
+# Version control
+.git/
+.svn/
+.hg/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Testing
+coverage/
+.nyc_output/
+*.test.js.map
+*.spec.js.map
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.cache
+
+# Large media files (optional - uncomment if needed)
+# *.mp4
+# *.mov
+# *.avi
+# *.mp3
+# *.wav
+# *.png
+# *.jpg
+# *.jpeg
+# *.gif

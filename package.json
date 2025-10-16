@@ -56,6 +56,11 @@
         "command": "cappy.openChat",
         "title": "💬 Cappy: Open Chat",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.scanWorkspace",
+        "title": "🔍 Cappy: Scan Workspace",
+        "category": "Cappy"
       }
     ],
     "viewsContainers": {
@@ -124,6 +129,27 @@
             "content"
           ]
         }
+      },
+      {
+        "name": "cappy_fetch_web",
+        "displayName": "Fetch Web",
+        "modelDescription": "Fetches content from a web URL (HTML, JSON, or text). Provide the url and optionally a CSS selector.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "HTTP/HTTPS URL to fetch"
+            },
+            "selector": {
+              "type": "string",
+              "description": "Optional CSS selector to extract specific content from HTML"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
       }
     ]
   },
@@ -164,7 +190,8 @@
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
     "reagraph": "^4.30.5",
-    "rehype-highlight": "^7.0.2",
+  "rehype-highlight": "^7.0.2",
+  "ignore": "^5.3.1",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.3.1"
   },

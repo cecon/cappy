@@ -38,6 +38,8 @@ export function registerNativeTools(context: vscode.ExtensionContext): void {
  */
 export function registerCappyTools(_context: vscode.ExtensionContext): void {
   console.log('🛠️ Registering Cappy tools...')
+  // Mark parameter as intentionally unused for now
+  void _context
   
   // TODO: Add Cappy-specific tools here
   
@@ -49,6 +51,8 @@ export function registerCappyTools(_context: vscode.ExtensionContext): void {
  */
 export function registerExternalTools(_context: vscode.ExtensionContext): void {
   console.log('🛠️ Registering external tools...')
+  // Mark parameter as intentionally unused for now
+  void _context
   
   // TODO: Add external integrations here
   

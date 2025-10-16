@@ -2,18 +2,25 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card';
 import Button from '../ui/Button';
 
-interface VSCodeApi {
-  postMessage: (message: Record<string, unknown>) => void;
-}
+type VSCodeApi = { postMessage: (message: unknown) => void };
+type WindowWithVSCode = Window & {
+  acquireVsCodeApi?: () => VSCodeApi;
+  vscodeApi?: VSCodeApi;
+};
 
 const DocumentsPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [recentActions, setRecentActions] = useState<string[]>([]);
 
   const vscodeApi = useMemo(() => {
-    if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window) {
-      const acquire = (window as typeof window & { acquireVsCodeApi?: () => VSCodeApi }).acquireVsCodeApi;
-      return acquire ? acquire() : undefined;
+    if (typeof window !== 'undefined') {
+      const w = window as WindowWithVSCode & { acquireVsCodeApi?: () => VSCodeApi };
+      if (w.vscodeApi) return w.vscodeApi;
+      if (typeof w.acquireVsCodeApi === 'function') {
+        const api = w.acquireVsCodeApi();
+        w.vscodeApi = api;
+        return api;
+      }
     }
     return undefined;
   }, []);
