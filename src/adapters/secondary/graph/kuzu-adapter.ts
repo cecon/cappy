@@ -48,25 +48,51 @@ export class KuzuAdapter implements GraphStorePort {
 
       // Resolve database file path: allow callers to pass a directory; we create/use `<dir>/graph.kuzu`
       let dbFilePath = this.dbPath;
-      try {
-        if (fs.existsSync(dbFilePath) && fs.statSync(dbFilePath).isDirectory()) {
-          dbFilePath = path.join(dbFilePath, 'graph.kuzu');
-        } else if (!path.extname(dbFilePath)) {
-          // No extension provided; treat as directory
-          dbFilePath = path.join(dbFilePath, 'graph.kuzu');
-        }
-        const parentDir = path.dirname(dbFilePath);
-        if (!fs.existsSync(parentDir)) {
-          fs.mkdirSync(parentDir, { recursive: true });
-        }
-      } catch (e) {
-        console.warn('⚠️ Kuzu: Could not stat/create DB path, proceeding:', e);
+      
+      // Ensure the path is absolute
+      if (!path.isAbsolute(dbFilePath)) {
+        dbFilePath = path.resolve(dbFilePath);
       }
+      
+      // Determine if path is directory or file
+      if (fs.existsSync(dbFilePath) && fs.statSync(dbFilePath).isDirectory()) {
+        dbFilePath = path.join(dbFilePath, 'graph.kuzu');
+      } else if (!path.extname(dbFilePath)) {
+        // No extension provided; treat as directory
+        dbFilePath = path.join(dbFilePath, 'graph.kuzu');
+      }
+      
+      // Create parent directory with absolute path
+      const parentDir = path.dirname(dbFilePath);
+      if (!fs.existsSync(parentDir)) {
+        console.log(`📁 Creating Kuzu directory: ${parentDir}`);
+        fs.mkdirSync(parentDir, { recursive: true });
+      }
+      
+      // Verify directory exists and is accessible
+      if (!fs.existsSync(parentDir)) {
+        throw new Error(`Failed to create Kuzu directory: ${parentDir}`);
+      }
+      
       console.log(`📁 Kuzu: Using database file: ${dbFilePath}`);
 
-      // Create database (will reuse if exists)
-      this.db = new kuzu.Database(dbFilePath);
-      this.conn = new kuzu.Connection(this.db);
+      // Change to the parent directory before creating the database
+      // This fixes the getcwd() error in kuzu-wasm
+      const originalCwd = process.cwd();
+      try {
+        process.chdir(parentDir);
+        
+        // Create database (will reuse if exists)
+        this.db = new kuzu.Database(path.basename(dbFilePath));
+        this.conn = new kuzu.Connection(this.db);
+      } finally {
+        // Restore original working directory
+        try {
+          process.chdir(originalCwd);
+        } catch (e) {
+          console.warn('⚠️ Could not restore working directory:', e);
+        }
+      }
 
       if (!this.conn) {
         throw new Error('Failed to create Kuzu connection');
