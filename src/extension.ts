@@ -6,6 +6,7 @@ import { FetchWebTool } from './adapters/secondary/tools/fetch-web-tool';
 import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
 import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './adapters/primary/vscode/commands/scan-workspace';
+import { registerProcessSingleFileCommand } from './commands/process-single-file';
 
 /**
  * Cappy Extension - React + Vite Version
@@ -43,6 +44,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Register workspace scan command
     registerScanWorkspaceCommand(context);
     console.log('✅ Registered command: cappy.scanWorkspace');
+
+    // Register process single file command
+    registerProcessSingleFileCommand(context);
+    console.log('✅ Registered command: cappy.processSingleFile');
 
     // Create chat service with LangGraph engine (includes tools)
     const chatEngine = new LangGraphChatEngine();

@@ -61,6 +61,11 @@
         "command": "cappy.scanWorkspace",
         "title": "🔍 Cappy: Scan Workspace",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.processSingleFile",
+        "title": "🧪 Cappy: Process Single File (Test)",
+        "category": "Cappy"
       }
     ],
     "viewsContainers": {

@@ -1,4 +1,11 @@
 Nunca use `vsce package --no-dependencie` as dependencias são obrigatórias
+Sempre que eu te pedirt para instalar rode os seguintes comandos:
+
+```bash
+npm run build
+vsce package --dependencies # se nao existir o vsc instale npm install -g @vscode/vsce
+Remove-Item cappy-{package_version}.vsix -Force
+```
 <!-- CAPPY INI -->
 # CAPPY — Manual de Comandos (Orquestração de Contexto)
 

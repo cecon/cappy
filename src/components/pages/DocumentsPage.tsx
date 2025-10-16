@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import Button from '../ui/Button';
 
@@ -16,14 +16,18 @@ type SortOrder = 'asc' | 'desc';
 interface Document {
   id: string;
   fileName: string;
+  filePath?: string;
   summary: string;
   status: DocumentStatus;
   length: number;
   chunks: number;
-  created: Date;
-  updated: Date;
+  created: string;
+  updated: string;
   trackId?: string;
   processingStartTime?: string;
+  processingEndTime?: string;
+  currentStep?: string;
+  progress?: number;
   selected: boolean;
 }
 
@@ -33,21 +37,34 @@ const DocumentsPage: React.FC = () => {
   const [showFileName, setShowFileName] = useState(false);
   const [sortField, setSortField] = useState<SortField>('updated');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [documents, setDocuments] = useState<Document[]>([
-    {
-      id: 'doc-f78d02f794784279e2c690006fd9111b',
-      fileName: 'README.md',
-      summary: '# React + TypeScript + Vite\n\nThis template provides a minimal setup to get React working in Vite with HMR and some ESLint rules...',
-      status: 'processing',
-      length: 2626,
-      chunks: 1,
-      created: new Date('2025-10-16T16:03:28'),
-      updated: new Date('2025-10-16T16:03:28'),
-      trackId: 'upload_20251016_190328_8ca7b860',
-      processingStartTime: '16/10/2025, 16:03:28',
-      selected: false
-    }
-  ]);
+  
+  // Dados de exemplo (exatamente como no LightRAG)
+  const [documents, setDocuments] = useState<Document[]>([]);
+
+  // Spinner component
+  const Spinner: React.FC<{ size?: number }> = ({ size = 16 }) => (
+    <svg
+      className="animate-spin"
+      style={{ width: size, height: size }}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      />
+    </svg>
+  );
 
   const vscodeApi = useMemo(() => {
     if (typeof window !== 'undefined') {
@@ -65,6 +82,47 @@ const DocumentsPage: React.FC = () => {
   const postMessage = (type: string, payload: Record<string, unknown> = {}) => {
     vscodeApi?.postMessage({ type, payload });
   };
+
+  // Listen for messages from extension
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data;
+      
+      switch (message.type) {
+        case 'document/updated': {
+          const doc = message.payload.document;
+          setDocuments(prev => {
+            const index = prev.findIndex(d => d.id === doc.id);
+            if (index >= 0) {
+              const updated = [...prev];
+              updated[index] = { ...doc, selected: prev[index].selected };
+              return updated;
+            } else {
+              return [...prev, { ...doc, selected: false }];
+            }
+          });
+          break;
+        }
+        case 'document/removed': {
+          const { id } = message.payload;
+          setDocuments(prev => prev.filter(d => d.id !== id));
+          break;
+        }
+        case 'document/cleared': {
+          setDocuments([]);
+          break;
+        }
+        case 'document/list': {
+          const docs = message.payload.documents || [];
+          setDocuments(docs.map((d: Document) => ({ ...d, selected: false })));
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   // Estatísticas calculadas
   const stats = useMemo(() => {
@@ -90,9 +148,9 @@ const DocumentsPage: React.FC = () => {
       if (sortField === 'id') {
         compareValue = a.id.localeCompare(b.id);
       } else if (sortField === 'created') {
-        compareValue = a.created.getTime() - b.created.getTime();
+        compareValue = a.created.localeCompare(b.created);
       } else if (sortField === 'updated') {
-        compareValue = a.updated.getTime() - b.updated.getTime();
+        compareValue = a.updated.localeCompare(b.updated);
       }
       return sortOrder === 'asc' ? compareValue : -compareValue;
     });
@@ -100,7 +158,7 @@ const DocumentsPage: React.FC = () => {
 
   const handleUpload = () => {
     fileInputRef.current?.click();
-    postMessage('documents/upload-requested');
+    postMessage('document/upload');
   };
 
   const handleFilesSelected: React.ChangeEventHandler<HTMLInputElement> = (event) => {
@@ -109,36 +167,35 @@ const DocumentsPage: React.FC = () => {
       return;
     }
 
-    postMessage('documents/upload-selected', {
+    postMessage('document/upload', {
       files: Array.from(files).map((file) => ({ name: file.name, type: file.type, size: file.size })),
     });
     event.target.value = '';
   };
 
   const handleScan = () => {
-    postMessage('documents/scan-workspace');
+    postMessage('document/scan');
   };
 
   const handleRetry = () => {
     const failedDocs = documents.filter((d) => d.status === 'failed');
     if (failedDocs.length > 0) {
-      postMessage('documents/retry-failed', { documentIds: failedDocs.map((d) => d.id) });
+      postMessage('document/retry', { documentIds: failedDocs.map((d) => d.id) });
     }
   };
 
   const handlePipeline = () => {
-    postMessage('documents/view-pipeline');
+    postMessage('document/pipeline');
   };
 
   const handleClear = () => {
     if (window.confirm('Are you sure you want to clear all documents?')) {
-      setDocuments([]);
-      postMessage('documents/clear-all');
+      postMessage('document/clear');
     }
   };
 
   const handleRefresh = () => {
-    postMessage('documents/refresh');
+    postMessage('document/refresh');
   };
 
   const toggleDocumentSelection = (docId: string) => {
@@ -156,44 +213,20 @@ const DocumentsPage: React.FC = () => {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  };
-
-  const getStatusIcon = (status: DocumentStatus) => {
-    switch (status) {
-      case 'completed':
-        return '✓';
-      case 'processing':
-        return '⟳';
-      case 'failed':
-        return '✗';
-      case 'pending':
-        return '○';
-      default:
-        return '•';
-    }
-  };
-
   const getStatusColor = (status: DocumentStatus) => {
     switch (status) {
       case 'completed':
-        return 'text-green-600';
+        return 'text-[var(--vscode-testing-iconPassed,#73c991)] font-medium';
       case 'processing':
-        return 'text-blue-600';
+        return 'text-[var(--vscode-progressBar-background,#0e70c0)] font-medium';
       case 'failed':
-        return 'text-red-600';
+        return 'text-[var(--vscode-testing-iconFailed,#f14c4c)] font-medium';
       case 'pending':
-        return 'text-yellow-600';
+        return 'text-[var(--vscode-list-warningForeground,#cca700)] font-medium';
+      case 'preprocessed':
+        return 'text-[var(--vscode-charts-blue,#75beff)] font-medium';
       default:
-        return 'text-gray-600';
+        return 'text-[var(--vscode-foreground)] font-medium';
     }
   };
 
@@ -433,20 +466,46 @@ const DocumentsPage: React.FC = () => {
                                 </div>
                               </td>
                               <td className="p-2 align-middle">
-                                <div className="group relative flex items-center">
-                                  <span className={getStatusColor(doc.status)}>
-                                    {getStatusIcon(doc.status)} {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
-                                  </span>
+                                <div className="group relative flex items-center gap-2 overflow-visible tooltip-container">
+                                  {/* Status with spinner for processing */}
+                                  {doc.status === 'processing' || doc.status === 'pending' ? (
+                                    <div className="flex items-center gap-2">
+                                      <Spinner size={14} />
+                                      <div className="flex flex-col">
+                                        <span className={getStatusColor(doc.status)}>
+                                          {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+                                        </span>
+                                        {doc.currentStep && (
+                                          <span className="text-xs text-muted-foreground">{doc.currentStep}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className={getStatusColor(doc.status)}>
+                                      {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+                                    </span>
+                                  )}
+                                  
+                                  {/* Info icon with tooltip */}
                                   {doc.trackId && (
                                     <>
-                                      <svg className="ml-2 h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <circle cx="12" cy="12" r="10" />
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16v-4M12 8h.01" />
                                       </svg>
-                                      <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded px-2 py-1 whitespace-nowrap z-50">
-                                        Track ID: {doc.trackId}
+                                      <div className="invisible group-hover:visible absolute left-0 bottom-full mb-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded px-2 py-1 whitespace-nowrap z-50 max-w-md">
+                                        <div className="mt-1">Track ID: {doc.trackId}</div>
+                                        {doc.currentStep && (
+                                          <div className="mt-1">Step: {doc.currentStep}</div>
+                                        )}
+                                        {doc.progress !== undefined && (
+                                          <div className="mt-1">Progress: {doc.progress}%</div>
+                                        )}
                                         {doc.processingStartTime && (
                                           <div className="mt-1">Started: {doc.processingStartTime}</div>
+                                        )}
+                                        {doc.processingEndTime && (
+                                          <div className="mt-1">Finished: {doc.processingEndTime}</div>
                                         )}
                                       </div>
                                     </>
@@ -455,8 +514,8 @@ const DocumentsPage: React.FC = () => {
                               </td>
                               <td className="p-2 align-middle">{doc.length.toLocaleString()}</td>
                               <td className="p-2 align-middle">{doc.chunks}</td>
-                              <td className="p-2 align-middle truncate">{formatDate(doc.created)}</td>
-                              <td className="p-2 align-middle truncate">{formatDate(doc.updated)}</td>
+                              <td className="p-2 align-middle truncate">{doc.created}</td>
+                              <td className="p-2 align-middle truncate">{doc.updated}</td>
                               <td className="p-2 align-middle text-center">
                                 <button
                                   type="button"
