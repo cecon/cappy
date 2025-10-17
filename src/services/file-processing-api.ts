@@ -16,6 +16,9 @@ export interface FileStatusResponse {
   progress: number;
   summary: string;
   error?: string;
+  chunksCount?: number;
+  nodesCount?: number;
+  relationshipsCount?: number;
 }
 
 export class FileProcessingAPI {
@@ -198,7 +201,10 @@ export class FileProcessingAPI {
       status: metadata.status === 'cancelled' ? 'failed' : metadata.status,
       progress,
       summary,
-      error: metadata.errorMessage || undefined
+      error: metadata.errorMessage || undefined,
+      chunksCount: metadata.chunksCount,
+      nodesCount: metadata.nodesCount,
+      relationshipsCount: metadata.relationshipsCount
     };
 
     console.log(`[FileProcessingAPI] Status response for ${fileIdStr}:`, statusResponse);

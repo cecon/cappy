@@ -137,6 +137,9 @@ const DocumentsPage: React.FC = () => {
 
   // Documentos filtrados e ordenados
   const filteredDocuments = useMemo(() => {
+    console.log('[DocumentsPage] Computing filteredDocuments, total documents:', documents.length);
+    console.log('[DocumentsPage] Documents:', documents);
+    
     let filtered = documents;
     if (statusFilter !== 'all') {
       filtered = documents.filter((d) => d.status === statusFilter);
@@ -289,18 +292,22 @@ const DocumentsPage: React.FC = () => {
         console.log('[DocumentsPage] Status update for', fileId, ':', status);
         
         // Update document status
-        setDocuments(prev =>
-          prev.map(doc =>
+        setDocuments(prev => {
+          const updated = prev.map(doc =>
             doc.id === fileId
               ? { 
                   ...doc, 
                   status: status.status,
                   progress: status.progress,
-                  summary: status.error ? `❌ ${status.error}` : status.summary
+                  summary: status.error ? `❌ ${status.error}` : status.summary,
+                  chunks: status.chunksCount || doc.chunks,
+                  updated: new Date().toISOString().split('T')[0]
                 }
               : doc
-          )
-        );
+          );
+          console.log('[DocumentsPage] Updated documents:', updated.length, 'total');
+          return updated;
+        });
 
         // Continue polling if still processing
         if (status.status === 'processing' || status.status === 'pending') {
@@ -310,6 +317,8 @@ const DocumentsPage: React.FC = () => {
           console.log('[DocumentsPage] File processing finished:', fileId, status.status);
           if (status.error) {
             console.error('[DocumentsPage] Error details:', status.error);
+          } else if (status.chunksCount) {
+            console.log('[DocumentsPage] ✅ Processed with', status.chunksCount, 'chunks');
           }
         }
       } catch (error) {
