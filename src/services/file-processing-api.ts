@@ -12,6 +12,8 @@ export interface FileUploadRequest {
 
 export interface FileStatusResponse {
   fileId: string; // Changed from number to string to match FileMetadata
+  fileName?: string;
+  filePath?: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   progress: number;
   summary: string;
@@ -242,10 +244,15 @@ export class FileProcessingAPI {
 
       return {
         fileId: metadata.id,
+        fileName: metadata.fileName,
+        filePath: metadata.filePath,
         status: metadata.status === 'cancelled' ? 'failed' : metadata.status,
         progress,
         summary,
-        error: metadata.errorMessage || undefined
+        error: metadata.errorMessage || undefined,
+        chunksCount: metadata.chunksCount,
+        nodesCount: metadata.nodesCount,
+        relationshipsCount: metadata.relationshipsCount
       };
     });
 

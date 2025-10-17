@@ -24,7 +24,7 @@ Adapters conectam esse núcleo a interfaces de entrada (UI, comandos) e a servi�
 
 ## Definições
 - **Adapter Primário**: Componente que inicia fluxos de uso. Ex.: UI React, WebView VS Code, comandos CLI.
-- **Adapter Secundário**: Implementação de serviços consumidos pelo domínio. Ex.: LanceDB, filesystem, renderizadores.
+- **Adapter Secundário**: Implementação de serviços consumidos pelo domínio. Ex.: SQLite (com sqlite-vec), filesystem, renderizadores.
 - **Port**: Interface TypeScript definida no domínio (`src/domains/**/ports`).
 - **Use Case**: Serviço de aplicação que expõe operações do domínio.
 

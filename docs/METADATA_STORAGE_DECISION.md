@@ -1,4 +1,4 @@
-# Metadata Storage Decision: LanceDB vs Arquivo Separado
+# Metadata Storage Decision: SQLite para Metadados
 
 ## 🎯 Decisão: Onde Salvar Metadados de Arquivo?
 
@@ -11,9 +11,9 @@ Metadados em questão:
 
 ---
 
-## ✅ Opção 1: Tabela no LanceDB (RECOMENDADO)
+## ✅ Opção 1: Tabela no SQLite (RECOMENDADO)
 
-### **Sim! LanceDB suporta tabelas sem vetores**
+### **SQLite: Banco de dados relacional leve e eficiente**
 
 ```typescript
 // file_metadata table (SEM vector obrigatório)
@@ -60,29 +60,32 @@ interface FileMetadata {
 1. **Query Unificada** 🎯
    ```typescript
    // Buscar tudo em um lugar
-   const metadata = await lancedb.query('file_metadata')
-     .filter(`file_path = '${filePath}'`)
-     .first();
+   const metadata = await db.get(
+     'SELECT * FROM file_metadata WHERE file_path = ?',
+     [filePath]
+   );
    
    // Join com chunks
-   const fileWithChunks = await lancedb.query('file_metadata')
-     .join('document_chunks', 'file_path')
-     .where(`file_path = '${filePath}'`)
-     .execute();
+   const fileWithChunks = await db.all(`
+     SELECT fm.*, dc.* 
+     FROM file_metadata fm
+     JOIN document_chunks dc ON fm.file_path = dc.file_path
+     WHERE fm.file_path = ?
+   `, [filePath]);
    ```
 
 2. **Analytics Nativo** 📊
    ```typescript
-   // Queries SQL-like direto no LanceDB
-   const stats = await lancedb.query('file_metadata')
-     .select([
-       'indexing_mode',
-       'COUNT(*) as file_count',
-       'SUM(total_tokens) as total_tokens',
-       'AVG(embedding_cost_usd) as avg_cost'
-     ])
-     .groupBy('indexing_mode')
-     .execute();
+   // Queries SQL direto no SQLite
+   const stats = await db.all(`
+     SELECT 
+       indexing_mode,
+       COUNT(*) as file_count,
+       SUM(total_tokens) as total_tokens,
+       AVG(embedding_cost_usd) as avg_cost
+     FROM file_metadata
+     GROUP BY indexing_mode
+   `);
    
    // Resultado:
    [
@@ -94,10 +97,13 @@ interface FileMetadata {
 3. **Atomicidade** ⚛️
    ```typescript
    // Transação única: metadata + chunks + entities
-   await lancedb.transaction(async (tx) => {
+   await db.run('BEGIN TRANSACTION');
+   try {
      // 1. Update metadata
-     await tx.upsert('file_metadata', {
-       file_path: filePath,
+     await db.run(`
+       INSERT OR REPLACE INTO file_metadata 
+       (file_path, file_hash, ...) VALUES (?, ?, ...)
+     `, [filePath, fileHash, ...]);
        total_chunks: chunks.length,
        indexed_at: new Date().toISOString()
      });

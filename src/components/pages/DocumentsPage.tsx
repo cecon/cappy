@@ -83,6 +83,57 @@ const DocumentsPage: React.FC = () => {
     vscodeApi?.postMessage({ type, payload });
   };
 
+  // Load documents from API on mount
+  useEffect(() => {
+    const loadDocuments = async () => {
+      try {
+        console.log('[DocumentsPage] Loading documents from API...');
+        const response = await fetch('http://localhost:3456/files/all');
+        
+        if (!response.ok) {
+          console.error('[DocumentsPage] Failed to load documents:', response.statusText);
+          return;
+        }
+        
+        const statusResponses = await response.json();
+        console.log('[DocumentsPage] Loaded', statusResponses.length, 'documents from API');
+        
+        // Convert API response to Document format
+        interface StatusResponse {
+          fileId: string;
+          fileName?: string;
+          filePath?: string;
+          summary?: string;
+          status: DocumentStatus;
+          chunksCount?: number;
+          progress?: number;
+        }
+        
+        const docs: Document[] = (statusResponses as StatusResponse[]).map(sr => ({
+          id: sr.fileId,
+          fileName: sr.fileName || 'Unknown',
+          filePath: sr.filePath,
+          summary: sr.summary || '',
+          status: sr.status,
+          length: 0,
+          chunks: sr.chunksCount || 0,
+          created: new Date().toISOString().split('T')[0],
+          updated: new Date().toISOString().split('T')[0],
+          progress: sr.progress || 0,
+          selected: false
+        }));
+        
+        setDocuments(docs);
+        console.log('[DocumentsPage] Documents loaded successfully');
+      } catch (error) {
+        console.error('[DocumentsPage] Error loading documents:', error);
+        // Silently fail - API might not be running yet
+      }
+    };
+    
+    loadDocuments();
+  }, []);
+
   // Listen for messages from extension
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {

@@ -277,16 +277,16 @@ mode = "mix"
 
 ---
 
-## 🎯 Comparação: LightRAG vs CAPPY (Proposto)
+## 🎯 Comparação: LightRAG vs CAPPY
 
-| Aspecto | LightRAG | CAPPY (Nossa Proposta) | Status |
+| Aspecto | LightRAG | CAPPY (Implementado) | Status |
 |---------|----------|------------------------|--------|
 | **Document Formats** | PDF, DOC, PPT, CSV, MD | MD, TS, PY, JS, TSX | ✅ Diferente mas equivalente |
 | **Chunking Strategy** | Token-based, overlap | AST-based (code), Section-based (MD) | ⭐ **Melhor para código** |
 | **Entity Extraction** | LLM-based (32B+) | Rule-based + Pattern matching | ⚠️ **Precisamos LLM** |
 | **Relation Extraction** | LLM-based | Code analysis (imports, calls) | ✅ **Mais preciso para código** |
-| **Graph Storage** | NetworkX, Neo4j, PG+AGE | Graphology (in-memory) | ✅ Similar |
-| **Vector Storage** | Nano, Milvus, Qdrant | LanceDB | ✅ Equivalente |
+| **Graph Storage** | NetworkX, Neo4j, PG+AGE | SQLite (tabelas de grafo) | ✅ Similar |
+| **Vector Storage** | Nano, Milvus, Qdrant | SQLite + sqlite-vec | ✅ Equivalente |
 | **Embeddings** | OpenAI, BGE, local | Xenova Transformers | ✅ Equivalente |
 | **Dual-Level Retrieval** | Local + Global | Planejado | ⚠️ **Precisamos implementar** |
 | **Incremental Updates** | ✅ Sim | ✅ Planejado (FileWatcher) | ✅ OK |

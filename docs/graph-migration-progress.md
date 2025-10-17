@@ -37,7 +37,7 @@
 **Estimativa**: 2-3 horas
 
 **Casos de uso a implementar**:
-- `LoadGraphDataUseCase`: Carregar dados do LanceDB
+- `LoadGraphDataUseCase`: Carregar dados do SQLite
 - `FilterGraphUseCase`: Filtrar nodes/edges por critérios
 - `ExpandNodeUseCase`: Expandir vizinhança de um nó
 - `CalculateMetricsUseCase`: Calcular PageRank e métricas
@@ -51,7 +51,7 @@
 **Estimativa**: 4-5 horas
 
 **Adapters a implementar**:
-- `LanceDbGraphRepository`: Integração com LanceDB existente
+- `SQLiteGraphRepository`: Integração com SQLite + sqlite-vec
 - `D3GraphVisualizationService`: Migração do dashboard.js para TypeScript
 - `NetworkXGraphAnalyticsService`: Algoritmos de graph (PageRank, clustering)
 
@@ -119,7 +119,7 @@ Use cases: 6-8
 - Testes unitários dos use cases
 
 ### 2. Repository Implementation (3h)
-- `LanceDbGraphRepository` conectando com `old/src/store/cappyragLanceDb`
+- `SQLiteGraphRepository` conectando com banco SQLite + sqlite-vec
 - Migração gradual das queries existentes
 - Testes de integração
 

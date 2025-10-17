@@ -16,9 +16,9 @@
 
 ### **1. Granularidade de Linha** ⭐ **CRÍTICO**
 
-#### **Problema do LightRAG**:
+#### **Problema de Sistemas Genéricos**:
 ```typescript
-// LightRAG armazena apenas:
+// Sistemas genéricos armazenam apenas:
 {
   chunk_id: "doc_123_chunk_5",
   content: "...large text block...",
@@ -71,7 +71,22 @@ interface DocumentChunk {
   entities: string[];
   
   // Status
-  status: 'active' | 'outdated' | 'deleted';
+      status: 'active' | 'outdated' | 'deleted';
+  }
+}
+```
+
+**Armazenamento**: SQLite com sqlite-vec para embeddings vetoriais
+
+#### **Exemplo Real - TypeScript**:
+```typescript
+// Arquivo: src/services/UserService.ts (500 linhas)
+const chunks = [
+  {
+    id: "chunk_uuid_1",
+    file_path: "/projeto/src/services/UserService.ts",
+    file_hash: "a1b2c3d4e5f6...",
+    chunk_hash: "x7y8z9...",
 }
 ```
 
@@ -189,7 +204,7 @@ class FileHashManager {
 #### **Tabela de Status de Arquivos**
 
 ```typescript
-// LanceDB table: file_status
+// SQLite table: file_status
 interface FileStatusRecord {
   // Identificação única
   composite_id: string;          // path_hash + file_hash
@@ -659,10 +674,10 @@ class NavigationService {
 
 ---
 
-## 📊 Schema Completo do LanceDB
+## 📊 Schema Completo do SQLite
 
 ```typescript
-// Tabela 1: document_chunks
+// Tabela 1: document_chunks (com sqlite-vec para embeddings)
 interface DocumentChunksTable {
   // Identificação
   id: string;                      // UUID
@@ -827,10 +842,10 @@ class DocumentIndexingOrchestrator {
     const entities = await this.extractEntities(chunks);
     const relations = await this.extractRelations(chunks, entities);
     
-    // 4. Save to LanceDB
-    await this.vectorDB.saveChunks(chunks);
-    await this.vectorDB.saveEntities(entities);
-    await this.vectorDB.saveRelations(relations);
+    // 4. Save to SQLite (com sqlite-vec para embeddings)
+    await this.database.saveChunks(chunks);
+    await this.database.saveEntities(entities);
+    await this.database.saveRelations(relations);
     
     // 5. Build graph
     await this.graphEngine.addNodesAndEdges(entities, relations);
@@ -979,7 +994,7 @@ authentication works by..."
 
 ### **Sprint 1: Core Infrastructure** (3 dias)
 - [ ] Implementar `FileHashManager`
-- [ ] Criar schema LanceDB com `line_start/end`
+- [ ] Criar schema SQLite com `line_start/end` e sqlite-vec
 - [ ] Implementar `file_status` table
 - [ ] Testes de hashing e unicidade
 
@@ -1005,7 +1020,7 @@ authentication works by..."
 
 ## 🎯 Benefícios da Nossa Abordagem
 
-| Aspecto | LightRAG | CAPPY | Vantagem |
+| Aspecto | Sistemas Genéricos | CAPPY | Vantagem |
 |---------|----------|-------|----------|
 | **Line Granularity** | ❌ Não tem | ✅ Linha exata | 🏆 CAPPY |
 | **Change Detection** | ⚠️ Básico | ✅ Diff-based | 🏆 CAPPY |
@@ -1013,6 +1028,7 @@ authentication works by..."
 | **File Hashing** | ❌ Não tem | ✅ Dual hash (file + chunk) | 🏆 CAPPY |
 | **Freshness Status** | ❌ Não expõe | ✅ UI warnings | 🏆 CAPPY |
 | **Large Files** | ⚠️ Lento (reprocess) | ✅ Otimizado | 🏆 CAPPY |
+| **Database** | Varia | ✅ SQLite + sqlite-vec | 🏆 CAPPY |
 
 ---
 
@@ -1021,7 +1037,8 @@ authentication works by..."
 - [diff library](https://www.npmjs.com/package/diff) - Line-by-line diffing
 - [VS Code FileSystemWatcher](https://code.visualstudio.com/api/references/vscode-api#FileSystemWatcher)
 - [Node.js crypto](https://nodejs.org/api/crypto.html) - MD5 hashing
+- [sqlite-vec](https://github.com/asg017/sqlite-vec) - Vector search for SQLite
 
 ---
 
-**Conclusão**: Nossa abordagem com **line granularity**, **incremental updates**, e **freshness tracking** é **significativamente superior** ao LightRAG para casos de uso de código e arquivos grandes. 🚀
+**Conclusão**: Nossa abordagem com **line granularity**, **incremental updates**, **freshness tracking** e **SQLite + sqlite-vec** é **significativamente superior** para casos de uso de código e arquivos grandes. 🚀

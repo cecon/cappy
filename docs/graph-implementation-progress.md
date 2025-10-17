@@ -71,10 +71,10 @@
 
 ### 🗄️ Infrastructure Layer - Repository (100%)
 
-**LanceDBGraphRepository** (~600 linhas):
+**SQLiteGraphRepository** (~600 linhas):
 
 ✅ Implementa `GraphRepository` port
-✅ Integração com LanceDB existente
+✅ Integração com SQLite + sqlite-vec
 ✅ Cache com TTL configurável
 ✅ Conversão de chunks → graph nodes/edges
 ✅ Inferência de tipos de nodes (document, chunk, entity)
@@ -132,10 +132,10 @@ src/
 ├── adapters/
 │   └── secondary/
 │       ├── graph/             (✅ NOVO - Hoje)
-│       │   ├── lancedb-graph-repository.ts
+│       │   ├── sqlite-graph-repository.ts
 │       │   └── index.ts
-│       └── vector/            (✅ Já existia)
-│           └── lancedb-adapter.ts
+│       └── database/          (✅ Já existia)
+│           └── sqlite-adapter.ts
 │
 └── services/
     └── graph-service.ts       (✅ NOVO - Hoje)
@@ -185,7 +185,7 @@ src/
 - [ ] Testes para CalculateMetricsUseCase
 - [ ] Testes para SearchGraphUseCase
 - [ ] Testes para ExportGraphUseCase
-- [ ] Testes para LanceDBGraphRepository
+- [ ] Testes para SQLiteGraphRepository
 - [ ] Testes para GraphService
 
 **Target:** >80% coverage
@@ -305,12 +305,12 @@ src/
 
 ```typescript
 // 1. Setup
-import { createLanceDBAdapter } from './adapters/secondary/vector/lancedb-adapter';
-import { createLanceDBGraphRepository } from './adapters/secondary/graph';
+import { createSQLiteAdapter } from './adapters/secondary/database/sqlite-adapter';
+import { createSQLiteGraphRepository } from './adapters/secondary/graph';
 import { createGraphService } from './services/graph-service';
 
-const vectorStore = createLanceDBAdapter('path/to/db');
-const repository = createLanceDBGraphRepository({ vectorStore });
+const database = createSQLiteAdapter('path/to/db.sqlite');
+const repository = createSQLiteGraphRepository({ database });
 const graphService = createGraphService({ repository });
 
 // 2. Load graph

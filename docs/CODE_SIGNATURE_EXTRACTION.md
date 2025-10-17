@@ -17,10 +17,10 @@ Para arquivos de **documentação** (.md, .txt), indexamos o conteúdo completo.
 
 ---
 
-## 🎯 O que o LightRAG faz (Errado para Código)
+## 🎯 O que Sistemas Genéricos fazem (Ineficiente para Código)
 
 ```python
-# LightRAG indexa TUDO:
+# Sistemas genéricos indexam TUDO:
 chunk = """
 /**
  * Authenticates a user with the given credentials.
@@ -198,7 +198,7 @@ async function getUserById(userId: string): Promise<User | null> {
   line_end: 38
 }
 
-// Content para embedding (o que vai pro LanceDB):
+// Content para embedding (o que vai pro SQLite com sqlite-vec):
 const embeddingContent = `
 getUserById: Fetches user data from the database by ID.
 Parameters: userId (string) - The unique identifier of the user
@@ -447,7 +447,7 @@ public class AuthService : IAuthService
 // UserService.ts - 500 linhas
 // 15 métodos, cada um com 20-50 linhas de implementação
 
-// ❌ LightRAG approach (Full Code):
+// ❌ Abordagem de sistemas genéricos (Full Code):
 const chunks = [
   {
     content: `
@@ -903,9 +903,9 @@ const context = buildContext(results);
 
 ---
 
-## 🏆 Vantagens sobre LightRAG
+## 🏆 Vantagens sobre Sistemas Genéricos
 
-| Aspecto | LightRAG | CAPPY | Ganho |
+| Aspecto | Sistemas Genéricos | CAPPY | Ganho |
 |---------|----------|-------|-------|
 | **Code Indexing** | Full code | Signature + Docs | **300x menor** |
 | **Embedding Quality** | ⭐⭐ Poluído | ⭐⭐⭐⭐⭐ Focado | **Muito melhor** |
@@ -1628,5 +1628,6 @@ settings: {
 - ⚡ **Hybrid**: Inteligente, adapta automaticamente
 - 🎛️ **User Choice**: Flexibilidade total
 - 🎯 **Context-aware**: Patterns por tipo de arquivo
+- 🗄️ **SQLite + sqlite-vec**: Armazenamento eficiente e busca vetorial
 
-Nossa abordagem de **Signature + Docs** continua sendo **dramaticamente superior** ao LightRAG para indexação de código, e agora com **flexibilidade total** para o usuário! 🚀
+Nossa abordagem de **Signature + Docs** com **SQLite + sqlite-vec** continua sendo **dramaticamente superior** para indexação de código, e agora com **flexibilidade total** para o usuário! 🚀

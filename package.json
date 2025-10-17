@@ -66,6 +66,21 @@
         "command": "cappy.processSingleFile",
         "title": "🧪 Cappy: Process Single File (Test)",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.debug",
+        "title": "🐛 Cappy: Debug - List Commands",
+        "category": "Cappy Debug"
+      },
+      {
+        "command": "cappy.debugDatabase",
+        "title": "🔍 Cappy: Debug - Inspect Database",
+        "category": "Cappy Debug"
+      },
+      {
+        "command": "cappy.debugAddTestData",
+        "title": "➕ Cappy: Debug - Add Test Data",
+        "category": "Cappy Debug"
       }
     ],
     "viewsContainers": {

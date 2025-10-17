@@ -8,7 +8,7 @@ import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-
 import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './adapters/primary/vscode/commands/scan-workspace';
 import { registerProcessSingleFileCommand } from './commands/process-single-file';
-import { registerDebugCommand } from './commands/debug';
+import { registerDebugCommand, registerDebugDatabaseCommand, registerDebugAddTestDataCommand } from './commands/debug';
 import { FileMetadataDatabase } from './services/file-metadata-database';
 import { FileProcessingQueue } from './services/file-processing-queue';
 import { FileProcessingWorker } from './services/file-processing-worker';
@@ -70,6 +70,13 @@ export function activate(context: vscode.ExtensionContext) {
     // Register debug command
     registerDebugCommand(context);
     console.log('✅ Registered command: cappy.debug');
+
+    // Register debug database commands
+    registerDebugDatabaseCommand(context);
+    console.log('✅ Registered command: cappy.debugDatabase');
+    
+    registerDebugAddTestDataCommand(context);
+    console.log('✅ Registered command: cappy.debugAddTestData');
 
     // Create chat service with LangGraph engine (includes tools)
     const chatEngine = new LangGraphChatEngine();

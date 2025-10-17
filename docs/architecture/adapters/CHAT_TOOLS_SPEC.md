@@ -31,7 +31,7 @@ export interface TerminalPort {
 ## Tool Implementations
 
 ### 1. IntelligentRetrieverTool
-**Propósito**: Busca híbrida usando graph + vector no LanceDB
+**Propósito**: Busca híbrida usando graph + vector no SQLite (com sqlite-vec)
 ```typescript
 interface SearchOptions {
   vectorWeight: number;    // 0-1, peso da busca vetorial

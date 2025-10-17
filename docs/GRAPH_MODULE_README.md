@@ -6,7 +6,7 @@ Sistema completo de grafos de conhecimento para o Cappy, implementado com Clean 
 
 O módulo de Graph permite:
 
-- 📥 **Carregar** dados de grafo do LanceDB
+- 📥 **Carregar** dados de grafo do SQLite (com sqlite-vec)
 - 🔍 **Buscar** nodes e edges (fuzzy, exact, regex, semantic)
 - 🎯 **Filtrar** por tipos, confiança, datas, conexões
 - 🌳 **Expandir** vizinhança de nodes com BFS
@@ -30,7 +30,7 @@ src/
 │       └── ExportGraphUseCase.ts
 │
 ├── adapters/secondary/graph/   # Infrastructure Layer
-│   └── lancedb-graph-repository.ts
+│   └── sqlite-graph-repository.ts
 │
 └── services/                   # Application Services
     └── graph-service.ts
@@ -41,18 +41,18 @@ src/
 ### 1. Setup
 
 ```typescript
-import { createLanceDBAdapter } from './adapters/secondary/vector/lancedb-adapter';
-import { createLanceDBGraphRepository } from './adapters/secondary/graph';
+import { createSQLiteAdapter } from './adapters/secondary/database/sqlite-adapter';
+import { createSQLiteGraphRepository } from './adapters/secondary/graph';
 import { createGraphService } from './services/graph-service';
 import { EmbeddingService } from './services/embedding-service';
 
 // Setup dependencies
 const embeddingService = new EmbeddingService();
-const vectorStore = createLanceDBAdapter('path/to/db', embeddingService);
-await vectorStore.initialize();
+const database = createSQLiteAdapter('path/to/db.sqlite', embeddingService);
+await database.initialize();
 
 // Create repository and service
-const repository = createLanceDBGraphRepository({ vectorStore });
+const repository = createSQLiteGraphRepository({ database });
 await repository.initialize();
 
 const graphService = createGraphService({ repository });

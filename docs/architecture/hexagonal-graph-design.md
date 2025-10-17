@@ -12,7 +12,7 @@ Este documento descreve a arquitetura hexagonal implementada para o sistema de v
 
 ### Adapters (Externos)
 - **Primary Adapters**: React Components, VS Code WebView
-- **Secondary Adapters**: LanceDB, File System, VS Code APIs
+- **Secondary Adapters**: SQLite (com sqlite-vec), File System, VS Code APIs
 
 ### Ports (Interfaces)
 - **Input Ports**: Commands, Queries
@@ -50,7 +50,7 @@ src/
 │   │   ├── react/            # Componentes React
 │   │   └── vscode/           # VS Code WebView
 │   └── secondary/
-│       ├── database/         # LanceDB adapter
+│       ├── database/         # SQLite adapter (com sqlite-vec)
 │       ├── filesystem/       # File system adapter
 │       └── visualization/    # D3.js adapter
 ├── shared/
@@ -66,7 +66,7 @@ src/
 ## 🔄 Fluxo de Dados
 
 ```
-React Component → Use Case → Repository → LanceDB
+React Component → Use Case → Repository → SQLite (sqlite-vec)
      ↑                                        ↓
    Result ← Domain Entity ← Domain Service ← Data
 ```
@@ -87,7 +87,7 @@ React Component → Use Case → Repository → LanceDB
 - `CalculateMetricsUseCase`: Calcular métricas
 
 ### Infrastructure Layer
-- `LanceDbGraphRepository`: Implementação LanceDB
+- `SQLiteGraphRepository`: Implementação SQLite com sqlite-vec
 - `D3GraphRenderer`: Renderizador D3.js
 - `VSCodeWebViewAdapter`: Adapter VS Code
 
@@ -112,7 +112,7 @@ React Component → Use Case → Repository → LanceDB
 - [ ] Validações de domínio
 
 ### ✅ Fase 3: Infrastructure
-- [ ] LanceDB repository
+- [ ] SQLite repository (com sqlite-vec para embeddings)
 - [ ] D3.js renderer
 - [ ] VS Code adapter
 - [ ] Configuration manager
@@ -165,7 +165,7 @@ React Component → Use Case → Repository → LanceDB
 - **D3.js**: Graph visualization
 
 ### Infrastructure  
-- **LanceDB**: Vector database
+- **SQLite**: Database principal com sqlite-vec para embeddings vetoriais
 - **VS Code API**: Extension integration
 - **Vite**: Build tooling
 
@@ -201,7 +201,7 @@ React Component → Use Case → Repository → LanceDB
 ### v3.1: Core Migration
 - Migração básica funcionando
 - React components principais
-- LanceDB integration
+- SQLite integration com sqlite-vec
 
 ### v3.2: Advanced Features
 - Graph algorithms (PageRank, clustering)
