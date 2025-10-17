@@ -4,7 +4,7 @@
 
 import { createEmbeddingService } from './src/services/embedding-service';
 import { createLanceDBAdapter } from './src/adapters/secondary/vector/lancedb-adapter';
-import { createKuzuAdapter } from './src/adapters/secondary/graph/kuzu-adapter';
+import { createSQLiteAdapter } from './src/adapters/secondary/graph/sqlite-adapter';
 import { createIndexingService } from './src/services/indexing-service';
 import { createParserService } from './src/services/parser-service';
 import * as path from 'path';
@@ -31,7 +31,7 @@ async function testEndToEnd() {
     const kuzuPath = path.join(dataPath, 'kuzu');
     
     const vectorStore = createLanceDBAdapter(lancedbPath, embeddingService);
-    const graphStore = createKuzuAdapter(kuzuPath);
+    const graphStore = createSQLiteAdapter(kuzuPath);
     
     await vectorStore.initialize();
     await graphStore.initialize();

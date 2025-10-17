@@ -12,7 +12,7 @@ import { IndexingService } from '../services/indexing-service';
 import { ASTRelationshipExtractor } from '../services/ast-relationship-extractor';
 import { EmbeddingService } from '../services/embedding-service';
 import { createLanceDBAdapter } from '../adapters/secondary/vector/lancedb-adapter';
-import { createKuzuAdapter } from '../adapters/secondary/graph/kuzu-adapter';
+import { createSQLiteAdapter } from '../adapters/secondary/graph/sqlite-adapter';
 
 /**
  * Progress callback type
@@ -41,7 +41,7 @@ export async function processSingleFileInternal(options: {
     await embeddingService.initialize();
     
     const vectorStore = createLanceDBAdapter(workspaceRoot);
-    const graphStore = createKuzuAdapter(workspaceRoot);
+    const graphStore = createSQLiteAdapter(workspaceRoot);
     const indexingService = new IndexingService(vectorStore, graphStore, embeddingService);
     const parserService = new ParserService();
     const relationshipExtractor = new ASTRelationshipExtractor();

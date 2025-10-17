@@ -10,7 +10,7 @@ import { WorkspaceScanner, type ScanProgress } from '../../../../services/worksp
 import { ParserService } from '../../../../services/parser-service';
 import { IndexingService } from '../../../../services/indexing-service';
 import { EmbeddingService } from '../../../../services/embedding-service';
-import { KuzuAdapter } from '../../../secondary/graph/kuzu-adapter';
+import { SQLiteAdapter } from '../../../secondary/graph/sqlite-adapter';
 import { LanceDBAdapter } from '../../../secondary/vector/lancedb-adapter';
 import * as path from 'path';
 
@@ -50,7 +50,7 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
             );
             await vectorStore.initialize();
             
-            const graphStore = new KuzuAdapter(
+            const graphStore = new SQLiteAdapter(
               path.join(dataDir, 'kuzu')
             );
             await graphStore.initialize();

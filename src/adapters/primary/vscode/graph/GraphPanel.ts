@@ -5,7 +5,7 @@ import { IndexingService } from '../../../../services/indexing-service';
 import { ConfigService } from '../../../../services/config-service';
 import { EmbeddingService } from '../../../../services/embedding-service';
 import { LanceDBAdapter } from '../../../secondary/vector/lancedb-adapter';
-import { KuzuAdapter } from '../../../secondary/graph/kuzu-adapter';
+import { SQLiteAdapter } from '../../../secondary/graph/sqlite-adapter';
 
 /**
  * WebView Panel for Graph Visualization
@@ -119,7 +119,7 @@ export class GraphPanel {
             this.sendMessage({ type: 'db-status', exists: true, created: this.graphDbCreated, path: kuzuPath });
 
             const vectorStore = new LanceDBAdapter(lanceDBPath, embeddingService);
-            const graphStore = new KuzuAdapter(kuzuPath);
+            const graphStore = new SQLiteAdapter(kuzuPath);
 
             // Initialize adapters
             await vectorStore.initialize();
@@ -127,7 +127,7 @@ export class GraphPanel {
             // Create a workspace node labeled by the workspace name (Kuzu-only API)
             try {
                 this.log(`🔧 Creating workspace node: ${workspaceFolder.name}`);
-                await (graphStore as KuzuAdapter).ensureWorkspaceNode(workspaceFolder.name);
+                await (graphStore as SQLiteAdapter).ensureWorkspaceNode(workspaceFolder.name);
                 this.log(`✅ Workspace node ensured: ${workspaceFolder.name}`);
             } catch (e) {
                 this.log(`❌ Could not ensure workspace node: ${e}`);
