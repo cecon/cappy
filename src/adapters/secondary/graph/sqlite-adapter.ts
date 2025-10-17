@@ -50,13 +50,27 @@ export class SQLiteAdapter implements GraphStorePort {
     console.log(`📁 SQLite: Using database file: ${dbFilePath}`);
 
     try {
+      // Get extension path for WASM file
+      const extensionPath = path.dirname(path.dirname(path.dirname(path.dirname(__dirname))));
+      const wasmPath = path.join(extensionPath, "resources", "wasm", "sql-wasm.wasm");
+      
+      console.log(`📁 WASM path: ${wasmPath}`);
+
       const SQL = await initSqlJs({
-        locateFile: (file) => `https://sql.js.org/dist/${file}`,
+        locateFile: (file) => {
+          console.log(`📁 Locating file: ${file}`);
+          if (file.endsWith('.wasm')) {
+            return wasmPath;
+          }
+          return file;
+        },
       });
+      console.log(`✅ sql.js initialized`);
 
       let buffer: Uint8Array | undefined;
       if (fs.existsSync(dbFilePath)) {
         buffer = fs.readFileSync(dbFilePath);
+        console.log(`📁 Loaded existing database`);
       }
 
       this.db = new SQL.Database(buffer);
