@@ -245,14 +245,19 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       doc.progress = 100;
       doc.processingEndTime = new Date().toLocaleString('pt-BR');
       doc.summary = `${fileName} - Successfully processed`;
+      console.log('✅ processFile: Processing completed successfully');
       this.updateDocument(doc);
 
     } catch (error) {
+      console.error('❌ processFile: Error during processing:', error);
       doc.status = 'failed';
       doc.currentStep = `Error: ${error}`;
       doc.progress = 0;
       this.updateDocument(doc);
+      throw error; // Re-throw to propagate to outer catch
     }
+    
+    console.log('⚙️ processFile: Finished');
   }
 
   /**
