@@ -50,6 +50,10 @@ export function activate(context: vscode.ExtensionContext) {
     registerProcessSingleFileCommand(context);
     console.log('✅ Registered command: cappy.processSingleFile');
 
+    // Register debug command
+    registerDebugCommand(context);
+    console.log('✅ Registered command: cappy.debug');
+
     // Create chat service with LangGraph engine (includes tools)
     const chatEngine = new LangGraphChatEngine();
     const chatService = createChatService(chatEngine);
