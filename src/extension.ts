@@ -7,6 +7,7 @@ import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-
 import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './adapters/primary/vscode/commands/scan-workspace';
 import { registerProcessSingleFileCommand } from './commands/process-single-file';
+import { registerDebugCommand } from './commands/debug';
 
 /**
  * Cappy Extension - React + Vite Version
