@@ -7,7 +7,7 @@
  * Using sql.js for cross-platform compatibility (pure JavaScript SQLite)
  */
 
-import initSqlJs, { Database, SqlJsStatic, QueryExecResult } from 'sql.js';
+import initSqlJs, { type Database, type SqlJsStatic, type QueryExecResult } from 'sql.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -252,6 +252,23 @@ export class FileMetadataDatabase {
     
     const result = this.db.exec('SELECT * FROM file_metadata WHERE id = ?', [id]);
     return this.mapFirstRow(result);
+  }
+
+  /**
+   * Gets file by numeric ID (alias for API compatibility)
+   */
+  getFileMetadata(id: number): FileMetadata | null {
+    return this.getFile(String(id));
+  }
+
+  /**
+   * Gets all file metadata records
+   */
+  getAllFileMetadata(): FileMetadata[] {
+    if (!this.db) throw new Error('Database not initialized');
+    
+    const result = this.db.exec('SELECT * FROM file_metadata ORDER BY created_at DESC');
+    return this.mapRows(result);
   }
 
   /**

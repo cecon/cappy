@@ -5,8 +5,8 @@
  * @since 3.0.5
  */
 
-import { FileMetadataDatabase, FileMetadata } from './file-metadata-database';
-import { FileProcessingWorker, ProcessingResult } from './file-processing-worker';
+import { FileMetadataDatabase, type FileMetadata } from './file-metadata-database';
+import { FileProcessingWorker, type ProcessingResult } from './file-processing-worker';
 import { EventEmitter } from 'events';
 
 /**
@@ -270,6 +270,8 @@ export class FileProcessingQueue extends EventEmitter {
     this.activeProcesses.add(metadata.id);
     
     try {
+      console.log(`[Queue] 🔄 Starting to process file: ${metadata.fileName} (${metadata.id})`);
+      
       const now = new Date().toISOString();
       this.database.updateFile(metadata.id, {
         status: 'processing',
@@ -284,10 +286,13 @@ export class FileProcessingQueue extends EventEmitter {
         this.emit('file:start', updatedMetadata);
       }
 
+      console.log(`[Queue] 📝 File marked as processing, calling worker...`);
+
       // Process file with worker (with progress callback)
       const result = await this.worker.processFile(
         metadata.filePath,
         (step: string, progress: number) => {
+          console.log(`[Queue] 📊 Progress update: ${step} (${progress}%)`);
           this.database.updateFile(metadata.id, {
             currentStep: step,
             progress
@@ -299,6 +304,8 @@ export class FileProcessingQueue extends EventEmitter {
           }
         }
       );
+
+      console.log(`[Queue] ✅ Worker completed, updating database...`);
 
       // Update as completed
       this.database.updateFile(metadata.id, {
@@ -321,9 +328,12 @@ export class FileProcessingQueue extends EventEmitter {
     } catch (error) {
       // Handle failure with retry logic
       const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : 'N/A';
       const newRetryCount = metadata.retryCount + 1;
       
-      console.error(`❌ File processing failed: ${metadata.fileName}`, errorMessage);
+      console.error(`[Queue] ❌ File processing failed: ${metadata.fileName}`);
+      console.error(`[Queue] ❌ Error message:`, errorMessage);
+      console.error(`[Queue] ❌ Error stack:`, errorStack);
 
       if (newRetryCount < this.config.maxRetries) {
         // Mark as pending for retry

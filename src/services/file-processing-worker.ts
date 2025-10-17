@@ -69,7 +69,8 @@ export class FileProcessingWorker {
 
       // Step 3: Parse file and extract chunks
       onProgress?.('Parsing file...', 30);
-      const language = this.detectLanguage(filePath);
+      // Language detection for future use
+      this.detectLanguage(filePath);
       
       let chunks: DocumentChunk[];
       try {

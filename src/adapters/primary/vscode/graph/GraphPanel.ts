@@ -476,7 +476,7 @@ export class GraphPanel {
             if (!htmlContent.includes('Content-Security-Policy')) {
                 htmlContent = htmlContent.replace(
                     '<meta name="viewport"',
-                    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${cspSource}; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource};">
+                    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${cspSource}; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource} http://localhost:3456;">
     <meta name="viewport"`
                 );
             }
@@ -503,7 +503,7 @@ export class GraphPanel {
                 script-src 'nonce-${nonce}' ${cspSource};
                 img-src ${cspSource} data: https:;
                 font-src ${cspSource};
-                connect-src ${cspSource};
+                connect-src ${cspSource} http://localhost:3456;
             ">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Cappy Knowledge Graph</title>

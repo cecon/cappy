@@ -157,20 +157,174 @@ const DocumentsPage: React.FC = () => {
   }, [documents, statusFilter, sortField, sortOrder]);
 
   const handleUpload = () => {
+    console.log('🆙 handleUpload: Clicking file input...');
     fileInputRef.current?.click();
-    postMessage('document/upload');
   };
 
-  const handleFilesSelected: React.ChangeEventHandler<HTMLInputElement> = (event) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) {
-      return;
+    const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    console.log('[DocumentsPage] Files selected:', files.length);
+
+    // Add files to state with pending status
+    const now = new Date().toISOString().split('T')[0];
+    const newDocuments: Document[] = Array.from(files).map((file, index) => ({
+      id: `temp-${Date.now()}-${index}`,
+      fileName: file.name,
+      filePath: file.name,
+      summary: 'Uploading to server...',
+      status: 'pending' as const,
+      length: file.size,
+      chunks: 0,
+      created: now,
+      updated: now,
+      progress: 0,
+      selected: false
+    }));
+
+    setDocuments(prev => [...prev, ...newDocuments]);
+
+    // Process each file via API
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const tempId = newDocuments[i].id;
+      
+      try {
+        // Upload file to API
+        await uploadFileToAPI(file, tempId);
+      } catch (error) {
+        console.error('[DocumentsPage] Upload error:', error);
+        setDocuments(prev =>
+          prev.map(doc =>
+            doc.id === tempId
+              ? { ...doc, status: 'failed', summary: `❌ Upload failed: ${error}` }
+              : doc
+          )
+        );
+      }
     }
 
-    postMessage('document/upload', {
-      files: Array.from(files).map((file) => ({ name: file.name, type: file.type, size: file.size })),
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadFileToAPI = async (file: File, tempId: string): Promise<void> => {
+    // Read file as base64
+    const reader = new FileReader();
+    
+    const fileContent = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove data:*/*;base64, prefix
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
     });
-    event.target.value = '';
+
+    // Upload to API
+    const response = await fetch('http://localhost:3456/files/enqueue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        filePath: file.name, // Will be saved to temp folder by API
+        content: fileContent
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Upload failed');
+    }
+
+    const result = await response.json();
+    const fileId = result.fileId;
+
+    console.log('[DocumentsPage] File enqueued:', fileId);
+
+    // Update document with real fileId and start polling
+    setDocuments(prev =>
+      prev.map(doc =>
+        doc.id === tempId
+          ? { ...doc, id: String(fileId), status: 'processing', progress: 0, summary: 'In queue...' }
+          : doc
+      )
+    );
+
+    // Start polling for status
+    pollFileStatus(String(fileId));
+  };
+
+  const pollFileStatus = async (fileId: string): Promise<void> => {
+    const pollInterval = 1000; // 1 second
+    const maxPolls = 120; // 2 minutes max
+    let polls = 0;
+
+    const poll = async () => {
+      if (polls >= maxPolls) {
+        console.warn('[DocumentsPage] Max polls reached for file:', fileId);
+        setDocuments(prev =>
+          prev.map(doc =>
+            doc.id === fileId
+              ? { ...doc, status: 'failed', summary: '❌ Timeout: processing took too long' }
+              : doc
+          )
+        );
+        return;
+      }
+
+      try {
+        const response = await fetch(`http://localhost:3456/files/status?fileId=${fileId}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch status');
+        }
+
+        const status = await response.json();
+        
+        console.log('[DocumentsPage] Status update for', fileId, ':', status);
+        
+        // Update document status
+        setDocuments(prev =>
+          prev.map(doc =>
+            doc.id === fileId
+              ? { 
+                  ...doc, 
+                  status: status.status,
+                  progress: status.progress,
+                  summary: status.error ? `❌ ${status.error}` : status.summary
+                }
+              : doc
+          )
+        );
+
+        // Continue polling if still processing
+        if (status.status === 'processing' || status.status === 'pending') {
+          polls++;
+          setTimeout(poll, pollInterval);
+        } else {
+          console.log('[DocumentsPage] File processing finished:', fileId, status.status);
+          if (status.error) {
+            console.error('[DocumentsPage] Error details:', status.error);
+          }
+        }
+      } catch (error) {
+        console.error('[DocumentsPage] Status poll error:', error);
+        setDocuments(prev =>
+          prev.map(doc =>
+            doc.id === fileId
+              ? { ...doc, status: 'failed', summary: `❌ Error: ${error}` }
+              : doc
+          )
+        );
+      }
+    };
+
+    poll();
   };
 
   const handleScan = () => {

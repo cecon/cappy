@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { GraphPanel } from './adapters/primary/vscode/graph/GraphPanel';
 import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvider';
 import { CreateFileTool } from './adapters/secondary/tools/create-file-tool';
@@ -8,6 +9,15 @@ import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './adapters/primary/vscode/commands/scan-workspace';
 import { registerProcessSingleFileCommand } from './commands/process-single-file';
 import { registerDebugCommand } from './commands/debug';
+import { FileMetadataDatabase } from './services/file-metadata-database';
+import { FileProcessingQueue } from './services/file-processing-queue';
+import { FileProcessingWorker } from './services/file-processing-worker';
+import { FileProcessingAPI } from './services/file-processing-api';
+
+// Global instances for file processing system
+let fileDatabase: FileMetadataDatabase | null = null;
+let fileQueue: FileProcessingQueue | null = null;
+let fileAPI: FileProcessingAPI | null = null;
 
 /**
  * Cappy Extension - React + Vite Version
@@ -18,6 +28,12 @@ import { registerDebugCommand } from './commands/debug';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🦫 Cappy extension is now active! (React + Vite version)');
+
+    // Initialize file processing system
+    initializeFileProcessingSystem(context).catch(error => {
+        console.error('Failed to initialize file processing system:', error);
+        vscode.window.showErrorMessage(`Failed to start file processing API: ${error.message}`);
+    });
 
     // Register Language Model Tools
     const createFileTool = vscode.lm.registerTool('cappy_create_file', new CreateFileTool());
@@ -82,6 +98,71 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     vscode.window.showInformationMessage('Cappy (React + Vite) loaded successfully!');
+}
+
+/**
+ * Initializes the file processing system (database, queue, worker, API)
+ */
+async function initializeFileProcessingSystem(context: vscode.ExtensionContext): Promise<void> {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+        console.warn('No workspace folder found, skipping file processing system initialization');
+        return;
+    }
+
+    try {
+        // Initialize database
+        const dbPath = path.join(context.globalStorageUri.fsPath, 'file-metadata.db');
+        fileDatabase = new FileMetadataDatabase(dbPath);
+        await fileDatabase.initialize();
+        console.log('✅ File metadata database initialized');
+
+        // Initialize services for worker
+        const { ParserService } = await import('./services/parser-service.js');
+        const { FileHashService } = await import('./services/file-hash-service.js');
+        const parserService = new ParserService();
+        const hashService = new FileHashService();
+
+        // Initialize worker
+        const worker = new FileProcessingWorker(parserService, hashService);
+        console.log('✅ File processing worker created');
+
+        // Initialize queue
+        fileQueue = new FileProcessingQueue(fileDatabase, worker, {
+            concurrency: 2,
+            maxRetries: 3,
+            autoStart: true
+        });
+        console.log('✅ File processing queue started');
+
+        // Initialize and start API server
+        fileAPI = new FileProcessingAPI(fileQueue, fileDatabase, workspaceRoot, 3456);
+        await fileAPI.start();
+        console.log('✅ File processing API started on http://localhost:3456');
+
+        // Register cleanup on deactivation
+        context.subscriptions.push({
+            dispose: async () => {
+                if (fileAPI) {
+                    await fileAPI.stop();
+                    console.log('🛑 File processing API stopped');
+                }
+                if (fileQueue) {
+                    await fileQueue.stop();
+                    console.log('🛑 File processing queue stopped');
+                }
+                if (fileDatabase) {
+                    fileDatabase.close();
+                    console.log('🛑 File metadata database closed');
+                }
+            }
+        });
+
+        vscode.window.showInformationMessage('✅ File processing system ready on port 3456');
+    } catch (error) {
+        console.error('Failed to initialize file processing system:', error);
+        throw error;
+    }
 }
 
 /**
