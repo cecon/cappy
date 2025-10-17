@@ -4,8 +4,8 @@ import * as path from 'path';
 import { IndexingService } from '../../../../services/indexing-service';
 import { ConfigService } from '../../../../services/config-service';
 import { EmbeddingService } from '../../../../services/embedding-service';
-import { LanceDBAdapter } from '../../../secondary/vector/lancedb-adapter';
 import { SQLiteAdapter } from '../../../secondary/graph/sqlite-adapter';
+import type { VectorStorePort } from '../../../../domains/graph/ports/indexing-port';
 
 /**
  * WebView Panel for Graph Visualization
@@ -112,17 +112,15 @@ export class GraphPanel {
             } else {
                 this.log(`📁 Base data folder exists: ${baseDataDir}`);
             }
-            const lanceDBPath = configService.getLanceDBPath(workspaceRoot);
-            const kuzuPath = configService.getKuzuPath(workspaceRoot);
-            this.kuzuPath = kuzuPath;
-            await this.ensureKuzuDatabase(kuzuPath);
-            this.sendMessage({ type: 'db-status', exists: true, created: this.graphDbCreated, path: kuzuPath });
+            const sqlitePath = configService.getKuzuPath(workspaceRoot);
+            this.kuzuPath = sqlitePath;
+            await this.ensureKuzuDatabase(sqlitePath);
+            this.sendMessage({ type: 'db-status', exists: true, created: this.graphDbCreated, path: sqlitePath });
 
-            const vectorStore = new LanceDBAdapter(lanceDBPath, embeddingService);
-            const graphStore = new SQLiteAdapter(kuzuPath);
+            // Vector store removed - using SQLite only
+            const graphStore = new SQLiteAdapter(sqlitePath);
 
-            // Initialize adapters
-            await vectorStore.initialize();
+            // Initialize adapter
             await graphStore.initialize();
             // Create a workspace node labeled by the workspace name (Kuzu-only API)
             try {
@@ -136,7 +134,7 @@ export class GraphPanel {
 
             // Create indexing service
             this.indexingService = new IndexingService(
-                vectorStore,
+                null as unknown as VectorStorePort, // TODO: Remove VectorStore dependency
                 graphStore,
                 embeddingService
             );

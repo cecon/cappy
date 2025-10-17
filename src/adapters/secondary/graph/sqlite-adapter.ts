@@ -5,7 +5,7 @@
  * @since 3.0.0
  */
 
-import initSqlJs, { Database as SqlJsDatabase } from "sql.js";
+import initSqlJs, { type Database as SqlJsDatabase } from "sql.js";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -20,7 +20,6 @@ export class SQLiteAdapter implements GraphStorePort {
   private readonly dbPath: string;
   private db: SqlJsDatabase | null = null;
   private dbFilePath = "";
-  private initialized = false;
 
   constructor(dbPath: string) {
     this.dbPath = dbPath;
@@ -79,7 +78,6 @@ export class SQLiteAdapter implements GraphStorePort {
       this.createSchema();
       this.saveToFile();
 
-      this.initialized = true;
       console.log("✅ SQLite: Database initialized");
     } catch (error) {
       console.error("❌ SQLite initialization error:", error);
@@ -120,8 +118,8 @@ export class SQLiteAdapter implements GraphStorePort {
   }
 
   async getSubgraph(
-    seeds: string[] | undefined,
-    depth: number,
+    _seeds: string[] | undefined,
+    _depth: number,
     maxNodes = 1000
   ): Promise<{
     nodes: Array<{ id: string; label: string; type: "file" | "chunk" | "workspace" }>;
@@ -230,7 +228,7 @@ export class SQLiteAdapter implements GraphStorePort {
     console.log(`✅ SQLite: Created ${relationships.length} relationships`);
   }
 
-  async getRelatedChunks(_chunkIds: string[], _depth = 2): Promise<string[]> {
+  async getRelatedChunks(_chunkIds: string[]): Promise<string[]> {
     // Simplified: return empty for now
     return [];
   }
@@ -273,7 +271,6 @@ export class SQLiteAdapter implements GraphStorePort {
       this.db.close();
       this.db = null;
     }
-    this.initialized = false;
     console.log("✅ SQLite: Connection closed");
   }
 
@@ -340,7 +337,7 @@ export class SQLiteAdapter implements GraphStorePort {
   }
 
   async searchSimilar(
-    queryEmbedding: number[],
+    _queryEmbedding: number[],
     limit = 10
   ): Promise<Array<{ id: string; content: string; score: number; metadata?: Record<string, unknown> }>> {
     // Simplified: return all vectors (no similarity calculation for now)

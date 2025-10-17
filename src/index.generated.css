@@ -2267,18 +2267,6 @@ body {
   transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
 }
 
-.\[r\:BELONGS_TO\] {
-  r: BELONGS TO;
-}
-
-.\[r\:CONTAINS\] {
-  r: CONTAINS;
-}
-
-.\[r\:DOCUMENTS\] {
-  r: DOCUMENTS;
-}
-
 .dark\:prose-invert:is(.dark *) {
   --tw-prose-body: var(--tw-prose-invert-body);
   --tw-prose-headings: var(--tw-prose-invert-headings);

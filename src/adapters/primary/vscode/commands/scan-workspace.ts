@@ -11,7 +11,7 @@ import { ParserService } from '../../../../services/parser-service';
 import { IndexingService } from '../../../../services/indexing-service';
 import { EmbeddingService } from '../../../../services/embedding-service';
 import { SQLiteAdapter } from '../../../secondary/graph/sqlite-adapter';
-import { LanceDBAdapter } from '../../../secondary/vector/lancedb-adapter';
+import type { VectorStorePort } from '../../../../domains/graph/ports/indexing-port';
 import * as path from 'path';
 
 /**
@@ -45,19 +45,20 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
             const embeddingService = new EmbeddingService();
             await embeddingService.initialize();
             
-            const vectorStore = new LanceDBAdapter(
-              path.join(dataDir, 'lancedb')
-            );
-            await vectorStore.initialize();
+            // Vector store removed - using SQLite only
+            // const vectorStore = new LanceDBAdapter(
+            //   path.join(dataDir, 'lancedb')
+            // );
+            // await vectorStore.initialize();
             
             const graphStore = new SQLiteAdapter(
-              path.join(dataDir, 'kuzu')
+              path.join(dataDir, 'sqlite')
             );
             await graphStore.initialize();
             
             const parserService = new ParserService();
             const indexingService = new IndexingService(
-              vectorStore,
+              null as unknown as VectorStorePort, // TODO: Remove VectorStore dependency
               graphStore,
               embeddingService
             );

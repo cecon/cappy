@@ -63,25 +63,37 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
 
     // Handle messages from the webview
     webviewView.webview.onDidReceiveMessage(async (data) => {
-      switch (data.type) {
-        case 'document/upload':
-          await this.handleUpload();
-          break;
-        case 'document/scan':
-          await this.handleScan();
-          break;
-        case 'document/process':
-          await this.handleProcess(data.payload.fileUri);
-          break;
-        case 'document/retry':
-          await this.handleRetry();
-          break;
-        case 'document/clear':
-          await this.handleClear();
-          break;
-        case 'document/refresh':
-          await this.handleRefresh();
-          break;
+      try {
+        console.log(`📨 DocumentsView received message: ${data.type}`, data);
+        switch (data.type) {
+          case 'document/upload':
+            console.log('🔼 Handling upload...');
+            await this.handleUpload();
+            break;
+          case 'document/scan':
+            console.log('🔍 Handling scan...');
+            await this.handleScan();
+            break;
+          case 'document/process':
+            console.log('⚙️ Handling process...');
+            await this.handleProcess(data.payload.fileUri);
+            break;
+          case 'document/retry':
+            console.log('🔄 Handling retry...');
+            await this.handleRetry();
+            break;
+          case 'document/clear':
+            console.log('🗑️ Handling clear...');
+            await this.handleClear();
+            break;
+          case 'document/refresh':
+            console.log('🔄 Handling refresh...');
+            await this.handleRefresh();
+            break;
+        }
+      } catch (error) {
+        console.error('❌ Error handling webview message:', error);
+        vscode.window.showErrorMessage(`Error: ${error}`);
       }
     });
   }
@@ -122,6 +134,8 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    * Handles file upload
    */
   private async handleUpload() {
+    console.log('🔼 handleUpload: Opening file dialog...');
+    
     const fileUris = await vscode.window.showOpenDialog({
       canSelectFiles: true,
       canSelectFolders: false,
@@ -135,13 +149,21 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       title: 'Select files to process'
     });
 
+    console.log(`🔼 handleUpload: Selected ${fileUris?.length || 0} files`);
+
     if (!fileUris || fileUris.length === 0) {
+      console.log('🔼 handleUpload: No files selected, returning');
       return;
     }
 
+    console.log('🔼 handleUpload: Processing files...', fileUris.map(u => u.fsPath));
+    
     for (const fileUri of fileUris) {
+      console.log(`🔼 handleUpload: Processing ${fileUri.fsPath}`);
       await this.processFile(fileUri.fsPath);
     }
+    
+    console.log('🔼 handleUpload: Done!');
   }
 
   /**
@@ -162,12 +184,18 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    * Processes a single file
    */
   private async processFile(filePath: string) {
+    console.log(`⚙️ processFile: Starting processing for ${filePath}`);
+    
     const fileName = path.basename(filePath);
     const fileId = `doc-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    console.log(`⚙️ processFile: fileName=${fileName}, fileId=${fileId}`);
     
     // Get file stats
     const stats = fs.statSync(filePath);
     const now = new Date().toLocaleString('pt-BR');
+    
+    console.log(`⚙️ processFile: File size=${stats.size} bytes`);
 
     // Create initial document entry
     const doc: DocumentItem = {
@@ -185,6 +213,7 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       progress: 0
     };
 
+    console.log('⚙️ processFile: Creating document entry...', doc);
     this.updateDocument(doc);
 
     // Process file with progress updates
@@ -194,17 +223,21 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       doc.currentStep = 'Parsing AST...';
       doc.progress = 20;
       doc.processingStartTime = now;
+      console.log('⚙️ processFile: Updated status to processing');
       this.updateDocument(doc);
 
       // Execute the processing command
+      console.log('⚙️ processFile: Executing cappy.processSingleFileInternal command...');
       await vscode.commands.executeCommand('cappy.processSingleFileInternal', {
         filePath,
         onProgress: (step: string, progress: number) => {
+          console.log(`⚙️ processFile: Progress update - ${step} (${progress}%)`);
           doc.currentStep = step;
           doc.progress = progress;
           this.updateDocument(doc);
         }
       });
+      console.log('⚙️ processFile: Command execution completed');
 
       // Step 5: Completed
       doc.status = 'completed';

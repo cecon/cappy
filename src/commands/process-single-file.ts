@@ -11,8 +11,8 @@ import { ParserService } from '../services/parser-service';
 import { IndexingService } from '../services/indexing-service';
 import { ASTRelationshipExtractor } from '../services/ast-relationship-extractor';
 import { EmbeddingService } from '../services/embedding-service';
-import { createLanceDBAdapter } from '../adapters/secondary/vector/lancedb-adapter';
 import { createSQLiteAdapter } from '../adapters/secondary/graph/sqlite-adapter';
+import type { VectorStorePort } from '../domains/graph/ports/indexing-port';
 
 /**
  * Progress callback type
@@ -40,9 +40,14 @@ export async function processSingleFileInternal(options: {
     const embeddingService = new EmbeddingService();
     await embeddingService.initialize();
     
-    const vectorStore = createLanceDBAdapter(workspaceRoot);
+    // Vector store removed - using SQLite only
+    // const vectorStore = createLanceDBAdapter(workspaceRoot);
     const graphStore = createSQLiteAdapter(workspaceRoot);
-    const indexingService = new IndexingService(vectorStore, graphStore, embeddingService);
+    const indexingService = new IndexingService(
+      null as unknown as VectorStorePort, // TODO: Remove VectorStore dependency
+      graphStore,
+      embeddingService
+    );
     const parserService = new ParserService();
     const relationshipExtractor = new ASTRelationshipExtractor();
 

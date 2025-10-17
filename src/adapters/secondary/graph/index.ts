@@ -5,4 +5,4 @@
  * @since 3.0.0
  */
 
-export * from './lancedb-graph-repository';
+export * from './sqlite-adapter';
