@@ -13,6 +13,7 @@ import { FileMetadataDatabase } from './services/file-metadata-database';
 import { FileProcessingQueue } from './services/file-processing-queue';
 import { FileProcessingWorker } from './services/file-processing-worker';
 import { FileProcessingAPI } from './services/file-processing-api';
+import type { VectorStorePort } from './domains/graph/ports/indexing-port';
 
 // Global instances for file processing system
 let fileDatabase: FileMetadataDatabase | null = null;
@@ -120,12 +121,37 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext):
         // Initialize services for worker
         const { ParserService } = await import('./services/parser-service.js');
         const { FileHashService } = await import('./services/file-hash-service.js');
+        const { EmbeddingService } = await import('./services/embedding-service.js');
+        const { IndexingService } = await import('./services/indexing-service.js');
+        const { SQLiteAdapter } = await import('./adapters/secondary/graph/sqlite-adapter.js');
+        const { ConfigService } = await import('./services/config-service.js');
+        
         const parserService = new ParserService();
         const hashService = new FileHashService();
+        
+        // Initialize indexing services
+        const configService = new ConfigService(workspaceRoot);
+        const embeddingService = new EmbeddingService();
+        await embeddingService.initialize();
+        console.log('✅ Embedding service initialized');
+        
+        // Initialize graph database
+        const sqlitePath = configService.getKuzuPath(workspaceRoot);
+        const graphStore = new SQLiteAdapter(sqlitePath);
+        await graphStore.initialize();
+        console.log('✅ Graph store initialized');
+        
+        // Initialize indexing service (null for vector store, we only use graph)
+        const indexingService = new IndexingService(
+            null as unknown as VectorStorePort, // VectorStore not needed for now
+            graphStore,
+            embeddingService
+        );
+        console.log('✅ Indexing service initialized');
 
-        // Initialize worker
-        const worker = new FileProcessingWorker(parserService, hashService);
-        console.log('✅ File processing worker created');
+        // Initialize worker WITH indexing service
+        const worker = new FileProcessingWorker(parserService, hashService, indexingService);
+        console.log('✅ File processing worker created (with indexing)');
 
         // Initialize queue
         fileQueue = new FileProcessingQueue(fileDatabase, worker, {

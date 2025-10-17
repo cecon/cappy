@@ -606,8 +606,12 @@ const DocumentsPage: React.FC = () => {
                             </td>
                           </tr>
                         ) : (
-                          filteredDocuments.map((doc) => (
-                            <tr key={doc.id} className="border-b hover:bg-muted/50 transition-colors">
+                          <>
+                            {console.log('[DocumentsPage] Rendering', filteredDocuments.length, 'documents')}
+                            {filteredDocuments.map((doc) => {
+                              console.log('[DocumentsPage] Rendering doc:', doc.id, doc.fileName, doc.status);
+                              return (
+                                <tr key={doc.id} className="border-b hover:bg-muted/50 transition-colors">
                               <td className="p-2 align-middle truncate font-mono max-w-[250px]">
                                 <div className="group relative">
                                   <div className="truncate">
@@ -699,7 +703,9 @@ const DocumentsPage: React.FC = () => {
                                 </button>
                               </td>
                             </tr>
-                          ))
+                              );
+                            })}
+                          </>
                         )}
                       </tbody>
                     </table>

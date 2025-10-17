@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import { ParserService } from './parser-service';
 import { FileHashService } from './file-hash-service';
 import type { DocumentChunk } from '../types/chunk';
+import type { IndexingService } from './indexing-service';
 
 /**
  * Progress callback
@@ -32,13 +33,16 @@ export interface ProcessingResult {
 export class FileProcessingWorker {
   private parserService: ParserService;
   private hashService: FileHashService;
+  private indexingService?: IndexingService;
 
   constructor(
     parserService: ParserService,
-    hashService: FileHashService
+    hashService: FileHashService,
+    indexingService?: IndexingService
   ) {
     this.parserService = parserService;
     this.hashService = hashService;
+    this.indexingService = indexingService;
   }
 
   /**
@@ -86,7 +90,15 @@ export class FileProcessingWorker {
       onProgress?.('Chunks generated', 50);
       console.log(`✓ Generated ${chunks.length} chunks from ${filePath}`);
 
-      // Step 4: Analyze chunk types
+      // Step 4: Save to database (if indexing service is available)
+      if (this.indexingService) {
+        onProgress?.('Saving to database...', 60);
+        const language = this.detectLanguage(filePath);
+        await this.indexingService.indexFile(filePath, language, chunks);
+        console.log(`✓ Saved ${chunks.length} chunks to database`);
+      }
+
+      // Step 5: Analyze chunk types
       onProgress?.('Analyzing chunks...', 70);
       const chunkTypes = chunks.reduce((acc, chunk) => {
         const type = chunk.metadata.chunkType || 'unknown';
