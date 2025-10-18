@@ -14,6 +14,32 @@ import * as fs from 'fs';
  */
 export class ASTRelationshipExtractor {
   /**
+   * Analyzes a file and returns import/export/call/type reference info
+   */
+  async analyze(filePath: string): Promise<{
+    imports: Array<{ source: string; specifiers: string[] }>;
+    exports: string[];
+    calls: string[];
+    typeRefs: string[];
+  }> {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const ast = parse(content, {
+      loc: true,
+      range: true,
+      comment: true,
+      tokens: false,
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      ecmaFeatures: { jsx: true }
+    });
+
+    const imports = this.extractImports(ast);
+    const exports = this.extractExports(ast);
+    const calls = this.extractFunctionCalls(ast);
+    const typeRefs = this.extractTypeReferences(ast);
+    return { imports, exports, calls, typeRefs };
+  }
+  /**
    * Extracts relationships from a file's AST
    */
   async extract(

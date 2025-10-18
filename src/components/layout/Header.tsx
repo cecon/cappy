@@ -34,8 +34,8 @@ const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange }) => {
                 value="documents"
                 className={cn(
                   'cursor-pointer px-3 py-1.5 text-xs md:text-sm transition-all',
-                  'data-[state=active]:!bg-emerald-500 data-[state=active]:!text-white',
-                  currentTab === 'documents' ? '!bg-emerald-500 !text-white' : 'hover:bg-background/60'
+                  'data-[state=active]:!bg-primary data-[state=active]:!text-primary-foreground',
+                  currentTab === 'documents' ? '!bg-primary !text-primary-foreground' : 'hover:bg-background/60'
                 )}
                 onClick={() => onTabChange('documents')}
               >
@@ -45,8 +45,8 @@ const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange }) => {
                 value="knowledge-graph"
                 className={cn(
                   'cursor-pointer px-3 py-1.5 text-xs md:text-sm transition-all',
-                  'data-[state=active]:!bg-emerald-500 data-[state=active]:!text-white',
-                  currentTab === 'knowledge-graph' ? '!bg-emerald-500 !text-white' : 'hover:bg-background/60'
+                  'data-[state=active]:!bg-primary data-[state=active]:!text-primary-foreground',
+                  currentTab === 'knowledge-graph' ? '!bg-primary !text-primary-foreground' : 'hover:bg-background/60'
                 )}
                 onClick={() => onTabChange('knowledge-graph')}
               >
@@ -56,8 +56,8 @@ const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange }) => {
                 value="retrieval"
                 className={cn(
                   'cursor-pointer px-3 py-1.5 text-xs md:text-sm transition-all',
-                  'data-[state=active]:!bg-emerald-500 data-[state=active]:!text-white',
-                  currentTab === 'retrieval' ? '!bg-emerald-500 !text-white' : 'hover:bg-background/60'
+                  'data-[state=active]:!bg-primary data-[state=active]:!text-primary-foreground',
+                  currentTab === 'retrieval' ? '!bg-primary !text-primary-foreground' : 'hover:bg-background/60'
                 )}
                 onClick={() => onTabChange('retrieval')}
               >
@@ -67,8 +67,8 @@ const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange }) => {
                 value="api"
                 className={cn(
                   'cursor-pointer px-3 py-1.5 text-xs md:text-sm transition-all',
-                  'data-[state=active]:!bg-emerald-500 data-[state=active]:!text-white',
-                  currentTab === 'api' ? '!bg-emerald-500 !text-white' : 'hover:bg-background/60'
+                  'data-[state=active]:!bg-primary data-[state=active]:!text-primary-foreground',
+                  currentTab === 'api' ? '!bg-primary !text-primary-foreground' : 'hover:bg-background/60'
                 )}
                 onClick={() => onTabChange('api')}
               >
@@ -90,20 +90,6 @@ const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange }) => {
               />
             </div>
           )}
-          <button
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-accent"
-            title="Toggle theme"
-            aria-label="Toggle theme"
-          >
-            🌙
-          </button>
-          <button
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-accent"
-            title="Settings"
-            aria-label="Open settings"
-          >
-            ⚙️
-          </button>
         </nav>
       </div>
     </header>

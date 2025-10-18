@@ -50,6 +50,13 @@ const GraphPage: React.FC = () => {
     vscodeApi?.postMessage({ type: 'load-subgraph', depth: Math.min(10, Math.max(0, depth)) });
   };
 
+  const handleAutoRefresh = () => {
+    // Recarrega o canvas a partir do banco de dados
+    setGraph(null); // Limpa o grafo atual
+    vscodeApi?.postMessage({ type: 'get-db-status' }); // Atualiza status do DB
+    loadGraph(2); // Recarrega o grafo com profundidade padrão
+  };
+
   return (
     <div className="webui-page">
       <div className="webui-section space-y-6">
@@ -76,7 +83,7 @@ const GraphPage: React.FC = () => {
                   <Button variant="outline" size="sm" className="gap-1">
                     💾 Export
                   </Button>
-                  <Button variant="primary" size="sm" className="gap-1">
+                  <Button variant="primary" size="sm" className="gap-1" onClick={handleAutoRefresh}>
                     ⚡ Auto-refresh
                   </Button>
                 </div>

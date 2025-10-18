@@ -103,11 +103,22 @@ export class FileProcessingQueue extends EventEmitter {
     const fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     const fileName = filePath.split(/[/\\]/).pop() || filePath;
     
+    // Determine initial file size if available
+    let initialSize = 0;
+    try {
+      const fs = await import('fs');
+      if (fs.existsSync(filePath)) {
+        initialSize = fs.statSync(filePath).size;
+      }
+    } catch {
+      // ignore
+    }
+
     this.database.insertFile({
       id: fileId,
       filePath,
       fileName,
-      fileSize: 0, // Will be updated during processing
+      fileSize: initialSize, // Best effort; will be updated during processing
       fileHash,
       status: 'pending',
       progress: 0,
@@ -273,11 +284,21 @@ export class FileProcessingQueue extends EventEmitter {
       console.log(`[Queue] 🔄 Starting to process file: ${metadata.fileName} (${metadata.id})`);
       
       const now = new Date().toISOString();
+      // Ensure file size is recorded
+      let actualSize = metadata.fileSize;
+      try {
+        const fs = await import('fs');
+        if (fs.existsSync(metadata.filePath)) {
+          actualSize = fs.statSync(metadata.filePath).size;
+        }
+      } catch { /* ignore */ }
+
       this.database.updateFile(metadata.id, {
         status: 'processing',
         progress: 0,
         processingStartedAt: now,
-        currentStep: 'Starting...'
+        currentStep: 'Starting...',
+        fileSize: actualSize
       });
 
       // Emit start event
@@ -307,16 +328,30 @@ export class FileProcessingQueue extends EventEmitter {
 
       console.log(`[Queue] ✅ Worker completed, updating database...`);
 
-      // Update as completed
-      this.database.updateFile(metadata.id, {
-        status: 'completed',
-        progress: 100,
-        currentStep: 'Completed',
-        processingCompletedAt: new Date().toISOString(),
-        chunksCount: result.chunksCount,
-        nodesCount: result.nodesCount,
-        relationshipsCount: result.relationshipsCount
-      });
+      if (result.chunksCount === 0) {
+        // Mark as failed if no content was generated
+        this.database.updateFile(metadata.id, {
+          status: 'failed',
+          progress: 0,
+          currentStep: 'Failed',
+          errorMessage: 'No chunks generated from file',
+          processingCompletedAt: new Date().toISOString(),
+          chunksCount: result.chunksCount,
+          nodesCount: result.nodesCount,
+          relationshipsCount: result.relationshipsCount
+        });
+      } else {
+        // Update as completed
+        this.database.updateFile(metadata.id, {
+          status: 'completed',
+          progress: 100,
+          currentStep: 'Completed',
+          processingCompletedAt: new Date().toISOString(),
+          chunksCount: result.chunksCount,
+          nodesCount: result.nodesCount,
+          relationshipsCount: result.relationshipsCount
+        });
+      }
 
       const completedMetadata = this.database.getFile(metadata.id);
       if (completedMetadata) {

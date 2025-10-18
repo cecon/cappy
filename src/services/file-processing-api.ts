@@ -21,6 +21,7 @@ export interface FileStatusResponse {
   chunksCount?: number;
   nodesCount?: number;
   relationshipsCount?: number;
+  fileSize?: number;
 }
 
 export class FileProcessingAPI {
@@ -90,6 +91,8 @@ export class FileProcessingAPI {
       
       if (req.method === 'POST' && url.pathname === '/files/enqueue') {
         await this.handleEnqueue(req, res);
+      } else if (req.method === 'POST' && url.pathname === '/files/reprocess') {
+        await this.handleReprocess(req, res);
       } else if (req.method === 'GET' && url.pathname === '/files/status') {
         await this.handleGetStatus(req, res);
       } else if (req.method === 'GET' && url.pathname === '/files/all') {
@@ -103,6 +106,53 @@ export class FileProcessingAPI {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Internal server error' }));
     }
+  }
+
+  private async handleReprocess(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+    });
+
+    req.on('end', async () => {
+      try {
+        const { fileId } = JSON.parse(body || '{}');
+        if (!fileId) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing fileId' }));
+          return;
+        }
+
+        const metadata = this.database.getFile(String(fileId));
+        if (!metadata) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'File not found' }));
+          return;
+        }
+
+        // Reset fields and set back to pending so the queue will pick it up
+        this.database.updateFile(String(fileId), {
+          status: 'pending',
+          progress: 0,
+          currentStep: null as unknown as string | undefined,
+          errorMessage: null as unknown as string | undefined,
+          chunksCount: null as unknown as number | undefined,
+          nodesCount: null as unknown as number | undefined,
+          relationshipsCount: null as unknown as number | undefined,
+          processingStartedAt: null as unknown as string | undefined,
+          processingCompletedAt: null as unknown as string | undefined
+        });
+
+        console.log(`[FileProcessingAPI] 🔄 Reprocess requested for ${fileId}. Status set to pending.`);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ message: 'Reprocess scheduled', fileId }));
+      } catch (error) {
+        console.error('[FileProcessingAPI] ❌ Reprocess error:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to reprocess file' }));
+      }
+    });
   }
 
   private async handleEnqueue(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -206,7 +256,8 @@ export class FileProcessingAPI {
       error: metadata.errorMessage || undefined,
       chunksCount: metadata.chunksCount,
       nodesCount: metadata.nodesCount,
-      relationshipsCount: metadata.relationshipsCount
+      relationshipsCount: metadata.relationshipsCount,
+      fileSize: metadata.fileSize
     };
 
     console.log(`[FileProcessingAPI] Status response for ${fileIdStr}:`, statusResponse);
@@ -218,7 +269,7 @@ export class FileProcessingAPI {
   private async handleGetAllFiles(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const allFiles = await this.database.getAllFileMetadata();
     
-    const statusResponses: FileStatusResponse[] = allFiles.map((metadata: FileMetadata) => {
+  const statusResponses: FileStatusResponse[] = allFiles.map((metadata: FileMetadata) => {
       let progress = 0;
       let summary = '';
       
@@ -252,7 +303,8 @@ export class FileProcessingAPI {
         error: metadata.errorMessage || undefined,
         chunksCount: metadata.chunksCount,
         nodesCount: metadata.nodesCount,
-        relationshipsCount: metadata.relationshipsCount
+        relationshipsCount: metadata.relationshipsCount,
+        fileSize: metadata.fileSize
       };
     });
 

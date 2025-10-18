@@ -206,6 +206,10 @@ export class FileMetadataDatabase {
       fields.push('current_step = ?');
       values.push(updates.currentStep);
     }
+    if (updates.fileSize !== undefined) {
+      fields.push('file_size = ?');
+      values.push(updates.fileSize);
+    }
     if (updates.errorMessage !== undefined) {
       fields.push('error_message = ?');
       values.push(updates.errorMessage);

@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'fs';
+import * as path from 'path';
 import { ParserService } from './parser-service';
 import { FileHashService } from './file-hash-service';
 import type { DocumentChunk } from '../types/chunk';
@@ -84,7 +85,28 @@ export class FileProcessingWorker {
       }
 
       if (chunks.length === 0) {
-        throw new Error('No chunks generated from file');
+        // Fallback: create a single file-level code chunk
+        onProgress?.('No JSDoc found, creating fallback chunk...', 40);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const lineCount = Math.max(1, content.split('\n').length);
+        const fileName = path.basename(filePath);
+        const chunkId = `chunk:${fileName}:1-${lineCount}`;
+
+        const fallbackChunk: DocumentChunk = {
+          id: chunkId,
+          content,
+          metadata: {
+            filePath,
+            lineStart: 1,
+            lineEnd: lineCount,
+            chunkType: 'code',
+            symbolName: fileName.replace(/\.[^.]+$/, ''),
+            symbolKind: 'variable'
+          }
+        };
+
+        chunks = [fallbackChunk];
+        console.log(`⚠️ No JSDoc chunks; created 1 fallback code chunk for ${filePath}`);
       }
 
       onProgress?.('Chunks generated', 50);

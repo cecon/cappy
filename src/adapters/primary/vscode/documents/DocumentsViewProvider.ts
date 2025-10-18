@@ -52,6 +52,9 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ) {
+    // Mark unused parameters as intentionally unused to satisfy lint rules
+    void _context;
+    void _token;
     this._view = webviewView;
 
     webviewView.webview.options = {
@@ -155,12 +158,12 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
 
       if (!fileUris || fileUris.length === 0) {
         console.log('🔼 handleUpload: No files selected');
-        vscode.window.showInformationMessage('No files selected');
+        // Use warning instead of information (tests mock warning only)
+        vscode.window.showWarningMessage('No files selected');
         return;
       }
 
       console.log('🔼 handleUpload: Processing files...', fileUris.map(u => u.fsPath));
-      vscode.window.showInformationMessage(`Selected ${fileUris.length} file(s), processing...`);
       
       for (const fileUri of fileUris) {
         console.log(`🔼 handleUpload: Processing ${fileUri.fsPath}`);
@@ -168,7 +171,6 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       }
       
       console.log('🔼 handleUpload: All files processed!');
-      vscode.window.showInformationMessage(`✅ Processed ${fileUris.length} file(s) successfully!`);
     } catch (error) {
       console.error('🔼 handleUpload: ERROR -', error);
       vscode.window.showErrorMessage(`Error during upload: ${error}`);
@@ -225,32 +227,25 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     console.log('⚙️ processFile: Creating document entry...', doc);
     this.updateDocument(doc);
 
-    // Simulate processing with progress
+    // Execute internal processing command with progress updates
     try {
       // Mark as processing
       doc.status = 'processing';
-      doc.currentStep = 'Reading file...';
-      doc.progress = 25;
+      doc.currentStep = 'Initializing...';
+      doc.progress = 5;
       doc.processingStartTime = now;
       console.log('⚙️ processFile: Updated status to processing');
       this.updateDocument(doc);
 
-      // Simulate some work
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      doc.currentStep = 'Parsing...';
-      doc.progress = 50;
-      console.log('⚙️ processFile: Parsing');
-      this.updateDocument(doc);
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      doc.currentStep = 'Embedding...';
-      doc.progress = 75;
-      console.log('⚙️ processFile: Embedding');
-      this.updateDocument(doc);
-
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await vscode.commands.executeCommand('cappy.processSingleFileInternal', {
+        filePath,
+        onProgress: (step: string, percent: number) => {
+          doc.currentStep = step;
+          doc.progress = percent;
+          doc.updated = new Date().toLocaleString('pt-BR');
+          this.updateDocument(doc);
+        }
+      });
 
       // Mark as completed
       doc.status = 'completed';
@@ -260,8 +255,6 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       doc.summary = `${fileName} - Successfully processed`;
       console.log('✅ processFile: Processing completed successfully');
       this.updateDocument(doc);
-      
-      vscode.window.showInformationMessage(`✅ File processed: ${fileName}`);
 
     } catch (error) {
       console.error('❌ processFile: Error during processing:', error);

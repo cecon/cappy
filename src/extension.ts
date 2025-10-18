@@ -9,16 +9,18 @@ import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './adapters/primary/vscode/commands/scan-workspace';
 import { registerProcessSingleFileCommand } from './commands/process-single-file';
 import { registerDebugCommand, registerDebugDatabaseCommand, registerDebugAddTestDataCommand } from './commands/debug';
+import { reanalyzeRelationships } from './commands/reanalyze-relationships';
 import { FileMetadataDatabase } from './services/file-metadata-database';
 import { FileProcessingQueue } from './services/file-processing-queue';
 import { FileProcessingWorker } from './services/file-processing-worker';
 import { FileProcessingAPI } from './services/file-processing-api';
-import type { VectorStorePort } from './domains/graph/ports/indexing-port';
+import type { VectorStorePort, GraphStorePort } from './domains/graph/ports/indexing-port';
 
 // Global instances for file processing system
 let fileDatabase: FileMetadataDatabase | null = null;
 let fileQueue: FileProcessingQueue | null = null;
 let fileAPI: FileProcessingAPI | null = null;
+let graphStore: GraphStorePort | null = null;
 
 /**
  * Cappy Extension - React + Vite Version
@@ -29,12 +31,6 @@ let fileAPI: FileProcessingAPI | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('🦫 Cappy extension is now active! (React + Vite version)');
-
-    // Initialize file processing system
-    initializeFileProcessingSystem(context).catch(error => {
-        console.error('Failed to initialize file processing system:', error);
-        vscode.window.showErrorMessage(`Failed to start file processing API: ${error.message}`);
-    });
 
     // Register Language Model Tools
     const createFileTool = vscode.lm.registerTool('cappy_create_file', new CreateFileTool());
@@ -51,6 +47,12 @@ export function activate(context: vscode.ExtensionContext) {
     
     // Create graph panel instance
     const graphPanel = new GraphPanel(context, graphOutputChannel);
+
+    // Initialize file processing system (pass graphPanel to refresh on updates)
+    initializeFileProcessingSystem(context, graphPanel).catch(error => {
+        console.error('Failed to initialize file processing system:', error);
+        vscode.window.showErrorMessage(`Failed to start file processing API: ${error.message}`);
+    });
     
     // Register the graph visualization command
     const openGraphCommand = vscode.commands.registerCommand('cappy.openGraph', async () => {
@@ -77,6 +79,17 @@ export function activate(context: vscode.ExtensionContext) {
     
     registerDebugAddTestDataCommand(context);
     console.log('✅ Registered command: cappy.debugAddTestData');
+
+    // Register reanalyze relationships command
+    const reanalyzeCommand = vscode.commands.registerCommand('cappy.reanalyzeRelationships', async () => {
+        if (!graphStore) {
+            vscode.window.showErrorMessage('Graph store not initialized');
+            return;
+        }
+        await reanalyzeRelationships(graphStore);
+    });
+    context.subscriptions.push(reanalyzeCommand);
+    console.log('✅ Registered command: cappy.reanalyzeRelationships');
 
     // Create chat service with LangGraph engine (includes tools)
     const chatEngine = new LangGraphChatEngine();
@@ -111,7 +124,7 @@ export function activate(context: vscode.ExtensionContext) {
 /**
  * Initializes the file processing system (database, queue, worker, API)
  */
-async function initializeFileProcessingSystem(context: vscode.ExtensionContext): Promise<void> {
+async function initializeFileProcessingSystem(context: vscode.ExtensionContext, graphPanel: GraphPanel): Promise<void> {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) {
         console.warn('No workspace folder found, skipping file processing system initialization');
@@ -144,14 +157,17 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext):
         
         // Initialize graph database
         const sqlitePath = configService.getKuzuPath(workspaceRoot);
-        const graphStore = new SQLiteAdapter(sqlitePath);
-        await graphStore.initialize();
+        const graphStoreInstance = new SQLiteAdapter(sqlitePath);
+        await graphStoreInstance.initialize();
         console.log('✅ Graph store initialized');
+        
+        // Store globally for reanalyze command
+        graphStore = graphStoreInstance;
         
         // Initialize indexing service (null for vector store, we only use graph)
         const indexingService = new IndexingService(
             null as unknown as VectorStorePort, // VectorStore not needed for now
-            graphStore,
+            graphStoreInstance,
             embeddingService
         );
         console.log('✅ Indexing service initialized');
@@ -167,6 +183,15 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext):
             autoStart: true
         });
         console.log('✅ File processing queue started');
+
+        // Auto-refresh Graph panel when a file completes processing
+        try {
+            fileQueue.on('file:complete', async () => {
+                await graphPanel.refreshSubgraph(2);
+            });
+        } catch (e) {
+            console.warn('Could not attach graph refresh listener:', e);
+        }
 
         // Initialize and start API server
         fileAPI = new FileProcessingAPI(fileQueue, fileDatabase, workspaceRoot, 3456);

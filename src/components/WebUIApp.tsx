@@ -55,7 +55,7 @@ function WebUIApp() {
         {/* Status Bar */}
         <div className="webui-status">
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+            <span className="inline-flex h-2 w-2 rounded-full bg-green-400" />
             <span>Ready</span>
           </div>
           <span className="ml-auto">Cappy v3.0.2</span>

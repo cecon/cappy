@@ -228,7 +228,9 @@ export class SQLiteAdapter implements GraphStorePort {
     console.log(`✅ SQLite: Created ${relationships.length} relationships`);
   }
 
-  async getRelatedChunks(_chunkIds: string[]): Promise<string[]> {
+  async getRelatedChunks(_: string[]): Promise<string[]> {
+    // Mark param as intentionally unused
+    void _;
     // Simplified: return empty for now
     return [];
   }
@@ -263,6 +265,26 @@ export class SQLiteAdapter implements GraphStorePort {
         linesOfCode: props.linesOfCode || 0,
       };
     });
+  }
+
+  async getFileChunks(filePath: string): Promise<Array<{ id: string; type: string; label: string }>> {
+    if (!this.db) return [];
+
+    // Get all chunks that are connected to this file via CONTAINS relationship
+    const result = this.db.exec(`
+      SELECT DISTINCT n.id, n.type, n.label
+      FROM nodes n
+      INNER JOIN edges e ON e.to_id = n.id
+      WHERE e.from_id = ? AND e.type = 'CONTAINS' AND n.type = 'chunk'
+    `, [filePath]);
+
+    if (result.length === 0 || !result[0].values) return [];
+
+    return result[0].values.map((row) => ({
+      id: row[0] as string,
+      type: row[1] as string,
+      label: row[2] as string,
+    }));
   }
 
   async close(): Promise<void> {

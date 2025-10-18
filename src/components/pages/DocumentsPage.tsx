@@ -21,6 +21,8 @@ interface Document {
   status: DocumentStatus;
   length: number;
   chunks: number;
+  nodesCount?: number;
+  relationshipsCount?: number;
   created: string;
   updated: string;
   trackId?: string;
@@ -28,6 +30,7 @@ interface Document {
   processingEndTime?: string;
   currentStep?: string;
   progress?: number;
+  error?: string;
   selected: boolean;
 }
 
@@ -106,7 +109,11 @@ const DocumentsPage: React.FC = () => {
           summary?: string;
           status: DocumentStatus;
           chunksCount?: number;
+          nodesCount?: number;
+          relationshipsCount?: number;
+          error?: string;
           progress?: number;
+          fileSize?: number;
         }
         
         const docs: Document[] = (statusResponses as StatusResponse[]).map(sr => ({
@@ -115,11 +122,14 @@ const DocumentsPage: React.FC = () => {
           filePath: sr.filePath,
           summary: sr.summary || '',
           status: sr.status,
-          length: 0,
-          chunks: sr.chunksCount || 0,
+          length: sr.fileSize || sr.nodesCount || 0,
+          chunks: sr.chunksCount ?? 0,
+          nodesCount: sr.nodesCount,
+          relationshipsCount: sr.relationshipsCount,
           created: new Date().toISOString().split('T')[0],
           updated: new Date().toISOString().split('T')[0],
           progress: sr.progress || 0,
+          error: sr.error,
           selected: false
         }));
         
@@ -398,6 +408,28 @@ const DocumentsPage: React.FC = () => {
     }
   };
 
+  const reprocessDocument = async (fileId: string) => {
+    try {
+      const res = await fetch('http://localhost:3456/files/reprocess', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to reprocess');
+      }
+
+      // Optimistically update UI and restart polling
+      setDocuments(prev => prev.map(d => d.id === fileId ? { ...d, status: 'pending', progress: 0, summary: 'Waiting in queue...' } : d));
+      // Poll status until done
+      pollFileStatus(fileId);
+    } catch (e) {
+      console.error('[DocumentsPage] Reprocess error:', e);
+      setDocuments(prev => prev.map(d => d.id === fileId ? { ...d, status: 'failed', summary: `❌ ${String(e)}` } : d));
+    }
+  };
+
   const handlePipeline = () => {
     postMessage('document/pipeline');
   };
@@ -424,23 +456,6 @@ const DocumentsPage: React.FC = () => {
     } else {
       setSortField(field);
       setSortOrder('desc');
-    }
-  };
-
-  const getStatusColor = (status: DocumentStatus) => {
-    switch (status) {
-      case 'completed':
-        return 'text-[var(--vscode-testing-iconPassed,#73c991)] font-medium';
-      case 'processing':
-        return 'text-[var(--vscode-progressBar-background,#0e70c0)] font-medium';
-      case 'failed':
-        return 'text-[var(--vscode-testing-iconFailed,#f14c4c)] font-medium';
-      case 'pending':
-        return 'text-[var(--vscode-list-warningForeground,#cca700)] font-medium';
-      case 'preprocessed':
-        return 'text-[var(--vscode-charts-blue,#75beff)] font-medium';
-      default:
-        return 'text-[var(--vscode-foreground)] font-medium';
     }
   };
 
@@ -513,147 +528,170 @@ const DocumentsPage: React.FC = () => {
 
           {/* Tabela de documentos */}
           <Card className="flex-1 flex flex-col border rounded-md min-h-0 mb-2">
-            <CardHeader className="flex-none py-2 px-4">
-              <div className="flex justify-between items-center">
-                <CardTitle className="leading-none font-semibold">Uploaded Documents</CardTitle>
-                <div className="flex items-center gap-2">
-                  {/* Filtros de status */}
-                  <div className="flex gap-1">
+            <CardHeader className="flex-none py-3 px-4 border-b border-border/40">
+              <div className="flex flex-col gap-3">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-base font-semibold">Uploaded Documents</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" onClick={handleRefresh} className="h-8 w-8 p-0" title="Refresh">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Filtros de status em linha separada */}
+                <div className="flex justify-between items-center gap-2">
+                  <div className="flex gap-1 flex-wrap">
                     <Button
                       variant={statusFilter === 'all' ? 'primary' : 'outline'}
                       onClick={() => setStatusFilter('all')}
-                      className="h-9"
+                      className="h-8 text-xs px-3"
                     >
                       All ({stats.all})
                     </Button>
                     <Button
                       variant={statusFilter === 'completed' ? 'primary' : 'outline'}
                       onClick={() => setStatusFilter('completed')}
-                      className={`h-9 ${stats.completed === 0 ? 'text-gray-500' : ''}`}
+                      className="h-8 text-xs px-3"
                     >
                       Completed ({stats.completed})
                     </Button>
                     <Button
                       variant={statusFilter === 'preprocessed' ? 'primary' : 'outline'}
                       onClick={() => setStatusFilter('preprocessed')}
-                      className={`h-9 ${stats.preprocessed === 0 ? 'text-gray-500' : ''}`}
+                      className="h-8 text-xs px-3"
                     >
                       Preprocessed ({stats.preprocessed})
                     </Button>
                     <Button
-                      variant={statusFilter === 'processing' ? 'secondary' : 'outline'}
+                      variant={statusFilter === 'processing' ? 'primary' : 'outline'}
                       onClick={() => setStatusFilter('processing')}
-                      className={`h-9 ${stats.processing > 0 ? 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 font-medium border-blue-400 dark:border-blue-600 shadow-sm' : 'text-gray-500'}`}
+                      className="h-8 text-xs px-3"
                     >
                       Processing ({stats.processing})
                     </Button>
                     <Button
                       variant={statusFilter === 'pending' ? 'primary' : 'outline'}
                       onClick={() => setStatusFilter('pending')}
-                      className={`h-9 ${stats.pending === 0 ? 'text-gray-500' : ''}`}
+                      className="h-8 text-xs px-3"
                     >
                       Pending ({stats.pending})
                     </Button>
                     <Button
                       variant={statusFilter === 'failed' ? 'primary' : 'outline'}
                       onClick={() => setStatusFilter('failed')}
-                      className={`h-9 ${stats.failed === 0 ? 'text-gray-500' : ''}`}
+                      className="h-8 text-xs px-3"
                     >
                       Failed ({stats.failed})
                     </Button>
                   </div>
 
-                  <Button variant="ghost" onClick={handleRefresh} className="h-9">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </Button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <label htmlFor="toggle-filename-btn" className="text-sm text-gray-500">
-                    File Name
-                  </label>
                   <Button
-                    id="toggle-filename-btn"
                     variant="outline"
                     onClick={() => setShowFileName(!showFileName)}
-                    className="h-9"
+                    className="h-8 text-xs px-3"
                   >
-                    {showFileName ? 'Hide' : 'Show'}
+                    {showFileName ? 'Hide' : 'Show'} Filename
                   </Button>
                 </div>
               </div>
             </CardHeader>
 
-            <div className="flex-1 relative p-0">
-              <div className="absolute inset-0 flex flex-col p-0">
-                <div className="absolute inset-[-1px] flex flex-col p-0 border rounded-md border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <div className="relative w-full overflow-auto">
-                    <table className="w-full caption-bottom text-sm">
-                      <thead className="sticky top-0 bg-background z-10 shadow-sm">
-                        <tr className="border-b bg-card/95 backdrop-blur shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">
-                          <th
-                            className="h-10 px-2 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-800 select-none"
-                            onClick={() => handleSort('id')}
-                          >
-                            <div className="flex items-center">
-                              ID
-                              {sortField === 'id' && (
-                                <span className="ml-1">
-                                  {sortOrder === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
+            <CardContent className="flex-1 p-0 overflow-hidden">
+              <div className="w-full h-full overflow-auto p-2">
+                <div className="w-full h-full border border-border rounded-md overflow-auto">
+                  <table className="w-full border-collapse">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="border-b border-border bg-muted/50">
+                        <th
+                          className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground cursor-pointer hover:bg-muted/80 transition-colors select-none"
+                          onClick={() => handleSort('id')}
+                        >
+                          <div className="flex items-center gap-2">
+                            ID
+                            {sortField === 'id' && (
+                              <span className="text-primary">
+                                {sortOrder === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                        <th className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground">
+                          Summary
+                        </th>
+                        <th className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground">
+                          Status
+                        </th>
+                        <th className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground">
+                          Length
+                        </th>
+                        <th className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground">
+                          Chunks
+                        </th>
+                        <th
+                          className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground cursor-pointer hover:bg-muted/80 transition-colors select-none"
+                          onClick={() => handleSort('created')}
+                        >
+                          <div className="flex items-center gap-2">
+                            Created
+                            {sortField === 'created' && (
+                              <span className="text-primary">
+                                {sortOrder === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                        <th
+                          className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground cursor-pointer hover:bg-muted/80 transition-colors select-none"
+                          onClick={() => handleSort('updated')}
+                        >
+                          <div className="flex items-center gap-2">
+                            Updated
+                            {sortField === 'updated' && (
+                              <span className="text-primary">
+                                {sortOrder === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                        <th className="h-12 px-4 w-40 text-center align-middle font-semibold text-sm text-foreground">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {/* Debug info */}
+                      {documents.length > 0 && filteredDocuments.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="h-32 px-4 text-center">
+                            <div className="flex flex-col items-center gap-2">
+                              <svg className="w-12 h-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                              <p className="font-medium text-yellow-600 dark:text-yellow-400">No documents match filter</p>
+                              <p className="text-sm text-muted-foreground">
+                                Found {documents.length} total document(s), but none match the "{statusFilter}" filter
+                              </p>
+                              <Button variant="outline" onClick={() => setStatusFilter('all')} className="mt-2">
+                                Show All Documents
+                              </Button>
                             </div>
-                          </th>
-                          <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">
-                            Summary
-                          </th>
-                          <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">
-                            Status
-                          </th>
-                          <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">
-                            Length
-                          </th>
-                          <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">
-                            Chunks
-                          </th>
-                          <th
-                            className="h-10 px-2 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-800 select-none"
-                            onClick={() => handleSort('created')}
-                          >
-                            <div className="flex items-center">
-                              Created
-                              {sortField === 'created' && (
-                                <span className="ml-1">
-                                  {sortOrder === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
-                            </div>
-                          </th>
-                          <th
-                            className="h-10 px-2 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-800 select-none"
-                            onClick={() => handleSort('updated')}
-                          >
-                            <div className="flex items-center">
-                              Updated
-                              {sortField === 'updated' && (
-                                <span className="ml-1">
-                                  {sortOrder === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
-                            </div>
-                          </th>
-                          <th className="h-10 px-2 w-16 text-center align-middle font-medium text-muted-foreground">
-                            Select
-                          </th>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="text-sm overflow-auto">
-                        {filteredDocuments.length === 0 ? (
+                      )}
+                      
+                      {documents.length === 0 && filteredDocuments.length === 0 ? (
                           <tr>
-                            <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                              No documents found. Upload files to get started.
+                            <td colSpan={8} className="h-32 px-4 text-center text-muted-foreground">
+                              <div className="flex flex-col items-center gap-2">
+                                <svg className="w-12 h-12 text-muted-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p className="font-medium">No documents found</p>
+                                <p className="text-sm">Upload files to get started</p>
+                              </div>
                             </td>
                           </tr>
                         ) : (
@@ -662,108 +700,131 @@ const DocumentsPage: React.FC = () => {
                             {filteredDocuments.map((doc) => {
                               console.log('[DocumentsPage] Rendering doc:', doc.id, doc.fileName, doc.status);
                               return (
-                                <tr key={doc.id} className="border-b hover:bg-muted/50 transition-colors">
-                              <td className="p-2 align-middle truncate font-mono max-w-[250px]">
+                                <tr key={doc.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="h-16 px-4 align-middle">
                                 <div className="group relative">
-                                  <div className="truncate">
+                                  <div className="truncate max-w-[200px] font-mono text-sm">
                                     {showFileName ? doc.fileName : doc.id}
                                   </div>
                                   {!showFileName && (
-                                    <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded px-2 py-1 whitespace-nowrap z-50">
+                                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-popover text-popover-foreground text-xs rounded-md px-3 py-2 shadow-lg border border-border whitespace-nowrap z-50">
                                       {doc.fileName}
+                                      <div className="absolute left-4 top-full w-0 h-0 border-4 border-transparent border-t-popover"></div>
                                     </div>
                                   )}
                                 </div>
                               </td>
-                              <td className="p-2 align-middle max-w-xs truncate">
+                              <td className="h-16 px-4 align-middle">
                                 <div className="group relative">
-                                  <div className="truncate">{truncateText(doc.summary, 100)}</div>
-                                  <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded px-2 py-1 max-w-md z-50">
-                                    {doc.summary}
-                                  </div>
+                                  <div className="truncate max-w-xs text-sm">{truncateText(doc.summary, 80)}</div>
+                                  {doc.summary.length > 80 && (
+                                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-popover text-popover-foreground text-xs rounded-md px-3 py-2 shadow-lg border border-border max-w-md z-50 whitespace-normal">
+                                      {doc.summary}
+                                      <div className="absolute left-4 top-full w-0 h-0 border-4 border-transparent border-t-popover"></div>
+                                    </div>
+                                  )}
                                 </div>
                               </td>
-                              <td className="p-2 align-middle">
-                                <div className="group relative flex items-center gap-2 overflow-visible tooltip-container">
-                                  {/* Status with spinner for processing */}
+                              <td className="h-16 px-4 align-middle">
+                                <div className="flex items-center gap-2">
+                                  {/* Status badge */}
                                   {doc.status === 'processing' || doc.status === 'pending' ? (
-                                    <div className="flex items-center gap-2">
-                                      <Spinner size={14} />
-                                      <div className="flex flex-col">
-                                        <span className={getStatusColor(doc.status)}>
-                                          {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
-                                        </span>
-                                        {doc.currentStep && (
-                                          <span className="text-xs text-muted-foreground">{doc.currentStep}</span>
-                                        )}
-                                      </div>
+                                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/20">
+                                      <Spinner size={12} />
+                                      <span className="text-xs font-medium text-primary">
+                                        {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+                                      </span>
                                     </div>
                                   ) : (
-                                    <span className={getStatusColor(doc.status)}>
+                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
+                                      doc.status === 'completed'
+                                        ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20'
+                                        : doc.status === 'failed'
+                                        ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
+                                        : 'bg-muted text-muted-foreground border border-border'
+                                    }`}>
                                       {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
                                     </span>
                                   )}
-                                  
-                                  {/* Info icon with tooltip */}
-                                  {doc.trackId && (
-                                    <>
-                                      <svg className="h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <circle cx="12" cy="12" r="10" />
+                                  {doc.status === 'failed' && doc.error && (
+                                    <div className="group/info relative">
+                                      <svg className="h-4 w-4 text-red-500 ml-1 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <circle cx="12" cy="12" r="10" strokeWidth={2} />
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16v-4M12 8h.01" />
                                       </svg>
-                                      <div className="invisible group-hover:visible absolute left-0 bottom-full mb-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded px-2 py-1 whitespace-nowrap z-50 max-w-md">
-                                        <div className="mt-1">Track ID: {doc.trackId}</div>
-                                        {doc.currentStep && (
-                                          <div className="mt-1">Step: {doc.currentStep}</div>
-                                        )}
-                                        {doc.progress !== undefined && (
-                                          <div className="mt-1">Progress: {doc.progress}%</div>
-                                        )}
-                                        {doc.processingStartTime && (
-                                          <div className="mt-1">Started: {doc.processingStartTime}</div>
-                                        )}
-                                        {doc.processingEndTime && (
-                                          <div className="mt-1">Finished: {doc.processingEndTime}</div>
-                                        )}
+                                      <div className="invisible group-hover/info:visible absolute left-0 bottom-full mb-2 bg-popover text-popover-foreground text-xs rounded-md px-3 py-2 shadow-lg border border-border whitespace-nowrap z-50">
+                                        {doc.error}
+                                        <div className="absolute left-4 top-full w-0 h-0 border-4 border-transparent border-t-popover"></div>
                                       </div>
-                                    </>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Progress indicator */}
+                                  {doc.trackId && (
+                                    <div className="group/info relative">
+                                      <svg className="h-4 w-4 text-muted-foreground hover:text-foreground cursor-help transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <circle cx="12" cy="12" r="10" strokeWidth={2} />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16v-4M12 8h.01" />
+                                      </svg>
+                                      <div className="invisible group-hover/info:visible absolute left-0 bottom-full mb-2 bg-popover text-popover-foreground text-xs rounded-md px-3 py-2 shadow-lg border border-border whitespace-nowrap z-50">
+                                        <div className="font-semibold mb-1">Processing Details</div>
+                                        <div className="space-y-1">
+                                          <div>Track ID: <span className="font-mono">{doc.trackId}</span></div>
+                                          {doc.currentStep && <div>Step: {doc.currentStep}</div>}
+                                          {doc.progress !== undefined && <div>Progress: {doc.progress}%</div>}
+                                          {doc.processingStartTime && <div>Started: {doc.processingStartTime}</div>}
+                                          {doc.processingEndTime && <div>Finished: {doc.processingEndTime}</div>}
+                                        </div>
+                                        <div className="absolute left-4 top-full w-0 h-0 border-4 border-transparent border-t-popover"></div>
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
                               </td>
-                              <td className="p-2 align-middle">{doc.length.toLocaleString()}</td>
-                              <td className="p-2 align-middle">{doc.chunks}</td>
-                              <td className="p-2 align-middle truncate">{doc.created}</td>
-                              <td className="p-2 align-middle truncate">{doc.updated}</td>
-                              <td className="p-2 align-middle text-center">
-                                <button
-                                  type="button"
-                                  role="checkbox"
-                                  aria-checked={doc.selected}
-                                  onClick={() => toggleDocumentSelection(doc.id)}
-                                  className={`h-4 w-4 shrink-0 rounded-sm border mx-auto ${
-                                    doc.selected
-                                      ? 'bg-muted text-muted-foreground border-primary'
-                                      : 'border-primary'
-                                  }`}
-                                >
-                                  {doc.selected && (
-                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  )}
-                                </button>
+                              <td className="h-16 px-4 align-middle text-sm text-muted-foreground">
+                                {doc.length.toLocaleString()}
+                                {doc.chunks === 0 && doc.status === 'completed' && (
+                                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 text-xs">No chunks</span>
+                                )}
+                              </td>
+                              <td className="h-16 px-4 align-middle text-sm">
+                                <span className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-primary/10 text-primary font-medium text-xs min-w-[2rem]">
+                                  {doc.chunks}
+                                </span>
+                              </td>
+                              <td className="h-16 px-4 align-middle text-sm text-muted-foreground">{doc.created}</td>
+                              <td className="h-16 px-4 align-middle text-sm text-muted-foreground">{doc.updated}</td>
+                              <td className="h-16 px-4 align-middle">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    className="h-8 px-2 text-xs"
+                                    onClick={() => toggleDocumentSelection(doc.id)}
+                                    title={doc.selected ? 'Unselect' : 'Select'}
+                                  >
+                                    {doc.selected ? 'Unselect' : 'Select'}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    className="h-8 px-2 text-xs"
+                                    onClick={() => reprocessDocument(doc.id)}
+                                    disabled={doc.status === 'processing' || doc.status === 'pending'}
+                                    title="Reprocess"
+                                  >
+                                    Reprocess
+                                  </Button>
+                                </div>
                               </td>
                             </tr>
-                              );
-                            })}
-                          </>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                          );
+                        })}
+                      </>
+                    )}
+                  </tbody>
+                </table>
                 </div>
               </div>
-            </div>
+            </CardContent>
           </Card>
         </CardContent>
       </Card>

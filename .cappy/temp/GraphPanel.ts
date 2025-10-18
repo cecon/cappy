@@ -19,8 +19,6 @@ export class GraphPanel {
     private readonly outputChannel: vscode.OutputChannel;
     private graphDbCreated = false;
     private kuzuPath: string | null = null;
-    private kuzuWatcher: vscode.FileSystemWatcher | undefined;
-    private refreshTimer: NodeJS.Timeout | null = null;
 
     constructor(
         context: vscode.ExtensionContext,
@@ -75,24 +73,6 @@ export class GraphPanel {
 
         // Initialize indexing service
         await this.initializeIndexing();
-    }
-
-    /**
-     * Refreshes the displayed subgraph (used after indexing events)
-     */
-    public async refreshSubgraph(depth: number = 2) {
-        try {
-            if (!this.indexingService || !this.panel) return;
-            type GraphStoreLike = { getSubgraph?: (seeds: string[] | undefined, depth: number) => Promise<{ nodes: unknown[]; edges: unknown[] }> };
-            const svc = this.indexingService as unknown as { graphStore?: GraphStoreLike };
-            const graphStore = svc.graphStore;
-            if (graphStore && typeof graphStore.getSubgraph === 'function') {
-                const sub = await graphStore.getSubgraph(undefined, Math.min(10, Math.max(0, depth)));
-                this.sendMessage({ type: 'subgraph', nodes: sub.nodes, edges: sub.edges });
-            }
-        } catch (e) {
-            this.log(`❌ Refresh subgraph failed: ${e}`);
-        }
     }
 
     /**
@@ -179,13 +159,6 @@ export class GraphPanel {
             // Index workspace
             await this.indexWorkspace();
 
-            // Start file watcher to auto-refresh on DB changes
-            try {
-                this.setupKuzuWatcher(workspaceFolder);
-            } catch (e) {
-                this.log(`⚠️ Could not start DB watcher: ${e}`);
-            }
-
         } catch (error) {
             this.log(`❌ Failed to initialize: ${error}`);
             this.sendMessage({ 
@@ -195,36 +168,6 @@ export class GraphPanel {
         } finally {
             this.isInitializing = false;
         }
-    }
-
-    /**
-     * Sets up a FileSystemWatcher on the SQLite graph directory to auto-refresh the graph
-     */
-    private setupKuzuWatcher(workspaceFolder: vscode.WorkspaceFolder) {
-        // Clean previous watcher
-        this.kuzuWatcher?.dispose();
-        this.kuzuWatcher = undefined;
-
-        // Watch the entire kuzu folder under the workspace
-        const pattern = new vscode.RelativePattern(workspaceFolder, '.cappy/data/kuzu/**');
-        const watcher = vscode.workspace.createFileSystemWatcher(pattern, false, false, false);
-        this.kuzuWatcher = watcher;
-
-        const scheduleRefresh = () => {
-            if (this.refreshTimer) {
-                clearTimeout(this.refreshTimer);
-            }
-            this.refreshTimer = setTimeout(() => {
-                this.refreshSubgraph(2).catch(err => this.log(`Refresh after FS change failed: ${err}`));
-            }, 500);
-        };
-
-        watcher.onDidCreate(() => scheduleRefresh(), this, this.context.subscriptions);
-        watcher.onDidChange(() => scheduleRefresh(), this, this.context.subscriptions);
-        watcher.onDidDelete(() => scheduleRefresh(), this, this.context.subscriptions);
-
-        this.context.subscriptions.push(watcher);
-        this.log('👀 Watching .cappy/data/kuzu for graph changes');
     }
 
     /**

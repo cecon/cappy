@@ -13,12 +13,12 @@ import type { EmbeddingService } from './embedding-service';
  * Indexing service coordinating LanceDB and Kuzu
  */
 export class IndexingService {
-  private readonly vectorStore: VectorStorePort;
+  private readonly vectorStore: VectorStorePort | null;
   private readonly graphStore: GraphStorePort;
   private readonly embeddingService: EmbeddingService;
 
   constructor(
-    vectorStore: VectorStorePort, 
+    vectorStore: VectorStorePort | null, 
     graphStore: GraphStorePort,
     embeddingService: EmbeddingService
   ) {
@@ -32,10 +32,10 @@ export class IndexingService {
    */
   async initialize(): Promise<void> {
     console.log('🚀 Initializing indexing service...');
-    await Promise.all([
-      this.vectorStore.initialize(),
-      this.graphStore.initialize()
-    ]);
+    if (this.vectorStore) {
+      await this.vectorStore.initialize();
+    }
+    await this.graphStore.initialize();
     console.log('✅ Indexing service initialized');
   }
 
@@ -62,8 +62,12 @@ export class IndexingService {
         chunk.vector = embeddings[i];
       });
 
-      // 2. Insert chunks into LanceDB (with content and vectors)
-      await this.vectorStore.upsertChunks(chunks);
+      // 2. Insert chunks into vector store if available
+      if (this.vectorStore) {
+        await this.vectorStore.upsertChunks(chunks);
+      } else {
+        console.warn('⚠️ Vector store is disabled; skipping upsertChunks');
+      }
 
       // 3. Create file node in Kuzu
       const linesOfCode = Math.max(...chunks.map(c => c.metadata.lineEnd));
@@ -103,6 +107,57 @@ export class IndexingService {
         await this.graphStore.createRelationships(documentsRels);
       }
 
+      // 7. Create cross-file REFERENCES using imports -> exported symbols from other files (best-effort)
+      try {
+        const { ASTRelationshipExtractor } = await import('./ast-relationship-extractor.js');
+        const extractor = new ASTRelationshipExtractor();
+        const analysis = await extractor.analyze(filePath);
+        if (analysis.imports.length > 0) {
+          // Build a list of candidate files (all file nodes in DB)
+          const files = await this.graphStore.listAllFiles();
+          const rels: Array<{ from: string; to: string; type: string; properties?: Record<string, string|number|boolean> }> = [];
+          const currentFileChunkIds = new Set(chunks.map(c => c.id));
+
+          for (const im of analysis.imports) {
+            // Resolve relative path imports to absolute file nodes when possible
+            let targetPath: string | null = null;
+            if (im.source.startsWith('.')) {
+              // Resolve relative to current file
+              const pathMod = await import('path');
+              const resolved = pathMod.resolve((await import('path')).dirname(filePath), im.source);
+              // Try adding common extensions
+              const candidates = [resolved, resolved + '.ts', resolved + '.tsx', resolved + '.js', resolved + '.jsx', resolved + '/index.ts', resolved + '/index.tsx'];
+              for (const c of candidates) {
+                const match = files.find(f => f.path === c);
+                if (match) { targetPath = match.path; break; }
+              }
+            } else {
+              // Bare module specifier: skip (external deps)
+            }
+
+            if (!targetPath) continue;
+
+            // Reference from every chunk in current file to the target file node
+            for (const chunk of chunks) {
+              if (!currentFileChunkIds.has(chunk.id)) continue;
+              rels.push({
+                from: chunk.id,
+                to: targetPath,
+                type: 'REFERENCES',
+                properties: { referenceType: 'import', source: im.source }
+              });
+            }
+          }
+
+          if (rels.length > 0) {
+            await this.graphStore.createRelationships(rels);
+            console.log(`✅ Created ${rels.length} cross-file REFERENCES (imports)`);
+          }
+        }
+      } catch (e) {
+        console.warn('Cross-file relationship build failed:', e);
+      }
+
       console.log(`✅ Indexed ${filePath} successfully`);
     } catch (error) {
       console.error(`❌ Error indexing ${filePath}:`, error);
@@ -121,7 +176,7 @@ export class IndexingService {
       console.log(`🔍 Hybrid search: "${query}" (depth: ${depth})`);
 
       // 1. Vector search in LanceDB
-      const directMatches = await this.vectorStore.search(query, 10);
+  const directMatches = this.vectorStore ? await this.vectorStore.search(query, 10) : [];
       console.log(`   📊 Found ${directMatches.length} direct matches`);
 
       // 2. Graph traversal in Kuzu to find related chunks
@@ -132,7 +187,7 @@ export class IndexingService {
       console.log(`   🕸️ Found ${relatedIds.length} related chunks via graph`);
 
       // 3. Fetch related chunks from LanceDB
-      const relatedChunks = relatedIds.length > 0
+      const relatedChunks = (relatedIds.length > 0 && this.vectorStore)
         ? await this.vectorStore.getChunksByIds(relatedIds)
         : [];
 
@@ -152,10 +207,10 @@ export class IndexingService {
   async deleteFile(filePath: string): Promise<void> {
     try {
       console.log(`🗑️ Deleting ${filePath}...`);
-      await Promise.all([
-        this.vectorStore.deleteChunksByFile(filePath),
-        this.graphStore.deleteFileNodes(filePath)
-      ]);
+      if (this.vectorStore) {
+        await this.vectorStore.deleteChunksByFile(filePath);
+      }
+      await this.graphStore.deleteFileNodes(filePath);
       console.log(`✅ Deleted ${filePath}`);
     } catch (error) {
       console.error(`❌ Error deleting ${filePath}:`, error);
@@ -167,10 +222,10 @@ export class IndexingService {
    * Closes both stores
    */
   async close(): Promise<void> {
-    await Promise.all([
-      this.vectorStore.close(),
-      this.graphStore.close()
-    ]);
+    if (this.vectorStore) {
+      await this.vectorStore.close();
+    }
+    await this.graphStore.close();
     console.log('✅ Indexing service closed');
   }
 }

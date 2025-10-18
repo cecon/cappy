@@ -25,26 +25,26 @@
 }
 
 .dark, body {
-  /* VS Code Dark Theme Colors */
-  --background: 220 13% 18%;
-  --foreground: 210 11% 71%;
-  --card: 217 19% 27%;
-  --card-foreground: 210 11% 71%;
-  --popover: 220 13% 18%;
-  --popover-foreground: 210 11% 71%;
-  --primary: 142.1 70.6% 45.3%;
+  /* VS Code Dark Theme Colors - More authentic */
+  --background: 0 0% 13%;        /* #1e1e1e - VS Code background */
+  --foreground: 0 0% 86%;        /* #cccccc - VS Code foreground */
+  --card: 0 0% 18%;              /* #2d2d30 - VS Code panel */
+  --card-foreground: 0 0% 86%;
+  --popover: 0 0% 15%;           /* #252526 - VS Code menu */
+  --popover-foreground: 0 0% 86%;
+  --primary: 210 100% 60%;       /* #007acc - VS Code blue */
   --primary-foreground: 0 0% 100%;
-  --secondary: 217 19% 27%;
-  --secondary-foreground: 210 11% 71%;
-  --muted: 217 19% 27%;
-  --muted-foreground: 215 16% 47%;
-  --accent: 217 19% 27%;
-  --accent-foreground: 210 11% 71%;
-  --destructive: 0 63% 51%;
+  --secondary: 0 0% 20%;         /* #333333 - VS Code secondary */
+  --secondary-foreground: 0 0% 86%;
+  --muted: 0 0% 20%;
+  --muted-foreground: 0 0% 60%;  /* #969696 - VS Code muted */
+  --accent: 0 0% 25%;            /* #3e3e42 - VS Code accent */
+  --accent-foreground: 0 0% 86%;
+  --destructive: 0 100% 67%;     /* #f48771 - VS Code error */
   --destructive-foreground: 0 0% 100%;
-  --border: 217 19% 27%;
-  --input: 220 13% 18%;
-  --ring: 142.1 70.6% 45.3%;
+  --border: 0 0% 25%;            /* #3e3e42 - VS Code border */
+  --input: 0 0% 18%;             /* #2d2d30 - VS Code input */
+  --ring: 210 100% 60%;          /* #007acc - VS Code focus */
 }
 
 * {
@@ -100,24 +100,22 @@ body {
   scrollbar-width: none;    /* Firefox */
 }
 
-/* Application Shell */
+/* Application Shell - VS Code Style */
 .webui-shell {
   position: relative;
   min-height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background:
-    radial-gradient(circle at -10% -10%, rgba(16, 185, 129, 0.25), transparent 55%),
-    radial-gradient(circle at 82% 0%, rgba(59, 130, 246, 0.2), transparent 50%),
-    radial-gradient(circle at 20% 85%, rgba(99, 102, 241, 0.18), transparent 50%),
-    hsl(var(--background));
+  background: hsl(var(--background));
 }
 
 .webui-shell::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(15, 23, 42, 0.85) 40%, rgba(15, 23, 42, 0.95) 100%);
+  background: linear-gradient(180deg, 
+    hsl(var(--background)) 0%, 
+    hsl(var(--background)) 100%);
   pointer-events: none;
 }
 
@@ -125,7 +123,7 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.1), transparent 45%);
+  background: radial-gradient(circle at 50% 0%, rgba(0, 122, 204, 0.05), transparent 60%);
   pointer-events: none;
 }
 
@@ -135,22 +133,20 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  backdrop-filter: blur(14px);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.85) 100%);
-  border-left: 1px solid rgba(255, 255, 255, 0.02);
-  border-right: 1px solid rgba(255, 255, 255, 0.02);
+  background: hsl(var(--background));
+  border-left: 1px solid hsl(var(--border));
+  border-right: 1px solid hsl(var(--border));
 }
 
 .webui-status {
   display: flex;
   align-items: center;
-  height: 32px;
-  padding: 0 18px;
-  font-size: 11px;
-  color: hsl(var(--muted-foreground));
-  background: linear-gradient(90deg, rgba(16, 185, 129, 0.18) 0%, rgba(59, 130, 246, 0.12) 45%, transparent 100%);
-  border-top: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  height: 22px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: hsl(var(--foreground));
+  background: hsl(var(--primary));
+  border-top: 1px solid hsl(var(--border));
 }
 
 /* Layout Utilities */
@@ -169,11 +165,11 @@ body {
 }
 
 .webui-stat-card {
-  padding: 18px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(148, 163, 184, 0.12) 0%, rgba(15, 23, 42, 0.5) 100%);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.35);
+  padding: 16px;
+  border-radius: 4px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: none;
 }
 
 .webui-stat-card .value {
@@ -195,27 +191,27 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
+  padding: 2px 8px;
+  border-radius: 2px;
   font-size: 11px;
-  font-weight: 600;
-  background: rgba(16, 185, 129, 0.15);
-  color: rgba(110, 231, 183, 0.95);
-  letter-spacing: 0.04em;
+  font-weight: 500;
+  background: hsl(var(--primary) / 0.2);
+  color: hsl(var(--primary-foreground));
+  border: 1px solid hsl(var(--primary) / 0.4);
 }
 
 .webui-callout {
-  border-radius: 14px;
-  padding: 16px 18px;
-  background: linear-gradient(120deg, rgba(16, 185, 129, 0.18), rgba(56, 189, 248, 0.12));
-  border: 1px solid rgba(16, 185, 129, 0.24);
+  border-radius: 4px;
+  padding: 12px 16px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--primary) / 0.5);
+  border-left: 3px solid hsl(var(--primary));
   color: hsl(var(--foreground));
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.25);
 }
 
 .webui-callout strong {
   font-weight: 600;
-  color: rgba(110, 231, 183, 0.95);
+  color: hsl(var(--primary-foreground));
 }
 
 .webui-timeline {
@@ -246,11 +242,11 @@ body {
   position: absolute;
   left: -17px;
   top: 4px;
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  border: 2px solid rgba(110, 231, 183, 0.6);
-  background: rgba(15, 23, 42, 0.9);
+  border: 2px solid hsl(var(--primary));
+  background: hsl(var(--background));
 }
 
 .webui-grid-soft {
@@ -284,8 +280,8 @@ body {
 .card {
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  box-shadow: none;
 }
 
 /* Improve text readability */

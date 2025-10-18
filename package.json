@@ -81,6 +81,11 @@
         "command": "cappy.debugAddTestData",
         "title": "➕ Cappy: Debug - Add Test Data",
         "category": "Cappy Debug"
+      },
+      {
+        "command": "cappy.reanalyzeRelationships",
+        "title": "🔄 Cappy: Reanalyze All Relationships",
+        "category": "Cappy"
       }
     ],
     "viewsContainers": {

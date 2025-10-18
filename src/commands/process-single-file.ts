@@ -60,7 +60,7 @@ export async function processSingleFileInternal(options: {
     console.log(`${'='.repeat(80)}\n`);
 
     const language = path.extname(filePath).slice(1);
-    const chunks = await parserService.parseFile(filePath);
+  let chunks = await parserService.parseFile(filePath);
 
     console.log(`\n📦 CHUNKS EXTRACTED: ${chunks.length}`);
     chunks.forEach((chunk, i) => {
@@ -73,7 +73,27 @@ export async function processSingleFileInternal(options: {
     });
 
     if (chunks.length === 0) {
-      throw new Error('No chunks extracted from file');
+      // Fallback: create single file-level code chunk including entire file
+      const fs = await import('fs');
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const lineCount = Math.max(1, content.split('\n').length);
+      const fileNameOnly = path.basename(filePath);
+      const chunkId = `chunk:${fileNameOnly}:1-${lineCount}`;
+
+      chunks = [{
+        id: chunkId,
+        content,
+        metadata: {
+          filePath,
+          lineStart: 1,
+          lineEnd: lineCount,
+          chunkType: 'code',
+          symbolName: fileNameOnly.replace(/\.[^.]+$/, ''),
+          symbolKind: 'variable'
+        }
+      }];
+
+      console.log(`⚠️ No JSDoc extracted; created 1 fallback code chunk for ${filePath}`);
     }
 
     // Extract relationships
