@@ -8,9 +8,7 @@ Este é um teste end-to-end completo do sistema de processamento de arquivos do 
 
 ### 1. **Setup do Workspace**
 - Cria um diretório temporário para o teste
-- Inicializa banco SQLite (`sql.js`)
-- Inicializa LanceDB (vector store)
-- Inicializa Kuzu (graph store)
+- Inicializa banco SQLite com sqlite-vec (vector + metadata + graph)
 - Configura embedding service (Transformers.js)
 
 ### 2. **Arquivo de Teste**
@@ -35,8 +33,8 @@ Gera um arquivo TypeScript (`user-service.ts`) contendo:
   3. Faz parsing do AST (TypeScript)
   4. Gera chunks (JSDoc + Code)
   5. Gera embeddings para cada chunk
-  6. Insere chunks no LanceDB
-  7. Cria nós no Kuzu (File, Chunk)
+  6. Insere chunks no SQLite (com sqlite-vec para embeddings)
+  7. Cria nós no grafo SQLite (File, Chunk)
   8. Cria relacionamentos (CONTAINS, DOCUMENTS)
 - Sistema de transação com rollback automático em caso de erro
 
@@ -48,16 +46,16 @@ Gera um arquivo TypeScript (`user-service.ts`) contendo:
 - ✅ Status final `completed` com métricas
 - ✅ Contadores: `chunksCount`, `nodesCount`, `relationshipsCount`
 
-#### Nós no Grafo (Kuzu)
-- ✅ Nó de arquivo (`File`) criado
-- ✅ Nós de chunks (`Chunk`) criados
-- ✅ Relacionamentos `CONTAINS` (File → Chunk)
-- ✅ Relacionamentos `DOCUMENTS` (JSDoc → Code)
+#### Nós no Grafo (SQLite)
+- ✅ Nó de arquivo (`File`) criado na tabela `graph_nodes`
+- ✅ Nós de chunks (`Chunk`) criados na tabela `graph_nodes`
+- ✅ Relacionamentos `CONTAINS` (File → Chunk) na tabela `graph_edges`
+- ✅ Relacionamentos `DOCUMENTS` (JSDoc → Code) na tabela `graph_edges`
 
-#### Vetores no LanceDB
-- ✅ Embeddings gerados para todos os chunks
-- ✅ Busca vetorial funcional
-- ✅ Chunks recuperáveis por similaridade
+#### Vetores no SQLite (sqlite-vec)
+- ✅ Embeddings gerados e armazenados na tabela `document_chunks`
+- ✅ Busca vetorial funcional via sqlite-vec
+- ✅ Chunks recuperáveis por similaridade usando vec_search
 
 #### Busca Híbrida
 Testa 3 tipos de queries:
@@ -139,9 +137,8 @@ describe('File Processing Integration Test', () => {
 📝 Test: Complete file processing workflow
 
 ⚙️  Step 1: Initializing services...
-  ✓ Database initialized
-  ✓ Vector store initialized
-  ✓ Graph store initialized
+  ✓ SQLite database initialized (metadata + vector + graph)
+  ✓ sqlite-vec extension loaded
   ✓ Embedding service initialized
   ✓ Indexing service initialized
   ✓ Parser and hash services initialized
@@ -169,10 +166,10 @@ describe('File Processing Integration Test', () => {
   ✓ Final status: completed
 
 ⚙️  Step 4: Verifying graph nodes...
-  ✓ Graph store operations completed
+  ✓ Graph nodes and edges verified in SQLite
 
 ⚙️  Step 5: Verifying vector embeddings...
-  ✓ Found chunks for "UserService": 8
+  ✓ Found chunks for "UserService": 8 (via sqlite-vec)
      - Direct matches: 5
      - Related chunks: 3
      1. UserService (class)
@@ -210,38 +207,45 @@ describe('File Processing Integration Test', () => {
 │                   INTEGRATION TEST                       │
 ├─────────────────────────────────────────────────────────┤
 │                                                          │
-│  ┌──────────────┐         ┌──────────────┐             │
-│  │   SQLite     │────────▶│    Queue     │             │
-│  │  Metadata    │◀────────│   Manager    │             │
-│  └──────────────┘         └──────────────┘             │
+│  ┌──────────────────────────────────────┐               │
+│  │           SQLite Database            │               │
+│  │  (Metadata + Vectors + Graph)        │               │
+│  │         with sqlite-vec              │               │
+│  └──────────────────────────────────────┘               │
 │         │                        │                       │
-│         │                        ▼                       │
-│         │                 ┌──────────────┐              │
-│         │                 │    Worker    │              │
-│         │                 │  (Isolated)  │              │
-│         │                 └──────────────┘              │
-│         │                   │     │     │               │
-│         │                   │     │     │               │
-│         ▼                   ▼     ▼     ▼               │
-│  ┌──────────────┐    ┌─────────────────────┐           │
-│  │   Progress   │    │   Parser Service    │           │
-│  │   Tracking   │    │   Hash Service      │           │
-│  └──────────────┘    │   Embedding Service │           │
+│         ▼                        ▼                       │
+│  ┌──────────────┐         ┌──────────────┐             │
+│  │   Progress   │         │    Queue     │             │
+│  │   Tracking   │         │   Manager    │             │
+│  └──────────────┘         └──────────────┘             │
+│                                  │                       │
+│                                  ▼                       │
+│                           ┌──────────────┐              │
+│                           │    Worker    │              │
+│                           │  (Isolated)  │              │
+│                           └──────────────┘              │
+│                             │     │     │               │
+│                             ▼     ▼     ▼               │
+│                      ┌─────────────────────┐           │
+│                      │   Parser Service    │           │
+│                      │   Hash Service      │           │
+│                      │   Embedding Service │           │
 │                      └─────────────────────┘           │
-│                               │     │                   │
-│                               │     │                   │
-│                      ┌────────┘     └────────┐          │
-│                      ▼                       ▼          │
-│               ┌──────────────┐      ┌──────────────┐   │
-│               │   LanceDB    │      │     Kuzu     │   │
-│               │ Vector Store │      │ Graph Store  │   │
-│               └──────────────┘      └──────────────┘   │
-│                      │                       │          │
-│                      └───────────┬───────────┘          │
-│                                  ▼                      │
+│                                  │                       │
+│                                  ▼                       │
+│                      ┌──────────────────────┐           │
+│                      │   SQLite Storage     │           │
+│                      │  • document_chunks   │           │
+│                      │  • graph_nodes       │           │
+│                      │  • graph_edges       │           │
+│                      │  • file_metadata     │           │
+│                      └──────────────────────┘           │
+│                                  │                       │
+│                                  ▼                       │
 │                          ┌──────────────┐               │
 │                          │    Hybrid    │               │
 │                          │    Search    │               │
+│                          │ (SQL + vec)  │               │
 │                          └──────────────┘               │
 │                                                          │
 └─────────────────────────────────────────────────────────┘
@@ -259,15 +263,16 @@ describe('File Processing Integration Test', () => {
 - Verificar conexão de internet (primeira execução)
 - Aumentar heap size: `NODE_OPTIONS=--max-old-space-size=4096`
 
-### Graph store não inicializa
+### SQLite não inicializa
 - Verificar permissões de escrita em `/tmp`
 - Verificar espaço em disco disponível
-- Verificar logs do Kuzu
+- Verificar se sqlite-vec foi carregado corretamente
+- Verificar logs do SQLite
 
 ### Busca não retorna resultados
-- Verificar se embeddings foram gerados
-- Verificar se chunks foram inseridos no LanceDB
-- Verificar se indexação foi concluída
+- Verificar se embeddings foram gerados e salvos na tabela `document_chunks`
+- Verificar se sqlite-vec está funcionando: `SELECT vec_version()`
+- Verificar se a indexação foi concluída
 
 ## Métricas de Sucesso
 

@@ -62,13 +62,14 @@ code .
 🔍 Initializing workspace scanner...
 📋 Loaded .gitignore patterns
 📋 Using default .cappyignore patterns
-📚 Loading file index from Kuzu...
+📚 Loading file index from SQLite...
 ✅ Loaded 0 files from index
 ✅ Workspace scanner initialized
 
-🚀 Starting workspace scan...
-📁 Found 342 files to process
-📝 342 files need processing
+� Starting workspace scan...
+📁 Workspace: /path/to/your/project
+📚 Loading file index from SQLite...
+✅ Loaded 0 files from index (first scan)
 
 📄 Processing: src/extension.ts
 🔍 Parsing TypeScript/JavaScript: src/extension.ts
@@ -120,9 +121,10 @@ code .
 ```
 
 **Validação:**
-- ✅ Índice foi carregado do Kuzu
-- ✅ Apenas arquivo modificado foi processado
-- ✅ Scan muito mais rápido (2s vs 45s)
+**Validação:**
+- ✅ Índice foi carregado do SQLite
+- ✅ Apenas 1 arquivo foi reprocessado (mudou)
+- ✅ 149 arquivos foram pulados (sem mudança)
 
 ---
 
@@ -321,11 +323,11 @@ async extract(filePath: string, chunks: DocumentChunk[]): Promise<GraphRelations
 }
 ```
 
-**4. KuzuAdapter.listAllFiles**
+**4. SQLiteAdapter.listAllFiles**
 ```typescript
-// Em: src/adapters/secondary/graph/kuzu-adapter.ts
+// Em: src/adapters/secondary/database/sqlite-adapter.ts
 async listAllFiles(): Promise<Array<{ path: string; language: string; linesOfCode: number }>> {
-  // DEVE existir e retornar lista de arquivos
+  // DEVE existir e retornar lista de arquivos da tabela file_metadata
 }
 ```
 
@@ -375,14 +377,14 @@ npm run compile
 # Reinicie o VS Code
 ```
 
-### Problema: "Kuzu not initialized"
+### Problema: "SQLite not initialized"
 
 **Sintoma:** Erro ao executar scan
 
 **Solução:**
 ```bash
 # Delete e recrie o banco
-rm -rf .cappy/data
+rm -rf .cappy/data/cappy.db
 # Execute scan novamente
 ```
 

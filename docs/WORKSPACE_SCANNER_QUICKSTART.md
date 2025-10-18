@@ -103,8 +103,9 @@ Para cada arquivo, o scanner:
 2. Faz parsing AST (se aplicável)
 3. Extrai chunks (JSDoc, code, markdown, etc.)
 4. Gera embeddings para os chunks
-5. Indexa no LanceDB (vetores + conteúdo)
-6. Cria nodes no Kuzu (File, Chunks)
+4. Gera chunks (documentação + código)
+5. Indexa no SQLite com sqlite-vec (vetores + conteúdo)
+6. Cria nós no grafo SQLite (File, Chunks, Relacionamentos)
 7. Cria relacionamentos (CONTAINS, DOCUMENTS, etc.)
 
 ### Fase 4: Conclusão
@@ -253,17 +254,17 @@ File → Open Folder → Escolha seu projeto
 
 ### Banco de dados corrompido
 
-**Problema:** Erros ao abrir Kuzu ou LanceDB.
+**Problema:** Erros ao abrir o banco SQLite.
 
 **Sintomas:**
 ```
-❌ Kuzu initialization error: Failed to open database
+❌ SQLite initialization error: Failed to open database
 ```
 
 **Solução:**
 ```bash
-# Apague os bancos e refaça o scan
-rm -rf .cappy/data
+# Apague o banco e refaça o scan
+rm -rf .cappy/data/cappy.db
 ```
 
 Depois execute o scan novamente.

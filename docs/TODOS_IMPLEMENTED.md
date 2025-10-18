@@ -25,27 +25,29 @@ Todos os TODOs identificados foram implementados com sucesso! O sistema está ag
 private async deleteFileFromDatabase(relPath: string): Promise<void> {
   console.log(`🗑️  Deleting: ${relPath}`);
   
-  // Delete from graph store (removes File node and all related Chunks)
+  // Delete from graph (removes File node and all related Chunks)
   await this.config.graphStore.deleteFile(relPath);
   
-  // Delete from vector store
+  // Delete from vector store and metadata
   try {
-    console.log(`✅ Deleted ${relPath} from graph store`);
+    console.log(`✅ Deleted ${relPath} from SQLite`);
   } catch (error) {
-    console.error(`⚠️ Error deleting ${relPath} from stores:`, error);
+    console.error(`⚠️ Error deleting ${relPath}:`, error);
     throw error;
   }
 }
 ```
 
 **Resultado:**
-- Arquivos deletados são removidos completamente do Kuzu
-- Chunks associados são removidos em cascata
-- Relacionamentos órfãos são limpos automaticamente
+- Arquivos deletados são removidos completamente do SQLite
+- Chunks associados são removidos (tabela `document_chunks`)
+- Nós do grafo são removidos (tabela `graph_nodes`)
+- Relacionamentos órfãos são limpos (tabela `graph_edges`)
+- Metadados do arquivo são removidos (tabela `file_metadata`)
 
 ---
 
-## 2. ✅ TODO: Implement loading from Kuzu
+## 2. ✅ TODO: Implement loading from SQLite
 
 **Localização:** `src/services/workspace-scanner.ts` - linha 373
 
@@ -53,26 +55,30 @@ private async deleteFileFromDatabase(relPath: string): Promise<void> {
 
 **O que foi feito:**
 
-1. **Criado método `listAllFiles()`** no KuzuAdapter
+1. **Criado método `listAllFiles()`** no SQLiteAdapter
 2. **Adicionado na interface** GraphStorePort
 3. **Implementada lógica completa** de carregamento do índice
 
-**Novo método no KuzuAdapter:**
+**Novo método no SQLiteAdapter:**
 ```typescript
 async listAllFiles(): Promise<Array<{ path: string; language: string; linesOfCode: number }>> {
-  if (!this.initialized || !this.conn) {
-    throw new Error('Kuzu not initialized');
+  if (!this.initialized || !this.db) {
+    throw new Error('SQLite not initialized');
   }
 
-  const result = await this.conn.query(
-    'MATCH (f:File) RETURN f.path AS path, f.language AS language, f.linesOfCode AS linesOfCode'
-  );
+  const result = await this.db.all(`
+    SELECT 
+      file_path as path,
+      language,
+      line_count as linesOfCode
+    FROM file_metadata
+    WHERE status = 'completed'
+  `);
 
-  // Process rows...
-  return rows.map(row => ({
-    path: r[0] as string,
-    language: r[1] as string,
-    linesOfCode: Number(r[2]) || 0
+  return result.map(row => ({
+    path: row.path,
+    language: row.language || 'unknown',
+    linesOfCode: Number(row.linesOfCode) || 0
   }));
 }
 ```
@@ -89,7 +95,7 @@ export interface GraphStorePort {
 ```typescript
 private async loadFileIndex(): Promise<void> {
   try {
-    console.log('📚 Loading file index from Kuzu...');
+    console.log('📚 Loading file index from SQLite...');
     
     const files = await this.config.graphStore.listAllFiles();
     
@@ -265,10 +271,10 @@ async extract(
 
 **Novos logs adicionados:**
 ```
-📚 Loading file index from Kuzu...
+📚 Loading file index from SQLite...
 ✅ Loaded 342 files from index
 🗑️  Deleting: old-file.ts
-✅ Deleted old-file.ts from graph store
+✅ Deleted old-file.ts from SQLite
 📊 Found 5 imports, 3 exports, 12 calls, 8 type refs
   📥 Imports: ./parser-service, ./indexing-service
   📤 Exports: WorkspaceScanner, ScanProgress
@@ -358,17 +364,16 @@ Agora que os TODOs estão completos, as próximas implementações são:
 
 ---
 
-## Checklist Final
+### 🎯 Checklist Final
 
-- [x] TODO 1: deleteFile implementado e funcionando
-- [x] TODO 2: loadFileIndex implementado e funcionando
-- [x] TODO 3: Relacionamentos mapeados para chunk IDs
-- [x] Método listAllFiles() criado no KuzuAdapter
-- [x] Interface GraphStorePort atualizada
-- [x] Testes básicos executados
-- [x] Logging adequado adicionado
-- [x] Tratamento de erros implementado
-- [x] Documentação atualizada
+- [x] deleteFile() implementado no GraphStorePort
+- [x] Método listAllFiles() criado no SQLiteAdapter
+- [x] loadFileIndex() totalmente funcional
+- [x] Detecção de arquivos deletados
+- [x] Cleanup automático de arquivos órfãos
+- [x] Extração completa de relacionamentos intra-arquivo
+- [x] Logging melhorado para debugging
+- [x] Validação e testes manuais realizados
 
 ---
 

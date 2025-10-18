@@ -12,41 +12,41 @@
 - [x] Integração com extension.ts
 - [x] Atualização de tipos (FileIndexEntry)
 - [x] GraphStorePort.deleteFile()
-- [x] KuzuAdapter.deleteFile()
+- [x] SQLiteAdapter.deleteFile()
 - [x] Documentação completa
 - [x] Testes unitários básicos
 
 ## 🚧 Fase 2 - Cross-File Relationships
 
 ### 2.1 Import/Export Mapping
-- [ ] Criar tabela `ImportDeclaration` no Kuzu
+- [ ] Criar tabela `ImportDeclaration` no SQLite
   - [ ] Schema: `from_file`, `imported_symbol`, `from_module`, `line_number`
-- [ ] Criar tabela `ExportDeclaration` no Kuzu
+- [ ] Criar tabela `ExportDeclaration` no SQLite
   - [ ] Schema: `from_file`, `exported_symbol`, `is_default`, `line_number`
-- [ ] Criar relacionamento `IMPORTS` no Kuzu
+- [ ] Criar relacionamento `IMPORTS` na tabela `graph_edges`
   - [ ] `File -[IMPORTS]-> File`
-  - [ ] Propriedades: `symbols[]`, `is_namespace`, `alias`
-- [ ] Criar relacionamento `EXPORTS_TO` no Kuzu
+  - [ ] Propriedades JSON: `symbols[]`, `is_namespace`, `alias`
+- [ ] Criar relacionamento `EXPORTS_TO` na tabela `graph_edges`
   - [ ] `File -[EXPORTS_TO]-> File`
 
 ### 2.2 Function Call Tracking
 - [ ] Detectar chamadas de função via AST
 - [ ] Resolver função para arquivo de origem
-- [ ] Criar relacionamento `CALLS` no Kuzu
+- [ ] Criar relacionamento `CALLS` na tabela `graph_edges`
   - [ ] `Chunk -[CALLS]-> Chunk`
-  - [ ] Propriedades: `call_count`, `line_numbers[]`
+  - [ ] Propriedades JSON: `call_count`, `line_numbers[]`
 
 ### 2.3 Type Reference Tracking
 - [ ] Detectar referências de tipos via AST
 - [ ] Resolver tipo para arquivo de definição
-- [ ] Criar relacionamento `USES_TYPE` no Kuzu
+- [ ] Criar relacionamento `USES_TYPE` na tabela `graph_edges`
   - [ ] `Chunk -[USES_TYPE]-> Chunk`
 
 ### 2.4 Class Hierarchy
 - [ ] Detectar extends/implements
-- [ ] Criar relacionamento `EXTENDS` no Kuzu
+- [ ] Criar relacionamento `EXTENDS` na tabela `graph_edges`
   - [ ] `Chunk -[EXTENDS]-> Chunk`
-- [ ] Criar relacionamento `IMPLEMENTS` no Kuzu
+- [ ] Criar relacionamento `IMPLEMENTS` na tabela `graph_edges`
   - [ ] `Chunk -[IMPLEMENTS]-> Chunk`
 
 ## 🔄 Fase 3 - File Watchers & Incremental Indexing
@@ -72,14 +72,14 @@
 
 ## 💾 Fase 4 - Persistência de Índice
 
-### 4.1 File Index Table no Kuzu
-- [ ] Criar tabela `FileIndex` no Kuzu
+### 4.1 File Index Table no SQLite
+- [ ] Criar/usar tabela `file_metadata` no SQLite
 - [ ] Schema completo do `FileIndexEntry`
-- [ ] Métodos CRUD no `KuzuAdapter`
+- [ ] Métodos CRUD no `SQLiteAdapter`
 - [ ] Carregar índice na inicialização
 
 ### 4.2 Metadata Storage
-- [ ] Criar tabela `ScanMetadata` no Kuzu
+- [ ] Criar tabela `scan_metadata` no SQLite
   - [ ] `last_full_scan`, `total_files`, `total_chunks`, etc.
 - [ ] Salvar estatísticas de scan
 - [ ] Recuperar histórico de scans
@@ -130,10 +130,10 @@
 - [ ] Identificar code smells
 - [ ] Sugerir simplificações
 
-### 6.4 Dead Code Detection
-- [ ] Identificar exports não usados
-- [ ] Detectar funções nunca chamadas
-- [ ] Sugerir remoções seguras
+### 6.4 Advanced Features
+- [ ] Adicionar índices SQL otimizados
+- [ ] Query analyzer para debug
+- [ ] Suporte a workspace multi-root
 
 ## 🌍 Fase 7 - Multi-Language Support
 
@@ -246,8 +246,8 @@
 ## 🚀 Fase 12 - Optimization
 
 ### 12.1 Query Optimization
-- [ ] Adicionar índices no Kuzu
-- [ ] Otimizar queries comuns
+- [ ] Adicionar índices SQL otimizados
+- [ ] Otimizar queries comuns (JOINs, agregações)
 - [ ] Cache de resultados frequentes
 
 ### 12.2 Memory Optimization

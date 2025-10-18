@@ -120,7 +120,7 @@ interface FileIndexEntry {
 #### Atualizado `GraphStorePort`
 - Adicionado método `deleteFile(filePath: string)`
 
-#### Implementado em `KuzuAdapter`
+#### Implementado em `SQLiteAdapter`
 - Método `deleteFile()` implementado
 
 ### 5. Documentação
@@ -202,9 +202,9 @@ package.json
 - ✅ Markdown com headers
 - ✅ Config files (sem chunking)
 
-### 4. Indexação Dual
-- ✅ LanceDB: Chunks com embeddings e conteúdo
-- ✅ Kuzu: Estrutura de grafo e relacionamentos
+**Dados salvos:**
+- ✅ SQLite: Chunks com embeddings (sqlite-vec) e metadados
+- ✅ SQLite: Estrutura de grafo (tabelas relacionais) e relacionamentos
 - ✅ Embeddings automáticos via EmbeddingService
 
 ### 5. Relacionamentos
@@ -241,7 +241,7 @@ package.json
 ┌─────────────────────────────────────────────────────────┐
 │ 4. Cleanup deleted files                                │
 │    - Compare current vs indexed                         │
-│    - Delete from Kuzu & LanceDB                         │
+│    - Delete from SQLite (all tables)                    │
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -257,8 +257,8 @@ package.json
 │    ├─ Parse file (AST)                                  │
 │    ├─ Extract chunks (JSDoc, code, etc.)                │
 │    ├─ Generate embeddings                               │
-│    ├─ Index in LanceDB (chunks + vectors)               │
-│    ├─ Create nodes in Kuzu (File, Chunks)               │
+│    ├─ Index in SQLite with sqlite-vec (chunks+vectors)  │
+│    ├─ Create nodes in SQLite (File, Chunks)             │
 │    ├─ Create relationships (CONTAINS, DOCUMENTS)        │
 │    └─ Extract AST relationships (imports, etc.)         │
 └─────────────────────────────────────────────────────────┘
@@ -361,21 +361,14 @@ const scanner = new WorkspaceScanner({
 - Confirme que a extensão é suportada
 - Veja os logs para erros específicos
 
-## 🎯 Próximas Etapas (Fase 2)
+## 🎯 Próximas Melhorias
 
-### Prioritárias
-1. ✅ **Cross-file relationships** - Mapear imports/exports entre arquivos
-2. ✅ **File watchers** - Reindexação automática ao salvar
-3. ✅ **Persistência do índice** - Salvar FileIndexEntry no Kuzu
-4. ✅ **UI de progresso** - Webview com estatísticas detalhadas
-
-### Secundárias
-5. Suporte a Python, Java, Go, Rust
-6. Análise de dependências do package.json
-7. Detecção de código duplicado
-8. Métricas de complexidade (cyclomatic, etc.)
-9. Export/import de índices
-10. Configuração por workspace (.cappy/config.json)
+### Implementado ✅
+1. ✅ **Scan incremental** - Apenas arquivos modificados são reprocessados
+2. ✅ **Cleanup automático** - Arquivos deletados são removidos do SQLite
+3. ✅ **Persistência do índice** - Salvar FileIndexEntry no SQLite (tabela file_metadata)
+4. ✅ **Extração de relacionamentos** - Intra-file relationships (REFERENCES)
+5. ✅ **Detecção de imports/exports** - Para análise cross-file (registrado em logs)
 
 ## 📦 Dependências Adicionadas
 

@@ -57,17 +57,17 @@ Relationship 1/X:
   Properties: { referenceType: 'function_call', symbolName: 'add' }
 ```
 
-### 3️⃣ Indexação no Vector Store (LanceDB)
+### 3️⃣ Indexação no Vector Store (SQLite)
 ```
-🤖 INDEXING IN VECTOR STORE (LanceDB)
+🤖 INDEXING IN VECTOR STORE (SQLite with sqlite-vec)
 🤖 Generating embeddings for X chunks...
 ✅ Indexed test-sample-simple.ts successfully
 ```
 
-### 4️⃣ Criação no Graph Store (Kuzu)
+### 4️⃣ Criação no Graph Store (SQLite)
 ```
-📊 CREATING GRAPH RELATIONSHIPS (Kuzu)
-✅ Created X relationships in Kuzu
+📊 CREATING GRAPH RELATIONSHIPS (SQLite)
+✅ Created X relationships in graph tables
 ```
 
 ### 5️⃣ Verificação
@@ -76,8 +76,8 @@ Relationship 1/X:
 🔍 Testing search with query: "add"
 
 📊 Search Results:
-   - Direct matches: X (busca semântica no LanceDB)
-   - Related chunks: X (travessia de grafo no Kuzu)
+   - Direct matches: X (busca semântica via sqlite-vec)
+   - Related chunks: X (travessia de grafo via SQL JOINs)
    
    Top match:
      - Symbol: add
@@ -87,15 +87,15 @@ Relationship 1/X:
 
 ## Estrutura de dados esperada
 
-### Chunks (LanceDB)
+### Chunks (SQLite com sqlite-vec)
 - **JSDoc chunks**: Documentação extraída de cada símbolo
 - **Code chunks**: Código de cada função/classe (se habilitado)
-- **Vectors**: Embeddings de 384 dimensões (Xenova/all-MiniLM-L6-v2)
+- **Vectors**: Embeddings de 384 dimensões armazenados com sqlite-vec (Xenova/all-MiniLM-L6-v2)
 
-### Nodes (Kuzu)
-- **File node**: test-sample-simple.ts
-- **Chunk nodes**: Um para cada chunk extraído
-- **Relationships**:
+### Nodes (SQLite - Tabelas `graph_nodes` e `graph_edges`)
+- **File node**: test-sample-simple.ts na tabela `graph_nodes`
+- **Chunk nodes**: Um para cada chunk extraído na tabela `graph_nodes`
+- **Relationships** na tabela `graph_edges`:
   - `CONTAINS`: File → Chunks
   - `DOCUMENTS`: JSDoc → Code
   - `REFERENCES`: Code → Code (chamadas de função)
@@ -115,25 +115,24 @@ Relationship 1/X:
 
 Após o processamento, você pode verificar os dados:
 
-### LanceDB (Vector Store)
+### SQLite Database
 ```
-.cappy/data/lancedb/
-  └── chunks.lance/
+.cappy/data/cappy.db
 ```
 
-### Kuzu (Graph Store)
-```
-.cappy/data/kuzu/
-  └── (arquivos do banco de dados)
-```
+Você pode inspecionar as tabelas:
+- `document_chunks` - Chunks com embeddings (sqlite-vec)
+- `graph_nodes` - Nós do grafo
+- `graph_edges` - Relacionamentos
+- `file_metadata` - Metadados dos arquivos
 
 ## Próximos passos após o teste
 
 Se tudo funcionar:
 1. ✅ AST Parser funcionando
 2. ✅ Extração de relacionamentos funcionando
-3. ✅ Vector Store (LanceDB) funcionando
-4. ✅ Graph Store (Kuzu) funcionando
+3. ✅ Vector Store (SQLite + sqlite-vec) funcionando
+4. ✅ Graph Store (SQLite tabelas relacionais) funcionando
 5. ✅ Hybrid Search funcionando
 
 Você pode então:
