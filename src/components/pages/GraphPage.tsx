@@ -26,18 +26,29 @@ const GraphPage: React.FC = () => {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const message = event.data as { type?: string; exists?: boolean; created?: boolean; path?: string; nodes?: Array<{ id: string; label: string }>; edges?: Array<{ id: string; source: string; target: string; label?: string }> };
+      console.log('[GraphPage] Received message:', message);
+      console.log('[GraphPage] Message type:', message?.type);
+      
       if (message?.type === 'db-status') {
+        console.log('[GraphPage] Setting DB status:', message);
         setDbStatus({ exists: !!message.exists, created: !!message.created, path: message.path });
       }
+      
       if (message?.type === 'subgraph') {
+        console.log('[GraphPage] Setting graph with', message.nodes?.length, 'nodes and', message.edges?.length, 'edges');
         if (message.nodes && message.edges) {
           setGraph({ nodes: message.nodes, edges: message.edges });
         }
+      } else if (message?.nodes && message?.edges) {
+        console.log('[GraphPage] WARNING: Message has nodes/edges but wrong type!', message.type);
+        console.log('[GraphPage] Forcing graph update with', message.nodes.length, 'nodes');
+        setGraph({ nodes: message.nodes, edges: message.edges });
       }
     };
 
     window.addEventListener('message', handler);
     // Ask for current status on mount
+    console.log('[GraphPage] Requesting initial DB status');
     vscodeApi?.postMessage({ type: 'get-db-status' });
     return () => window.removeEventListener('message', handler);
   }, [vscodeApi]);
@@ -51,9 +62,12 @@ const GraphPage: React.FC = () => {
   };
 
   const handleAutoRefresh = () => {
+    console.log('[GraphPage] Auto-refresh triggered');
     // Recarrega o canvas a partir do banco de dados
     setGraph(null); // Limpa o grafo atual
+    console.log('[GraphPage] Requesting DB status');
     vscodeApi?.postMessage({ type: 'get-db-status' }); // Atualiza status do DB
+    console.log('[GraphPage] Loading graph with depth 2');
     loadGraph(2); // Recarrega o grafo com profundidade padrão
   };
 
