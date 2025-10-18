@@ -64,8 +64,10 @@ const DEFAULT_CONFIG: CappyConfig = {
 export class ConfigService {
   private config: CappyConfig;
   private configPath: string;
+  private workspaceRoot: string;
 
   constructor(workspaceRoot: string) {
+    this.workspaceRoot = workspaceRoot;
     this.configPath = path.join(workspaceRoot, '.cappy', 'config.json');
     this.config = this.loadConfig();
   }
@@ -92,20 +94,6 @@ export class ConfigService {
    */
   getConfig(): CappyConfig {
     return this.config;
-  }
-
-  /**
-   * Gets the absolute path for LanceDB
-   */
-  getLanceDBPath(workspaceRoot: string): string {
-    return path.join(workspaceRoot, this.config.databases.lancedb.path);
-  }
-
-  /**
-   * Gets the absolute path for Kuzu
-   */
-  getKuzuPath(workspaceRoot: string): string {
-    return path.join(workspaceRoot, this.config.databases.kuzu.path);
   }
 
   /**
@@ -145,6 +133,17 @@ export class ConfigService {
       return this.config.indexing.llm.enabledFor.markdown;
     }
     return false;
+  }
+
+  /**
+   * Returns the absolute path to the graph data folder (SQLite files)
+   * Uses the configured kuzu path for backward compatibility.
+   * Example: <workspace>/.cappy/data/kuzu
+   */
+  getGraphDataPath(workspaceRoot?: string): string {
+    const root = workspaceRoot ?? this.workspaceRoot;
+    const relative = this.config.databases.kuzu.path;
+    return path.isAbsolute(relative) ? relative : path.join(root, relative);
   }
 }
 

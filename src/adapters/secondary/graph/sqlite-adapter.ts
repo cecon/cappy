@@ -5,7 +5,7 @@
  * @since 3.0.0
  */
 
-import initSqlJs, { type Database as SqlJsDatabase } from "sql.js";
+import initSqlJs, { type Database as SqlJsDatabase, type SqlJsStatic } from "sql.js";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -20,6 +20,7 @@ export class SQLiteAdapter implements GraphStorePort {
   private readonly dbPath: string;
   private db: SqlJsDatabase | null = null;
   private dbFilePath = "";
+  private SQL: SqlJsStatic | null = null;
 
   constructor(dbPath: string) {
     this.dbPath = dbPath;
@@ -65,6 +66,7 @@ export class SQLiteAdapter implements GraphStorePort {
         },
       });
       console.log(`✅ sql.js initialized`);
+      this.SQL = SQL;
 
       let buffer: Uint8Array | undefined;
       if (fs.existsSync(dbFilePath)) {
@@ -72,7 +74,7 @@ export class SQLiteAdapter implements GraphStorePort {
         console.log(`📁 Loaded existing database`);
       }
 
-      this.db = new SQL.Database(buffer);
+  this.db = new SQL.Database(buffer);
       this.db.run("PRAGMA foreign_keys = ON");
 
       this.createSchema();
@@ -82,6 +84,30 @@ export class SQLiteAdapter implements GraphStorePort {
     } catch (error) {
       console.error("❌ SQLite initialization error:", error);
       throw new Error(`Failed to initialize SQLite: ${error}`);
+    }
+  }
+
+  /**
+   * Reloads the SQLite database from disk to pick up external changes
+   */
+  async reloadFromDisk(): Promise<void> {
+    if (!this.SQL) return; // Not initialized yet
+    try {
+      let buffer: Uint8Array | undefined;
+      if (fs.existsSync(this.dbFilePath)) {
+        buffer = fs.readFileSync(this.dbFilePath);
+      }
+      // Close previous connection if any
+      if (this.db) {
+        this.db.close();
+      }
+      this.db = new this.SQL.Database(buffer);
+      this.db.run("PRAGMA foreign_keys = ON");
+      // Ensure schema exists (noop if already created)
+      this.createSchema();
+      console.log('🔄 SQLite: Reloaded database from disk');
+    } catch (error) {
+      console.error('❌ SQLite reloadFromDisk error:', error);
     }
   }
 

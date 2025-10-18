@@ -156,7 +156,7 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         console.log('✅ Embedding service initialized');
         
         // Initialize graph database
-        const sqlitePath = configService.getKuzuPath(workspaceRoot);
+    const sqlitePath = configService.getGraphDataPath(workspaceRoot);
         const graphStoreInstance = new SQLiteAdapter(sqlitePath);
         await graphStoreInstance.initialize();
         console.log('✅ Graph store initialized');

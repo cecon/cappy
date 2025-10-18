@@ -43,7 +43,7 @@ const GraphPage: React.FC = () => {
   }, [vscodeApi]);
 
   const handleResetDb = () => {
-    vscodeApi?.postMessage({ type: 'kuzu-reset' });
+  vscodeApi?.postMessage({ type: 'graph-reset' });
   };
 
   const loadGraph = (depth: number) => {
@@ -67,7 +67,7 @@ const GraphPage: React.FC = () => {
                 <div>
                   <h2 className="flex items-center gap-2 text-2xl font-semibold">
                     <span>🌐</span>
-                    <span>Knowledge Graph Canvas</span>
+                    <span>Visualizar grafo</span>
                   </h2>
                   <p className="text-sm text-muted-foreground mt-2">
                     Explore relationships across your indexed sources and entities
@@ -95,7 +95,6 @@ const GraphPage: React.FC = () => {
                   <span className="webui-chip">{graph ? `${graph.nodes.length} nodes · ${graph.edges.length} edges` : '0 nodes · 0 edges'}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="primary" size="sm" onClick={() => loadGraph(2)}>Load Graph</Button>
                   <Button variant="outline" size="sm" onClick={() => loadGraph(4)}>4 levels</Button>
                   <Button variant="outline" size="sm" onClick={() => loadGraph(6)}>6 levels</Button>
                   <Button variant="outline" size="sm" onClick={() => loadGraph(10)}>10 levels</Button>
@@ -121,7 +120,7 @@ const GraphPage: React.FC = () => {
             <Card className="shadow-lg border border-border/60">
               <CardContent className="pt-6 space-y-4">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
-                  🧪 Kuzu Explorer
+                  🧪 Graph Explorer
                 </h3>
                 <div className="text-sm text-muted-foreground space-y-2">
                   <div className="flex items-center justify-between">
