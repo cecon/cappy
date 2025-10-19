@@ -379,7 +379,7 @@ export class WorkspaceScanner {
    */
   private async loadFileIndex(): Promise<void> {
       try {
-        console.log('📚 Loading file index from Kuzu...');
+        console.log('📚 Loading file index from graph database...');
       
         const files = await this.config.graphStore.listAllFiles();
       

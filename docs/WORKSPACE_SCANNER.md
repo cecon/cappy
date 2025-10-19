@@ -262,9 +262,9 @@ scanner.onProgress((progress: ScanProgress) => {
 
 Certifique-se de ter uma pasta aberta no VS Code.
 
-### "Failed to initialize Kuzu"
+### "Failed to initialize graph database"
 
-Verifique se o diretório `.cappy/data/kuzu` tem permissões de escrita.
+Verifique se o diretório `.cappy/data` tem permissões de escrita.
 
 ### "Parser error"
 

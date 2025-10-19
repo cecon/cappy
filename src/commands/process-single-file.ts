@@ -116,7 +116,7 @@ export async function processSingleFileInternal(options: {
     // Index in Vector Store
     onProgress?.('Generating embeddings...', 70);
     console.log(`\n${'='.repeat(80)}`);
-    console.log(`🤖 INDEXING IN VECTOR STORE (LanceDB)`);
+    console.log(`🤖 INDEXING IN VECTOR STORE`);
     console.log(`${'='.repeat(80)}\n`);
 
     await indexingService.indexFile(filePath, language, chunks);
@@ -124,12 +124,12 @@ export async function processSingleFileInternal(options: {
     // Create relationships in Graph Store
     onProgress?.('Creating graph relationships...', 85);
     console.log(`\n${'='.repeat(80)}`);
-    console.log(`📊 CREATING GRAPH RELATIONSHIPS (Kuzu)`);
+    console.log(`📊 CREATING GRAPH RELATIONSHIPS`);
     console.log(`${'='.repeat(80)}\n`);
 
     if (relationships.length > 0) {
       await graphStore.createRelationships(relationships);
-      console.log(`✅ Created ${relationships.length} relationships in Kuzu`);
+      console.log(`✅ Created ${relationships.length} relationships in graph database`);
     } else {
       console.log(`⚠️ No relationships to create`);
     }

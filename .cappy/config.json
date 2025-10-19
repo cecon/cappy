@@ -36,8 +36,12 @@
       "path": ".cappy/data/lancedb",
       "autoCompact": true
     },
+    "graph": {
+      "path": ".cappy/data",
+      "bufferPoolSize": "256MB"
+    },
     "kuzu": {
-      "path": ".cappy/data/kuzu",
+      "path": ".cappy/data",
       "bufferPoolSize": "256MB"
     }
   }

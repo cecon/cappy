@@ -38,7 +38,7 @@ interface TestEnv { root: string; dbPath: string; graphDir: string; apiPort: num
 function createEnv(): TestEnv {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cappy-upload-'));
   const dbPath = path.join(root, 'file-metadata.db');
-  const graphDir = path.join(root, '.cappy', 'data', 'kuzu');
+  const graphDir = path.join(root, '.cappy', 'data');
   const apiPort = 4567; // test port
   return { root, dbPath, graphDir, apiPort };
 }

@@ -25,7 +25,7 @@ export interface ChunkMetadata {
 }
 
 /**
- * Document chunk for LanceDB (with content)
+ * Document chunk for vector store (with content)
  */
 export interface DocumentChunk {
   id: string;
@@ -35,7 +35,7 @@ export interface DocumentChunk {
 }
 
 /**
- * Chunk node for Kuzu (without content)
+ * Chunk node for graph database (without content)
  */
 export interface ChunkNode {
   id: string;
@@ -48,7 +48,7 @@ export interface ChunkNode {
 }
 
 /**
- * File node for Kuzu
+ * File node for graph database
  */
 export interface FileNode {
   path: string;
@@ -57,7 +57,7 @@ export interface FileNode {
 }
 
 /**
- * Entity node for Kuzu
+ * Entity node for graph database
  */
 export interface EntityNode {
   id: string;

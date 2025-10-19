@@ -67,17 +67,9 @@ export interface EmbeddingsConfig {
 }
 
 /**
- * LanceDB configuration
+ * Graph database configuration (SQLite)
  */
-export interface LanceDBConfig {
-  path: string;
-  autoCompact: boolean;
-}
-
-/**
- * Kuzu configuration
- */
-export interface KuzuConfig {
+export interface GraphDatabaseConfig {
   path: string;
   bufferPoolSize: string;
 }
@@ -86,8 +78,7 @@ export interface KuzuConfig {
  * Database configuration
  */
 export interface DatabaseConfig {
-  lancedb: LanceDBConfig;
-  kuzu: KuzuConfig;
+  graph: GraphDatabaseConfig;  // SQLite graph store
 }
 
 /**

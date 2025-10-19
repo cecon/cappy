@@ -20,7 +20,7 @@ export async function resetDatabase(): Promise<void> {
   }
 
   const workspaceRoot = workspaceFolder.uri.fsPath;
-  const dbPath = path.join(workspaceRoot, '.cappy', 'data', 'graph.db');
+  const dbPath = path.join(workspaceRoot, '.cappy', 'data', 'graph-store.db');
 
   // Confirm with user
   const confirm = await vscode.window.showWarningMessage(

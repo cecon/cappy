@@ -150,11 +150,12 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
     }
 
     try {
-        // Initialize database
-        const dbPath = path.join(context.globalStorageUri.fsPath, 'file-metadata.db');
+        // Initialize database in workspace .cappy/data folder
+        const cappyDataDir = path.join(workspaceRoot, '.cappy', 'data');
+        const dbPath = path.join(cappyDataDir, 'file-metadata.db');
         fileDatabase = new FileMetadataDatabase(dbPath);
         await fileDatabase.initialize();
-        console.log('✅ File metadata database initialized');
+        console.log('✅ File metadata database initialized at:', dbPath);
 
         // Initialize services for worker
         const { ParserService } = await import('./services/parser-service.js');

@@ -47,12 +47,8 @@ const DEFAULT_CONFIG: CappyConfig = {
     batchSize: 32
   },
   databases: {
-    lancedb: {
-      path: '.cappy/data/lancedb',
-      autoCompact: true
-    },
-    kuzu: {
-      path: '.cappy/data/kuzu',
+    graph: {
+      path: '.cappy/data',
       bufferPoolSize: '256MB'
     }
   }
@@ -137,12 +133,12 @@ export class ConfigService {
 
   /**
    * Returns the absolute path to the graph data folder (SQLite files)
-   * Uses the configured kuzu path for backward compatibility.
-   * Example: <workspace>/.cappy/data/kuzu
+   * Uses the new 'graph' configuration field.
+   * Example: <workspace>/.cappy/data
    */
   getGraphDataPath(workspaceRoot?: string): string {
     const root = workspaceRoot ?? this.workspaceRoot;
-    const relative = this.config.databases.kuzu.path;
+    const relative = this.config.databases.graph?.path;
     return path.isAbsolute(relative) ? relative : path.join(root, relative);
   }
 }

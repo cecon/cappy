@@ -35,10 +35,11 @@ export class SQLiteAdapter implements GraphStorePort {
       dbFilePath = path.resolve(dbFilePath);
     }
 
+    // If path is directory, append graph-store.db filename
     if (fs.existsSync(dbFilePath) && fs.statSync(dbFilePath).isDirectory()) {
-      dbFilePath = path.join(dbFilePath, "graph.db");
+      dbFilePath = path.join(dbFilePath, "graph-store.db");
     } else if (!path.extname(dbFilePath)) {
-      dbFilePath = path.join(dbFilePath, "graph.db");
+      dbFilePath = path.join(dbFilePath, "graph-store.db");
     }
 
     const parentDir = path.dirname(dbFilePath);

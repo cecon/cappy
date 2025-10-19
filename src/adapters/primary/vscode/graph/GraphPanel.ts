@@ -199,16 +199,14 @@ export class GraphPanel {
      * Sets up a FileSystemWatcher on the SQLite graph directory to auto-refresh the graph
      */
     private setupGraphWatcher(workspaceFolder: vscode.WorkspaceFolder) {
-        // Clean previous watcher
-        this.graphWatcher?.dispose();
-        this.graphWatcher = undefined;
+    // Clean previous watcher
+    this.graphWatcher?.dispose();
+    this.graphWatcher = undefined;
 
-        // Watch the entire kuzu folder under the workspace
-        const pattern = new vscode.RelativePattern(workspaceFolder, '.cappy/data/kuzu/**');
-        const watcher = vscode.workspace.createFileSystemWatcher(pattern, false, false, false);
-        this.graphWatcher = watcher;
-
-        const scheduleRefresh = () => {
+    // Watch the graph data folder (SQLite database)
+    const pattern = new vscode.RelativePattern(workspaceFolder, '.cappy/data/**/*.db');
+    const watcher = vscode.workspace.createFileSystemWatcher(pattern, false, false, false);
+    this.graphWatcher = watcher;        const scheduleRefresh = () => {
             if (this.refreshTimer) {
                 clearTimeout(this.refreshTimer);
             }
@@ -222,7 +220,7 @@ export class GraphPanel {
         watcher.onDidDelete(() => scheduleRefresh(), this, this.context.subscriptions);
 
         this.context.subscriptions.push(watcher);
-        this.log('👀 Watching .cappy/data/kuzu for graph changes');
+        this.log('👀 Watching .cappy/data for graph database changes');
     }
 
     /**

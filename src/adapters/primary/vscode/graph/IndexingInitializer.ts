@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConfigService } from '../../../../services/config-service';
 import { EmbeddingService } from '../../../../services/embedding-service';
 import { SQLiteAdapter } from '../../../secondary/graph/sqlite-adapter';
 import { IndexingService } from '../../../../services/indexing-service';
@@ -29,9 +28,6 @@ export class IndexingInitializer {
     }
     const workspaceRoot = workspaceFolder.uri.fsPath;
 
-    // Load configuration
-    const configService = new ConfigService(workspaceRoot);
-
     // Create embedding service
     const embeddingService = new EmbeddingService();
     await embeddingService.initialize();
@@ -45,12 +41,12 @@ export class IndexingInitializer {
       host.log(`📁 Base data folder exists: ${baseDataDir}`);
     }
 
-    // Resolve graph path (formerly kuzu path)
-    const sqlitePath = configService.getGraphDataPath(workspaceRoot);
+    // Use .cappy/data directly for graph database (no subdirectory)
+    const sqlitePath = baseDataDir;
 
-    // Ensure graph data directory
-    const created = this.ensureGraphDataDir(sqlitePath, host);
-    host.sendMessage({ type: 'db-status', exists: true, created, path: sqlitePath });
+    // SQLiteAdapter will create the database file (graph-store.db) inside baseDataDir
+    host.log(`📊 Graph database path: ${sqlitePath}/graph-store.db`);
+    host.sendMessage({ type: 'db-status', exists: true, created: false, path: sqlitePath });
 
     // Initialize SQLite graph store
     const graphStore = new SQLiteAdapter(sqlitePath);
@@ -113,27 +109,7 @@ export class IndexingInitializer {
     return {
       indexingService,
       graphDataPath: sqlitePath,
-      graphDbCreated: created,
+      graphDbCreated: false,
     };
-  }
-
-  private ensureGraphDataDir(dbPath: string, host: GraphInitHost): boolean {
-    try {
-      if (!fs.existsSync(dbPath)) {
-        fs.mkdirSync(dbPath, { recursive: true });
-        host.log(`🆕 Created graph data folder: ${dbPath}`);
-        const marker = `${dbPath}/README.txt`;
-        if (!fs.existsSync(marker)) {
-          fs.writeFileSync(marker, 'Cappy Graph data — created automatically.');
-        }
-        return true;
-      } else {
-        host.log(`📁 Graph data folder exists: ${dbPath}`);
-        return false;
-      }
-    } catch (error) {
-      host.log(`❌ Failed to prepare graph data folder: ${error}`);
-      return false;
-    }
   }
 }

@@ -8,7 +8,7 @@
 import type { DocumentChunk, FileIndexEntry } from '../../../types/chunk';
 
 /**
- * Vector store port (LanceDB)
+ * Vector store port (SQLite with embeddings)
  */
 export interface VectorStorePort {
   /**
@@ -43,7 +43,7 @@ export interface VectorStorePort {
 }
 
 /**
- * Graph store port (Kuzu)
+ * Graph store port (SQLite)
  */
 export interface GraphStorePort {
   /**

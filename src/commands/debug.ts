@@ -39,7 +39,12 @@ export function registerDebugDatabaseCommand(context: vscode.ExtensionContext): 
     console.log('🐛 Debug Database command executed');
     
     try {
-      const dbPath = path.join(context.globalStorageUri.fsPath, 'file-metadata.db');
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('No workspace folder found');
+        return;
+      }
+      const dbPath = path.join(workspaceRoot, '.cappy', 'data', 'file-metadata.db');
       console.log('📂 Database path:', dbPath);
       
       // Check if database file exists
@@ -105,7 +110,12 @@ export function registerDebugAddTestDataCommand(context: vscode.ExtensionContext
     console.log('🐛 Debug Add Test Data command executed');
     
     try {
-      const dbPath = path.join(context.globalStorageUri.fsPath, 'file-metadata.db');
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('No workspace folder found');
+        return;
+      }
+      const dbPath = path.join(workspaceRoot, '.cappy', 'data', 'file-metadata.db');
       
       // Ensure database exists
       const dbExists = fs.existsSync(dbPath);
@@ -122,13 +132,13 @@ export function registerDebugAddTestDataCommand(context: vscode.ExtensionContext
       await db.initialize();
       
       const now = new Date().toISOString();
-      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '/tmp';
+      const workspaceRootPath = workspaceRoot || '/tmp';
       
       // Add 3 test files with different statuses
       const testFiles = [
         {
           id: `test-completed-${Date.now()}`,
-          filePath: path.join(workspaceRoot, 'test-completed.txt'),
+          filePath: path.join(workspaceRootPath, 'test-completed.txt'),
           fileName: 'test-completed.txt',
           fileSize: 1024,
           fileHash: 'hash-completed-123',
@@ -144,7 +154,7 @@ export function registerDebugAddTestDataCommand(context: vscode.ExtensionContext
         },
         {
           id: `test-processing-${Date.now() + 1}`,
-          filePath: path.join(workspaceRoot, 'test-processing.txt'),
+          filePath: path.join(workspaceRootPath, 'test-processing.txt'),
           fileName: 'test-processing.txt',
           fileSize: 2048,
           fileHash: 'hash-processing-456',
@@ -157,7 +167,7 @@ export function registerDebugAddTestDataCommand(context: vscode.ExtensionContext
         },
         {
           id: `test-pending-${Date.now() + 2}`,
-          filePath: path.join(workspaceRoot, 'test-pending.txt'),
+          filePath: path.join(workspaceRootPath, 'test-pending.txt'),
           fileName: 'test-pending.txt',
           fileSize: 512,
           fileHash: 'hash-pending-789',

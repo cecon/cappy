@@ -10,7 +10,7 @@ import type { DocumentChunk } from '../types/chunk';
 import type { EmbeddingService } from './embedding-service';
 
 /**
- * Indexing service coordinating LanceDB and Kuzu
+ * Indexing service coordinating vector embeddings and graph storage
  */
 export class IndexingService {
   private readonly vectorStore: VectorStorePort | null;
@@ -69,11 +69,11 @@ export class IndexingService {
         console.warn('⚠️ Vector store is disabled; skipping upsertChunks');
       }
 
-      // 3. Create file node in Kuzu
+      // 3. Create file node in graph
       const linesOfCode = Math.max(...chunks.map(c => c.metadata.lineEnd));
       await this.graphStore.createFileNode(filePath, language, linesOfCode);
 
-      // 4. Create chunk nodes in Kuzu (without content)
+      // 4. Create chunk nodes in graph (without content)
       await this.graphStore.createChunkNodes(chunks);
 
       // 5. Create CONTAINS relationships (File -> Chunks)
@@ -175,18 +175,18 @@ export class IndexingService {
     try {
       console.log(`🔍 Hybrid search: "${query}" (depth: ${depth})`);
 
-      // 1. Vector search in LanceDB
+      // 1. Vector search in vector store
   const directMatches = this.vectorStore ? await this.vectorStore.search(query, 10) : [];
       console.log(`   📊 Found ${directMatches.length} direct matches`);
 
-      // 2. Graph traversal in Kuzu to find related chunks
+      // 2. Graph traversal to find related chunks
       const chunkIds = directMatches.map(c => c.id);
       const relatedIds = chunkIds.length > 0 
         ? await this.graphStore.getRelatedChunks(chunkIds, depth)
         : [];
       console.log(`   🕸️ Found ${relatedIds.length} related chunks via graph`);
 
-      // 3. Fetch related chunks from LanceDB
+      // 3. Fetch related chunks from vector store
       const relatedChunks = (relatedIds.length > 0 && this.vectorStore)
         ? await this.vectorStore.getChunksByIds(relatedIds)
         : [];
