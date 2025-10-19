@@ -12,6 +12,7 @@ import { FileHashService } from './file-hash-service';
 import type { DocumentChunk } from '../types/chunk';
 import type { IndexingService } from './indexing-service';
 import type { GraphStorePort } from '../domains/graph/ports/indexing-port';
+import { ASTRelationshipExtractor } from './ast-relationship-extractor';
 
 /**
  * Progress callback
@@ -265,12 +266,155 @@ export class FileProcessingWorker {
       console.log(`   - DOCUMENTS relationships: ${documentsRels.length}`);
       console.log(`   - AST relationships: ${astRelationshipsCount}`);
       console.log(`   - Total relationships: ${totalRelationships}`);
+
+      // Step 7: Build cross-file relationships (imports)
+      onProgress?.('Building cross-file relationships...', 95);
+      console.log(`🔗 [CROSS-FILE] About to call buildCrossFileRelationshipsForFile...`);
+      try {
+        const crossFileRelsCount = await this.buildCrossFileRelationshipsForFile(filePath, fileContent);
+        console.log(`🔗 [CROSS-FILE] Returned count: ${crossFileRelsCount}`);
+        if (crossFileRelsCount > 0) {
+          console.log(`✅ Created ${crossFileRelsCount} cross-file relationships`);
+        }
+      } catch (error) {
+        console.error(`⚠️ Failed to build cross-file relationships:`, error);
+        // Don't fail the entire processing
+      }
       
       return result;
 
     } catch (error) {
       console.error('❌ Error processing file:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Builds cross-file relationships for a single file
+   * This detects imports and creates IMPORTS edges between files
+   */
+  private async buildCrossFileRelationshipsForFile(
+    filePath: string,
+    fileContent: string
+  ): Promise<number> {
+    console.log(`🔗 [CROSS-FILE] START for ${filePath}`);
+    
+    if (!this.graphStore) {
+      console.log(`🔗 [CROSS-FILE] No graphStore available!`);
+      return 0;
+    }
+
+    console.log(`🔗 [CROSS-FILE] GraphStore exists, proceeding...`);
+
+    try {
+      // Get all indexed files
+      const allFiles = await this.graphStore.listAllFiles();
+      const fileMap = new Map<string, string>(); // filename -> file id
+      for (const file of allFiles) {
+        const fileName = path.basename(file.path);
+        fileMap.set(fileName, file.path);
+      }
+
+      // Use physical file if exists, else create temp file
+      let analysisPath = filePath;
+      let tempFile: string | null = null;
+      if (!fs.existsSync(filePath)) {
+        // Only create temp file if file does not exist
+        const os = await import('os');
+        const fileName = path.basename(filePath).replace(/^uploaded:/, '');
+        tempFile = path.join(os.tmpdir(), `cappy-crossfile-${Date.now()}-${fileName}`);
+        fs.writeFileSync(tempFile, fileContent);
+        analysisPath = tempFile;
+      }
+
+      const crossFileRels: Array<{
+        from: string;
+        to: string;
+        type: string;
+        properties?: Record<string, string | number | boolean | string[] | null>;
+      }> = [];
+
+      try {
+        // Analyze imports
+        const extractor = new ASTRelationshipExtractor(this.workspaceRoot);
+        const analysis = await extractor.analyze(analysisPath);
+
+        console.log(`📊 Found ${analysis.imports.length} imports in ${path.basename(filePath)}`);
+
+        // Get chunks for this file
+        const fileChunks = await this.graphStore.getFileChunks(filePath);
+
+        // Process each import
+        for (const imp of analysis.imports) {
+          if (imp.isExternal) {
+            continue; // Skip external packages
+          }
+
+          // Try to resolve the import
+          let resolvedPath: string | null = null;
+
+          // Extract the imported filename
+          const importedFileName = imp.source.replace(/^[./]+/, '').replace(/\.(ts|tsx|js|jsx)$/, '');
+          for (const [fileName, fileId] of fileMap.entries()) {
+            const baseFileName = fileName.replace(/\.(ts|tsx|js|jsx)$/, '');
+            if (baseFileName === importedFileName || fileName.includes(importedFileName)) {
+              resolvedPath = fileId;
+              console.log(`✅ Resolved "${imp.source}" -> "${fileId}"`);
+              break;
+            }
+          }
+
+          if (resolvedPath) {
+            // Create IMPORTS edge from file to file
+            crossFileRels.push({
+              from: filePath,
+              to: resolvedPath,
+              type: 'IMPORTS',
+              properties: {
+                source: imp.source,
+                specifiers: imp.specifiers
+              }
+            });
+
+            // Create IMPORTS_SYMBOL edges from chunks to chunks
+            const targetChunks = await this.graphStore.getFileChunks(resolvedPath);
+            for (const specifier of imp.specifiers) {
+              const targetChunk = targetChunks.find(c => 
+                c.label.includes(specifier) || c.id.includes(specifier)
+              );
+              if (targetChunk) {
+                for (const sourceChunk of fileChunks) {
+                  crossFileRels.push({
+                    from: sourceChunk.id,
+                    to: targetChunk.id,
+                    type: 'IMPORTS_SYMBOL',
+                    properties: {
+                      symbol: specifier,
+                      sourceFile: filePath,
+                      targetFile: resolvedPath
+                    }
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        if (crossFileRels.length > 0) {
+          await this.graphStore.createRelationships(crossFileRels);
+        }
+
+      } finally {
+        if (tempFile && fs.existsSync(tempFile)) {
+          fs.unlinkSync(tempFile);
+        }
+      }
+
+      return crossFileRels.length;
+
+    } catch (error) {
+      console.error('❌ Error building cross-file relationships:', error);
+      return 0;
     }
   }
 
