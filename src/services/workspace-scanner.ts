@@ -71,7 +71,7 @@ export class WorkspaceScanner {
     this.hashService = new FileHashService();
     this.ignorePatterns = new IgnorePatternMatcher(config.workspaceRoot);
     this.metadataExtractor = new FileMetadataExtractor();
-    this.relationshipExtractor = new ASTRelationshipExtractor();
+    this.relationshipExtractor = new ASTRelationshipExtractor(config.workspaceRoot);
   }
 
   /**

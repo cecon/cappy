@@ -87,7 +87,12 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage('Graph store not initialized');
             return;
         }
-        await reanalyzeRelationships(graphStore);
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+            vscode.window.showErrorMessage('No workspace folder open');
+            return;
+        }
+        await reanalyzeRelationships(graphStore, workspaceRoot);
     });
     context.subscriptions.push(reanalyzeCommand);
     console.log('✅ Registered command: cappy.reanalyzeRelationships');
@@ -187,7 +192,8 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         const indexingService = new IndexingService(
             null as unknown as VectorStorePort, // VectorStore not needed for now
             graphStoreInstance,
-            embeddingService
+            embeddingService,
+            workspaceRoot
         );
         console.log('✅ Indexing service initialized');
 

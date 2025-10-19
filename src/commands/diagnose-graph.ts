@@ -32,7 +32,8 @@ interface DiagnosticReport {
  */
 export async function diagnoseGraph(
   graphStore: GraphStorePort,
-  outputChannel: vscode.OutputChannel
+  outputChannel: vscode.OutputChannel,
+  workspaceRoot: string
 ): Promise<DiagnosticReport> {
   
   outputChannel.clear();
@@ -79,7 +80,7 @@ export async function diagnoseGraph(
       // Analyze AST if file exists
       if (fs.existsSync(file.path)) {
         try {
-          const extractor = new ASTRelationshipExtractor();
+          const extractor = new ASTRelationshipExtractor(workspaceRoot);
           const analysis = await extractor.analyze(file.path);
           
           if (analysis.imports.length > 0) {
@@ -223,7 +224,12 @@ export function registerDiagnoseGraphCommand(
     'cappy.diagnoseGraph',
     async () => {
       try {
-        await diagnoseGraph(graphStore, outputChannel);
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+          vscode.window.showErrorMessage('No workspace folder open');
+          return;
+        }
+        await diagnoseGraph(graphStore, outputChannel, workspaceRoot);
       } catch (error) {
         vscode.window.showErrorMessage(`Graph diagnostics failed: ${error}`);
       }

@@ -249,17 +249,59 @@ export class SQLiteAdapter implements GraphStorePort {
     console.log(`✅ SQLite: Created ${chunks.length} chunk nodes`);
   }
 
+  /**
+   * Creates or updates a package node
+   */
+  async createPackageNode(pkgId: string, name: string, version: string | null, metadata: Record<string, unknown>): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+
+    const label = version ? `${name}@${version}` : name;
+    const properties = JSON.stringify({
+      name,
+      version,
+      ...metadata
+    });
+
+    this.db.run(`INSERT OR REPLACE INTO nodes (id, type, label, properties) VALUES (?, ?, ?, ?)`, [
+      pkgId,
+      "package",
+      label,
+      properties
+    ]);
+
+    this.saveToFile();
+  }
+
   async createRelationships(
     relationships: Array<{
       from: string;
       to: string;
       type: string;
-      properties?: Record<string, string | number | boolean>;
+      properties?: Record<string, string | number | boolean | string[] | null>;
     }>
   ): Promise<void> {
     if (!this.db) throw new Error("SQLite not initialized");
 
+    let pkgNodesCreated = 0;
+
     for (const rel of relationships) {
+      // Auto-create package nodes for IMPORTS_PKG relationships
+      if (rel.type === 'IMPORTS_PKG' && rel.to.startsWith('pkg:')) {
+        const props = rel.properties || {};
+        const name = (props.specifier as string)?.split('/')[0] || 'unknown';
+        const version = (props.resolved as string | null) ?? (props.range as string | null);
+        
+        await this.createPackageNode(rel.to, name, version, {
+          manager: props.manager,
+          lockfile: props.lockfile,
+          integrity: props.integrity,
+          workspace: props.workspace,
+          source: props.source,
+          confidence: props.confidence
+        });
+        pkgNodesCreated++;
+      }
+
       const properties = rel.properties ? JSON.stringify(rel.properties) : null;
       this.db.run(`INSERT OR IGNORE INTO edges (from_id, to_id, type, properties) VALUES (?, ?, ?, ?)`, [
         rel.from,
@@ -270,7 +312,12 @@ export class SQLiteAdapter implements GraphStorePort {
     }
 
     this.saveToFile();
-    console.log(`✅ SQLite: Created ${relationships.length} relationships`);
+    
+    if (pkgNodesCreated > 0) {
+      console.log(`✅ SQLite: Created ${relationships.length} relationships (${pkgNodesCreated} package nodes auto-created)`);
+    } else {
+      console.log(`✅ SQLite: Created ${relationships.length} relationships`);
+    }
   }
 
   async getRelatedChunks(_: string[]): Promise<string[]> {

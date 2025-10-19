@@ -16,15 +16,18 @@ export class IndexingService {
   private readonly vectorStore: VectorStorePort | null;
   private readonly graphStore: GraphStorePort;
   private readonly embeddingService: EmbeddingService;
+  private readonly workspaceRoot: string;
 
   constructor(
     vectorStore: VectorStorePort | null, 
     graphStore: GraphStorePort,
-    embeddingService: EmbeddingService
+    embeddingService: EmbeddingService,
+    workspaceRoot: string
   ) {
     this.vectorStore = vectorStore;
     this.graphStore = graphStore;
     this.embeddingService = embeddingService;
+    this.workspaceRoot = workspaceRoot;
   }
 
   /**
@@ -110,7 +113,7 @@ export class IndexingService {
       // 7. Create cross-file REFERENCES using imports -> exported symbols from other files (best-effort)
       try {
         const { ASTRelationshipExtractor } = await import('./ast-relationship-extractor.js');
-        const extractor = new ASTRelationshipExtractor();
+        const extractor = new ASTRelationshipExtractor(this.workspaceRoot);
         const analysis = await extractor.analyze(filePath);
         if (analysis.imports.length > 0) {
           // Build a list of candidate files (all file nodes in DB)
@@ -236,7 +239,8 @@ export class IndexingService {
 export function createIndexingService(
   vectorStore: VectorStorePort,
   graphStore: GraphStorePort,
-  embeddingService: EmbeddingService
+  embeddingService: EmbeddingService,
+  workspaceRoot: string
 ): IndexingService {
-  return new IndexingService(vectorStore, graphStore, embeddingService);
+  return new IndexingService(vectorStore, graphStore, embeddingService, workspaceRoot);
 }

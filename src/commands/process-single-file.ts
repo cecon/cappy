@@ -46,10 +46,11 @@ export async function processSingleFileInternal(options: {
     const indexingService = new IndexingService(
       null as unknown as VectorStorePort, // TODO: Remove VectorStore dependency
       graphStore,
-      embeddingService
+      embeddingService,
+      workspaceRoot
     );
     const parserService = new ParserService();
-    const relationshipExtractor = new ASTRelationshipExtractor();
+    const relationshipExtractor = new ASTRelationshipExtractor(workspaceRoot);
 
     await indexingService.initialize();
 

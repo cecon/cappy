@@ -14,7 +14,8 @@ import * as path from 'path';
  * Reanalyzes all relationships for indexed files
  */
 export async function reanalyzeRelationships(
-  graphStore: GraphStorePort
+  graphStore: GraphStorePort,
+  workspaceRoot: string
 ): Promise<void> {
   const startTime = Date.now();
 
@@ -54,7 +55,7 @@ export async function reanalyzeRelationships(
 
           try {
             // 2a. Extract AST relationships (imports, exports, calls)
-            const extractor = new ASTRelationshipExtractor();
+            const extractor = new ASTRelationshipExtractor(workspaceRoot);
             const relationships = await extractor.analyze(filePath);
 
             console.log(`📊 ${path.basename(filePath)}: ${relationships.imports.length} imports, ${relationships.exports.length} exports, ${relationships.calls.length} calls`);

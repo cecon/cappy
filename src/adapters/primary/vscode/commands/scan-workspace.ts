@@ -60,7 +60,8 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
             const indexingService = new IndexingService(
               null as unknown as VectorStorePort, // TODO: Remove VectorStore dependency
               graphStore,
-              embeddingService
+              embeddingService,
+              workspaceRoot
             );
             await indexingService.initialize();
 

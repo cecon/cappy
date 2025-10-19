@@ -7,17 +7,35 @@
 
 import { parse } from '@typescript-eslint/parser';
 import type { DocumentChunk, GraphRelationship } from '../types/chunk';
+import { ExternalPackageResolver, type PackageResolution } from './external-package-resolver';
 import * as fs from 'fs';
+
+/**
+ * Extended import info with external package resolution
+ */
+export interface ImportInfo {
+  source: string;
+  specifiers: string[];
+  isExternal: boolean;
+  packageResolution?: PackageResolution;
+}
 
 /**
  * Service for extracting relationships from AST
  */
 export class ASTRelationshipExtractor {
+  private packageResolver: ExternalPackageResolver;
+
+  constructor(workspaceRoot: string) {
+    this.packageResolver = new ExternalPackageResolver(workspaceRoot);
+  }
+
   /**
    * Analyzes a file and returns import/export/call/type reference info
+   * Now includes external package resolution
    */
   async analyze(filePath: string): Promise<{
-    imports: Array<{ source: string; specifiers: string[] }>;
+    imports: ImportInfo[];
     exports: string[];
     calls: string[];
     typeRefs: string[];
@@ -33,7 +51,7 @@ export class ASTRelationshipExtractor {
       ecmaFeatures: { jsx: true }
     });
 
-    const imports = this.extractImports(ast);
+    const imports = await this.extractImportsWithResolution(ast, filePath);
     const exports = this.extractExports(ast);
     const calls = this.extractFunctionCalls(ast);
     const typeRefs = this.extractTypeReferences(ast);
@@ -41,10 +59,11 @@ export class ASTRelationshipExtractor {
   }
   /**
    * Extracts relationships from a file's AST
+   * Now includes external package dependencies
    */
   async extract(
     filePath: string,
-      chunks: DocumentChunk[]
+    chunks: DocumentChunk[]
   ): Promise<GraphRelationship[]> {
     const relationships: GraphRelationship[] = [];
 
@@ -64,8 +83,8 @@ export class ASTRelationshipExtractor {
         }
       });
 
-      // Extract imports/exports
-      const imports = this.extractImports(ast);
+      // Extract imports with resolution
+      const imports = await this.extractImportsWithResolution(ast, filePath);
       const exports = this.extractExports(ast);
       
       // Extract function calls
@@ -74,69 +93,102 @@ export class ASTRelationshipExtractor {
       // Extract type references
       const typeRefs = this.extractTypeReferences(ast);
 
-        // Map to actual chunk IDs and create relationships
-        console.log(`📊 Found ${imports.length} imports, ${exports.length} exports, ${calls.length} calls, ${typeRefs.length} type refs`);
+      // Log summary
+      const externalCount = imports.filter(i => i.isExternal).length;
+      const internalCount = imports.length - externalCount;
+      console.log(`📊 Found ${imports.length} imports (${externalCount} external, ${internalCount} internal), ${exports.length} exports, ${calls.length} calls, ${typeRefs.length} type refs`);
       
-        // Create a map of symbol names to chunk IDs for quick lookup
-        const symbolToChunkId = new Map<string, string>();
-        for (const chunk of chunks) {
-          if (chunk.metadata.symbolName) {
-            symbolToChunkId.set(chunk.metadata.symbolName, chunk.id);
-          }
+      // Create a map of symbol names to chunk IDs for quick lookup
+      const symbolToChunkId = new Map<string, string>();
+      for (const chunk of chunks) {
+        if (chunk.metadata.symbolName) {
+          symbolToChunkId.set(chunk.metadata.symbolName, chunk.id);
         }
+      }
 
-        // Create REFERENCES relationships for function calls
-        // Map calls to chunks that define those functions
-        for (const call of calls) {
-          const targetChunkId = symbolToChunkId.get(call);
-          if (targetChunkId) {
-            // Find chunks that might contain this call
-            for (const chunk of chunks) {
-              if (chunk.metadata.chunkType === 'code' || chunk.metadata.chunkType === 'jsdoc') {
-                relationships.push({
-                  from: chunk.id,
-                  to: targetChunkId,
-                  type: 'REFERENCES',
-                  properties: {
-                    referenceType: 'function_call',
-                    symbolName: call
-                  }
-                });
-              }
+      // Create IMPORTS_PKG relationships for external packages
+      for (const imp of imports) {
+        if (imp.isExternal && imp.packageResolution) {
+          const res = imp.packageResolution;
+          const pkgId = `pkg:${res.name}@${res.resolved ?? res.range ?? 'unknown'}`;
+          
+          relationships.push({
+            from: filePath, // Use file path as source
+            to: pkgId, // Package node ID
+            type: 'IMPORTS_PKG',
+            properties: {
+              specifier: imp.source,
+              subpath: res.subpath,
+              range: res.range,
+              resolved: res.resolved,
+              manager: res.manager,
+              lockfile: res.lockfile,
+              integrity: res.integrity,
+              workspace: res.workspace,
+              commit: res.commit,
+              url: res.url,
+              source: res.source,
+              confidence: res.confidence,
+              specifiers: imp.specifiers
+            }
+          });
+        }
+      }
+
+      // Create REFERENCES relationships for function calls
+      // Map calls to chunks that define those functions
+      for (const call of calls) {
+        const targetChunkId = symbolToChunkId.get(call);
+        if (targetChunkId) {
+          // Find chunks that might contain this call
+          for (const chunk of chunks) {
+            if (chunk.metadata.chunkType === 'code' || chunk.metadata.chunkType === 'jsdoc') {
+              relationships.push({
+                from: chunk.id,
+                to: targetChunkId,
+                type: 'REFERENCES',
+                properties: {
+                  referenceType: 'function_call',
+                  symbolName: call
+                }
+              });
             }
           }
         }
+      }
 
-        // Create REFERENCES relationships for type references
-        for (const typeRef of typeRefs) {
-          const targetChunkId = symbolToChunkId.get(typeRef);
-          if (targetChunkId) {
-            for (const chunk of chunks) {
-              if (chunk.metadata.chunkType === 'code' || chunk.metadata.chunkType === 'jsdoc') {
-                relationships.push({
-                  from: chunk.id,
-                  to: targetChunkId,
-                  type: 'REFERENCES',
-                  properties: {
-                    referenceType: 'type_reference',
-                    symbolName: typeRef
-                  }
-                });
-              }
+      // Create REFERENCES relationships for type references
+      for (const typeRef of typeRefs) {
+        const targetChunkId = symbolToChunkId.get(typeRef);
+        if (targetChunkId) {
+          for (const chunk of chunks) {
+            if (chunk.metadata.chunkType === 'code' || chunk.metadata.chunkType === 'jsdoc') {
+              relationships.push({
+                from: chunk.id,
+                to: targetChunkId,
+                type: 'REFERENCES',
+                properties: {
+                  referenceType: 'type_reference',
+                  symbolName: typeRef
+                }
+              });
             }
           }
         }
+      }
 
-        // Store import/export info for cross-file relationships (Phase 2)
-        // For now, just log them
-        if (imports.length > 0) {
-          console.log(`  📥 Imports: ${imports.map(i => i.source).join(', ')}`);
-        }
-        if (exports.length > 0) {
-          console.log(`  📤 Exports: ${exports.join(', ')}`);
-        }
+      // Log internal imports for cross-file relationships (Phase 2)
+      const internalImports = imports.filter(i => !i.isExternal);
+      if (internalImports.length > 0) {
+        console.log(`  📥 Internal imports: ${internalImports.map(i => i.source).join(', ')}`);
+      }
+      if (exports.length > 0) {
+        console.log(`  📤 Exports: ${exports.join(', ')}`);
+      }
 
-        console.log(`  🔗 Created ${relationships.length} intra-file relationships`);
+      const pkgRelCount = relationships.filter(r => r.type === 'IMPORTS_PKG').length;
+      const otherRelCount = relationships.length - pkgRelCount;
+      console.log(`  🔗 Created ${relationships.length} relationships (${pkgRelCount} package imports, ${otherRelCount} code references)`);
 
     } catch (error) {
       console.error(`❌ AST extraction error for ${filePath}:`, error);
@@ -146,7 +198,72 @@ export class ASTRelationshipExtractor {
   }
 
   /**
-   * Extracts import statements
+   * Extracts import statements with external package resolution
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async extractImportsWithResolution(ast: any, filePath: string): Promise<ImportInfo[]> {
+    const imports: ImportInfo[] = [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const visit = async (node: any) => {
+      if (!node) return;
+
+      if (node.type === 'ImportDeclaration') {
+        const source = node.source?.value;
+        const specifiers: string[] = [];
+
+        if (node.specifiers) {
+          for (const spec of node.specifiers) {
+            if (spec.imported?.name) {
+              specifiers.push(spec.imported.name);
+            } else if (spec.local?.name) {
+              specifiers.push(spec.local.name);
+            }
+          }
+        }
+
+        if (source) {
+          const isExternal = this.packageResolver.isExternalImport(source);
+          
+          const importInfo: ImportInfo = {
+            source,
+            specifiers,
+            isExternal
+          };
+
+          // If external, resolve package info
+          if (isExternal) {
+            try {
+              importInfo.packageResolution = await this.packageResolver.resolveExternalImport(source, filePath);
+            } catch (error) {
+              console.warn(`⚠️ Failed to resolve external package: ${source}`, error);
+            }
+          }
+
+          imports.push(importInfo);
+        }
+      }
+
+      // Recursively visit children
+      for (const key in node) {
+        if (key !== 'parent' && typeof node[key] === 'object') {
+          if (Array.isArray(node[key])) {
+            for (const child of node[key]) {
+              await visit(child);
+            }
+          } else {
+            await visit(node[key]);
+          }
+        }
+      }
+    };
+
+    await visit(ast);
+    return imports;
+  }
+
+  /**
+   * Extracts import statements (deprecated - use extractImportsWithResolution)
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private extractImports(ast: any): Array<{ source: string; specifiers: string[] }> {

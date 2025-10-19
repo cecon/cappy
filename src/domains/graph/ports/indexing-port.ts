@@ -64,7 +64,7 @@ export interface GraphStorePort {
   /**
    * Creates relationships between nodes
    */
-  createRelationships(relationships: Array<{ from: string; to: string; type: string; properties?: Record<string, string | number | boolean> }>): Promise<void>;
+  createRelationships(relationships: Array<{ from: string; to: string; type: string; properties?: Record<string, string | number | boolean | string[] | null> }>): Promise<void>;
 
   /**
    * Queries related chunks via graph traversal
