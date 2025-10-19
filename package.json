@@ -91,6 +91,11 @@
         "command": "cappy.diagnoseGraph",
         "title": "🔍 Cappy: Diagnose Graph Structure",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.resetDatabase",
+        "title": "🗑️ Cappy: Reset Graph Database",
+        "category": "Cappy"
       }
     ],
     "viewsContainers": {

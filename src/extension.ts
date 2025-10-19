@@ -10,6 +10,7 @@ import { registerScanWorkspaceCommand } from './adapters/primary/vscode/commands
 import { registerProcessSingleFileCommand } from './commands/process-single-file';
 import { registerDebugCommand, registerDebugDatabaseCommand, registerDebugAddTestDataCommand } from './commands/debug';
 import { reanalyzeRelationships } from './commands/reanalyze-relationships';
+import { registerResetDatabaseCommand } from './commands/reset-database';
 import { FileMetadataDatabase } from './services/file-metadata-database';
 import { FileProcessingQueue } from './services/file-processing-queue';
 import { FileProcessingWorker } from './services/file-processing-worker';
@@ -103,6 +104,10 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(diagnoseCommand);
     console.log('✅ Registered command: cappy.diagnoseGraph');
+
+    // Register reset database command
+    registerResetDatabaseCommand(context);
+    console.log('✅ Registered command: cappy.resetDatabase');
 
     // Create chat service with LangGraph engine (includes tools)
     const chatEngine = new LangGraphChatEngine();
