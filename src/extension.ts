@@ -97,7 +97,7 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage('Graph store not initialized');
             return;
         }
-        const { diagnoseGraph } = await import('./commands/diagnose-graph');
+        const { diagnoseGraph } = await import('./commands/diagnose-graph.js');
         const outputChannel = vscode.window.createOutputChannel('Cappy Graph Diagnostics');
         await diagnoseGraph(graphStore, outputChannel);
     });
