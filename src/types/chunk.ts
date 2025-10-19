@@ -70,7 +70,7 @@ export interface EntityNode {
 /**
  * Relationship types
  */
-export type RelationType = 'CONTAINS' | 'DOCUMENTS' | 'REFERENCES' | 'DEFINES' | 'RELATES_TO' | 'IMPORTS_PKG';
+export type RelationType = 'CONTAINS' | 'DOCUMENTS' | 'REFERENCES' | 'DEFINES' | 'RELATES_TO' | 'IMPORTS_PKG' | 'IMPORTS' | 'IMPORTS_SYMBOL';
 
 /**
  * Graph relationship

@@ -339,12 +339,134 @@ export class WorkspaceScanner {
   private async buildCrossFileRelationships(): Promise<void> {
     console.log('🔗 Building cross-file relationships...');
     
-    // This will be implemented in phase 2
-    // Will use AST analysis to detect:
-    // - import/require statements
-    // - type references
-    // - function calls
-    // - etc.
+    const crossFileRels: Array<{
+      from: string;
+      to: string;
+      type: string;
+      properties?: Record<string, string | number | boolean | string[] | null>;
+    }> = [];
+
+    // Get all indexed files
+    const allFiles = Array.from(this.fileIndex.values());
+    console.log(`📂 Analyzing ${allFiles.length} files for cross-file relationships...`);
+
+    // Build a map of exported symbols to files
+    const exportedSymbols = new Map<string, string[]>(); // symbol -> [file paths]
+
+    for (const file of allFiles) {
+      const fullPath = path.join(this.config.workspaceRoot, file.relPath);
+      
+      // Only analyze supported files
+      if (!this.config.parserService.isSupported(fullPath)) {
+        continue;
+      }
+
+      try {
+        // Analyze the file for imports/exports
+        const analysis = await this.relationshipExtractor.analyze(fullPath);
+        
+        // Track exports
+        for (const exportName of analysis.exports) {
+          if (!exportedSymbols.has(exportName)) {
+            exportedSymbols.set(exportName, []);
+          }
+          exportedSymbols.get(exportName)!.push(file.relPath);
+        }
+
+        // Process imports
+        for (const imp of analysis.imports) {
+          if (!imp.isExternal) {
+            // Internal import - try to resolve to a file
+            const resolvedPath = await this.resolveImportPath(imp.source, file.relPath);
+            
+            if (resolvedPath) {
+              // Create File -> File relationship for import
+              crossFileRels.push({
+                from: file.relPath,
+                to: resolvedPath,
+                type: 'IMPORTS',
+                properties: {
+                  source: imp.source,
+                  specifiers: imp.specifiers
+                }
+              });
+
+              // Create Chunk -> Chunk relationships for imported symbols
+              const sourceChunks = await this.config.graphStore.getFileChunks(file.relPath);
+              const targetChunks = await this.config.graphStore.getFileChunks(resolvedPath);
+
+              for (const specifier of imp.specifiers) {
+                // Find target chunk that exports this symbol
+                const targetChunk = targetChunks.find(c => 
+                  c.label.includes(specifier) || c.id.includes(specifier)
+                );
+
+                if (targetChunk) {
+                  // Connect all source chunks to this target chunk
+                  for (const sourceChunk of sourceChunks) {
+                    crossFileRels.push({
+                      from: sourceChunk.id,
+                      to: targetChunk.id,
+                      type: 'IMPORTS_SYMBOL',
+                      properties: {
+                        symbol: specifier,
+                        sourceFile: file.relPath,
+                        targetFile: resolvedPath
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ Failed to analyze ${file.relPath} for cross-file relationships:`, error);
+      }
+    }
+
+    // Save all cross-file relationships
+    if (crossFileRels.length > 0) {
+      console.log(`💾 Saving ${crossFileRels.length} cross-file relationships...`);
+      await this.config.graphStore.createRelationships(crossFileRels);
+      console.log(`✅ Cross-file relationships created`);
+    } else {
+      console.log(`⚠️ No cross-file relationships found`);
+    }
+  }
+
+  /**
+   * Resolves an import path to an actual file path
+   */
+  private async resolveImportPath(importSource: string, fromFile: string): Promise<string | null> {
+    // Handle relative imports
+    if (importSource.startsWith('.')) {
+      const fromDir = path.dirname(fromFile);
+      const resolved = path.normalize(path.join(fromDir, importSource));
+      
+      // Try common extensions
+      const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js'];
+      for (const ext of extensions) {
+        const candidate = resolved + ext;
+        if (this.fileIndex.has(candidate)) {
+          return candidate;
+        }
+      }
+    }
+    
+    // Handle absolute imports from workspace root
+    if (importSource.startsWith('@/') || importSource.startsWith('~/')) {
+      const resolved = importSource.replace(/^[@~]\//, '');
+      const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js'];
+      for (const ext of extensions) {
+        const candidate = resolved + ext;
+        if (this.fileIndex.has(candidate)) {
+          return candidate;
+        }
+      }
+    }
+
+    return null;
   }
 
   /**

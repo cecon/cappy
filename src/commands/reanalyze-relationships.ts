@@ -8,14 +8,18 @@
 import * as vscode from 'vscode';
 import type { GraphStorePort } from '../domains/graph/ports/indexing-port';
 import { ASTRelationshipExtractor } from '../services/ast-relationship-extractor';
+import { FileMetadataDatabase } from '../services/file-metadata-database';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 
 /**
  * Reanalyzes all relationships for indexed files
  */
 export async function reanalyzeRelationships(
   graphStore: GraphStorePort,
-  workspaceRoot: string
+  workspaceRoot: string,
+  metadataDb?: FileMetadataDatabase
 ): Promise<void> {
   const startTime = Date.now();
 
@@ -42,6 +46,15 @@ export async function reanalyzeRelationships(
 
         let processedCount = 0;
         let relationshipsCreated = 0;
+        const fileMap = new Map<string, string>(); // Map filename -> file id
+
+        // Build a map of filenames to file IDs
+        for (const file of files) {
+          const fileName = path.basename(file.path);
+          fileMap.set(fileName, file.path);
+        }
+
+        console.log(`📋 File map:`, Array.from(fileMap.entries()));
 
         // 2. For each file, reanalyze relationships
         for (const file of files) {
@@ -54,9 +67,43 @@ export async function reanalyzeRelationships(
           });
 
           try {
+            // Check if this is an uploaded file (virtual path)
+            const isUploadedFile = filePath.startsWith('uploaded:');
+            let actualFilePath = filePath;
+            let tempFile: string | null = null;
+
+            if (isUploadedFile && metadataDb) {
+              // Get file content from metadata database
+              const metadata = metadataDb.getFileByPath(filePath);
+              
+              if (metadata?.fileContent) {
+                // Create temporary file for analysis
+                const fileName = path.basename(filePath).replace(/^uploaded:/, '');
+                tempFile = path.join(os.tmpdir(), `cappy-reanalyze-${Date.now()}-${fileName}`);
+                
+                // Decode base64 content and write to temp file
+                const content = Buffer.from(metadata.fileContent, 'base64').toString('utf-8');
+                fs.writeFileSync(tempFile, content);
+                actualFilePath = tempFile;
+                console.log(`📝 Created temp file for analysis: ${tempFile}`);
+              } else {
+                console.warn(`⚠️ No content found for uploaded file ${filePath}`);
+                continue;
+              }
+            } else if (!fs.existsSync(actualFilePath)) {
+              console.warn(`⚠️ File not found: ${actualFilePath}`);
+              continue;
+            }
+
             // 2a. Extract AST relationships (imports, exports, calls)
             const extractor = new ASTRelationshipExtractor(workspaceRoot);
-            const relationships = await extractor.analyze(filePath);
+            const relationships = await extractor.analyze(actualFilePath);
+
+            // Clean up temp file immediately after analysis
+            if (tempFile && fs.existsSync(tempFile)) {
+              fs.unlinkSync(tempFile);
+              console.log(`🗑️  Temp file cleaned up`);
+            }
 
             console.log(`📊 ${path.basename(filePath)}: ${relationships.imports.length} imports, ${relationships.exports.length} exports, ${relationships.calls.length} calls`);
 
@@ -68,34 +115,84 @@ export async function reanalyzeRelationships(
               continue;
             }
 
-            // 2c. Create REFERENCES relationships for imports
-            const importRelationships: Array<{
+            // 2c. Create cross-file relationships for imports
+            const crossFileRels: Array<{
               from: string;
               to: string;
               type: string;
-              properties?: Record<string, string | number | boolean>;
+              properties?: Record<string, string | number | boolean | string[] | null>;
             }> = [];
 
             for (const importDecl of relationships.imports) {
-              // Resolve import path
-              const resolvedPath = await resolveImportPath(filePath, importDecl.source);
+              if (importDecl.isExternal) {
+                continue; // Skip external imports for now
+              }
+
+              console.log(`🔍 Processing import: "${importDecl.source}" from ${path.basename(filePath)}`);
+
+              // For uploaded files, try to match by filename
+              let resolvedPath: string | null = null;
+
+              // Extract the imported filename
+              const importedFileName = importDecl.source.replace(/^[./]+/, '').replace(/\.(ts|tsx|js|jsx)$/, '');
+              
+              // Try to find matching file in the map
+              for (const [fileName, fileId] of fileMap.entries()) {
+                const baseFileName = fileName.replace(/\.(ts|tsx|js|jsx)$/, '');
+                if (baseFileName === importedFileName || fileName.includes(importedFileName)) {
+                  resolvedPath = fileId;
+                  console.log(`✅ Resolved "${importDecl.source}" -> "${fileId}"`);
+                  break;
+                }
+              }
+
+              if (!resolvedPath) {
+                // Try traditional path resolution for non-uploaded files
+                resolvedPath = await resolveImportPath(filePath, importDecl.source);
+              }
 
               if (resolvedPath) {
                 // Check if target file exists in graph
                 const targetExists = files.some(f => f.path === resolvedPath);
 
                 if (targetExists) {
-                  // Create REFERENCES edge from first chunk to target file
-                  importRelationships.push({
-                    from: fileChunks[0].id,
+                  // Create IMPORTS edge from file to file
+                  crossFileRels.push({
+                    from: filePath,
                     to: resolvedPath,
-                    type: 'REFERENCES',
+                    type: 'IMPORTS',
                     properties: {
-                      referenceType: 'import',
                       source: importDecl.source,
-                      imported: importDecl.specifiers.join(', '),
+                      specifiers: importDecl.specifiers
                     },
                   });
+
+                  // Create IMPORTS_SYMBOL edges from chunks to chunks
+                  const targetChunks = await graphStore.getFileChunks(resolvedPath);
+                  
+                  for (const specifier of importDecl.specifiers) {
+                    // Find target chunk that exports this symbol
+                    const targetChunk = targetChunks.find(c => 
+                      c.label.includes(specifier) || c.id.includes(specifier)
+                    );
+
+                    if (targetChunk) {
+                      // Connect all source chunks to this target chunk
+                      for (const sourceChunk of fileChunks) {
+                        crossFileRels.push({
+                          from: sourceChunk.id,
+                          to: targetChunk.id,
+                          type: 'IMPORTS_SYMBOL',
+                          properties: {
+                            symbol: specifier,
+                            sourceFile: filePath,
+                            targetFile: resolvedPath
+                          }
+                        });
+                      }
+                    }
+                  }
+
                   relationshipsCreated++;
                 } else {
                   console.log(`⚠️ Import target not indexed: ${resolvedPath}`);
@@ -104,9 +201,9 @@ export async function reanalyzeRelationships(
             }
 
             // 2d. Create relationships in graph
-            if (importRelationships.length > 0) {
-              await graphStore.createRelationships(importRelationships);
-              console.log(`✅ Created ${importRelationships.length} REFERENCES for ${path.basename(filePath)}`);
+            if (crossFileRels.length > 0) {
+              await graphStore.createRelationships(crossFileRels);
+              console.log(`✅ Created ${crossFileRels.length} cross-file relationships for ${path.basename(filePath)}`);
             }
 
           } catch (error) {

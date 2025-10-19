@@ -87,12 +87,16 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage('Graph store not initialized');
             return;
         }
+        if (!fileDatabase) {
+            vscode.window.showErrorMessage('File database not initialized');
+            return;
+        }
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!workspaceRoot) {
             vscode.window.showErrorMessage('No workspace folder open');
             return;
         }
-        await reanalyzeRelationships(graphStore, workspaceRoot);
+        await reanalyzeRelationships(graphStore, workspaceRoot, fileDatabase);
     });
     context.subscriptions.push(reanalyzeCommand);
     console.log('✅ Registered command: cappy.reanalyzeRelationships');

@@ -145,8 +145,8 @@ export class SQLiteAdapter implements GraphStorePort {
   }
 
   async getSubgraph(
-    _seeds: string[] | undefined,
-    _depth: number,
+    seeds: string[] | undefined,
+    depth: number,
     maxNodes = 1000
   ): Promise<{
     nodes: Array<{ id: string; label: string; type: "file" | "chunk" | "workspace" }>;
@@ -154,54 +154,111 @@ export class SQLiteAdapter implements GraphStorePort {
   }> {
     if (!this.db) throw new Error("SQLite not initialized");
 
+    console.log(`🔍 SQLite: getSubgraph called with depth=${depth}, seeds=${seeds?.length || 'all'}`);
+
     const nodes: Array<{ id: string; label: string; type: "file" | "chunk" | "workspace" }> = [];
     const edges: Array<{ id: string; source: string; target: string; label?: string; type: string }> = [];
+    const visited = new Set<string>();
 
     try {
-      const result = this.db.exec(`SELECT id, type, label FROM nodes LIMIT ${maxNodes}`);
-      if (result.length > 0 && result[0].values) {
-        // Usar Set para detectar IDs duplicados
-        const seenIds = new Set<string>();
-        let duplicateCount = 0;
-        
-        for (const row of result[0].values) {
-          const nodeId = row[0] as string;
-          
-          // Detectar duplicatas
-          if (seenIds.has(nodeId)) {
-            duplicateCount++;
-            console.warn(`⚠️ SQLite: Duplicate node ID detected: ${nodeId}`);
-            continue; // Pular duplicatas
+      // Se não há seeds, começar com todos os nós do tipo 'file' como raízes
+      let currentLevel: string[] = [];
+      
+      if (!seeds || seeds.length === 0) {
+        const rootResult = this.db.exec(`SELECT id FROM nodes WHERE type = 'file'`);
+        if (rootResult.length > 0 && rootResult[0].values) {
+          currentLevel = rootResult[0].values.map(row => row[0] as string);
+        }
+        console.log(`📂 Starting from ${currentLevel.length} file nodes as roots`);
+      } else {
+        currentLevel = seeds;
+        console.log(`🌱 Starting from ${seeds.length} seed nodes`);
+      }
+
+      // Expandir por profundidade usando BFS (Breadth-First Search)
+      for (let level = 0; level <= depth && currentLevel.length > 0; level++) {
+        console.log(`🔄 Level ${level}: Processing ${currentLevel.length} nodes`);
+        const nextLevel = new Set<string>();
+
+        for (const nodeId of currentLevel) {
+          if (visited.has(nodeId)) continue;
+          visited.add(nodeId);
+
+          // Adicionar o nó atual
+          const nodeResult = this.db.exec(`SELECT id, type, label FROM nodes WHERE id = ?`, [nodeId]);
+          if (nodeResult.length > 0 && nodeResult[0].values && nodeResult[0].values.length > 0) {
+            const row = nodeResult[0].values[0];
+            nodes.push({
+              id: row[0] as string,
+              type: row[1] as "file" | "chunk" | "workspace",
+              label: row[2] as string,
+            });
           }
-          
-          seenIds.add(nodeId);
-          nodes.push({
-            id: nodeId,
-            type: row[1] as "file" | "chunk" | "workspace",
-            label: row[2] as string,
-          });
+
+          // Buscar arestas de saída (onde este nó é source)
+          const outEdges = this.db.exec(`SELECT id, from_id, to_id, type FROM edges WHERE from_id = ?`, [nodeId]);
+          if (outEdges.length > 0 && outEdges[0].values) {
+            for (const edgeRow of outEdges[0].values) {
+              const targetId = edgeRow[2] as string;
+              edges.push({
+                id: `edge-${edgeRow[0]}`,
+                source: edgeRow[1] as string,
+                target: targetId,
+                type: edgeRow[3] as string,
+                label: edgeRow[3] as string,
+              });
+              
+              // Adicionar target ao próximo nível se não foi visitado
+              if (!visited.has(targetId) && level < depth) {
+                nextLevel.add(targetId);
+              }
+            }
+          }
+
+          // Buscar arestas de entrada (onde este nó é target) - opcional, para grafo bidirecional
+          const inEdges = this.db.exec(`SELECT id, from_id, to_id, type FROM edges WHERE to_id = ?`, [nodeId]);
+          if (inEdges.length > 0 && inEdges[0].values) {
+            for (const edgeRow of inEdges[0].values) {
+              const sourceId = edgeRow[1] as string;
+              edges.push({
+                id: `edge-${edgeRow[0]}`,
+                source: sourceId,
+                target: edgeRow[2] as string,
+                type: edgeRow[3] as string,
+                label: edgeRow[3] as string,
+              });
+              
+              // Adicionar source ao próximo nível se não foi visitado
+              if (!visited.has(sourceId) && level < depth) {
+                nextLevel.add(sourceId);
+              }
+            }
+          }
+
+          // Verificar se atingimos o limite de nós
+          if (nodes.length >= maxNodes) {
+            console.warn(`⚠️ SQLite: Reached maxNodes limit (${maxNodes})`);
+            break;
+          }
         }
+
+        currentLevel = Array.from(nextLevel);
         
-        if (duplicateCount > 0) {
-          console.warn(`⚠️ SQLite: Found ${duplicateCount} duplicate nodes in query result`);
-        }
+        if (nodes.length >= maxNodes) break;
       }
 
-      const edgeResult = this.db.exec(`SELECT id, from_id, to_id, type FROM edges`);
-      if (edgeResult.length > 0 && edgeResult[0].values) {
-        for (const row of edgeResult[0].values) {
-          edges.push({
-            id: `edge-${row[0]}`,
-            source: row[1] as string,
-            target: row[2] as string,
-            type: row[3] as string,
-            label: row[3] as string,
-          });
+      console.log(`✅ SQLite: Loaded ${nodes.length} nodes and ${edges.length} edges (depth=${depth})`);
+      
+      // Remover arestas duplicadas
+      const uniqueEdges = new Map<string, typeof edges[0]>();
+      edges.forEach(edge => {
+        const key = `${edge.source}->${edge.target}:${edge.type}`;
+        if (!uniqueEdges.has(key)) {
+          uniqueEdges.set(key, edge);
         }
-      }
+      });
 
-      console.log(`✅ SQLite: Loaded ${nodes.length} unique nodes (deduplicated), ${edges.length} edges`);
-      return { nodes, edges };
+      return { nodes, edges: Array.from(uniqueEdges.values()) };
     } catch (error) {
       console.error("❌ SQLite getSubgraph error:", error);
       return { nodes: [], edges: [] };
