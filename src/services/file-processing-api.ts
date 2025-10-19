@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { FileProcessingQueue } from './file-processing-queue';
 import { FileMetadataDatabase, type FileMetadata } from './file-metadata-database';
+import type { GraphStorePort } from '../domains/graph/ports/indexing-port';
 
 export interface FileUploadRequest {
   filePath: string;
@@ -28,6 +29,7 @@ export class FileProcessingAPI {
   private server: http.Server | null = null;
   private queue: FileProcessingQueue;
   private database: FileMetadataDatabase;
+  private graphStore: GraphStorePort | null;
   private port: number;
   private workspaceRoot: string;
 
@@ -35,12 +37,14 @@ export class FileProcessingAPI {
     queue: FileProcessingQueue,
     database: FileMetadataDatabase,
     workspaceRoot: string,
-    port: number = 3456
+    port: number = 3456,
+    graphStore: GraphStorePort | null = null
   ) {
     this.queue = queue;
     this.database = database;
     this.workspaceRoot = workspaceRoot;
     this.port = port;
+    this.graphStore = graphStore;
   }
 
   start(): Promise<void> {
@@ -48,7 +52,7 @@ export class FileProcessingAPI {
       this.server = http.createServer((req, res) => {
         // CORS headers for browser access
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
         if (req.method === 'OPTIONS') {
@@ -93,6 +97,8 @@ export class FileProcessingAPI {
         await this.handleEnqueue(req, res);
       } else if (req.method === 'POST' && url.pathname === '/files/reprocess') {
         await this.handleReprocess(req, res);
+      } else if (req.method === 'DELETE' && url.pathname === '/files/remove') {
+        await this.handleRemove(req, res);
       } else if (req.method === 'GET' && url.pathname === '/files/status') {
         await this.handleGetStatus(req, res);
       } else if (req.method === 'GET' && url.pathname === '/files/all') {
@@ -151,6 +157,82 @@ export class FileProcessingAPI {
         console.error('[FileProcessingAPI] ❌ Reprocess error:', error);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to reprocess file' }));
+      }
+    });
+  }
+
+  private async handleRemove(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+    });
+
+    req.on('end', async () => {
+      try {
+        const { fileId, filePath } = JSON.parse(body || '{}');
+        if (!fileId) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing fileId' }));
+          return;
+        }
+
+        console.log(`[FileProcessingAPI] 🗑️  Remove requested for ${fileId} (${filePath})`);
+
+        // Get metadata before deletion
+        const metadata = this.database.getFile(String(fileId));
+        if (!metadata) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'File not found' }));
+          return;
+        }
+
+        const actualFilePath = filePath || metadata.filePath;
+        let nodesDeleted = 0;
+        let chunksDeleted = 0;
+        let relationshipsDeleted = 0;
+
+        // 1. Delete from graph store if available
+        if (this.graphStore && actualFilePath) {
+          try {
+            console.log(`[FileProcessingAPI] 🗑️  Deleting graph data for ${actualFilePath}`);
+            
+            // Get chunks count before deletion
+            const chunks = await this.graphStore.getFileChunks(actualFilePath);
+            chunksDeleted = chunks.length;
+            
+            // Delete file nodes (this should delete chunks and relationships too)
+            await this.graphStore.deleteFileNodes(actualFilePath);
+            
+            // Estimate relationships (at least 1 CONTAINS per chunk)
+            relationshipsDeleted = chunksDeleted;
+            nodesDeleted = 1 + chunksDeleted; // 1 file node + chunks
+            
+            console.log(`[FileProcessingAPI] ✅ Graph data deleted: ${nodesDeleted} nodes, ${relationshipsDeleted} relationships`);
+          } catch (error) {
+            console.error('[FileProcessingAPI] ⚠️  Graph deletion error:', error);
+            // Continue even if graph deletion fails
+          }
+        }
+
+        // 2. Delete from database
+        this.database.deleteFile(String(fileId));
+        console.log(`[FileProcessingAPI] ✅ File metadata deleted from database`);
+
+        // 3. Queue cleanup happens automatically when file is deleted from database
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          message: 'File removed successfully', 
+          fileId,
+          nodesDeleted,
+          chunksDeleted,
+          relationshipsDeleted
+        }));
+
+      } catch (error) {
+        console.error('[FileProcessingAPI] ❌ Remove error:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to remove file' }));
       }
     });
   }

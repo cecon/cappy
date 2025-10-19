@@ -211,8 +211,8 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
             console.warn('Could not attach graph refresh listener:', e);
         }
 
-        // Initialize and start API server
-        fileAPI = new FileProcessingAPI(fileQueue, fileDatabase, workspaceRoot, 3456);
+        // Initialize and start API server (pass graphStore for file removal)
+        fileAPI = new FileProcessingAPI(fileQueue, fileDatabase, workspaceRoot, 3456, graphStoreInstance);
         await fileAPI.start();
         console.log('✅ File processing API started on http://localhost:3456');
 
