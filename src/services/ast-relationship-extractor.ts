@@ -263,52 +263,6 @@ export class ASTRelationshipExtractor {
   }
 
   /**
-   * Extracts import statements (deprecated - use extractImportsWithResolution)
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private extractImports(ast: any): Array<{ source: string; specifiers: string[] }> {
-    const imports: Array<{ source: string; specifiers: string[] }> = [];
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const visit = (node: any) => {
-      if (!node) return;
-
-      if (node.type === 'ImportDeclaration') {
-        const source = node.source?.value;
-        const specifiers: string[] = [];
-
-        if (node.specifiers) {
-          for (const spec of node.specifiers) {
-            if (spec.imported?.name) {
-              specifiers.push(spec.imported.name);
-            } else if (spec.local?.name) {
-              specifiers.push(spec.local.name);
-            }
-          }
-        }
-
-        if (source) {
-          imports.push({ source, specifiers });
-        }
-      }
-
-      // Recursively visit children
-      for (const key in node) {
-        if (key !== 'parent' && typeof node[key] === 'object') {
-          if (Array.isArray(node[key])) {
-            node[key].forEach(visit);
-          } else {
-            visit(node[key]);
-          }
-        }
-      }
-    };
-
-    visit(ast);
-    return imports;
-  }
-
-  /**
    * Extracts export statements
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

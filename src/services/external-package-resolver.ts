@@ -215,6 +215,7 @@ export class ExternalPackageResolver {
   /**
    * Resolves from lockfile (pnpm, npm, yarn, bun)
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async resolveFromLockfile(name: string, _fromFile: string): Promise<PackageResolution | null> {
     const lockfile = await this.loadLockfile();
     if (!lockfile) return null;

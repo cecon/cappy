@@ -102,17 +102,8 @@ describe('Graph Relationship Depth Test', () => {
     const chunks = await parserService.parseFile(fooBarPath);
     console.log(`📦 Parsed ${chunks.length} chunks from FooBar.ts`);
 
-    for (const chunk of chunks) {
-      await graphStore.createChunkNode({
-        id: chunk.id,
-        filePath: fooBarPath,
-        lineStart: chunk.lineStart,
-        lineEnd: chunk.lineEnd,
-        chunkType: chunk.type,
-        symbolName: chunk.symbolName,
-        symbolKind: chunk.symbolKind
-      });
-    }
+    // Create chunk nodes using the correct API
+    await graphStore.createChunkNodes(chunks);
 
     // Verify chunks were created
     const SQL = await initSqlJs();
@@ -150,11 +141,11 @@ describe('Graph Relationship Depth Test', () => {
         continue;
       }
 
-      await graphStore.createRelationship({
-        sourceId: fromPath,
-        targetId: toPath,
+      await graphStore.createRelationships([{
+        from: fromPath,
+        to: toPath,
         type: dep.type
-      });
+      }]);
 
       console.log(`🔗 Created relationship: ${dep.from} -> ${dep.to}`);
     }

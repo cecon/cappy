@@ -103,9 +103,14 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage('Graph store not initialized');
             return;
         }
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+            vscode.window.showErrorMessage('No workspace folder open');
+            return;
+        }
         const { diagnoseGraph } = await import('./commands/diagnose-graph.js');
         const outputChannel = vscode.window.createOutputChannel('Cappy Graph Diagnostics');
-        await diagnoseGraph(graphStore, outputChannel);
+        await diagnoseGraph(graphStore, outputChannel, workspaceRoot);
     });
     context.subscriptions.push(diagnoseCommand);
     console.log('✅ Registered command: cappy.diagnoseGraph');

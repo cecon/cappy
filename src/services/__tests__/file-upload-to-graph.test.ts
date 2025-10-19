@@ -33,14 +33,14 @@ const SAMPLE_TS = `/**
 export function add(a: number, b: number): number { return a + b }
 `;
 
-interface TestEnv { root: string; dbPath: string; graphDir: string; apiPort: number }
+interface TestEnv { root: string; dbPath: string; graphDir: string; apiPort: number; workspace: string }
 
 function createEnv(): TestEnv {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cappy-upload-'));
   const dbPath = path.join(root, 'file-metadata.db');
   const graphDir = path.join(root, '.cappy', 'data');
   const apiPort = 4567; // test port
-  return { root, dbPath, graphDir, apiPort };
+  return { root, dbPath, graphDir, apiPort, workspace: root };
 }
 
 async function waitFor(condition: () => boolean | Promise<boolean>, timeoutMs = 20000, intervalMs = 200): Promise<void> {
@@ -79,7 +79,7 @@ describe('Upload -> Nodes/Relationships (API integration)', () => {
     graph = new SQLiteAdapter(env.graphDir);
     await graph.initialize();
   const embed = new MockEmbeddingService() as unknown as import('../embedding-service').EmbeddingService;
-  const indexing = new IndexingService(null as unknown as import('../../domains/graph/ports/indexing-port').VectorStorePort, graph, embed);
+  const indexing = new IndexingService(null as unknown as import('../../domains/graph/ports/indexing-port').VectorStorePort, graph, embed, env.workspace);
 
     // Worker + queue
     const worker = new FileProcessingWorker(parser, hasher, indexing);
