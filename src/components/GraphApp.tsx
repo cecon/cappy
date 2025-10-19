@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Tabs, TabsContent } from './ui/Tabs';
 import Header from './layout/Header';
-import './WebUI.css';
 import DocumentsPage from './pages/DocumentsPage';
 import GraphPage from './pages/GraphPage';
 import RetrievalPage from './pages/RetrievalPage';

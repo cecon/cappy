@@ -74,7 +74,7 @@ export class SQLiteAdapter implements GraphStorePort {
         console.log(`📁 Loaded existing database`);
       }
 
-  this.db = new SQL.Database(buffer);
+      this.db = new SQL.Database(buffer);
       this.db.run("PRAGMA foreign_keys = ON");
 
       this.createSchema();
@@ -159,12 +159,30 @@ export class SQLiteAdapter implements GraphStorePort {
     try {
       const result = this.db.exec(`SELECT id, type, label FROM nodes LIMIT ${maxNodes}`);
       if (result.length > 0 && result[0].values) {
+        // Usar Set para detectar IDs duplicados
+        const seenIds = new Set<string>();
+        let duplicateCount = 0;
+        
         for (const row of result[0].values) {
+          const nodeId = row[0] as string;
+          
+          // Detectar duplicatas
+          if (seenIds.has(nodeId)) {
+            duplicateCount++;
+            console.warn(`⚠️ SQLite: Duplicate node ID detected: ${nodeId}`);
+            continue; // Pular duplicatas
+          }
+          
+          seenIds.add(nodeId);
           nodes.push({
-            id: row[0] as string,
+            id: nodeId,
             type: row[1] as "file" | "chunk" | "workspace",
             label: row[2] as string,
           });
+        }
+        
+        if (duplicateCount > 0) {
+          console.warn(`⚠️ SQLite: Found ${duplicateCount} duplicate nodes in query result`);
         }
       }
 
@@ -181,7 +199,7 @@ export class SQLiteAdapter implements GraphStorePort {
         }
       }
 
-      console.log(`✅ SQLite: Loaded ${nodes.length} nodes, ${edges.length} edges`);
+      console.log(`✅ SQLite: Loaded ${nodes.length} unique nodes (deduplicated), ${edges.length} edges`);
       return { nodes, edges };
     } catch (error) {
       console.error("❌ SQLite getSubgraph error:", error);
@@ -323,20 +341,47 @@ export class SQLiteAdapter implements GraphStorePort {
   }
 
   getStats() {
-    if (!this.db) return { fileNodes: 0, chunkNodes: 0, relationships: 0 };
+    if (!this.db) return { fileNodes: 0, chunkNodes: 0, relationships: 0, duplicates: 0 };
 
     try {
       const fileResult = this.db.exec(`SELECT COUNT(*) FROM nodes WHERE type = 'file'`);
       const chunkResult = this.db.exec(`SELECT COUNT(*) FROM nodes WHERE type = 'chunk'`);
       const edgeResult = this.db.exec(`SELECT COUNT(*) FROM edges`);
+      
+      // Verificar duplicatas (não deveria haver, mas vamos checar)
+      const dupResult = this.db.exec(`
+        SELECT COUNT(*) as dup_count 
+        FROM (
+          SELECT id, COUNT(*) as count 
+          FROM nodes 
+          GROUP BY id 
+          HAVING count > 1
+        )
+      `);
+      
+      const duplicates = dupResult[0]?.values[0]?.[0] as number || 0;
+      
+      if (duplicates > 0) {
+        console.warn(`⚠️ SQLite: Database contains ${duplicates} duplicate IDs!`);
+        // Log quais são os IDs duplicados
+        const dupIds = this.db.exec(`
+          SELECT id, COUNT(*) as count 
+          FROM nodes 
+          GROUP BY id 
+          HAVING count > 1
+        `);
+        console.warn('⚠️ Duplicate IDs:', dupIds[0]?.values);
+      }
 
       return {
         fileNodes: fileResult[0]?.values[0][0] as number || 0,
         chunkNodes: chunkResult[0]?.values[0][0] as number || 0,
         relationships: edgeResult[0]?.values[0][0] as number || 0,
+        duplicates: duplicates,
       };
-    } catch {
-      return { fileNodes: 0, chunkNodes: 0, relationships: 0 };
+    } catch (error) {
+      console.error('❌ SQLite getStats error:', error);
+      return { fileNodes: 0, chunkNodes: 0, relationships: 0, duplicates: 0 };
     }
   }
 

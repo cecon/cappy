@@ -86,6 +86,11 @@
         "command": "cappy.reanalyzeRelationships",
         "title": "🔄 Cappy: Reanalyze All Relationships",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.diagnoseGraph",
+        "title": "🔍 Cappy: Diagnose Graph Structure",
+        "category": "Cappy"
       }
     ],
     "viewsContainers": {

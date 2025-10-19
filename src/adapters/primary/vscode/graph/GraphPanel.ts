@@ -147,9 +147,8 @@ export class GraphPanel {
             const graphStore = svc.graphStore;
             if (graphStore && typeof graphStore.getSubgraph === 'function') {
                 // Attempt to reload from disk if adapter exposes it (sql.js snapshot)
-                const maybeReload = (graphStore as unknown as { reloadFromDisk?: () => Promise<void> }).reloadFromDisk;
-                if (typeof maybeReload === 'function') {
-                    await maybeReload();
+                if (typeof (graphStore as unknown as { reloadFromDisk?: () => Promise<void> }).reloadFromDisk === 'function') {
+                    await (graphStore as unknown as { reloadFromDisk: () => Promise<void> }).reloadFromDisk();
                 }
                 const sub = await graphStore.getSubgraph(undefined, Math.min(10, Math.max(0, depth)));
                 this.sendMessage({ type: 'subgraph', nodes: sub.nodes, edges: sub.edges });

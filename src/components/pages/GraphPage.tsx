@@ -25,9 +25,15 @@ const GraphPage: React.FC = () => {
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      const message = event.data as { type?: string; exists?: boolean; created?: boolean; path?: string; nodes?: Array<{ id: string; label: string }>; edges?: Array<{ id: string; source: string; target: string; label?: string }> };
+      const message = event.data as { type?: string; error?: string; exists?: boolean; created?: boolean; path?: string; nodes?: Array<{ id: string; label: string }>; edges?: Array<{ id: string; source: string; target: string; label?: string }> };
       console.log('[GraphPage] Received message:', message);
       console.log('[GraphPage] Message type:', message?.type);
+      
+      if (message?.type === 'error') {
+        console.error('[GraphPage] ERROR FROM BACKEND:', message.error);
+        alert(`Graph Error: ${message.error}`);
+        return;
+      }
       
       if (message?.type === 'db-status') {
         console.log('[GraphPage] Setting DB status:', message);
@@ -37,6 +43,23 @@ const GraphPage: React.FC = () => {
       if (message?.type === 'subgraph') {
         console.log('[GraphPage] Setting graph with', message.nodes?.length, 'nodes and', message.edges?.length, 'edges');
         if (message.nodes && message.edges) {
+          // Detectar nós duplicados antes de setar
+          const nodeIds = message.nodes.map(n => n.id);
+          const uniqueNodeIds = new Set(nodeIds);
+          if (nodeIds.length !== uniqueNodeIds.size) {
+            const duplicates = nodeIds.length - uniqueNodeIds.size;
+            console.warn(`⚠️ [GraphPage] Received ${duplicates} duplicate nodes from backend!`);
+            // Log os IDs duplicados
+            const seen = new Set<string>();
+            const dups: string[] = [];
+            nodeIds.forEach(id => {
+              if (seen.has(id)) {
+                dups.push(id);
+              }
+              seen.add(id);
+            });
+            console.warn('⚠️ [GraphPage] Duplicate node IDs:', dups);
+          }
           setGraph({ nodes: message.nodes, edges: message.edges });
         }
       } else if (message?.nodes && message?.edges) {
@@ -58,7 +81,10 @@ const GraphPage: React.FC = () => {
   };
 
   const loadGraph = (depth: number) => {
-    vscodeApi?.postMessage({ type: 'load-subgraph', depth: Math.min(10, Math.max(0, depth)) });
+    console.log('[GraphPage] loadGraph called with depth:', depth);
+    const finalDepth = Math.min(10, Math.max(0, depth));
+    console.log('[GraphPage] Sending load-subgraph with depth:', finalDepth);
+    vscodeApi?.postMessage({ type: 'load-subgraph', depth: finalDepth });
   };
 
   const handleAutoRefresh = () => {

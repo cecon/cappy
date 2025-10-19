@@ -91,6 +91,19 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(reanalyzeCommand);
     console.log('✅ Registered command: cappy.reanalyzeRelationships');
 
+    // Register diagnose graph command
+    const diagnoseCommand = vscode.commands.registerCommand('cappy.diagnoseGraph', async () => {
+        if (!graphStore) {
+            vscode.window.showErrorMessage('Graph store not initialized');
+            return;
+        }
+        const { diagnoseGraph } = await import('./commands/diagnose-graph');
+        const outputChannel = vscode.window.createOutputChannel('Cappy Graph Diagnostics');
+        await diagnoseGraph(graphStore, outputChannel);
+    });
+    context.subscriptions.push(diagnoseCommand);
+    console.log('✅ Registered command: cappy.diagnoseGraph');
+
     // Create chat service with LangGraph engine (includes tools)
     const chatEngine = new LangGraphChatEngine();
     const chatService = createChatService(chatEngine);

@@ -92,6 +92,23 @@ export interface GraphStorePort {
   getFileChunks(filePath: string): Promise<Array<{ id: string; type: string; label: string }>>;
 
   /**
+   * Gets statistics about the graph
+   */
+  getStats(): { fileNodes: number; chunkNodes: number; relationships: number; duplicates?: number };
+
+  /**
+   * Gets a subgraph starting from seeds with given depth
+   */
+  getSubgraph(
+    seeds: string[] | undefined,
+    depth: number,
+    maxNodes?: number
+  ): Promise<{
+    nodes: Array<{ id: string; label: string; type: "file" | "chunk" | "workspace" }>;
+    edges: Array<{ id: string; source: string; target: string; label?: string; type: string }>;
+  }>;
+
+  /**
    * Closes the connection
    */
   close(): Promise<void>;

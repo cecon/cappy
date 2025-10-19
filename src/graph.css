@@ -1,7 +1,5 @@
-/* Graph-specific styles - isolated from main app */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Graph-specific entry point - imports everything needed */
+@import './index.css';
 
 /* Graph page specific overrides */
 body {
