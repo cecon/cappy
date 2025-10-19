@@ -30,6 +30,7 @@ export interface FileMetadata {
   fileName: string;
   fileSize: number;
   fileHash: string;
+  fileContent?: string; // Base64 encoded content for uploaded files
   status: FileProcessingStatus;
   progress: number;
   currentStep?: string;
@@ -111,6 +112,34 @@ export class FileMetadataDatabase {
   private createTables(): void {
     if (!this.db) throw new Error('Database not initialized');
     
+    // Check if table exists first
+    const tableExistsResult = this.db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='file_metadata'`);
+    const tableExists = tableExistsResult.length > 0 && tableExistsResult[0].values.length > 0;
+    
+    if (tableExists) {
+      // Table exists, check if migration is needed
+      const columnsResult = this.db.exec(`PRAGMA table_info(file_metadata)`);
+      const hasFileContent = columnsResult.length > 0 
+        && columnsResult[0].values.some(row => row[1] === 'file_content');
+      
+      if (!hasFileContent) {
+        console.log('⚠️ Old schema detected, adding file_content column...');
+        try {
+          this.db.run(`ALTER TABLE file_metadata ADD COLUMN file_content TEXT`);
+          console.log('✅ Migration complete: file_content column added');
+          this.save(); // Save immediately after migration
+        } catch (error) {
+          console.error('❌ Migration failed:', error);
+          throw error;
+        }
+      } else {
+        console.log('✅ file_content column exists, schema is up to date');
+      }
+    } else {
+      // Table doesn't exist, create it with full schema
+      console.log('📋 Creating file_metadata table with current schema...');
+    }
+    
     this.db.run(`
       CREATE TABLE IF NOT EXISTS file_metadata (
         id TEXT PRIMARY KEY,
@@ -118,6 +147,7 @@ export class FileMetadataDatabase {
         file_name TEXT NOT NULL,
         file_size INTEGER NOT NULL,
         file_hash TEXT NOT NULL,
+        file_content TEXT,
         status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
         progress INTEGER DEFAULT 0,
         current_step TEXT,
@@ -150,17 +180,18 @@ export class FileMetadataDatabase {
     
     this.db.run(
       `INSERT INTO file_metadata (
-        id, file_path, file_name, file_size, file_hash, status, progress,
+        id, file_path, file_name, file_size, file_hash, file_content, status, progress,
         current_step, error_message, retry_count, max_retries,
         created_at, updated_at, processing_started_at, processing_completed_at,
         chunks_count, nodes_count, relationships_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         metadata.id,
         metadata.filePath,
         metadata.fileName,
         metadata.fileSize,
         metadata.fileHash,
+        metadata.fileContent || null,
         metadata.status,
         metadata.progress || 0,
         metadata.currentStep || null,
@@ -440,6 +471,7 @@ export class FileMetadataDatabase {
       fileName: String(obj.file_name),
       fileSize: Number(obj.file_size),
       fileHash: String(obj.file_hash),
+      fileContent: obj.file_content ? String(obj.file_content) : undefined,
       status: String(obj.status) as FileProcessingStatus,
       progress: Number(obj.progress),
       currentStep: obj.current_step ? String(obj.current_step) : undefined,

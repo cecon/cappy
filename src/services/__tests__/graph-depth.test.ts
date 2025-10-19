@@ -11,12 +11,10 @@ import * as fs from 'fs';
 import initSqlJs from 'sql.js';
 import { SQLiteAdapter } from '../../adapters/secondary/graph/sqlite-adapter';
 import { ParserService } from '../parser-service';
-import { FileHashService } from '../file-hash-service';
 
 describe('Graph Relationship Depth Test', () => {
   let graphStore: SQLiteAdapter;
   let parserService: ParserService;
-  let hashService: FileHashService;
   let dbPath: string;
 
   beforeAll(async () => {
@@ -33,7 +31,6 @@ describe('Graph Relationship Depth Test', () => {
     await graphStore.initialize();
     
     parserService = new ParserService();
-    hashService = new FileHashService();
     
     console.log('✅ Test environment initialized');
   });
@@ -70,9 +67,12 @@ describe('Graph Relationship Depth Test', () => {
       }
 
       const content = fs.readFileSync(filePath, 'utf-8');
-      const hash = await hashService.hashFile(filePath);
       
-      await graphStore.createFileNode(filePath, 'typescript', content.split('\n').length);
+      await graphStore.createFileNode(
+        filePath,
+        'typescript',
+        content.split('\n').length
+      );
 
       console.log(`✅ Created file node: ${path.basename(file)}`);
     }
@@ -176,7 +176,7 @@ describe('Graph Relationship Depth Test', () => {
       WHERE n.type = 'file'
         AND n.label LIKE '%FooBar.ts%'
         AND NOT EXISTS (
-          SELECT 1 FROM edges e WHERE e.target_id = n.id
+          SELECT 1 FROM edges e WHERE e.to_id = n.id
         )
       LIMIT 1
     `);
@@ -205,9 +205,9 @@ describe('Graph Relationship Depth Test', () => {
       
       // Get children
       const childrenQuery = db.exec(`
-        SELECT DISTINCT target_id
+        SELECT DISTINCT to_id
         FROM edges
-        WHERE source_id = ? AND type = 'imports'
+        WHERE from_id = ? AND type = 'imports'
       `, [id]);
       
       if (childrenQuery.length > 0 && childrenQuery[0].values.length > 0) {

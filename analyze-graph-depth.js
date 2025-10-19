@@ -14,9 +14,6 @@ async function analyzeGraphDepth() {
     if (!fs.existsSync(dbPath)) {
       dbPath = path.join(workspaceRoot, '.cappy', 'data', 'kuzu', 'graph-store.db');
     }
-    if (!fs.existsSync(dbPath)) {
-      dbPath = path.join(workspaceRoot, '.cappy', 'data', 'graph.db');
-    }
 
     console.log('🔍 Analyzing graph database at:', dbPath);
 

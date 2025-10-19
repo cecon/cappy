@@ -246,7 +246,8 @@ describe('File Processing Integration Test (SQLite Only)', () => {
     // Initialize worker
     const worker = new FileProcessingWorker(
       parserService,
-      hashService
+      hashService,
+      workspace.rootDir
     );
     console.log('  ✓ Worker initialized');
 
@@ -369,7 +370,8 @@ describe('File Processing Integration Test (SQLite Only)', () => {
 
     const worker = new FileProcessingWorker(
       parserService,
-      hashService
+      hashService,
+      workspace.rootDir
     );
 
     queue = new FileProcessingQueue(database, worker, {

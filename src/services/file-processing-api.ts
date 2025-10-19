@@ -1,8 +1,6 @@
 import * as http from 'http';
-import * as fs from 'fs';
-import * as path from 'path';
-import { FileProcessingQueue } from './file-processing-queue';
-import { FileMetadataDatabase, type FileMetadata } from './file-metadata-database';
+import type { FileProcessingQueue } from './file-processing-queue';
+import type { FileMetadataDatabase, FileMetadata } from './file-metadata-database';
 import type { GraphStorePort } from '../domains/graph/ports/indexing-port';
 
 export interface FileUploadRequest {
@@ -31,18 +29,16 @@ export class FileProcessingAPI {
   private database: FileMetadataDatabase;
   private graphStore: GraphStorePort | null;
   private port: number;
-  private workspaceRoot: string;
 
   constructor(
     queue: FileProcessingQueue,
     database: FileMetadataDatabase,
-    workspaceRoot: string,
+    _workspaceRoot: string, // kept for compatibility but no longer used
     port: number = 3456,
     graphStore: GraphStorePort | null = null
   ) {
     this.queue = queue;
     this.database = database;
-    this.workspaceRoot = workspaceRoot;
     this.port = port;
     this.graphStore = graphStore;
   }
@@ -103,6 +99,8 @@ export class FileProcessingAPI {
         await this.handleGetStatus(req, res);
       } else if (req.method === 'GET' && url.pathname === '/files/all') {
         await this.handleGetAllFiles(req, res);
+      } else if (req.method === 'POST' && url.pathname === '/files/clear') {
+        await this.handleClearAll(req, res);
       } else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not found' }));
@@ -249,28 +247,26 @@ export class FileProcessingAPI {
         const uploadRequest: FileUploadRequest = JSON.parse(body);
         console.log('[FileProcessingAPI] File:', uploadRequest.fileName);
         
-        // Save uploaded file to temp location
-        const tempDir = path.join(this.workspaceRoot, '.cappy', 'temp');
-        if (!fs.existsSync(tempDir)) {
-          console.log('[FileProcessingAPI] Creating temp directory:', tempDir);
-          fs.mkdirSync(tempDir, { recursive: true });
-        }
-
-        const tempFilePath = path.join(tempDir, uploadRequest.fileName);
-        console.log('[FileProcessingAPI] Saving to:', tempFilePath);
-        
+        // Calculate hash directly from base64 content
         const fileContent = Buffer.from(uploadRequest.content, 'base64');
-        fs.writeFileSync(tempFilePath, fileContent);
-        console.log('[FileProcessingAPI] File saved, size:', fileContent.length, 'bytes');
-
-        // Calculate hash
+        console.log('[FileProcessingAPI] File size:', fileContent.length, 'bytes');
+        
         const crypto = await import('crypto');
         const hash = crypto.createHash('sha256').update(fileContent).digest('hex');
         console.log('[FileProcessingAPI] File hash:', hash);
 
-        // Enqueue file for processing
-        console.log('[FileProcessingAPI] Enqueueing file...');
-        const fileId = await this.queue.enqueue(tempFilePath, hash);
+        // Use virtual path for uploaded files (no temp folder needed)
+        const virtualPath = `uploaded:${uploadRequest.fileName}`;
+        
+        // Enqueue file with content stored in metadata
+        console.log('[FileProcessingAPI] Enqueueing file with embedded content...');
+        const fileId = await this.queue.enqueueWithContent(
+          virtualPath,
+          uploadRequest.fileName,
+          hash,
+          uploadRequest.content, // Keep as base64
+          fileContent.length
+        );
         console.log('[FileProcessingAPI] ✅ File enqueued with ID:', fileId);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -382,7 +378,10 @@ export class FileProcessingAPI {
         status: metadata.status === 'cancelled' ? 'failed' : metadata.status,
         progress,
         summary,
-        error: metadata.errorMessage || undefined,
+        // Only include error message for failed/cancelled files, not for completed ones
+        error: (metadata.status === 'failed' || metadata.status === 'cancelled') 
+          ? metadata.errorMessage || undefined 
+          : undefined,
         chunksCount: metadata.chunksCount,
         nodesCount: metadata.nodesCount,
         relationshipsCount: metadata.relationshipsCount,
@@ -392,5 +391,29 @@ export class FileProcessingAPI {
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(statusResponses));
+  }
+
+  private async handleClearAll(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    try {
+      console.log('[FileProcessingAPI] 🗑️ Clearing all files from database');
+      
+      // Clear all files from database
+      this.database.clearAll();
+      
+      console.log('[FileProcessingAPI] ✅ All files cleared from database');
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true, 
+        message: 'All files cleared successfully' 
+      }));
+    } catch (error) {
+      console.error('[FileProcessingAPI] ❌ Error clearing files:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }));
+    }
   }
 }

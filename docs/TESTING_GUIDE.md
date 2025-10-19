@@ -176,7 +176,7 @@ Cross-file references: 180  ← Conectados!
 ## 🐛 Troubleshooting
 
 ### Database não reseta?
-- Verifique se `.cappy/data/graph.db` existe
+- Verifique se `.cappy/data/graph.store.db` existe
 - Tente deletar manualmente o arquivo
 - Recarregue a extensão
 

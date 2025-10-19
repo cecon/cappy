@@ -171,8 +171,24 @@ const DocumentsPage: React.FC = () => {
           break;
         }
         case 'document/clear-confirmed': {
-          // Proceed with clearing all documents
-          setDocuments([]);
+          // Call API to clear all files from database
+          console.log('[DocumentsPage] Clearing all documents...');
+          fetch('http://localhost:3456/files/clear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+            .then(response => response.json())
+            .then(result => {
+              if (result.success) {
+                console.log('[DocumentsPage] ✅ All files cleared from database');
+                setDocuments([]);
+              } else {
+                console.error('[DocumentsPage] ❌ Failed to clear files:', result.error);
+              }
+            })
+            .catch(error => {
+              console.error('[DocumentsPage] ❌ Error clearing files:', error);
+            });
           break;
         }
         case 'document/cleared': {

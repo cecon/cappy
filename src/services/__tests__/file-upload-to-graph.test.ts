@@ -82,7 +82,7 @@ describe('Upload -> Nodes/Relationships (API integration)', () => {
   const indexing = new IndexingService(null as unknown as import('../../domains/graph/ports/indexing-port').VectorStorePort, graph, embed, env.workspace);
 
     // Worker + queue
-    const worker = new FileProcessingWorker(parser, hasher, indexing);
+    const worker = new FileProcessingWorker(parser, hasher, env.workspace, indexing, graph);
     queue = new FileProcessingQueue(db, worker, { concurrency: 1, maxRetries: 1, autoStart: true });
 
     // API

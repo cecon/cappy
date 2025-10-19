@@ -282,7 +282,23 @@ export class SQLiteAdapter implements GraphStorePort {
   ): Promise<void> {
     if (!this.db) throw new Error("SQLite not initialized");
 
+    if (relationships.length === 0) {
+      console.log(`⚠️ SQLite: createRelationships called with 0 relationships`);
+      return;
+    }
+
+    console.log(`📊 SQLite: Creating ${relationships.length} relationships...`);
+    
+    // Log first few relationships for debugging
+    if (relationships.length > 0) {
+      console.log(`   Sample relationships:`);
+      relationships.slice(0, 3).forEach((rel, i) => {
+        console.log(`   ${i + 1}. ${rel.type}: ${rel.from} -> ${rel.to}`);
+      });
+    }
+
     let pkgNodesCreated = 0;
+    let edgesCreated = 0;
 
     for (const rel of relationships) {
       // Auto-create package nodes for IMPORTS_PKG relationships
@@ -303,20 +319,26 @@ export class SQLiteAdapter implements GraphStorePort {
       }
 
       const properties = rel.properties ? JSON.stringify(rel.properties) : null;
-      this.db.run(`INSERT OR IGNORE INTO edges (from_id, to_id, type, properties) VALUES (?, ?, ?, ?)`, [
-        rel.from,
-        rel.to,
-        rel.type,
-        properties,
-      ]);
+      
+      try {
+        this.db.run(`INSERT OR IGNORE INTO edges (from_id, to_id, type, properties) VALUES (?, ?, ?, ?)`, [
+          rel.from,
+          rel.to,
+          rel.type,
+          properties,
+        ]);
+        edgesCreated++;
+      } catch (error) {
+        console.error(`❌ Failed to create edge: ${rel.type} from ${rel.from} to ${rel.to}`, error);
+      }
     }
 
     this.saveToFile();
     
     if (pkgNodesCreated > 0) {
-      console.log(`✅ SQLite: Created ${relationships.length} relationships (${pkgNodesCreated} package nodes auto-created)`);
+      console.log(`✅ SQLite: Created ${edgesCreated}/${relationships.length} relationships (${pkgNodesCreated} package nodes auto-created)`);
     } else {
-      console.log(`✅ SQLite: Created ${relationships.length} relationships`);
+      console.log(`✅ SQLite: Created ${edgesCreated}/${relationships.length} relationships`);
     }
   }
 

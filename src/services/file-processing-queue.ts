@@ -137,6 +137,63 @@ export class FileProcessingQueue extends EventEmitter {
   }
 
   /**
+   * Enqueues a file with embedded content (no physical file)
+   * Used for uploaded files stored directly in database
+   */
+  async enqueueWithContent(
+    virtualPath: string,
+    fileName: string,
+    fileHash: string,
+    base64Content: string,
+    fileSize: number
+  ): Promise<string> {
+    // Check if file already exists by path
+    const existing = this.database.getFileByPath(virtualPath);
+    if (existing) {
+      // If it's failed and retriable, reset it
+      if (existing.status === 'failed' && existing.retryCount < existing.maxRetries) {
+        this.database.updateFile(existing.id, {
+          status: 'pending',
+          errorMessage: undefined,
+          processingStartedAt: undefined
+        });
+        return existing.id;
+      }
+      // If it's completed, return existing ID
+      if (existing.status === 'completed') {
+        return existing.id;
+      }
+      // If it's pending or processing, return existing ID
+      return existing.id;
+    }
+
+    // Create new entry with embedded content
+    const fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    this.database.insertFile({
+      id: fileId,
+      filePath: virtualPath,
+      fileName,
+      fileSize,
+      fileHash,
+      fileContent: base64Content, // Store content in database
+      status: 'pending',
+      progress: 0,
+      retryCount: 0,
+      maxRetries: this.config.maxRetries
+    });
+
+    console.log(`📝 File enqueued with embedded content: ${fileName} (${fileId})`);
+    
+    // Trigger processing if queue is running
+    if (this.isRunning && !this.isPaused) {
+      this.processNext();
+    }
+
+    return fileId;
+  }
+
+  /**
    * Starts the queue processing
    */
   start(): void {
@@ -309,7 +366,7 @@ export class FileProcessingQueue extends EventEmitter {
 
       console.log(`[Queue] 📝 File marked as processing, calling worker...`);
 
-      // Process file with worker (with progress callback)
+      // Process file with worker (with progress callback and embedded content if available)
       const result = await this.worker.processFile(
         metadata.filePath,
         (step: string, progress: number) => {
@@ -323,7 +380,8 @@ export class FileProcessingQueue extends EventEmitter {
           if (updated) {
             this.emit('file:progress', updated);
           }
-        }
+        },
+        metadata.fileContent // Pass embedded content if available
       );
 
       console.log(`[Queue] ✅ Worker completed, updating database...`);
@@ -346,6 +404,7 @@ export class FileProcessingQueue extends EventEmitter {
           status: 'completed',
           progress: 100,
           currentStep: 'Completed',
+          errorMessage: undefined, // Clear any previous error messages
           processingCompletedAt: new Date().toISOString(),
           chunksCount: result.chunksCount,
           nodesCount: result.nodesCount,

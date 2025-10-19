@@ -202,9 +202,15 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         );
         console.log('✅ Indexing service initialized');
 
-        // Initialize worker WITH indexing service
-        const worker = new FileProcessingWorker(parserService, hashService, indexingService);
-        console.log('✅ File processing worker created (with indexing)');
+        // Initialize worker WITH indexing service and graph store
+        const worker = new FileProcessingWorker(
+            parserService,
+            hashService,
+            workspaceRoot,
+            indexingService,
+            graphStore
+        );
+        console.log('✅ File processing worker created (with indexing and graph store)');
 
         // Initialize queue
         fileQueue = new FileProcessingQueue(fileDatabase, worker, {

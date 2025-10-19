@@ -305,16 +305,23 @@ export class WorkspaceScanner {
     if (this.config.parserService.isSupported(fullPath)) {
       const chunks = await this.config.parserService.parseFile(fullPath);
       
+      console.log(`   📦 Extracted ${chunks.length} chunks from ${file.relPath}`);
+      
       if (chunks.length > 0) {
         // 4. Index with embeddings
         await this.config.indexingService.indexFile(file.relPath, language, chunks);
         
         // 5. Extract AST relationships
+        console.log(`   🕸️ Extracting AST relationships for ${file.relPath}...`);
         const relationships = await this.relationshipExtractor.extract(fullPath, chunks);
+        console.log(`   🔗 Extracted ${relationships.length} relationships`);
         
         // 6. Create relationships in graph
         if (relationships.length > 0) {
+          console.log(`   💾 Saving ${relationships.length} relationships to graph...`);
           await this.config.graphStore.createRelationships(relationships);
+        } else {
+          console.log(`   ⚠️ No relationships extracted for ${file.relPath}`);
         }
       }
     } else if (this.isConfigFile(file.relPath)) {
