@@ -13,6 +13,8 @@ import { DocumentsUploadRequestedUseCase } from './usecases/DocumentsUploadReque
 import { DocumentsUploadSelectedUseCase } from './usecases/DocumentsUploadSelectedUseCase';
 import { DocumentsScanWorkspaceUseCase } from './usecases/DocumentsScanWorkspaceUseCase';
 import { DocumentsConfigureSourcesUseCase } from './usecases/DocumentsConfigureSourcesUseCase';
+import { DocumentsConfirmRemoveUseCase } from './usecases/DocumentsConfirmRemoveUseCase';
+import { DocumentsConfirmClearUseCase } from './usecases/DocumentsConfirmClearUseCase';
 import { WebviewContentBuilder } from './WebviewContentBuilder';
 import { IndexingInitializer } from './IndexingInitializer';
 import { WorkspaceIndexer } from './WorkspaceIndexer';
@@ -106,6 +108,8 @@ export class GraphPanel {
             new DocumentsUploadSelectedUseCase(),
             new DocumentsScanWorkspaceUseCase(),
             new DocumentsConfigureSourcesUseCase(),
+            new DocumentsConfirmRemoveUseCase(),
+            new DocumentsConfirmClearUseCase(),
         ];
     }
 

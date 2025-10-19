@@ -165,8 +165,14 @@ const DocumentsPage: React.FC = () => {
           break;
         }
         case 'document/removed': {
-          const { id } = message.payload;
-          setDocuments(prev => prev.filter(d => d.id !== id));
+          const { fileId } = message;
+          console.log('[DocumentsPage] Removing document from UI:', fileId);
+          setDocuments(prev => prev.filter(d => d.id !== fileId));
+          break;
+        }
+        case 'document/clear-confirmed': {
+          // Proceed with clearing all documents
+          setDocuments([]);
           break;
         }
         case 'document/cleared': {
@@ -431,39 +437,10 @@ const DocumentsPage: React.FC = () => {
   };
 
   const removeDocument = async (fileId: string, filePath: string) => {
-    // Confirm deletion
-    if (!window.confirm(`Are you sure you want to remove this file?\n\nThis will:\n- Delete the file from the queue\n- Remove all chunks and nodes from the graph\n- Delete all relationships\n\nFile: ${filePath}`)) {
-      return;
-    }
-
     console.log('[DocumentsPage] Removing document:', fileId, filePath);
 
-    try {
-      // Call backend to remove file and clean graph data
-      const res = await fetch('http://localhost:3456/files/remove', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId, filePath })
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to remove file');
-      }
-
-      const result = await res.json();
-      console.log('[DocumentsPage] Remove result:', result);
-
-      // Remove from UI
-      setDocuments(prev => prev.filter(d => d.id !== fileId));
-
-      // Show success message
-      alert(`✅ File removed successfully!\n\nRemoved:\n- File metadata\n- ${result.nodesDeleted || 0} graph nodes\n- ${result.chunksDeleted || 0} chunks\n- ${result.relationshipsDeleted || 0} relationships`);
-
-    } catch (e) {
-      console.error('[DocumentsPage] Remove error:', e);
-      alert(`❌ Failed to remove file: ${String(e)}`);
-    }
+    // Use VSCode API for confirmation dialog
+    postMessage('document/confirm-remove', { fileId, filePath });
   };
 
   const handlePipeline = () => {
@@ -471,9 +448,7 @@ const DocumentsPage: React.FC = () => {
   };
 
   const handleClear = () => {
-    if (window.confirm('Are you sure you want to clear all documents?')) {
-      postMessage('document/clear');
-    }
+    postMessage('document/confirm-clear');
   };
 
   const handleRefresh = () => {
@@ -832,26 +807,27 @@ const DocumentsPage: React.FC = () => {
                               <td className="h-16 px-4 align-middle text-sm text-muted-foreground">{doc.updated}</td>
                               <td className="h-16 px-4 align-middle">
                                 <div className="flex items-center justify-center gap-2">
-                                  <Button
-                                    variant="outline"
-                                    className="h-8 px-2 text-xs"
-                                    onClick={() => toggleDocumentSelection(doc.id)}
+                                  <input
+                                    type="checkbox"
+                                    checked={doc.selected}
+                                    onChange={() => toggleDocumentSelection(doc.id)}
+                                    className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-0"
                                     title={doc.selected ? 'Unselect' : 'Select'}
-                                  >
-                                    {doc.selected ? 'Unselect' : 'Select'}
-                                  </Button>
+                                  />
                                   <Button
                                     variant="outline"
-                                    className="h-8 px-2 text-xs"
+                                    className="h-8 w-8 p-0"
                                     onClick={() => reprocessDocument(doc.id)}
                                     disabled={doc.status === 'processing' || doc.status === 'pending'}
                                     title="Reprocess"
                                   >
-                                    Reprocess
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
                                   </Button>
                                   <Button
-                                    variant="destructive"
-                                    className="h-8 px-2 text-xs"
+                                    variant="outline"
+                                    className="h-8 px-2 text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                                     onClick={() => removeDocument(doc.id, doc.filePath || doc.id)}
                                     disabled={doc.status === 'processing'}
                                     title="Remove file and clean graph data"
