@@ -66,7 +66,8 @@ export class IndexingInitializer {
     const indexingService = new IndexingService(
       null as unknown as VectorStorePort,
       graphStore,
-      embeddingService
+      embeddingService,
+      workspaceRoot
     );
 
     host.log('✅ Indexing services initialized');
