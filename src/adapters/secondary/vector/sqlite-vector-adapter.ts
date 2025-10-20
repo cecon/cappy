@@ -1,56 +1,50 @@
 /**
- * @fileoverview Unified vector store using SQLite + sqlite-vss
+ * @fileoverview SQLite-based vector store implementing VectorStorePort
  * @module adapters/secondary/vector/sqlite-vector-adapter
  * @author Cappy Team
  * @since 3.0.0
  */
 
 import type { DocumentChunk } from "../../../types/chunk";
+import type { VectorStorePort } from "../../../domains/graph/ports/indexing-port";
 import { SQLiteAdapter } from "../graph/sqlite-adapter";
 
 /**
- * Vector store interface matching LanceDB API for easy migration
- */
-export interface VectorStorePort {
-  addChunks(chunks: DocumentChunk[], embeddings: number[][]): Promise<void>;
-  search(
-    queryEmbedding: number[],
-    limit?: number
-  ): Promise<
-    Array<{
-      chunk: DocumentChunk;
-      score: number;
-    }>
-  >;
-  deleteByFilePath(filePath: string): Promise<void>;
-  close(): Promise<void>;
-}
-
-/**
- * SQLite-based vector store using sqlite-vss
- * Replaces LanceDB with single SQLite database
+ * SQLite-based vector store implementing VectorStorePort
+ * Uses the same SQLite database as the graph store
  */
 export class SQLiteVectorStore implements VectorStorePort {
   private graphStore: SQLiteAdapter;
+  private initialized: boolean = false;
 
   constructor(graphStore: SQLiteAdapter) {
     this.graphStore = graphStore;
   }
 
   /**
-   * Adds chunks with their embeddings to the vector store
+   * Initializes the vector store (no-op since graphStore is already initialized)
    */
-  async addChunks(chunks: DocumentChunk[], embeddings: number[][]): Promise<void> {
-    if (chunks.length !== embeddings.length) {
-      throw new Error(
-        `Chunk count (${chunks.length}) does not match embedding count (${embeddings.length})`
-      );
+  async initialize(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+    // Graph store is already initialized, we just use its connection
+    this.initialized = true;
+    console.log('✅ SQLiteVectorStore: Using shared SQLite connection');
+  }
+
+  /**
+   * Inserts or updates document chunks with their embeddings
+   */
+  async upsertChunks(chunks: DocumentChunk[]): Promise<void> {
+    if (!this.initialized) {
+      throw new Error('Vector store not initialized');
     }
 
-    const vectorData = chunks.map((chunk, i) => ({
+    const vectorData = chunks.map((chunk) => ({
       id: chunk.id,
       content: chunk.content,
-      embedding: embeddings[i],
+      embedding: chunk.vector || [],
       metadata: {
         filePath: chunk.metadata.filePath,
         lineStart: chunk.metadata.lineStart,
@@ -62,58 +56,55 @@ export class SQLiteVectorStore implements VectorStorePort {
     }));
 
     await this.graphStore.storeEmbeddings(vectorData);
-    console.log(`✅ Vector store: Added ${chunks.length} chunks`);
+    console.log(`✅ Vector store: Upserted ${chunks.length} chunks`);
   }
 
   /**
-   * Searches for similar chunks using vector similarity
+   * Performs vector similarity search
+   * Note: query is expected to be a string that needs embedding generation
    */
-  async search(
-    queryEmbedding: number[],
-    limit = 10
-  ): Promise<
-    Array<{
-      chunk: DocumentChunk;
-      score: number;
-    }>
-  > {
-    const results = await this.graphStore.searchSimilar(queryEmbedding, limit);
+  async search(_query: string, _limit?: number): Promise<DocumentChunk[]> {
+    if (!this.initialized) {
+      throw new Error('Vector store not initialized');
+    }
 
-    return results.map((result) => {
-      const metadata = result.metadata as {
-        filePath: string;
-        lineStart: number;
-        lineEnd: number;
-        chunkType: string;
-        symbolName?: string;
-        symbolKind?: string;
-      };
+    // Mark _query and _limit as intentionally unused for now
+    void _query;
+    void _limit;
 
-      const chunk: DocumentChunk = {
-        id: result.id,
-        content: result.content,
-        metadata: {
-          filePath: metadata.filePath,
-          lineStart: metadata.lineStart,
-          lineEnd: metadata.lineEnd,
-          chunkType: metadata.chunkType as DocumentChunk["metadata"]["chunkType"],
-          symbolName: metadata.symbolName,
-          symbolKind: metadata.symbolKind as DocumentChunk["metadata"]["symbolKind"],
-        },
-      };
+    // TODO: Implement embedding generation for query string
+    // For now, return empty array as this requires EmbeddingService integration
+    console.warn('⚠️ search() not fully implemented - requires embedding generation');
+    return [];
+  }
 
-      return {
-        chunk,
-        score: result.score,
-      };
-    });
+  /**
+   * Gets chunks by their IDs
+   */
+  async getChunksByIds(ids: string[]): Promise<DocumentChunk[]> {
+    if (!this.initialized) {
+      throw new Error('Vector store not initialized');
+    }
+
+    if (ids.length === 0) {
+      return [];
+    }
+
+    // TODO: Implement getChunksByIds in SQLiteAdapter if not exists
+    // For now, return empty array
+    console.warn('⚠️ getChunksByIds() requires implementation in SQLiteAdapter');
+    return [];
   }
 
   /**
    * Deletes all chunks belonging to a file
    */
-  async deleteByFilePath(filePath: string): Promise<void> {
-    // When we delete file nodes, CASCADE will handle vectors table
+  async deleteChunksByFile(filePath: string): Promise<void> {
+    if (!this.initialized) {
+      throw new Error('Vector store not initialized');
+    }
+
+    // Delete file nodes, CASCADE will handle vectors table
     await this.graphStore.deleteFileNodes(filePath);
     console.log(`✅ Vector store: Deleted chunks for ${filePath}`);
   }
@@ -123,6 +114,7 @@ export class SQLiteVectorStore implements VectorStorePort {
    */
   async close(): Promise<void> {
     // No-op: graph store manages the connection
+    this.initialized = false;
     console.log(`ℹ️ Vector store: Close delegated to graph store`);
   }
 }

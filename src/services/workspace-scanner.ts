@@ -61,6 +61,13 @@ export class WorkspaceScanner {
   private readonly relationshipExtractor: ASTRelationshipExtractor;
   private readonly fileIndex: Map<string, FileIndexEntry> = new Map();
   private progressCallback?: (progress: ScanProgress) => void;
+  private stats: ScanProgress = {
+    totalFiles: 0,
+    processedFiles: 0,
+    currentFile: '',
+    status: 'scanning',
+    errors: []
+  };
 
   constructor(config: WorkspaceScannerConfig) {
     this.config = config;
@@ -79,6 +86,13 @@ export class WorkspaceScanner {
    */
   onProgress(callback: (progress: ScanProgress) => void): void {
     this.progressCallback = callback;
+  }
+
+  /**
+   * Gets current scan statistics
+   */
+  getStats(): ScanProgress {
+    return { ...this.stats };
   }
 
   /**
@@ -103,13 +117,15 @@ export class WorkspaceScanner {
     console.log('🚀 Starting workspace scan...');
     
     const startTime = Date.now();
-    const progress: ScanProgress = {
+    // Use instance stats for tracking
+    this.stats = {
       totalFiles: 0,
       processedFiles: 0,
       currentFile: '',
       status: 'scanning',
       errors: []
     };
+    const progress = this.stats;
 
     try {
       // 1. Discover all files
@@ -175,13 +191,32 @@ export class WorkspaceScanner {
    */
   private async discoverFiles(): Promise<FileIndexEntry[]> {
     const files: FileIndexEntry[] = [];
+    
+    console.log('🔍 Searching for files in workspace...');
+    
     // Use VS Code file search
     const uris = await vscode.workspace.findFiles(
       '**/*',
       '{**/node_modules/**,**/.git/**,**/dist/**,**/build/**,**/.cappy/**}'
     );
 
+    console.log(`📁 Found ${uris.length} potential files, filtering...`);
+    let processedCount = 0;
+
     for (const uri of uris) {
+      processedCount++;
+      
+      // Report progress during discovery every 10 files
+      if (processedCount % 10 === 0) {
+        this.notifyProgress({
+          totalFiles: uris.length,
+          processedFiles: 0,
+          currentFile: `Discovering: ${processedCount}/${uris.length} files`,
+          status: 'scanning',
+          errors: []
+        });
+      }
+
       const relPath = path.relative(this.config.workspaceRoot, uri.fsPath);
 
       // Ignorar qualquer pasta ou arquivo iniciado por ponto
@@ -227,6 +262,7 @@ export class WorkspaceScanner {
       }
     }
 
+    console.log(`✅ Discovered ${files.length} valid files`);
     return files;
   }
 

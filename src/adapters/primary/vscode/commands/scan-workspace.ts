@@ -11,7 +11,7 @@ import { ParserService } from '../../../../services/parser-service';
 import { IndexingService } from '../../../../services/indexing-service';
 import { EmbeddingService } from '../../../../services/embedding-service';
 import { SQLiteAdapter } from '../../../secondary/graph/sqlite-adapter';
-import type { VectorStorePort } from '../../../../domains/graph/ports/indexing-port';
+import { SQLiteVectorStore } from '../../../secondary/vector/sqlite-vector-adapter';
 import * as path from 'path';
 
 /**
@@ -22,6 +22,9 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
     'cappy.scanWorkspace',
     async () => {
       try {
+        // Immediate feedback
+        vscode.window.showInformationMessage('🚀 Starting workspace scan...');
+        
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
           vscode.window.showErrorMessage('No workspace folder open');
@@ -35,37 +38,44 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
         await vscode.window.withProgress(
           {
             location: vscode.ProgressLocation.Notification,
-            title: 'Scanning workspace...',
+            title: '🔍 Scanning workspace...',
             cancellable: false
           },
           async (progress) => {
-            // Initialize services
+            // Step 1: Initialize services
+            progress.report({ message: '🔧 Initializing services...', increment: 0 });
             console.log('🔧 Initializing services...');
             
             const embeddingService = new EmbeddingService();
             await embeddingService.initialize();
             
-            // Vector store removed - using SQLite only
-            // const vectorStore = new LanceDBAdapter(
-            //   path.join(dataDir, 'lancedb')
-            // );
-            // await vectorStore.initialize();
+            progress.report({ message: '💾 Initializing database...', increment: 5 });
             
             const graphStore = new SQLiteAdapter(
               path.join(dataDir, 'sqlite')
             );
             await graphStore.initialize();
             
+            progress.report({ message: '📦 Setting up vector store...', increment: 5 });
+            
+            // Create vector store using the same SQLite database
+            const vectorStore = new SQLiteVectorStore(graphStore);
+            console.log('✅ Vector store initialized (SQLite-based)');
+            
+            progress.report({ message: '📦 Setting up parsers...', increment: 5 });
+            
             const parserService = new ParserService();
             const indexingService = new IndexingService(
-              null as unknown as VectorStorePort, // TODO: Remove VectorStore dependency
+              vectorStore,
               graphStore,
               embeddingService,
               workspaceRoot
             );
             await indexingService.initialize();
 
-            // Create scanner
+            // Step 2: Create scanner
+            progress.report({ message: '🔍 Discovering files...', increment: 5 });
+            
             const scanner = new WorkspaceScanner({
               workspaceRoot,
               repoId: path.basename(workspaceRoot),
@@ -76,31 +86,55 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
               concurrency: 3
             });
 
-            // Setup progress reporting
+            // Step 3: Setup progress reporting
+            let lastProcessed = 0;
             scanner.onProgress((scanProgress: ScanProgress) => {
-              const percentage = scanProgress.totalFiles > 0
-                ? (scanProgress.processedFiles / scanProgress.totalFiles) * 100
-                : 0;
+              const processed = scanProgress.processedFiles;
+              const total = scanProgress.totalFiles;
+              const currentFile = scanProgress.currentFile;
+              
+              // Calculate incremental progress
+              const increment = total > 0 ? ((processed - lastProcessed) / total) * 85 : 0;
+              lastProcessed = processed;
+              
+              let statusEmoji = '📄';
+              if (scanProgress.status === 'completed') statusEmoji = '✅';
+              if (scanProgress.status === 'error') statusEmoji = '❌';
+              
+              const fileName = currentFile ? path.basename(currentFile) : '';
+              const shortName = fileName.length > 30 ? fileName.substring(0, 27) + '...' : fileName;
               
               progress.report({
-                message: `${scanProgress.status} - ${scanProgress.processedFiles}/${scanProgress.totalFiles} files`,
-                increment: percentage
+                message: `${statusEmoji} ${processed}/${total} files ${shortName ? `- ${shortName}` : ''}`,
+                increment: increment > 0 ? increment : undefined
               });
             });
 
-            // Initialize and scan
+            // Step 4: Initialize and scan
+            console.log('🔍 Starting scanner initialization...');
             await scanner.initialize();
+            
+            console.log('🚀 Starting workspace scan...');
             await scanner.scanWorkspace();
 
+            progress.report({ message: '✅ Completed!', increment: 100 });
+            
+            // Show detailed completion message
+            const stats = scanner.getStats();
+            console.log('📊 Scan Statistics:', stats);
+            
+            const errorMsg = stats.errors.length > 0 ? ` (${stats.errors.length} errors)` : '';
             vscode.window.showInformationMessage(
-              '✅ Workspace scan completed successfully!'
+              `✅ Workspace scan completed! Processed ${stats.processedFiles}/${stats.totalFiles} files${errorMsg}`
             );
           }
         );
       } catch (error) {
         console.error('❌ Scan workspace error:', error);
+        console.error('Stack trace:', error instanceof Error ? error.stack : 'N/A');
+        
         vscode.window.showErrorMessage(
-          `Failed to scan workspace: ${error instanceof Error ? error.message : String(error)}`
+          `❌ Failed to scan workspace: ${error instanceof Error ? error.message : String(error)}`
         );
       }
     }
