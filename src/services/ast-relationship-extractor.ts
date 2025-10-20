@@ -208,6 +208,7 @@ export class ASTRelationshipExtractor {
     const visit = async (node: any) => {
       if (!node) return;
 
+      // Handle standard imports
       if (node.type === 'ImportDeclaration') {
         const source = node.source?.value;
         const specifiers: string[] = [];
@@ -224,14 +225,11 @@ export class ASTRelationshipExtractor {
 
         if (source) {
           const isExternal = this.packageResolver.isExternalImport(source);
-          
           const importInfo: ImportInfo = {
             source,
             specifiers,
             isExternal
           };
-
-          // If external, resolve package info
           if (isExternal) {
             try {
               importInfo.packageResolution = await this.packageResolver.resolveExternalImport(source, filePath);
@@ -239,7 +237,38 @@ export class ASTRelationshipExtractor {
               console.warn(`⚠️ Failed to resolve external package: ${source}`, error);
             }
           }
+          imports.push(importInfo);
+        }
+      }
 
+      // Handle export * from ... and export { ... } from ...
+      if ((node.type === 'ExportAllDeclaration' || node.type === 'ExportNamedDeclaration') && node.source) {
+        const source = node.source.value;
+        const specifiers: string[] = [];
+
+        // For ExportNamedDeclaration, collect exported specifiers
+        if (node.specifiers) {
+          for (const spec of node.specifiers) {
+            if (spec.exported?.name) {
+              specifiers.push(spec.exported.name);
+            }
+          }
+        }
+
+        if (source) {
+          const isExternal = this.packageResolver.isExternalImport(source);
+          const importInfo: ImportInfo = {
+            source,
+            specifiers,
+            isExternal
+          };
+          if (isExternal) {
+            try {
+              importInfo.packageResolution = await this.packageResolver.resolveExternalImport(source, filePath);
+            } catch (error) {
+              console.warn(`⚠️ Failed to resolve external package: ${source}`, error);
+            }
+          }
           imports.push(importInfo);
         }
       }
