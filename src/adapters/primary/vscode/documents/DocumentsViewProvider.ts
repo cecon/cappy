@@ -182,6 +182,11 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    */
   private async handleScan() {
     await vscode.commands.executeCommand('cappy.scanWorkspace');
+    // Após o scan, envie a lista atualizada de documentos para o webview
+    this._view?.webview.postMessage({
+      type: 'document/list',
+      payload: { documents: Array.from(this.documents.values()) }
+    });
   }
 
   /**

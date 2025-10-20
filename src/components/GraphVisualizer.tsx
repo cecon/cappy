@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import typescriptIcon from '../assets/typescript.svg';
 import reactIcon from '../assets/react.svg';
 import fileIcon from '../assets/file.svg';
@@ -26,7 +26,23 @@ function getNodeIcon(node: { type?: string; label?: string }): string {
   return fileIcon;
 }
 
-const GraphLoader: React.FC<GraphVisualizerProps> = ({ nodes, edges }) => {
+interface NodeMeta {
+  id: string;
+  label?: string;
+  type?: string;
+  icon?: string;
+}
+
+interface EdgeMeta {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+}
+
+const GraphLoader: React.FC<GraphVisualizerProps & {
+  onNodeClick: (node: NodeMeta, edges: EdgeMeta[]) => void;
+}> = ({ nodes, edges, onNodeClick }) => {
   const loadGraph = useLoadGraph();
   const sigma = useSigma();
   const registerEvents = useRegisterEvents();
@@ -75,7 +91,14 @@ const GraphLoader: React.FC<GraphVisualizerProps> = ({ nodes, edges }) => {
     // Registrar eventos de interação
     registerEvents({
       clickNode: (event) => {
-        console.log('Node clicked:', event.node);
+        // Buscar metadados do nó clicado
+        const nodeId = event.node;
+        const node = nodes.find(n => n.id === nodeId);
+        // Buscar edges conectadas ao nó
+        const connectedEdges = edges.filter(e => e.source === nodeId || e.target === nodeId);
+        if (node) {
+          onNodeClick(node, connectedEdges);
+        }
       },
       enterNode: (event) => {
         sigma.getGraph().setNodeAttribute(event.node, 'highlighted', true);
@@ -90,9 +113,24 @@ const GraphLoader: React.FC<GraphVisualizerProps> = ({ nodes, edges }) => {
 };
 
 const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ nodes, edges }) => {
-  // Custom node renderer to show SVG icon
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<NodeMeta | null>(null);
+  const [selectedEdges, setSelectedEdges] = useState<EdgeMeta[]>([]);
+
+  const handleNodeClick = (node: NodeMeta, edges: EdgeMeta[]) => {
+    setSelectedNode(node);
+    setSelectedEdges(edges);
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setSelectedNode(null);
+    setSelectedEdges([]);
+  };
+
   return (
-    <div style={{ width: '100%', height: '600px', borderRadius: '8px', overflow: 'hidden', background: '#1a1a1a' }}>
+    <div style={{ width: '100%', height: '600px', borderRadius: '8px', overflow: 'hidden', background: '#1a1a1a', position: 'relative' }}>
       <SigmaContainer
         style={{ width: '100%', height: '100%' }}
         settings={{
@@ -105,8 +143,46 @@ const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ nodes, edges }) => {
           enableEdgeEvents: true,
         }}
       >
-        <GraphLoader nodes={nodes} edges={edges} />
+        <GraphLoader nodes={nodes} edges={edges} onNodeClick={handleNodeClick} />
       </SigmaContainer>
+      {modalOpen && selectedNode && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: '#222',
+          color: '#fff',
+          borderRadius: '12px',
+          boxShadow: '0 2px 16px #0008',
+          padding: '32px',
+          minWidth: '340px',
+          zIndex: 1000,
+        }}>
+          <h2 style={{ marginTop: 0 }}>Metadados do Nó</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {selectedNode.icon && (
+              <img src={selectedNode.icon} alt="icon" width={32} height={32} />
+            )}
+            <div>
+              <strong>ID:</strong> {selectedNode.id}<br />
+              <strong>Label:</strong> {selectedNode.label}<br />
+              <strong>Tipo:</strong> {selectedNode.type}
+            </div>
+          </div>
+          <hr style={{ margin: '18px 0' }} />
+          <h3>Relacionamentos</h3>
+          <ul>
+            {selectedEdges.length === 0 && <li>Nenhum relacionamento</li>}
+            {selectedEdges.map(edge => (
+              <li key={edge.id}>
+                <strong>{edge.label || 'edge'}:</strong> {edge.source} → {edge.target}
+              </li>
+            ))}
+          </ul>
+          <button style={{ marginTop: 18, padding: '8px 18px', borderRadius: 6, background: '#444', color: '#fff', border: 'none', cursor: 'pointer' }} onClick={closeModal}>Fechar</button>
+        </div>
+      )}
     </div>
   );
 };

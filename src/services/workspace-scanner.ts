@@ -183,7 +183,13 @@ export class WorkspaceScanner {
 
     for (const uri of uris) {
       const relPath = path.relative(this.config.workspaceRoot, uri.fsPath);
-      
+
+      // Ignorar qualquer pasta ou arquivo iniciado por ponto
+      const parts = relPath.split(path.sep);
+      if (parts.some(p => p.startsWith('.'))) {
+        continue;
+      }
+
       // Apply ignore patterns
       if (this.ignorePatterns.shouldIgnore(relPath)) {
         continue;
@@ -191,7 +197,7 @@ export class WorkspaceScanner {
 
       try {
         const stat = await vscode.workspace.fs.stat(uri);
-        
+
         // Skip directories
         if (stat.type === vscode.FileType.Directory) {
           continue;
