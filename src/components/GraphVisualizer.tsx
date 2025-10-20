@@ -1,4 +1,9 @@
 import React, { useEffect } from 'react';
+import typescriptIcon from '../assets/typescript.svg';
+import reactIcon from '../assets/react.svg';
+import fileIcon from '../assets/file.svg';
+import chunkIcon from '../assets/chunk.svg';
+import workspaceIcon from '../assets/workspace.svg';
 import { SigmaContainer, useLoadGraph, useRegisterEvents, useSigma } from '@react-sigma/core';
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
@@ -7,6 +12,19 @@ type GraphVisualizerProps = {
   nodes: Array<{ id: string; label: string; type?: 'file' | 'chunk' | 'workspace' }>;
   edges: Array<{ id: string; source: string; target: string; label?: string }>;
 };
+
+// Helper to get icon by node type/extension
+function getNodeIcon(node: { type?: string; label?: string }): string {
+  if (node.type === 'workspace') return workspaceIcon;
+  if (node.type === 'chunk') return chunkIcon;
+  if (node.type === 'file') {
+    if (node.label?.endsWith('.ts')) return typescriptIcon;
+    if (node.label?.endsWith('.tsx')) return reactIcon;
+    if (node.label?.endsWith('.jsx')) return reactIcon;
+    return fileIcon;
+  }
+  return fileIcon;
+}
 
 const GraphLoader: React.FC<GraphVisualizerProps> = ({ nodes, edges }) => {
   const loadGraph = useLoadGraph();
@@ -20,13 +38,14 @@ const GraphLoader: React.FC<GraphVisualizerProps> = ({ nodes, edges }) => {
     nodes.forEach(node => {
       const color = node.type === 'file' ? '#10b981' : node.type === 'chunk' ? '#3b82f6' : '#8b5cf6';
       const size = node.type === 'file' ? 15 : 10;
-      
+      const icon = getNodeIcon(node);
       graph.addNode(node.id, {
         label: node.label,
         x: Math.random() * 100,
         y: Math.random() * 100,
         size: size,
         color: color,
+        icon: icon,
       });
     });
 
@@ -71,6 +90,7 @@ const GraphLoader: React.FC<GraphVisualizerProps> = ({ nodes, edges }) => {
 };
 
 const GraphVisualizer: React.FC<GraphVisualizerProps> = ({ nodes, edges }) => {
+  // Custom node renderer to show SVG icon
   return (
     <div style={{ width: '100%', height: '600px', borderRadius: '8px', overflow: 'hidden', background: '#1a1a1a' }}>
       <SigmaContainer
