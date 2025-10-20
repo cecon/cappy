@@ -7,6 +7,7 @@
 
 import type { DocumentChunk } from "../../../types/chunk";
 import type { VectorStorePort } from "../../../domains/graph/ports/indexing-port";
+import type { EmbeddingService } from "../../../services/embedding-service";
 import { SQLiteAdapter } from "../graph/sqlite-adapter";
 
 /**
@@ -16,9 +17,11 @@ import { SQLiteAdapter } from "../graph/sqlite-adapter";
 export class SQLiteVectorStore implements VectorStorePort {
   private graphStore: SQLiteAdapter;
   private initialized: boolean = false;
+  private embeddingService?: EmbeddingService;
 
-  constructor(graphStore: SQLiteAdapter) {
+  constructor(graphStore: SQLiteAdapter, embeddingService?: EmbeddingService) {
     this.graphStore = graphStore;
+    this.embeddingService = embeddingService;
   }
 
   /**
@@ -68,14 +71,42 @@ export class SQLiteVectorStore implements VectorStorePort {
       throw new Error('Vector store not initialized');
     }
 
-    // Mark _query and _limit as intentionally unused for now
-    void _query;
-    void _limit;
+    const limit = _limit ?? 10;
 
-    // TODO: Implement embedding generation for query string
-    // For now, return empty array as this requires EmbeddingService integration
-    console.warn('⚠️ search() not fully implemented - requires embedding generation');
-    return [];
+    // Try to generate an embedding if service is available; fall back gracefully
+    let queryEmbedding: number[] = [];
+    if (this.embeddingService) {
+      try {
+        queryEmbedding = await this.embeddingService.embed(_query);
+      } catch (err) {
+        console.warn('⚠️ Failed to generate query embedding, falling back to metadata-only search:', err);
+      }
+    } else {
+      console.warn('ℹ️ EmbeddingService not provided to SQLiteVectorStore; using simplified search');
+    }
+
+    // Delegate to SQLite adapter (currently returns top-N without true similarity if embedding not used)
+    const results = await this.graphStore.searchSimilar(queryEmbedding, limit);
+
+    // Map to DocumentChunk using stored metadata from vectors table
+    const chunks: DocumentChunk[] = results.map((r) => {
+      const meta = (r.metadata || {}) as Record<string, unknown>;
+      return {
+        id: r.id,
+        content: r.content,
+        metadata: {
+          filePath: (meta.filePath as string) || '',
+          lineStart: (meta.lineStart as number) ?? 0,
+          lineEnd: (meta.lineEnd as number) ?? 0,
+          // Default to plain_text if missing
+          chunkType: (meta.chunkType as DocumentChunk['metadata']['chunkType']) || 'plain_text',
+          symbolName: meta.symbolName as string | undefined,
+          symbolKind: meta.symbolKind as DocumentChunk['metadata']['symbolKind'] | undefined,
+        },
+      };
+    });
+
+    return chunks;
   }
 
   /**
@@ -90,10 +121,14 @@ export class SQLiteVectorStore implements VectorStorePort {
       return [];
     }
 
-    // TODO: Implement getChunksByIds in SQLiteAdapter if not exists
-    // For now, return empty array
-    console.warn('⚠️ getChunksByIds() requires implementation in SQLiteAdapter');
-    return [];
+    // Query the underlying SQLite adapter for vector rows by IDs
+    try {
+      const rows = await this.graphStore.getChunksByIds(ids);
+      return rows;
+    } catch (err) {
+      console.warn('⚠️ getChunksByIds() failed:', err);
+      return [];
+    }
   }
 
   /**

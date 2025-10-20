@@ -58,8 +58,8 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
             
             progress.report({ message: '📦 Setting up vector store...', increment: 5 });
             
-            // Create vector store using the same SQLite database
-            const vectorStore = new SQLiteVectorStore(graphStore);
+            // Create vector store using the same SQLite database (with embeddings)
+            const vectorStore = new SQLiteVectorStore(graphStore, embeddingService);
             console.log('✅ Vector store initialized (SQLite-based)');
             
             progress.report({ message: '📦 Setting up parsers...', increment: 5 });

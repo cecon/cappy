@@ -577,6 +577,56 @@ export class SQLiteAdapter implements GraphStorePort {
       return [];
     }
   }
+
+  /**
+   * Fetches chunks by their IDs from the vectors table and maps them to DocumentChunk
+   */
+  async getChunksByIds(ids: string[]): Promise<DocumentChunk[]> {
+    if (!this.db) return [];
+    if (!ids || ids.length === 0) return [];
+
+    try {
+      // Ensure vectors table exists (noop if already created)
+      this.db.run(`
+        CREATE TABLE IF NOT EXISTS vectors (
+          chunk_id TEXT PRIMARY KEY,
+          content TEXT NOT NULL,
+          embedding_json TEXT NOT NULL,
+          metadata TEXT
+        )
+      `);
+
+      const placeholders = ids.map(() => '?').join(',');
+      const query = `SELECT chunk_id, content, metadata FROM vectors WHERE chunk_id IN (${placeholders})`;
+      const result = this.db.exec(query, ids as unknown as string[]);
+      if (result.length === 0 || !result[0].values) return [];
+
+      const rows = result[0].values;
+      const chunks: DocumentChunk[] = rows.map((row) => {
+        const id = row[0] as string;
+        const content = row[1] as string;
+        const metadataRaw = row[2] as string | null;
+        const meta = metadataRaw ? (JSON.parse(metadataRaw) as Record<string, unknown>) : {};
+        return {
+          id,
+          content,
+          metadata: {
+            filePath: (meta.filePath as string) || '',
+            lineStart: (meta.lineStart as number) ?? 0,
+            lineEnd: (meta.lineEnd as number) ?? 0,
+            chunkType: (meta.chunkType as DocumentChunk['metadata']['chunkType']) || 'plain_text',
+            symbolName: meta.symbolName as string | undefined,
+            symbolKind: meta.symbolKind as DocumentChunk['metadata']['symbolKind'] | undefined,
+          },
+        };
+      });
+
+      return chunks;
+    } catch (error) {
+      console.error('❌ SQLite getChunksByIds error:', error);
+      return [];
+    }
+  }
 }
 
 export function createSQLiteAdapter(dbPath: string): GraphStorePort {
