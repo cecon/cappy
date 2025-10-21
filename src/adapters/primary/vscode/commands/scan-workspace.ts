@@ -14,6 +14,7 @@ import { IndexingService } from '../../../../services/indexing-service';
 import { SQLiteAdapter } from '../../../secondary/graph/sqlite-adapter';
 import { SQLiteVectorStore } from '../../../secondary/vector/sqlite-vector-adapter';
 import * as path from 'path';
+import { ConfigService } from '../../../../services/config-service';
 
 /**
  * Registers the scan workspace command
@@ -22,18 +23,24 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
   const command = vscode.commands.registerCommand(
     'cappy.scanWorkspace',
     async () => {
+      console.log('🚀 [SCAN] Command cappy.scanWorkspace started');
       try {
         // Immediate feedback
         vscode.window.showInformationMessage('🚀 Starting workspace scan...');
         
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
+          console.error('❌ [SCAN] No workspace folder open');
           vscode.window.showErrorMessage('No workspace folder open');
           return;
         }
 
-        const workspaceRoot = workspaceFolder.uri.fsPath;
-        const dataDir = path.join(workspaceRoot, '.cappy', 'data');
+  const workspaceRoot = workspaceFolder.uri.fsPath;
+  // Use the same config path as the rest of the extension (no extra 'sqlite' subdir)
+  const configService = new ConfigService(workspaceRoot);
+  const dataDir = configService.getGraphDataPath(workspaceRoot);
+        console.log(`📁 [SCAN] Workspace root: ${workspaceRoot}`);
+        console.log(`📁 [SCAN] Data directory: ${dataDir}`);
 
         // Show progress
         await vscode.window.withProgress(
@@ -142,4 +149,5 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
   );
 
   context.subscriptions.push(command);
+  console.log('✅ [SCAN] Command cappy.scanWorkspace registered successfully');
 }

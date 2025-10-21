@@ -2,12 +2,14 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { GraphPanel } from './adapters/primary/vscode/graph/GraphPanel';
 import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvider';
+import { DocumentsViewProvider } from './adapters/primary/vscode/documents/DocumentsViewProvider';
 import { CreateFileTool } from './adapters/secondary/tools/create-file-tool';
 import { FetchWebTool } from './adapters/secondary/tools/fetch-web-tool';
 import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
 import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './adapters/primary/vscode/commands/scan-workspace';
 import { registerProcessSingleFileCommand } from './commands/process-single-file';
+import { registerDebugRetrievalCommand } from './commands/debug-retrieval';
 import { registerDebugCommand, registerDebugDatabaseCommand, registerDebugAddTestDataCommand } from './commands/debug';
 import { reanalyzeRelationships } from './commands/reanalyze-relationships';
 import { registerResetDatabaseCommand } from './commands/reset-database';
@@ -78,6 +80,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Register debug database commands
     registerDebugDatabaseCommand(context);
     console.log('✅ Registered command: cappy.debugDatabase');
+
+    // Register retrieval debug command
+    registerDebugRetrievalCommand(context);
+    console.log('✅ Registered command: cappy.debugRetrieval');
     
     registerDebugAddTestDataCommand(context);
     console.log('✅ Registered command: cappy.debugAddTestData');
@@ -136,6 +142,15 @@ export function activate(context: vscode.ExtensionContext) {
     );
     context.subscriptions.push(chatViewDisposable);
     console.log('✅ Registered Chat View Provider: cappy.chatView');
+    
+    // Register Documents View Provider for sidebar
+    const documentsViewProvider = new DocumentsViewProvider(context.extensionUri);
+    const documentsViewDisposable = vscode.window.registerWebviewViewProvider(
+        DocumentsViewProvider.viewType,
+        documentsViewProvider
+    );
+    context.subscriptions.push(documentsViewDisposable);
+    console.log('✅ Registered Documents View Provider: cappy.documentsView');
     
     // Add a Status Bar shortcut to open the graph
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -238,7 +253,22 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         }
 
         // Initialize and start API server (pass graphStore for file removal)
-        fileAPI = new FileProcessingAPI(fileQueue, fileDatabase, workspaceRoot, 3456, graphStoreInstance);
+        fileAPI = new FileProcessingAPI(
+            fileQueue,
+            fileDatabase,
+            workspaceRoot,
+            3456,
+            graphStoreInstance,
+            async () => {
+                try {
+                    console.log('[Extension] 🔍 API requested workspace scan');
+                    await vscode.commands.executeCommand('cappy.scanWorkspace');
+                } catch (e) {
+                    console.error('[Extension] ❌ Failed to run cappy.scanWorkspace from API:', e);
+                    throw e;
+                }
+            }
+        );
         await fileAPI.start();
         console.log('✅ File processing API started on http://localhost:3456');
 

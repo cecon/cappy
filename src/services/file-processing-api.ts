@@ -29,18 +29,21 @@ export class FileProcessingAPI {
   private database: FileMetadataDatabase;
   private graphStore: GraphStorePort | null;
   private port: number;
+  private onScanWorkspace?: () => Promise<void>;
 
   constructor(
     queue: FileProcessingQueue,
     database: FileMetadataDatabase,
     _workspaceRoot: string, // kept for compatibility but no longer used
     port: number = 3456,
-    graphStore: GraphStorePort | null = null
+    graphStore: GraphStorePort | null = null,
+    onScanWorkspace?: () => Promise<void>
   ) {
     this.queue = queue;
     this.database = database;
     this.port = port;
     this.graphStore = graphStore;
+    this.onScanWorkspace = onScanWorkspace;
   }
 
   start(): Promise<void> {
@@ -93,6 +96,8 @@ export class FileProcessingAPI {
         await this.handleEnqueue(req, res);
       } else if (req.method === 'POST' && url.pathname === '/files/reprocess') {
         await this.handleReprocess(req, res);
+      } else if (req.method === 'POST' && url.pathname === '/scan/workspace') {
+        await this.handleScanWorkspace(req, res);
       } else if (req.method === 'DELETE' && url.pathname === '/files/remove') {
         await this.handleRemove(req, res);
       } else if (req.method === 'GET' && url.pathname === '/files/status') {
@@ -109,6 +114,24 @@ export class FileProcessingAPI {
       console.error('[FileProcessingAPI] Request error:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Internal server error' }));
+    }
+  }
+
+  private async handleScanWorkspace(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    try {
+      if (!this.onScanWorkspace) {
+        res.writeHead(501, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Scan workspace not supported' }));
+        return;
+      }
+      console.log('[FileProcessingAPI] 🔍 Triggering workspace scan via API');
+      await this.onScanWorkspace();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ message: 'Workspace scan triggered' }));
+    } catch (error) {
+      console.error('[FileProcessingAPI] ❌ Scan workspace error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to trigger workspace scan' }));
     }
   }
 

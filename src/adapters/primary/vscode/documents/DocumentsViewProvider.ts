@@ -41,8 +41,11 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'cappy.documentsView';
   private _view?: vscode.WebviewView;
   private documents: Map<string, DocumentItem> = new Map();
+  private readonly _extensionUri: vscode.Uri;
 
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+  constructor(extensionUri: vscode.Uri) {
+    this._extensionUri = extensionUri;
+  }
 
   /**
    * Resolves the webview view
@@ -52,6 +55,7 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ) {
+    console.log('🔧 [DocumentsViewProvider] Resolving webview view...');
     // Mark unused parameters as intentionally unused to satisfy lint rules
     void _context;
     void _token;
@@ -59,13 +63,21 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [this._extensionUri]
+      // Limit resource roots to /out like ChatViewProvider (consistency)
+      localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'out')]
     };
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+    // Probe extension -> webview channel
+    try {
+      webviewView.webview.postMessage({ type: 'document/hello', payload: { from: 'DocumentsViewProvider' } });
+      console.log('📤 [DocumentsViewProvider] Sent hello to webview');
+    } catch (e) {
+      console.warn('⚠️ [DocumentsViewProvider] Failed to send hello to webview:', e);
+    }
 
     // Handle messages from the webview
-    webviewView.webview.onDidReceiveMessage(async (data) => {
+    const disposeListener = webviewView.webview.onDidReceiveMessage(async (data) => {
       try {
         console.log(`📨 DocumentsView received message: ${data.type}`, data);
         switch (data.type) {
@@ -93,12 +105,25 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
             console.log('🔄 Handling refresh...');
             await this.handleRefresh();
             break;
+          case 'webview-ready':
+            console.log('✅ [DocumentsViewProvider] Webview reported ready');
+            break;
         }
       } catch (error) {
         console.error('❌ Error handling webview message:', error);
         vscode.window.showErrorMessage(`Error: ${error}`);
       }
     });
+
+    // Keep a reference so it's not GC'd prematurely
+    webviewView.onDidDispose(() => {
+      try {
+        disposeListener.dispose();
+      } catch {
+        // ignore
+      }
+    });
+    console.log('✅ [DocumentsViewProvider] Message listener registered');
   }
 
   /**
@@ -181,12 +206,34 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    * Handles workspace scan
    */
   private async handleScan() {
-    await vscode.commands.executeCommand('cappy.scanWorkspace');
-    // Após o scan, envie a lista atualizada de documentos para o webview
-    this._view?.webview.postMessage({
-      type: 'document/list',
-      payload: { documents: Array.from(this.documents.values()) }
-    });
+    console.log('🔍 [DocumentsViewProvider] handleScan started');
+    try {
+      // Notifica o webview que o scan começou
+      console.log('📤 [DocumentsViewProvider] Sending scan-started message to webview');
+      this._view?.webview.postMessage({
+        type: 'document/scan-started'
+      });
+
+      console.log('⚡ [DocumentsViewProvider] Executing cappy.scanWorkspace command');
+      await vscode.commands.executeCommand('cappy.scanWorkspace');
+      console.log('✅ [DocumentsViewProvider] cappy.scanWorkspace completed');
+      
+      // Após o scan, envie a lista atualizada de documentos para o webview
+      console.log('📤 [DocumentsViewProvider] Sending document list to webview');
+      this._view?.webview.postMessage({
+        type: 'document/list',
+        payload: { documents: Array.from(this.documents.values()) }
+      });
+    } catch (error) {
+      console.error('❌ [DocumentsViewProvider] Error during scan:', error);
+      vscode.window.showErrorMessage(`Scan failed: ${error}`);
+    } finally {
+      // Sempre notifica que o scan terminou
+      console.log('📤 [DocumentsViewProvider] Sending scan-completed message to webview');
+      this._view?.webview.postMessage({
+        type: 'document/scan-completed'
+      });
+    }
   }
 
   /**
@@ -324,17 +371,39 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(this._extensionUri, 'out', 'main.css')
     );
 
+    const nonce = (() => {
+      let text = '';
+      const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      for (let i = 0; i < 32; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+      }
+      return text;
+    })();
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; connect-src ${webview.cspSource} http://localhost:3456;">
   <link href="${styleUri}" rel="stylesheet">
   <title>Cappy Documents</title>
 </head>
 <body>
   <div id="root" data-page="documents"></div>
-  <script src="${scriptUri}"></script>
+  <script nonce="${nonce}">
+    try {
+      console.log('[Documents Webview] Initializing vscodeApi...');
+      // @ts-ignore
+      window.vscodeApi = acquireVsCodeApi();
+      console.log('[Documents Webview] vscodeApi ready:', !!window.vscodeApi);
+      // Notify extension that webview is ready to communicate
+      window.vscodeApi.postMessage({ type: 'webview-ready' });
+    } catch (e) {
+      console.error('[Documents Webview] Failed to acquire VS Code API:', e);
+    }
+  </script>
+  <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
   }

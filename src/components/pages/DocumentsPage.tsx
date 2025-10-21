@@ -35,11 +35,14 @@ interface Document {
 }
 
 const DocumentsPage: React.FC = () => {
+  console.log('[DocumentsPage] 🚀 Component initialized');
+  
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [showFileName, setShowFileName] = useState(false);
   const [sortField, setSortField] = useState<SortField>('updated');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [isScanning, setIsScanning] = useState(false);
   
   // Dados de exemplo (exatamente como no LightRAG)
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -83,6 +86,8 @@ const DocumentsPage: React.FC = () => {
   }, []);
 
   const postMessage = (type: string, payload: Record<string, unknown> = {}) => {
+    console.log(`[DocumentsPage] 📤 Posting message to extension: ${type}`, { type, payload });
+    console.log(`[DocumentsPage] vscodeApi available:`, !!vscodeApi);
     vscodeApi?.postMessage({ type, payload });
   };
 
@@ -148,8 +153,13 @@ const DocumentsPage: React.FC = () => {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
+      console.log('[DocumentsPage] 📨 Received message from extension:', message.type, message);
       
       switch (message.type) {
+        case 'document/hello': {
+          console.log('[DocumentsPage] 👋 Hello from extension:', message.payload);
+          break;
+        }
         case 'document/updated': {
           const doc = message.payload.document;
           setDocuments(prev => {
@@ -198,6 +208,14 @@ const DocumentsPage: React.FC = () => {
         case 'document/list': {
           const docs = message.payload.documents || [];
           setDocuments(docs.map((d: Document) => ({ ...d, selected: false })));
+          break;
+        }
+        case 'document/scan-started': {
+          setIsScanning(true);
+          break;
+        }
+        case 'document/scan-completed': {
+          setIsScanning(false);
           break;
         }
       }
@@ -419,8 +437,27 @@ const DocumentsPage: React.FC = () => {
     poll();
   };
 
-  const handleScan = () => {
-    postMessage('document/scan');
+  const handleScan = async () => {
+    console.log('[DocumentsPage] 🔍 handleScan called, calling API /scan/workspace');
+    setIsScanning(true);
+    try {
+      const res = await fetch('http://localhost:3456/scan/workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) {
+        const err: unknown = await res.json().catch(() => ({}));
+        const message = (typeof err === 'object' && err && 'error' in err) ? (err as { error?: string }).error : undefined;
+        throw new Error(message || `Scan API failed with status ${res.status}`);
+      }
+      const data = await res.json();
+      console.log('[DocumentsPage] ✅ Scan API response:', data);
+    } catch (e) {
+      console.error('[DocumentsPage] ❌ Scan API error:', e);
+    } finally {
+      // We'll also rely on extension messages but ensure UI doesn't lock forever
+      setIsScanning(false);
+    }
   };
 
   const handleRetry = () => {
@@ -502,11 +539,20 @@ const DocumentsPage: React.FC = () => {
           {/* Barra de ações */}
           <div className="flex justify-between items-center gap-2 mb-2 mt-4">
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleScan} className="h-9">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Scan
+              <Button variant="outline" onClick={handleScan} disabled={isScanning} className="h-9">
+                {isScanning ? (
+                  <>
+                    <Spinner size={16} />
+                    <span className="ml-2">Scanning...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Scan
+                  </>
+                )}
               </Button>
               <Button 
                 variant="outline" 
