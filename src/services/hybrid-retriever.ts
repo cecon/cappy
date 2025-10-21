@@ -258,15 +258,20 @@ export class HybridRetriever {
   private graphData: GraphData | null = null;
   private searchUseCase: SearchGraphUseCase;
   private workspaceRoot: string | null = null;
+  private graphStore: import('../domains/graph/ports/indexing-port').GraphStorePort | null = null;
   
-  constructor(graphData?: GraphData) {
+  constructor(graphData?: GraphData, graphStore?: import('../domains/graph/ports/indexing-port').GraphStorePort) {
     this.graphData = graphData || null;
+    this.graphStore = graphStore || null;
     this.searchUseCase = new SearchGraphUseCase();
+    
+    console.log(`[HybridRetriever] Constructor: graphData=${!!graphData}, graphStore=${!!graphStore}`);
     
     // Initialize workspace root
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (workspaceFolder) {
       this.workspaceRoot = workspaceFolder.uri.fsPath;
+      console.log(`[HybridRetriever] Workspace root: ${this.workspaceRoot}`);
     }
   }
   
@@ -291,6 +296,9 @@ export class HybridRetriever {
   ): Promise<HybridRetrieverResult> {
     const startTime = Date.now();
     
+    console.log(`[HybridRetriever] retrieve() called with query: "${query}"`);
+    console.log(`[HybridRetriever] graphStore available: ${!!this.graphStore}`);
+    
     try {
       // Validate input
       if (!query || query.trim().length === 0) {
@@ -303,6 +311,8 @@ export class HybridRetriever {
       const minScore = options.minScore ?? 0.5;
       const sources = options.sources ?? ['code', 'documentation', 'prevention'];
       const rerank = options.rerank ?? true;
+      
+      console.log(`[HybridRetriever] Options: strategy=${strategy}, maxResults=${maxResults}, minScore=${minScore}, sources=${sources.join(',')}`);
       
       // Execute retrieval based on strategy
       let allContexts: RetrievedContext[] = [];
@@ -385,6 +395,75 @@ export class HybridRetriever {
     query: string,
     options: HybridRetrieverOptions
   ): Promise<RetrievedContext[]> {
+    // Use graphStore if available
+    if (this.graphStore) {
+      try {
+        console.log(`[HybridRetriever] Retrieving from code with query: "${query}"`);
+        const queryLower = query.toLowerCase();
+        const queryTokens = queryLower.split(/\s+/);
+        
+        // Get larger subgraph to search across more nodes (undefined seeds = all nodes up to maxNodes)
+        const maxNodesToFetch = Math.max(500, (options.maxResults ?? 10) * 50);
+        const subgraph = await this.graphStore.getSubgraph(undefined, 2, maxNodesToFetch);
+        console.log(`[HybridRetriever] Got subgraph with ${subgraph.nodes.length} nodes, ${subgraph.edges.length} edges`);
+        
+        // Filter and score nodes based on query match
+        const results: RetrievedContext[] = [];
+        let matchedCount = 0;
+        let filteredCount = 0;
+        
+        for (const node of subgraph.nodes) {
+          const labelLower = node.label.toLowerCase();
+          const idLower = node.id.toLowerCase();
+          
+          // Calculate score based on matches
+          let score = 0;
+          for (const token of queryTokens) {
+            if (labelLower.includes(token)) score += 0.4;
+            if (idLower.includes(token)) score += 0.3;
+          }
+          
+          if (score > 0) {
+            matchedCount++;
+            if (score >= 0.3) {
+              filteredCount++;
+            }
+          }
+          
+          // Minimum threshold
+          if (score < 0.3) continue;
+          
+          score = Math.min(score, 1.0);
+          
+          // Extract file path from node ID (format: "file.ts:startLine-endLine")
+          const filePath = node.id.includes(':') ? node.id.split(':')[0] : undefined;
+          
+          results.push({
+            id: node.id,
+            content: node.label,
+            source: 'code' as ContextSource,
+            score,
+            filePath,
+            metadata: {
+              title: node.label,
+              category: node.type,
+              keywords: [],
+              lastModified: new Date().toISOString()
+            },
+            snippet: node.label
+          });
+        }
+        
+        console.log(`[HybridRetriever] Matched ${matchedCount} nodes, ${filteredCount} passed threshold, returning ${results.length} results`);
+        
+        return results.sort((a, b) => b.score - a.score);
+      } catch (error) {
+        console.warn('Failed to retrieve from graph store:', error);
+        return [];
+      }
+    }
+    
+    // Fallback to graphData if available
     if (!this.graphData) {
       return [];
     }
@@ -629,11 +708,17 @@ export class HybridRetriever {
     contexts: RetrievedContext[],
     options: HybridRetrieverOptions
   ): RetrievedContext[] {
+    // Count available sources
+    const availableSources = new Set(contexts.map(ctx => ctx.source));
+    const sourceCount = availableSources.size;
+    
+    // If only one source, don't apply penalties (use weight = 1.0)
+    // This prevents filtering out results when searching only code, for example
     const weights = {
-      code: options.codeWeight ?? 0.4,
-      documentation: options.docWeight ?? 0.3,
-      prevention: options.preventionWeight ?? 0.2,
-      task: options.taskWeight ?? 0.1,
+      code: sourceCount === 1 ? 1.0 : (options.codeWeight ?? 0.4),
+      documentation: sourceCount === 1 ? 1.0 : (options.docWeight ?? 0.3),
+      prevention: sourceCount === 1 ? 1.0 : (options.preventionWeight ?? 0.2),
+      task: sourceCount === 1 ? 1.0 : (options.taskWeight ?? 0.1),
       metadata: 0.0
     };
     

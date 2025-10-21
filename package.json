@@ -98,6 +98,11 @@
         "category": "Cappy"
       },
       {
+        "command": "cappy.testRetriever",
+        "title": "🧪 Cappy: Test Context Retriever",
+        "category": "Cappy"
+      },
+      {
         "command": "cappy.debugRetrieval",
         "title": "🔎 Cappy: Debug - Retrieval Test",
         "category": "Cappy Debug"
@@ -159,6 +164,16 @@
         "name": "cappy_create_file",
         "displayName": "Create File",
         "modelDescription": "Creates a new file in the workspace with the specified content. Use this when the user asks to create a file.",
+        "userDescription": "Create a new file in the workspace",
+        "toolReferenceName": "createFile",
+        "tags": [
+          "file",
+          "create",
+          "workspace",
+          "cappy"
+        ],
+        "icon": "$(new-file)",
+        "canBeReferencedInPrompt": true,
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -181,6 +196,17 @@
         "name": "cappy_fetch_web",
         "displayName": "Fetch Web",
         "modelDescription": "Fetches content from a web URL (HTML, JSON, or text). Provide the url and optionally a CSS selector.",
+        "userDescription": "Fetch content from a web URL",
+        "toolReferenceName": "fetchWeb",
+        "tags": [
+          "web",
+          "fetch",
+          "http",
+          "url",
+          "cappy"
+        ],
+        "icon": "$(globe)",
+        "canBeReferencedInPrompt": true,
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -202,6 +228,18 @@
         "name": "cappy_retrieve_context",
         "displayName": "Retrieve Context",
         "modelDescription": "Searches for relevant context across code, documentation, prevention rules, and tasks. Use this before answering questions about existing code, best practices, or implementation patterns. Returns comprehensive information with relevance scores.",
+        "userDescription": "Search for relevant context from code, documentation, and prevention rules",
+        "toolReferenceName": "retrieveContext",
+        "tags": [
+          "context",
+          "search",
+          "documentation",
+          "code",
+          "prevention",
+          "cappy"
+        ],
+        "icon": "$(search)",
+        "canBeReferencedInPrompt": true,
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -221,7 +259,12 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["code", "documentation", "prevention", "task"]
+                "enum": [
+                  "code",
+                  "documentation",
+                  "prevention",
+                  "task"
+                ]
               },
               "description": "Sources to search in (default: ['code', 'documentation', 'prevention'])"
             },
@@ -250,6 +293,8 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:entity-extraction": "npx tsx test-entity-extraction.ts",
+    "test:word-parsing": "npx tsx test-word-parsing-standalone.ts",
     "vscode:prepublish": "npm run compile-extension",
     "compile-extension": "tsc --project tsconfig.extension.json",
     "watch": "tsc -watch -p ./",
@@ -278,6 +323,8 @@
     "gray-matter": "^4.0.3",
     "ignore": "^5.3.1",
     "lucide-react": "^0.545.0",
+    "mammoth": "^1.11.0",
+    "pdf-parse": "^2.4.5",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
@@ -292,6 +339,7 @@
     "@eslint/js": "^9.36.0",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^24.7.2",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
     "@types/sql.js": "^1.4.9",

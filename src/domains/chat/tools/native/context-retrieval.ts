@@ -80,6 +80,20 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
   }
 
   /**
+   * Updates the retriever instance (for late initialization)
+   */
+  setRetriever(retriever: HybridRetriever): void {
+    this.retriever = retriever;
+  }
+
+  /**
+   * Updates the graph service instance (for late initialization)
+   */
+  setGraphService(graphService: GraphService): void {
+    this.graphService = graphService;
+  }
+
+  /**
    * Initialize the tool with graph data
    */
   async initialize(): Promise<void> {
@@ -111,17 +125,24 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
   ): Promise<vscode.LanguageModelToolResult> {
     const { query, maxResults, minScore, sources, category, includeRelated } = options.input;
 
+    console.log(`[ContextRetrievalTool] invoke called with query: "${query}"`);
+    console.log(`[ContextRetrievalTool] retriever initialized: ${!!this.retriever}`);
+
     try {
       // Ensure retriever is initialized
       if (!this.retriever) {
+        console.log('[ContextRetrievalTool] Retriever not initialized, initializing now...');
         await this.initialize();
       }
 
       if (!this.retriever) {
+        console.error('[ContextRetrievalTool] Failed to initialize retriever');
         return new vscode.LanguageModelToolResult([
           new vscode.LanguageModelTextPart('❌ Context retrieval not available: retriever not initialized')
         ]);
       }
+      
+      console.log(`[ContextRetrievalTool] Starting retrieval with options:`, { maxResults, minScore, sources, category, includeRelated });
 
       // Build retrieval options
       const retrievalOptions: HybridRetrieverOptions = {
@@ -135,9 +156,13 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
 
       // Execute retrieval
       const result = await this.retriever.retrieve(query, retrievalOptions);
+      
+      console.log(`[ContextRetrievalTool] Retrieval completed: ${result.contexts.length} contexts found in ${result.metadata.retrievalTimeMs}ms`);
+      console.log(`[ContextRetrievalTool] Source breakdown:`, result.metadata.sourceBreakdown);
 
       // Format results for LLM
       if (result.contexts.length === 0) {
+        console.log(`[ContextRetrievalTool] No contexts found for query: "${query}"`);
         return new vscode.LanguageModelToolResult([
           new vscode.LanguageModelTextPart(`ℹ️ No relevant context found for: "${query}"`)
         ]);

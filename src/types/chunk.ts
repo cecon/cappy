@@ -8,7 +8,7 @@
 /**
  * Chunk types based on content origin
  */
-export type ChunkType = 'jsdoc' | 'markdown_section' | 'code' | 'plain_text';
+export type ChunkType = 'jsdoc' | 'markdown_section' | 'code' | 'plain_text' | 'document_section';
 
 /**
  * Document chunk metadata
@@ -22,6 +22,23 @@ export interface ChunkMetadata {
   symbolKind?: 'function' | 'class' | 'interface' | 'type' | 'variable';
   heading?: string;
   headingLevel?: number;
+  // Entity extraction metadata (optional)
+  entities?: string[];
+  entityTypes?: Record<string, string>;
+  relationships?: Array<{
+    from: string;
+    to: string;
+    type: string;
+    confidence: number;
+    context?: string;
+  }>;
+  extractedAt?: string;
+  extractionModel?: string;
+  // Chunking metadata (optional)
+  chunkNumber?: number;
+  hasOverlap?: boolean;
+  overlapTokens?: number;
+  [key: string]: unknown;
 }
 
 /**

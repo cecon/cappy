@@ -7,6 +7,7 @@
 
 import { createTypeScriptParser } from '../adapters/secondary/parsers/typescript-parser';
 import { createMarkdownParser } from '../adapters/secondary/parsers/markdown-parser';
+import { createDocumentEnhancedParser } from '../adapters/secondary/parsers/document-enhanced-parser';
 import type { DocumentChunk } from '../types/chunk';
 import * as path from 'path';
 
@@ -16,6 +17,16 @@ import * as path from 'path';
 export class ParserService {
   private readonly tsParser = createTypeScriptParser();
   private readonly mdParser = createMarkdownParser();
+  private readonly enhancedDocParser = createDocumentEnhancedParser();
+  private enhancedParsingEnabled = false;
+
+  /**
+   * Enables enhanced parsing with entity extraction
+   */
+  enableEnhancedParsing(enabled = true): void {
+    this.enhancedParsingEnabled = enabled;
+    console.log(`📚 Enhanced document parsing ${enabled ? 'enabled' : 'disabled'}`);
+  }
 
   /**
    * Parses a file based on its extension
@@ -34,12 +45,30 @@ export class ParserService {
 
         case '.md':
         case '.mdx':
+          // Use enhanced parser if enabled
+          if (this.enhancedParsingEnabled) {
+            console.log(`🧠 Parsing Markdown with entity extraction: ${filePath}`);
+            return await this.enhancedDocParser.parseFile(filePath, true);
+          }
+          
+          // Fallback to standard parser
           console.log(`🔍 Parsing Markdown: ${filePath}`);
           if (useOverlap) {
             return await this.mdParser.parseFileWithOverlap(filePath, 512, 100);
           } else {
             return await this.mdParser.parseFile(filePath);
           }
+
+        case '.pdf':
+        case '.doc':
+        case '.docx':
+          // Enhanced parser for documents
+          if (this.enhancedParsingEnabled) {
+            console.log(`🧠 Parsing document with entity extraction: ${filePath}`);
+            return await this.enhancedDocParser.parseFile(filePath, true);
+          }
+          console.warn(`⚠️ Enhanced parsing disabled - cannot parse: ${ext}`);
+          return [];
 
         default:
           console.warn(`⚠️ Unsupported file type: ${ext}`);
@@ -77,7 +106,25 @@ export class ParserService {
    */
   isSupported(filePath: string): boolean {
     const ext = path.extname(filePath);
-    return ['.ts', '.tsx', '.js', '.jsx', '.md', '.mdx'].includes(ext);
+    const basicSupported = ['.ts', '.tsx', '.js', '.jsx', '.md', '.mdx'];
+    const enhancedSupported = ['.pdf', '.doc', '.docx'];
+    
+    if (basicSupported.includes(ext)) {
+      return true;
+    }
+    
+    if (enhancedSupported.includes(ext) && this.enhancedParsingEnabled) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Checks if enhanced parsing is enabled
+   */
+  isEnhancedParsingEnabled(): boolean {
+    return this.enhancedParsingEnabled;
   }
 }
 

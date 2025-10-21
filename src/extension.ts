@@ -5,6 +5,7 @@ import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvide
 import { DocumentsViewProvider } from './adapters/primary/vscode/documents/DocumentsViewProvider';
 import { CreateFileTool } from './adapters/secondary/tools/create-file-tool';
 import { FetchWebTool } from './adapters/secondary/tools/fetch-web-tool';
+import { ContextRetrievalTool } from './domains/chat/tools/native/context-retrieval';
 import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
 import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './adapters/primary/vscode/commands/scan-workspace';
@@ -25,6 +26,7 @@ let fileDatabase: FileMetadataDatabase | null = null;
 let fileQueue: FileProcessingQueue | null = null;
 let fileAPI: FileProcessingAPI | null = null;
 let graphStore: GraphStorePort | null = null;
+let contextRetrievalToolInstance: ContextRetrievalTool | null = null;
 
 /**
  * Cappy Extension - React + Vite Version
@@ -44,6 +46,30 @@ export function activate(context: vscode.ExtensionContext) {
     const fetchWebTool = vscode.lm.registerTool('cappy_fetch_web', new FetchWebTool());
     context.subscriptions.push(fetchWebTool);
     console.log('✅ Registered Language Model Tool: cappy_fetch_web');
+
+    // Create context retrieval tool instance (will be initialized later with graph data)
+    contextRetrievalToolInstance = new ContextRetrievalTool();
+    const contextRetrievalTool = vscode.lm.registerTool('cappy_retrieve_context', contextRetrievalToolInstance);
+    context.subscriptions.push(contextRetrievalTool);
+    console.log('✅ Registered Language Model Tool: cappy_retrieve_context');
+
+    // List all registered tools for debugging (longer wait to ensure LM runtime loads)
+    setTimeout(() => {
+        const allTools = vscode.lm.tools;
+        const cappyTools = allTools.filter(t => t.name.startsWith('cappy_'));
+        console.log('🛠️ All Cappy tools registered:', cappyTools.map(t => t.name).join(', '));
+        console.log('🛠️ Total Language Model tools available:', allTools.length);
+        console.log('🛠️ Tool names:', allTools.map(t => t.name).join(', '));
+        
+        // Show notification with tools
+        if (cappyTools.length > 0) {
+            vscode.window.showInformationMessage(
+                `✅ Cappy: ${cappyTools.length} ferramentas registradas: ${cappyTools.map(t => t.name).join(', ')}`
+            );
+        } else {
+            vscode.window.showWarningMessage('⚠️ Cappy: Nenhuma ferramenta foi registrada!');
+        }
+    }, 5000); // Wait 5 seconds for all tools to register
     
     // Create output channel for graph logs
     const graphOutputChannel = vscode.window.createOutputChannel('Cappy Graph');
@@ -201,6 +227,41 @@ export function activate(context: vscode.ExtensionContext) {
     registerResetDatabaseCommand(context);
     console.log('✅ Registered command: cappy.resetDatabase');
 
+    // Register test retriever command
+    const testRetrieverCommand = vscode.commands.registerCommand('cappy.testRetriever', async () => {
+        try {
+            const query = await vscode.window.showInputBox({
+                prompt: 'Enter search query to test the retriever',
+                placeHolder: 'e.g., workspace scanner, graph service, authentication',
+                value: 'workspace scanner'
+            });
+            
+            if (!query) {
+                return;
+            }
+            
+            if (!contextRetrievalToolInstance) {
+                vscode.window.showErrorMessage('Context retrieval tool not initialized');
+                return;
+            }
+            
+            const outputChannel = vscode.window.createOutputChannel('Cappy Retriever Test');
+            outputChannel.show();
+            outputChannel.appendLine(`🔍 Testing retriever with query: "${query}"`);
+            outputChannel.appendLine('━'.repeat(60));
+            
+            vscode.window.showInformationMessage(`✅ Test command ready. Use GitHub Copilot Chat:\n@workspace use cappy_retrieve_context to search for "${query}"`);
+            outputChannel.appendLine(`\n� To test the retriever:`);
+            outputChannel.appendLine(`   Open GitHub Copilot Chat and run:`);
+            outputChannel.appendLine(`   @workspace use cappy_retrieve_context to search for "${query}"`);
+        } catch (error) {
+            vscode.window.showErrorMessage(`❌ Retriever test failed: ${error}`);
+            console.error('Retriever test error:', error);
+        }
+    });
+    context.subscriptions.push(testRetrieverCommand);
+    console.log('✅ Registered command: cappy.testRetriever');
+
     // Create chat service with LangGraph engine (includes tools)
     const chatEngine = new LangGraphChatEngine();
     const chatService = createChatService(chatEngine);
@@ -284,8 +345,23 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         // Store globally for reanalyze command
         graphStore = graphStoreInstance;
         
-        // Create vector store
+        // Create vector store (needs to be before context tool initialization)
         const vectorStore = createVectorStore(graphStoreInstance, embeddingService);
+        
+        // Initialize context retrieval tool with graphStore
+        if (contextRetrievalToolInstance && graphStoreInstance) {
+            try {
+                // Pass graphStore to HybridRetriever so it can search the database
+                const { HybridRetriever } = await import('./services/hybrid-retriever.js');
+                const hybridRetriever = new HybridRetriever(undefined, graphStoreInstance);
+                
+                // Update the EXISTING instance (don't create a new one!)
+                contextRetrievalToolInstance.setRetriever(hybridRetriever);
+                console.log('✅ Context retrieval tool initialized with hybrid retriever and graph store');
+            } catch (error) {
+                console.error('❌ Failed to initialize context retrieval tool:', error);
+            }
+        }
         
         // Initialize indexing service
         const indexingService = new IndexingService(

@@ -143,7 +143,8 @@ export class SQLiteAdapter implements GraphStorePort {
     try {
       let currentLevel: string[] = [];
       if (!seeds || seeds.length === 0) {
-        const rootResult = this.db.exec(`SELECT id FROM nodes WHERE type = 'file'`);
+        // Include both files and chunks as potential starting points
+        const rootResult = this.db.exec(`SELECT id FROM nodes WHERE type IN ('file', 'chunk') LIMIT ?`, [maxNodes]);
         if (rootResult.length > 0 && rootResult[0].values) {
           currentLevel = rootResult[0].values.map((row) => row[0] as string);
         }
