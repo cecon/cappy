@@ -13,15 +13,21 @@ describe('HybridRetriever', () => {
   
   beforeEach(() => {
     // Create mock graph data
+    const now = new Date().toISOString();
+    
     mockGraphData = {
       nodes: [
         {
           id: 'func1',
           label: 'authenticateUser',
           type: 'symbol',
-          created: new Date().toISOString(),
-          updated: new Date().toISOString(),
+          created: now,
+          updated: now,
           confidence: 0.9,
+          visual: { color: '#fff', size: 10, shape: 'circle', opacity: 1 },
+          state: { highlighted: false, selected: false, hovered: false, visible: true, expanded: false },
+          connections: { incoming: 0, outgoing: 1, total: 1 },
+          metrics: { importance: 0.8, pageRank: 0.5 },
           metadata: {
             filePath: '/src/auth/authenticate.ts',
             signature: 'function authenticateUser(token: string): Promise<User>',
@@ -32,9 +38,13 @@ describe('HybridRetriever', () => {
           id: 'func2',
           label: 'validateToken',
           type: 'symbol',
-          created: new Date().toISOString(),
-          updated: new Date().toISOString(),
+          created: now,
+          updated: now,
           confidence: 0.9,
+          visual: { color: '#fff', size: 10, shape: 'circle', opacity: 1 },
+          state: { highlighted: false, selected: false, hovered: false, visible: true, expanded: false },
+          connections: { incoming: 1, outgoing: 0, total: 1 },
+          metrics: { importance: 0.7, pageRank: 0.4 },
           metadata: {
             filePath: '/src/auth/jwt.ts',
             signature: 'function validateToken(token: string): boolean',
@@ -45,9 +55,13 @@ describe('HybridRetriever', () => {
           id: 'class1',
           label: 'UserService',
           type: 'symbol',
-          created: new Date().toISOString(),
-          updated: new Date().toISOString(),
+          created: now,
+          updated: now,
           confidence: 0.9,
+          visual: { color: '#fff', size: 10, shape: 'circle', opacity: 1 },
+          state: { highlighted: false, selected: false, hovered: false, visible: true, expanded: false },
+          connections: { incoming: 0, outgoing: 0, total: 0 },
+          metrics: { importance: 0.6, pageRank: 0.3 },
           metadata: {
             filePath: '/src/services/user.service.ts',
             description: 'Service for user management operations'
@@ -61,16 +75,42 @@ describe('HybridRetriever', () => {
           target: 'func2',
           type: 'refers_to',
           label: 'calls',
-          created: new Date().toISOString(),
-          updated: new Date().toISOString(),
-          confidence: 0.8
+          created: now,
+          updated: now,
+          confidence: 0.8,
+          weight: 1.0,
+          bidirectional: false,
+          visual: { color: '#ccc', size: 1, opacity: 0.5 },
+          state: { highlighted: false, selected: false, hovered: false, visible: true },
+          metadata: {}
         }
       ],
-      metadata: {
+      statistics: {
         nodeCount: 3,
         edgeCount: 1,
-        generatedAt: new Date().toISOString()
-      }
+        density: 0.33,
+        averageDegree: 0.67,
+        components: 1,
+        nodesByType: {
+          document: 0,
+          entity: 0,
+          chunk: 0,
+          concept: 0,
+          keyword: 0,
+          symbol: 3
+        },
+        edgesByType: {
+          contains: 0,
+          mentions: 0,
+          similar_to: 0,
+          refers_to: 1,
+          part_of: 0,
+          related_to: 0,
+          derived_from: 0,
+          depends_on: 0
+        }
+      },
+      lastUpdated: now
     };
     
     retriever = new HybridRetriever(mockGraphData);
