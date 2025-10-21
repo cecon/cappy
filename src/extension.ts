@@ -65,6 +65,77 @@ export function activate(context: vscode.ExtensionContext) {
     
     context.subscriptions.push(openGraphCommand);
 
+    // Register interactive hybrid search command
+    const searchCommand = vscode.commands.registerCommand('cappy.search', async () => {
+
+    const vscode = await import('vscode');
+    const { HybridRetriever } = await import('./services/hybrid-retriever.js');
+
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            vscode.window.showErrorMessage('No workspace folder open');
+            return;
+        }
+
+        // Prompt for query
+        const query = await vscode.window.showInputBox({
+            title: 'Cappy Hybrid Search',
+            prompt: 'Enter your search query (code, docs, rules, tasks)',
+            ignoreFocusOut: true
+        });
+        if (!query) {
+            return;
+        }
+
+        // Create retriever and run search
+        const retriever = new HybridRetriever();
+        let result;
+        try {
+            result = await retriever.retrieve(query, {
+                maxResults: 10,
+                minScore: 0.3,
+                sources: ['code', 'documentation', 'prevention', 'task'],
+                includeRelated: true,
+                rerank: true
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Hybrid search failed: ${error instanceof Error ? error.message : String(error)}`);
+            return;
+        }
+
+        if (!result || !result.contexts.length) {
+            vscode.window.showInformationMessage(`No relevant context found for: "${query}"`);
+            return;
+        }
+
+        // Show results in QuickPick
+        type QuickPickItem = {
+            label: string;
+            description?: string;
+            detail?: string;
+            ctx: typeof result.contexts[0];
+        };
+        const items: QuickPickItem[] = result.contexts.map(ctx => ({
+            label: `${ctx.source === 'code' ? '💻' : ctx.source === 'documentation' ? '📚' : ctx.source === 'prevention' ? '🛡️' : ctx.source === 'task' ? '✅' : '📄'} ${ctx.metadata.title || ctx.id}`,
+            description: ctx.filePath ? `${ctx.filePath}` : undefined,
+            detail: ctx.snippet ? ctx.snippet.replace(/\n/g, ' ').slice(0, 200) : ctx.content.slice(0, 200),
+            ctx
+        }));
+
+        const picked = await vscode.window.showQuickPick(items, {
+            title: `Hybrid Search Results (${result.contexts.length})` ,
+            matchOnDescription: true,
+            matchOnDetail: true,
+            placeHolder: 'Select a context to copy snippet to clipboard',
+        });
+        if (picked && typeof picked === 'object' && 'ctx' in picked && picked.ctx) {
+            await vscode.env.clipboard.writeText(picked.ctx.content);
+            vscode.window.showInformationMessage('Context copied to clipboard!');
+        }
+    });
+    context.subscriptions.push(searchCommand);
+    console.log('✅ Registered command: cappy.search');
+
     // Register workspace scan command
     registerScanWorkspaceCommand(context);
     console.log('✅ Registered command: cappy.scanWorkspace');
