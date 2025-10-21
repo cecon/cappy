@@ -41,7 +41,9 @@ export const ToolCategory = {
   /** Code analysis */
   ANALYSIS: 'analysis',
   /** Task management */
-  TASK: 'task'
+  TASK: 'task',
+  /** Context retrieval and search */
+  CONTEXT: 'context'
 } as const
 
 export type ToolCategory = typeof ToolCategory[keyof typeof ToolCategory]

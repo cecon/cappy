@@ -4,3 +4,4 @@
 
 export { CreateFileTool } from './create-file'
 export { FetchWebTool } from './fetch-web'
+export { ContextRetrievalTool } from './context-retrieval'

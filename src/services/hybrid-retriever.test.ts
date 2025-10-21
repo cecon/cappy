@@ -18,7 +18,10 @@ describe('HybridRetriever', () => {
         {
           id: 'func1',
           label: 'authenticateUser',
-          type: 'function',
+          type: 'symbol',
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+          confidence: 0.9,
           metadata: {
             filePath: '/src/auth/authenticate.ts',
             signature: 'function authenticateUser(token: string): Promise<User>',
@@ -28,7 +31,10 @@ describe('HybridRetriever', () => {
         {
           id: 'func2',
           label: 'validateToken',
-          type: 'function',
+          type: 'symbol',
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+          confidence: 0.9,
           metadata: {
             filePath: '/src/auth/jwt.ts',
             signature: 'function validateToken(token: string): boolean',
@@ -38,7 +44,10 @@ describe('HybridRetriever', () => {
         {
           id: 'class1',
           label: 'UserService',
-          type: 'class',
+          type: 'symbol',
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+          confidence: 0.9,
           metadata: {
             filePath: '/src/services/user.service.ts',
             description: 'Service for user management operations'
@@ -50,8 +59,11 @@ describe('HybridRetriever', () => {
           id: 'edge1',
           source: 'func1',
           target: 'func2',
-          type: 'calls',
-          label: 'calls'
+          type: 'refers_to',
+          label: 'calls',
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+          confidence: 0.8
         }
       ],
       metadata: {

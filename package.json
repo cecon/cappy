@@ -195,6 +195,47 @@
             "url"
           ]
         }
+      },
+      {
+        "name": "cappy_retrieve_context",
+        "displayName": "Retrieve Context",
+        "modelDescription": "Searches for relevant context across code, documentation, prevention rules, and tasks. Use this before answering questions about existing code, best practices, or implementation patterns. Returns comprehensive information with relevance scores.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query describing what context you need (e.g., 'JWT authentication', 'database migration patterns', 'error handling rules')"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results to return (default: 10)"
+            },
+            "minScore": {
+              "type": "number",
+              "description": "Minimum relevance score from 0 to 1 (default: 0.5)"
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["code", "documentation", "prevention", "task"]
+              },
+              "description": "Sources to search in (default: ['code', 'documentation', 'prevention'])"
+            },
+            "category": {
+              "type": "string",
+              "description": "Filter results by category (e.g., 'auth', 'database', 'api', 'ui')"
+            },
+            "includeRelated": {
+              "type": "boolean",
+              "description": "Include related context in results (default: true)"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
       }
     ]
   },

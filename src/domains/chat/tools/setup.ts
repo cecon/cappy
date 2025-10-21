@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode'
 import { toolRegistry } from './registry'
-import { CreateFileTool, FetchWebTool } from './native'
+import { CreateFileTool, FetchWebTool, ContextRetrievalTool } from './native'
 
 /**
  * Register all native tools
@@ -29,6 +29,18 @@ export function registerNativeTools(context: vscode.ExtensionContext): void {
     fetchWebTool
   )
   context.subscriptions.push(fetchWebDisposable)
+
+  // Context Retrieval Tool
+  const contextRetrievalTool = new ContextRetrievalTool()
+  // Initialize asynchronously
+  contextRetrievalTool.initialize().catch(err => {
+    console.warn('Failed to initialize context retrieval tool:', err)
+  })
+  const contextRetrievalDisposable = toolRegistry.register(
+    ContextRetrievalTool.metadata,
+    contextRetrievalTool
+  )
+  context.subscriptions.push(contextRetrievalDisposable)
 
   console.log(`✅ Registered ${toolRegistry.size} native tools`)
 }
