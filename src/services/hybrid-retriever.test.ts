@@ -86,11 +86,8 @@ describe('HybridRetriever', () => {
         }
       ],
       statistics: {
-        nodeCount: 3,
-        edgeCount: 1,
-        density: 0.33,
-        averageDegree: 0.67,
-        components: 1,
+        totalNodes: 3,
+        totalEdges: 1,
         nodesByType: {
           document: 0,
           entity: 0,
@@ -108,7 +105,13 @@ describe('HybridRetriever', () => {
           related_to: 0,
           derived_from: 0,
           depends_on: 0
-        }
+        },
+        avgConfidence: 0.87,
+        dateRange: {
+          min: now,
+          max: now
+        },
+        density: 0.33
       },
       lastUpdated: now
     };
