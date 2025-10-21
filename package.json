@@ -96,6 +96,11 @@
         "command": "cappy.resetDatabase",
         "title": "🗑️ Cappy: Reset Graph Database",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.debugRetrieval",
+        "title": "🔎 Cappy: Debug - Retrieval Test",
+        "category": "Cappy Debug"
       }
     ],
     "viewsContainers": {
@@ -112,6 +117,11 @@
         {
           "id": "cappy.chatView",
           "name": "Chat",
+          "type": "webview"
+        },
+        {
+          "id": "cappy.documentsView",
+          "name": "Documents",
           "type": "webview"
         }
       ]

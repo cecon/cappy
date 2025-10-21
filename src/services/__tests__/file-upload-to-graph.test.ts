@@ -75,11 +75,11 @@ describe('Upload -> Nodes/Relationships (API integration)', () => {
     const parser = new ParserService();
     const hasher = new FileHashService();
 
-    // Graph + indexing (vector store disabled)
+    // Graph + indexing (usando apenas SQLite, sem VectorStore)
     graph = new SQLiteAdapter(env.graphDir);
     await graph.initialize();
   const embed = new MockEmbeddingService() as unknown as import('../embedding-service').EmbeddingService;
-  const indexing = new IndexingService(null as unknown as import('../../domains/graph/ports/indexing-port').VectorStorePort, graph, embed, env.workspace);
+  const indexing = new IndexingService(null, graph, embed, env.workspace);
 
     // Worker + queue
     const worker = new FileProcessingWorker(parser, hasher, env.workspace, indexing, graph);

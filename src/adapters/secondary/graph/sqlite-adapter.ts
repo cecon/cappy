@@ -579,37 +579,27 @@ export class SQLiteAdapter implements GraphStorePort {
   }
 
   /**
-   * Fetches chunks by their IDs from the vectors table and maps them to DocumentChunk
+   * Gets vector chunks by their IDs from vectors table
    */
   async getChunksByIds(ids: string[]): Promise<DocumentChunk[]> {
     if (!this.db) return [];
-    if (!ids || ids.length === 0) return [];
+    if (ids.length === 0) return [];
 
+    // Prepare placeholders for IN clause
+    const placeholders = ids.map(() => '?').join(',');
     try {
-      // Ensure vectors table exists (noop if already created)
-      this.db.run(`
-        CREATE TABLE IF NOT EXISTS vectors (
-          chunk_id TEXT PRIMARY KEY,
-          content TEXT NOT NULL,
-          embedding_json TEXT NOT NULL,
-          metadata TEXT
-        )
-      `);
+      const result = this.db.exec(
+        `SELECT chunk_id, content, metadata FROM vectors WHERE chunk_id IN (${placeholders})`,
+        ids
+      );
 
-      const placeholders = ids.map(() => '?').join(',');
-      const query = `SELECT chunk_id, content, metadata FROM vectors WHERE chunk_id IN (${placeholders})`;
-      const result = this.db.exec(query, ids as unknown as string[]);
       if (result.length === 0 || !result[0].values) return [];
 
-      const rows = result[0].values;
-      const chunks: DocumentChunk[] = rows.map((row) => {
-        const id = row[0] as string;
-        const content = row[1] as string;
-        const metadataRaw = row[2] as string | null;
-        const meta = metadataRaw ? (JSON.parse(metadataRaw) as Record<string, unknown>) : {};
+      return result[0].values.map((row) => {
+        const meta = row[2] ? JSON.parse(row[2] as string) : {};
         return {
-          id,
-          content,
+          id: row[0] as string,
+          content: row[1] as string,
           metadata: {
             filePath: (meta.filePath as string) || '',
             lineStart: (meta.lineStart as number) ?? 0,
@@ -618,13 +608,86 @@ export class SQLiteAdapter implements GraphStorePort {
             symbolName: meta.symbolName as string | undefined,
             symbolKind: meta.symbolKind as DocumentChunk['metadata']['symbolKind'] | undefined,
           },
-        };
+        } as DocumentChunk;
       });
-
-      return chunks;
-    } catch (error) {
-      console.error('❌ SQLite getChunksByIds error:', error);
+    } catch (err) {
+      console.warn('⚠️ getChunksByIds failed:', err);
       return [];
+    }
+  }
+
+  /**
+   * Gets sample relationships from the graph
+   */
+  async getSampleRelationships(limit = 20): Promise<Array<{
+    id: number;
+    from: string;
+    to: string;
+    type: string;
+    properties?: Record<string, unknown>;
+  }>> {
+    if (!this.db) return [];
+
+    try {
+      const result = this.db.exec(
+        `SELECT id, from_id, to_id, type, properties FROM edges LIMIT ${limit}`
+      );
+
+      if (result.length === 0 || !result[0].values) return [];
+
+      return result[0].values.map((row) => ({
+        id: row[0] as number,
+        from: row[1] as string,
+        to: row[2] as string,
+        type: row[3] as string,
+        properties: row[4] ? JSON.parse(row[4] as string) : undefined,
+      }));
+    } catch (error) {
+      console.error('Error fetching sample relationships:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Gets relationships grouped by type
+   */
+  async getRelationshipsByType(): Promise<Record<string, Array<{
+    from: string;
+    to: string;
+    properties?: Record<string, unknown>;
+  }>>> {
+    if (!this.db) return {};
+
+    try {
+      const result = this.db.exec(
+        `SELECT type, from_id, to_id, properties FROM edges ORDER BY type`
+      );
+
+      if (result.length === 0 || !result[0].values) return {};
+
+      const grouped: Record<string, Array<{
+        from: string;
+        to: string;
+        properties?: Record<string, unknown>;
+      }>> = {};
+
+      for (const row of result[0].values) {
+        const type = row[0] as string;
+        const from = row[1] as string;
+        const to = row[2] as string;
+        const properties = row[3] ? JSON.parse(row[3] as string) : undefined;
+
+        if (!grouped[type]) {
+          grouped[type] = [];
+        }
+
+        grouped[type].push({ from, to, properties });
+      }
+
+      return grouped;
+    } catch (error) {
+      console.error('Error fetching relationships by type:', error);
+      return {};
     }
   }
 }

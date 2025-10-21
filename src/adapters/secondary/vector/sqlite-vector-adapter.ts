@@ -131,8 +131,9 @@ export class SQLiteVectorStore implements VectorStorePort {
     }
   }
 
+
   /**
-   * Deletes all chunks belonging to a file
+   * Deletes chunks by file path
    */
   async deleteChunksByFile(filePath: string): Promise<void> {
     if (!this.initialized) {
@@ -157,6 +158,9 @@ export class SQLiteVectorStore implements VectorStorePort {
 /**
  * Factory function to create vector store from graph adapter
  */
-export function createVectorStore(graphStore: SQLiteAdapter): VectorStorePort {
-  return new SQLiteVectorStore(graphStore);
+export function createVectorStore(
+  graphStore: SQLiteAdapter, 
+  embeddingService?: EmbeddingService
+): VectorStorePort {
+  return new SQLiteVectorStore(graphStore, embeddingService);
 }

@@ -4,7 +4,7 @@ import * as path from 'path';
 import { EmbeddingService } from '../../../../services/embedding-service';
 import { SQLiteAdapter } from '../../../secondary/graph/sqlite-adapter';
 import { IndexingService } from '../../../../services/indexing-service';
-import type { VectorStorePort } from '../../../../domains/graph/ports/indexing-port';
+import { createVectorStore } from '../../../secondary/vector/sqlite-vector-adapter';
 
 export interface GraphInitResult {
   indexingService: IndexingService;
@@ -62,9 +62,12 @@ export class IndexingInitializer {
       console.error('Workspace node error:', e);
     }
 
+    // Create vector store
+    const vectorStore = createVectorStore(graphStore, embeddingService);
+
     // Create indexing service
     const indexingService = new IndexingService(
-      null as unknown as VectorStorePort,
+      vectorStore, // Vector store usando SQLite plugin (sqlite-vss)
       graphStore,
       embeddingService,
       workspaceRoot

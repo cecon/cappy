@@ -6,10 +6,11 @@
  */
 
 import * as vscode from 'vscode';
-import { WorkspaceScanner, type ScanProgress } from '../../../../services/workspace-scanner';
+import { WorkspaceScanner } from '../../../../services/workspace-scanner';
+import type { ScanProgress } from '../../../../services/workspace-scanner';
 import { ParserService } from '../../../../services/parser-service';
-import { IndexingService } from '../../../../services/indexing-service';
 import { EmbeddingService } from '../../../../services/embedding-service';
+import { IndexingService } from '../../../../services/indexing-service';
 import { SQLiteAdapter } from '../../../secondary/graph/sqlite-adapter';
 import { SQLiteVectorStore } from '../../../secondary/vector/sqlite-vector-adapter';
 import * as path from 'path';

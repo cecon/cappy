@@ -97,6 +97,26 @@ export interface GraphStorePort {
   getStats(): { fileNodes: number; chunkNodes: number; relationships: number; duplicates?: number };
 
   /**
+   * Gets sample relationships from the graph
+   */
+  getSampleRelationships(limit?: number): Promise<Array<{
+    id: number;
+    from: string;
+    to: string;
+    type: string;
+    properties?: Record<string, unknown>;
+  }>>;
+
+  /**
+   * Gets relationships grouped by type
+   */
+  getRelationshipsByType(): Promise<Record<string, Array<{
+    from: string;
+    to: string;
+    properties?: Record<string, unknown>;
+  }>>>;
+
+  /**
    * Gets a subgraph starting from seeds with given depth
    */
   getSubgraph(

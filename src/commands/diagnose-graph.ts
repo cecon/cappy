@@ -144,11 +144,77 @@ export async function diagnoseGraph(
     // 6. Sample relationship inspection
     outputChannel.appendLine('📋 Sample relationships (first 20):');
     try {
-      // This would require a method to get sample relationships
-      // For now, we'll note it as a TODO
-      outputChannel.appendLine('   [Feature not yet implemented - needs getRawRelationships method]');
+      const sampleRelationships = await graphStore.getSampleRelationships(20);
+      
+      if (sampleRelationships.length === 0) {
+        outputChannel.appendLine('   ⚠️ No relationships found in database');
+      } else {
+        outputChannel.appendLine(`   Found ${sampleRelationships.length} sample relationships:\n`);
+        
+        // Group by type for better visualization
+        const byType: Record<string, typeof sampleRelationships> = {};
+        for (const rel of sampleRelationships) {
+          if (!byType[rel.type]) {
+            byType[rel.type] = [];
+          }
+          byType[rel.type].push(rel);
+        }
+        
+        // Display grouped by type
+        for (const [type, rels] of Object.entries(byType)) {
+          outputChannel.appendLine(`   🔗 ${type} (${rels.length}):`);
+          rels.slice(0, 5).forEach(rel => {
+            const fromShort = path.basename(rel.from);
+            const toShort = path.basename(rel.to);
+            const props = rel.properties ? ` [${JSON.stringify(rel.properties)}]` : '';
+            outputChannel.appendLine(`      ${fromShort} → ${toShort}${props}`);
+          });
+          if (rels.length > 5) {
+            outputChannel.appendLine(`      ... and ${rels.length - 5} more ${type} relationships`);
+          }
+          outputChannel.appendLine('');
+        }
+        
+        // Update report with relationship types
+        for (const rel of sampleRelationships) {
+          report.relationshipTypes[rel.type] = (report.relationshipTypes[rel.type] || 0) + 1;
+        }
+      }
     } catch (e) {
       outputChannel.appendLine(`   ⚠️ Could not fetch sample: ${e}`);
+    }
+    outputChannel.appendLine('');
+
+    // 6.5. Get all relationships grouped by type for complete analysis
+    outputChannel.appendLine('📊 Relationship type distribution:');
+    try {
+      const relationshipsByType = await graphStore.getRelationshipsByType();
+      
+      if (Object.keys(relationshipsByType).length === 0) {
+        outputChannel.appendLine('   ⚠️ No relationships found');
+      } else {
+        for (const [type, rels] of Object.entries(relationshipsByType)) {
+          report.relationshipTypes[type] = rels.length;
+          outputChannel.appendLine(`   ${type}: ${rels.length}`);
+          
+          // Count cross-file vs intra-file references
+          if (type === 'REFERENCES' || type === 'IMPORTS') {
+            for (const rel of rels) {
+              // Extract file paths from chunk/file IDs
+              const fromFile = rel.from.includes(':') ? rel.from.split(':')[0] : rel.from;
+              const toFile = rel.to.includes(':') ? rel.to.split(':')[0] : rel.to;
+              
+              if (fromFile !== toFile) {
+                report.crossFileReferences++;
+              } else {
+                report.intraFileReferences++;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      outputChannel.appendLine(`   ⚠️ Could not fetch relationship types: ${e}`);
     }
     outputChannel.appendLine('');
 

@@ -15,7 +15,8 @@ import { FileMetadataDatabase } from './services/file-metadata-database';
 import { FileProcessingQueue } from './services/file-processing-queue';
 import { FileProcessingWorker } from './services/file-processing-worker';
 import { FileProcessingAPI } from './services/file-processing-api';
-import type { VectorStorePort, GraphStorePort } from './domains/graph/ports/indexing-port';
+import { createVectorStore } from './adapters/secondary/vector/sqlite-vector-adapter';
+import type { GraphStorePort } from './domains/graph/ports/indexing-port';
 
 // Global instances for file processing system
 let fileDatabase: FileMetadataDatabase | null = null;
@@ -197,9 +198,12 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         // Store globally for reanalyze command
         graphStore = graphStoreInstance;
         
-        // Initialize indexing service (null for vector store, we only use graph)
+        // Create vector store
+        const vectorStore = createVectorStore(graphStoreInstance, embeddingService);
+        
+        // Initialize indexing service
         const indexingService = new IndexingService(
-            null as unknown as VectorStorePort, // VectorStore not needed for now
+            vectorStore, // Vector store usando SQLite plugin (sqlite-vss)
             graphStoreInstance,
             embeddingService,
             workspaceRoot
