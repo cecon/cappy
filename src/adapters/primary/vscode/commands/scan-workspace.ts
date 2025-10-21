@@ -59,9 +59,7 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
             
             progress.report({ message: '💾 Initializing database...', increment: 5 });
             
-            const graphStore = new SQLiteAdapter(
-              path.join(dataDir, 'sqlite')
-            );
+            const graphStore = new SQLiteAdapter(dataDir);
             await graphStore.initialize();
             
             progress.report({ message: '📦 Setting up vector store...', increment: 5 });

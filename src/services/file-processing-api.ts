@@ -104,6 +104,8 @@ export class FileProcessingAPI {
         await this.handleGetStatus(req, res);
       } else if (req.method === 'GET' && url.pathname === '/files/all') {
         await this.handleGetAllFiles(req, res);
+      } else if (req.method === 'GET' && url.pathname === '/files/indexed') {
+        await this.handleGetIndexedFiles(req, res);
       } else if (req.method === 'POST' && url.pathname === '/files/clear') {
         await this.handleClearAll(req, res);
       } else {
@@ -414,6 +416,46 @@ export class FileProcessingAPI {
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(statusResponses));
+  }
+
+  /**
+   * Returns files indexed in the graph store (from workspace scan)
+   */
+  private async handleGetIndexedFiles(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    try {
+      if (!this.graphStore) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Graph store not available' }));
+        return;
+      }
+
+      const indexedFiles = await this.graphStore.listAllFiles();
+      
+      const statusResponses: FileStatusResponse[] = indexedFiles.map((file) => {
+        const fileName = file.path.split('/').pop() || file.path;
+        return {
+          fileId: `indexed-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          fileName,
+          filePath: file.path,
+          status: 'completed',
+          progress: 100,
+          summary: `✅ ${file.language} - ${file.linesOfCode} lines`,
+          chunksCount: 0,
+          nodesCount: 0,
+          relationshipsCount: 0,
+          fileSize: 0
+        };
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(statusResponses));
+    } catch (error) {
+      console.error('[FileProcessingAPI] ❌ Error getting indexed files:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Failed to get indexed files' 
+      }));
+    }
   }
 
   private async handleClearAll(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {

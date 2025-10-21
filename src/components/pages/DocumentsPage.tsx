@@ -96,7 +96,7 @@ const DocumentsPage: React.FC = () => {
     const loadDocuments = async () => {
       try {
         console.log('[DocumentsPage] Loading documents from API...');
-        const response = await fetch('http://localhost:3456/files/all');
+        const response = await fetch('http://localhost:3456/files/indexed');
         
         if (!response.ok) {
           console.error('[DocumentsPage] Failed to load documents:', response.statusText);
@@ -216,6 +216,41 @@ const DocumentsPage: React.FC = () => {
         }
         case 'document/scan-completed': {
           setIsScanning(false);
+          // Reload documents after scan completes
+          const loadDocs = async () => {
+            try {
+              const response = await fetch('http://localhost:3456/files/indexed');
+              if (response.ok) {
+                const statusResponses = await response.json();
+                interface StatusResponse {
+                  fileId: string;
+                  fileName?: string;
+                  filePath?: string;
+                  summary?: string;
+                  status: DocumentStatus;
+                  chunksCount?: number;
+                  fileSize?: number;
+                }
+                const docs: Document[] = (statusResponses as StatusResponse[]).map((sr) => ({
+                  id: sr.fileId,
+                  fileName: sr.fileName || 'Unknown',
+                  filePath: sr.filePath,
+                  summary: sr.summary || '',
+                  status: sr.status,
+                  length: sr.fileSize || 0,
+                  chunks: sr.chunksCount || 0,
+                  created: new Date().toISOString(),
+                  updated: new Date().toISOString(),
+                  selected: false,
+                }));
+                setDocuments(docs);
+                console.log('[DocumentsPage] Reloaded', docs.length, 'documents after scan');
+              }
+            } catch (error) {
+              console.error('[DocumentsPage] Failed to reload after scan:', error);
+            }
+          };
+          loadDocs();
           break;
         }
       }
@@ -440,22 +475,58 @@ const DocumentsPage: React.FC = () => {
   const handleScan = async () => {
     console.log('[DocumentsPage] 🔍 handleScan called, calling API /scan/workspace');
     setIsScanning(true);
+    
     try {
-      const res = await fetch('http://localhost:3456/scan/workspace', {
+      const response = await fetch('http://localhost:3456/scan/workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-      if (!res.ok) {
-        const err: unknown = await res.json().catch(() => ({}));
-        const message = (typeof err === 'object' && err && 'error' in err) ? (err as { error?: string }).error : undefined;
-        throw new Error(message || `Scan API failed with status ${res.status}`);
+      
+      if (!response.ok) {
+        throw new Error(`Scan failed: ${response.statusText}`);
       }
-      const data = await res.json();
-      console.log('[DocumentsPage] ✅ Scan API response:', data);
-    } catch (e) {
-      console.error('[DocumentsPage] ❌ Scan API error:', e);
-    } finally {
-      // We'll also rely on extension messages but ensure UI doesn't lock forever
+      
+      const result = await response.json();
+      console.log('[DocumentsPage] ✅ Scan API response:', result);
+      
+      // Wait a bit for the scan to populate data, then reload
+      setTimeout(async () => {
+        try {
+          const filesResponse = await fetch('http://localhost:3456/files/indexed');
+          if (filesResponse.ok) {
+            const statusResponses = await filesResponse.json();
+            interface StatusResponse {
+              fileId: string;
+              fileName?: string;
+              filePath?: string;
+              summary?: string;
+              status: DocumentStatus;
+              chunksCount?: number;
+              fileSize?: number;
+            }
+            const docs: Document[] = (statusResponses as StatusResponse[]).map((sr) => ({
+              id: sr.fileId,
+              fileName: sr.fileName || 'Unknown',
+              filePath: sr.filePath,
+              summary: sr.summary || '',
+              status: sr.status,
+              length: sr.fileSize || 0,
+              chunks: sr.chunksCount || 0,
+              created: new Date().toISOString(),
+              updated: new Date().toISOString(),
+              selected: false,
+            }));
+            setDocuments(docs);
+            console.log('[DocumentsPage] Reloaded', docs.length, 'documents after scan');
+          }
+        } catch (error) {
+          console.error('[DocumentsPage] Failed to reload after scan:', error);
+        }
+        setIsScanning(false);
+      }, 2000); // Wait 2 seconds for scan to complete
+      
+    } catch (error) {
+      console.error('[DocumentsPage] ❌ Scan API error:', error);
       setIsScanning(false);
     }
   };

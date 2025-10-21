@@ -218,12 +218,52 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       await vscode.commands.executeCommand('cappy.scanWorkspace');
       console.log('✅ [DocumentsViewProvider] cappy.scanWorkspace completed');
       
-      // Após o scan, envie a lista atualizada de documentos para o webview
-      console.log('📤 [DocumentsViewProvider] Sending document list to webview');
-      this._view?.webview.postMessage({
-        type: 'document/list',
-        payload: { documents: Array.from(this.documents.values()) }
-      });
+      // Query the indexed files from the API
+      console.log('📡 [DocumentsViewProvider] Fetching indexed files from API');
+      try {
+        const response = await fetch('http://localhost:3456/files/indexed');
+        if (response.ok) {
+          interface IndexedFileResponse {
+            fileId: string;
+            fileName?: string;
+            filePath?: string;
+            summary?: string;
+            status: DocumentStatus;
+            chunksCount?: number;
+            fileSize?: number;
+          }
+          const indexedFiles = await response.json() as IndexedFileResponse[];
+          console.log(`📡 [DocumentsViewProvider] Received ${indexedFiles.length} indexed files`);
+          
+          // Convert to DocumentItem format and store
+          this.documents.clear();
+          for (const file of indexedFiles) {
+            const doc: DocumentItem = {
+              id: file.fileId,
+              fileName: file.fileName || 'Unknown',
+              filePath: file.filePath || '',
+              summary: file.summary || '',
+              status: file.status,
+              length: file.fileSize || 0,
+              chunks: file.chunksCount || 0,
+              created: new Date().toISOString(),
+              updated: new Date().toISOString(),
+            };
+            this.documents.set(doc.id, doc);
+          }
+          
+          // Send the updated list to webview
+          console.log('📤 [DocumentsViewProvider] Sending document list to webview');
+          this._view?.webview.postMessage({
+            type: 'document/list',
+            payload: { documents: Array.from(this.documents.values()) }
+          });
+        } else {
+          console.warn('⚠️ [DocumentsViewProvider] Failed to fetch indexed files:', response.statusText);
+        }
+      } catch (fetchError) {
+        console.error('❌ [DocumentsViewProvider] Error fetching indexed files:', fetchError);
+      }
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error during scan:', error);
       vscode.window.showErrorMessage(`Scan failed: ${error}`);
