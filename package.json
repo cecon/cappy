@@ -117,12 +117,14 @@
         {
           "id": "cappy.chatView",
           "name": "Chat",
-          "type": "webview"
+          "type": "webview",
+          "icon": "resources/icons/chat.svg"
         },
         {
           "id": "cappy.documentsView",
           "name": "Documents",
-          "type": "webview"
+          "type": "webview",
+          "icon": "resources/icons/documents.svg"
         }
       ]
     },
