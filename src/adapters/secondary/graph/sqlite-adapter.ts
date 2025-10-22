@@ -92,32 +92,132 @@ export class SQLiteAdapter implements GraphStorePort {
 
   private createSchema(): void {
     if (!this.db) return;
+    
+    // Nodes table - Hybrid schema with structured + dynamic discovery fields
     this.db.run(`
       CREATE TABLE IF NOT EXISTS nodes (
         id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT 'default',
         type TEXT NOT NULL,
         label TEXT NOT NULL,
-        properties TEXT
+        status TEXT DEFAULT 'active',
+        
+        -- Dynamic Discovery (LightRAG-inspired)
+        discovered_type TEXT,
+        discovered_properties TEXT,
+        entity_confidence REAL,
+        
+        -- Quality & versioning
+        quality_score REAL DEFAULT 1.0,
+        content_hash TEXT,
+        version INTEGER DEFAULT 1,
+        
+        -- Timestamps
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        
+        -- Database sphere
+        db_type TEXT,
+        host TEXT,
+        port INTEGER,
+        db_name TEXT,
+        db_user TEXT,
+        
+        -- DB Entity sphere
+        entity_type TEXT,
+        entity_name TEXT,
+        entity_schema TEXT,
+        db_id TEXT,
+        
+        -- Code sphere
+        project_path TEXT,
+        file_path TEXT,
+        line_start INTEGER,
+        line_end INTEGER,
+        chunk_type TEXT,
+        symbol_name TEXT,
+        symbol_kind TEXT,
+        language TEXT,
+        
+        -- Documentation sphere
+        doc_type TEXT,
+        doc_url TEXT,
+        doc_format TEXT,
+        
+        -- Issue sphere
+        issue_source TEXT,
+        issue_url TEXT,
+        issue_status TEXT,
+        issue_priority TEXT,
+        
+        -- Person sphere
+        person_role TEXT,
+        person_email TEXT,
+        person_external_id TEXT,
+        
+        -- Cappy Task sphere
+        cappy_task_status TEXT,
+        cappy_task_type TEXT,
+        
+        -- Extensibility
+        extra_metadata TEXT
       )
     `);
+    
+    // Edges table - Hybrid with dynamic relationship discovery
     this.db.run(`
       CREATE TABLE IF NOT EXISTS edges (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id TEXT NOT NULL DEFAULT 'default',
         from_id TEXT NOT NULL,
         to_id TEXT NOT NULL,
         type TEXT NOT NULL,
-        properties TEXT,
-        UNIQUE(from_id, to_id, type)
+        
+        -- Dynamic Discovery
+        discovered_relationship_type TEXT,
+        semantic_context TEXT,
+        relationship_confidence REAL,
+        
+        -- Metadata
+        context TEXT,
+        confidence REAL DEFAULT 1.0,
+        quality_score REAL DEFAULT 1.0,
+        status TEXT DEFAULT 'active',
+        
+        -- Timestamps
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        
+        -- Extensibility
+        extra_metadata TEXT,
+        
+        UNIQUE(tenant_id, from_id, to_id, type)
       )
     `);
+    
+    // Vectors table - for semantic search
     this.db.run(`
       CREATE TABLE IF NOT EXISTS vectors (
         chunk_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT 'default',
         content TEXT NOT NULL,
         embedding_json TEXT NOT NULL,
-        metadata TEXT
+        embedding_model TEXT,
+        metadata TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Create indices for performance
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(type)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_nodes_tenant_type ON nodes(tenant_id, type)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_nodes_discovered_type ON nodes(discovered_type)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_nodes_file_path ON nodes(file_path)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_nodes_symbol_name ON nodes(symbol_name)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_edges_from_id ON edges(from_id)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_edges_to_id ON edges(to_id)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_edges_type ON edges(type)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_vectors_tenant ON vectors(tenant_id)`);
   }
 
   private saveToFile(): void {
@@ -204,8 +304,11 @@ export class SQLiteAdapter implements GraphStorePort {
 
   async createFileNode(filePath: string, language: string, linesOfCode: number): Promise<void> {
     if (!this.db) throw new Error("SQLite not initialized");
-    const properties = JSON.stringify({ language, linesOfCode });
-    this.db.run(`INSERT OR REPLACE INTO nodes (id, type, label, properties) VALUES (?, ?, ?, ?)`, [filePath, "file", path.basename(filePath), properties]);
+    this.db.run(
+      `INSERT OR REPLACE INTO nodes (id, type, label, language, file_path) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [filePath, "file", path.basename(filePath), language, filePath]
+    );
     this.saveToFile();
   }
 
@@ -213,20 +316,23 @@ export class SQLiteAdapter implements GraphStorePort {
     if (!this.db) throw new Error("SQLite not initialized");
     for (const chunk of chunks) {
       const label = chunk.metadata.symbolName || `${chunk.metadata.chunkType} [${chunk.metadata.lineStart}-${chunk.metadata.lineEnd}]`;
-      const properties = JSON.stringify({
-        filePath: chunk.metadata.filePath,
-        lineStart: chunk.metadata.lineStart,
-        lineEnd: chunk.metadata.lineEnd,
-        chunkType: chunk.metadata.chunkType,
-        symbolName: chunk.metadata.symbolName,
-        symbolKind: chunk.metadata.symbolKind,
-      });
-      this.db.run(`INSERT OR REPLACE INTO nodes (id, type, label, properties) VALUES (?, ?, ?, ?)`, [
-        chunk.id,
-        "chunk",
-        label,
-        properties,
-      ]);
+      
+      this.db.run(
+        `INSERT OR REPLACE INTO nodes 
+         (id, type, label, file_path, line_start, line_end, chunk_type, symbol_name, symbol_kind) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          chunk.id,
+          "chunk",
+          label,
+          chunk.metadata.filePath,
+          chunk.metadata.lineStart,
+          chunk.metadata.lineEnd,
+          chunk.metadata.chunkType,
+          chunk.metadata.symbolName || null,
+          chunk.metadata.symbolKind || null
+        ]
+      );
     }
     this.saveToFile();
   }
@@ -234,10 +340,21 @@ export class SQLiteAdapter implements GraphStorePort {
   async createRelationships(relationships: Array<{ from: string; to: string; type: string; properties?: Record<string, string | number | boolean | string[] | null> }>): Promise<void> {
     if (!this.db) throw new Error("SQLite not initialized");
     if (relationships.length === 0) return;
+    
     for (const rel of relationships) {
-      const properties = rel.properties ? JSON.stringify(rel.properties) : null;
       try {
-        this.db.run(`INSERT OR IGNORE INTO edges (from_id, to_id, type, properties) VALUES (?, ?, ?, ?)`, [rel.from, rel.to, rel.type, properties]);
+        // Extract common fields from properties
+        const confidence = typeof rel.properties?.confidence === 'number' ? rel.properties.confidence : 1.0;
+        const context = typeof rel.properties?.context === 'string' ? rel.properties.context : null;
+        
+        // Keep remaining properties in extra_metadata
+        const extraMetadata = rel.properties ? JSON.stringify(rel.properties) : null;
+        
+        this.db.run(
+          `INSERT OR IGNORE INTO edges (from_id, to_id, type, confidence, context, extra_metadata) 
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [rel.from, rel.to, rel.type, confidence, context, extraMetadata]
+        );
       } catch (error) {
         console.error(`❌ Failed to create edge: ${rel.type} from ${rel.from} to ${rel.to}`, error);
       }
@@ -469,7 +586,7 @@ export class SQLiteAdapter implements GraphStorePort {
   async getRelationshipsByType(): Promise<Record<string, Array<{ from: string; to: string; properties?: Record<string, unknown> }>>> {
     if (!this.db) return {};
     try {
-      const result = this.db.exec(`SELECT type, from_id, to_id, properties FROM edges ORDER BY type`);
+      const result = this.db.exec(`SELECT type, from_id, to_id, extra_metadata FROM edges ORDER BY type`);
       if (result.length === 0 || !result[0].values) return {};
       const grouped: Record<string, Array<{ from: string; to: string; properties?: Record<string, unknown> }>> = {};
       for (const row of result[0].values) {
@@ -485,6 +602,234 @@ export class SQLiteAdapter implements GraphStorePort {
       console.error("Error fetching relationships by type:", error);
       return {};
     }
+  }
+
+  // ============================================================
+  // NEW SPHERE METHODS - Hybrid Schema V2
+  // ============================================================
+
+  /**
+   * Creates a database node (Sphere 1: Database)
+   */
+  async createDatabaseNode(params: {
+    id: string;
+    label: string;
+    dbType: string;
+    host: string;
+    port: number;
+    dbName: string;
+    user?: string;
+  }): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    this.db.run(
+      `INSERT OR REPLACE INTO nodes 
+       (id, type, label, db_type, host, port, db_name, db_user) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [params.id, 'database', params.label, params.dbType, params.host, params.port, params.dbName, params.user || null]
+    );
+    this.saveToFile();
+  }
+
+  /**
+   * Creates a database entity node (table, procedure, function, etc.)
+   */
+  async createDbEntityNode(params: {
+    id: string;
+    label: string;
+    entityType: 'table' | 'view' | 'procedure' | 'function' | 'trigger';
+    entityName: string;
+    entitySchema?: string;
+    dbId: string;
+    discoveredType?: string;
+    discoveredProperties?: Record<string, unknown>;
+    confidence?: number;
+  }): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    this.db.run(
+      `INSERT OR REPLACE INTO nodes 
+       (id, type, label, entity_type, entity_name, entity_schema, db_id, 
+        discovered_type, discovered_properties, entity_confidence) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        params.id,
+        'db_entity',
+        params.label,
+        params.entityType,
+        params.entityName,
+        params.entitySchema || null,
+        params.dbId,
+        params.discoveredType || null,
+        params.discoveredProperties ? JSON.stringify(params.discoveredProperties) : null,
+        params.confidence || null
+      ]
+    );
+    this.saveToFile();
+  }
+
+  /**
+   * Creates an issue node (GitHub, Jira, local, etc.)
+   */
+  async createIssueNode(params: {
+    id: string;
+    label: string;
+    source: 'github' | 'jira' | 'local' | 'linear';
+    url?: string;
+    status: string;
+    priority?: string;
+    discoveredProperties?: Record<string, unknown>;
+  }): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    this.db.run(
+      `INSERT OR REPLACE INTO nodes 
+       (id, type, label, issue_source, issue_url, issue_status, issue_priority, discovered_properties) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        params.id,
+        'issue',
+        params.label,
+        params.source,
+        params.url || null,
+        params.status,
+        params.priority || null,
+        params.discoveredProperties ? JSON.stringify(params.discoveredProperties) : null
+      ]
+    );
+    this.saveToFile();
+  }
+
+  /**
+   * Creates a person node (developer, analyst, manager, LLM agent)
+   */
+  async createPersonNode(params: {
+    id: string;
+    label: string;
+    role: 'developer' | 'analyst' | 'manager' | 'llm_agent';
+    email?: string;
+    externalId?: string;
+    discoveredProperties?: Record<string, unknown>;
+  }): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    this.db.run(
+      `INSERT OR REPLACE INTO nodes 
+       (id, type, label, person_role, person_email, person_external_id, discovered_properties) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        params.id,
+        'person',
+        params.label,
+        params.role,
+        params.email || null,
+        params.externalId || null,
+        params.discoveredProperties ? JSON.stringify(params.discoveredProperties) : null
+      ]
+    );
+    this.saveToFile();
+  }
+
+  /**
+   * Creates a Cappy task node (history of Cappy tasks)
+   */
+  async createCappyTaskNode(params: {
+    id: string;
+    label: string;
+    taskType: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    discoveredProperties?: Record<string, unknown>;
+  }): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    this.db.run(
+      `INSERT OR REPLACE INTO nodes 
+       (id, type, label, cappy_task_type, cappy_task_status, discovered_properties) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        params.id,
+        'cappy_task',
+        params.label,
+        params.taskType,
+        params.status,
+        params.discoveredProperties ? JSON.stringify(params.discoveredProperties) : null
+      ]
+    );
+    this.saveToFile();
+  }
+
+  /**
+   * Creates a documentation node
+   */
+  async createDocumentationNode(params: {
+    id: string;
+    label: string;
+    docType: 'api_doc' | 'tutorial' | 'architecture' | 'manual';
+    docUrl?: string;
+    docFormat?: 'markdown' | 'pdf' | 'html' | 'docx';
+    discoveredType?: string;
+    discoveredProperties?: Record<string, unknown>;
+  }): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    this.db.run(
+      `INSERT OR REPLACE INTO nodes 
+       (id, type, label, doc_type, doc_url, doc_format, discovered_type, discovered_properties) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        params.id,
+        'documentation',
+        params.label,
+        params.docType,
+        params.docUrl || null,
+        params.docFormat || null,
+        params.discoveredType || null,
+        params.discoveredProperties ? JSON.stringify(params.discoveredProperties) : null
+      ]
+    );
+    this.saveToFile();
+  }
+
+  /**
+   * Updates a node with discovered entity information
+   */
+  async enrichNodeWithDiscovery(
+    nodeId: string,
+    discoveredType: string,
+    discoveredProperties: Record<string, unknown>,
+    confidence: number
+  ): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    this.db.run(
+      `UPDATE nodes 
+       SET discovered_type = ?, discovered_properties = ?, entity_confidence = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [discoveredType, JSON.stringify(discoveredProperties), confidence, nodeId]
+    );
+    this.saveToFile();
+  }
+
+  /**
+   * Creates a dynamic relationship with semantic context
+   */
+  async createDynamicRelationship(params: {
+    from: string;
+    to: string;
+    type: string;
+    discoveredType: string;
+    semanticContext: string;
+    confidence: number;
+  }): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    this.db.run(
+      `INSERT OR IGNORE INTO edges 
+       (from_id, to_id, type, discovered_relationship_type, semantic_context, relationship_confidence, confidence) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [params.from, params.to, params.type, params.discoveredType, params.semanticContext, params.confidence, params.confidence]
+    );
+    this.saveToFile();
   }
 }
 
