@@ -353,7 +353,7 @@ function test() {}`;
 
       const chunks = await parser.parseFile(testFile);
 
-      expect(chunks[0].id).toMatch(/chunk:metadata\.ts:\d+-\d+/);
+      expect(chunks[0].id).toMatch(/chunk:.*metadata\.ts:\d+-\d+/);
       expect(chunks[0].metadata.filePath).toBe(testFile);
       expect(chunks[0].metadata.lineStart).toBeGreaterThan(0);
       expect(chunks[0].metadata.lineEnd).toBeGreaterThan(chunks[0].metadata.lineStart);

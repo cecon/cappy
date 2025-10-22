@@ -8,7 +8,7 @@
 /**
  * Chunk types based on content origin
  */
-export type ChunkType = 'jsdoc' | 'phpdoc' | 'markdown_section' | 'code' | 'plain_text' | 'document_section';
+export type ChunkType = 'jsdoc' | 'phpdoc' | 'markdown_section' | 'code' | 'plain_text' | 'document_section' | 'blade' | 'html' | 'vite_config';
 
 /**
  * Document chunk metadata

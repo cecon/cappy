@@ -9,6 +9,9 @@ import { createTypeScriptParser } from '../adapters/secondary/parsers/typescript
 import { createMarkdownParser } from '../adapters/secondary/parsers/markdown-parser';
 import { createDocumentEnhancedParser } from '../adapters/secondary/parsers/document-enhanced-parser';
 import { createPHPParser } from '../adapters/secondary/parsers/php-parser';
+import { createBladeParser } from '../adapters/secondary/parsers/blade-parser';
+import { createHTMLParser } from '../adapters/secondary/parsers/html-parser';
+import { createViteParser } from '../adapters/secondary/parsers/vite-parser';
 import type { DocumentChunk } from '../types/chunk';
 import * as path from 'path';
 
@@ -20,6 +23,9 @@ export class ParserService {
   private readonly mdParser = createMarkdownParser();
   private readonly enhancedDocParser = createDocumentEnhancedParser();
   private readonly phpParser = createPHPParser();
+  private readonly bladeParser = createBladeParser();
+  private readonly htmlParser = createHTMLParser();
+  private readonly viteParser = createViteParser();
   private enhancedParsingEnabled = false;
 
   /**
@@ -46,8 +52,17 @@ export class ParserService {
           return await this.tsParser.parseFile(filePath);
 
         case '.php':
-          console.log(`🐘 Parsing PHP: ${filePath}`);
+          // Check if it's a Blade template
+          if (filePath.endsWith('.blade.php')) {
+            console.log(`�️ Parsing Blade template: ${filePath}`);
+            return await this.bladeParser.parseFile(filePath);
+          }
+          console.log(`�🐘 Parsing PHP: ${filePath}`);
           return await this.phpParser.parseFile(filePath);
+
+        case '.html':
+          console.log(`🌐 Parsing HTML: ${filePath}`);
+          return await this.htmlParser.parseFile(filePath);
 
         case '.md':
         case '.mdx':
@@ -76,9 +91,17 @@ export class ParserService {
           console.warn(`⚠️ Enhanced parsing disabled - cannot parse: ${ext}`);
           return [];
 
-        default:
+        default: {
+          // Check if it's a Vite config file
+          const fileName = path.basename(filePath);
+          if (fileName.match(/^vite\.config\.(js|ts|mjs|cjs)$/)) {
+            console.log(`⚡ Parsing Vite config: ${filePath}`);
+            return await this.viteParser.parseFile(filePath);
+          }
+          
           console.warn(`⚠️ Unsupported file type: ${ext}`);
           return [];
+        }
       }
     } catch (error) {
       console.error(`❌ Parser service error for ${filePath}:`, error);
@@ -91,6 +114,17 @@ export class ParserService {
    */
   getLanguage(filePath: string): string {
     const ext = path.extname(filePath);
+    const fileName = path.basename(filePath);
+    
+    // Check for Blade templates
+    if (filePath.endsWith('.blade.php')) {
+      return 'blade';
+    }
+    
+    // Check for Vite config
+    if (fileName.match(/^vite\.config\.(js|ts|mjs|cjs)$/)) {
+      return 'vite';
+    }
     
     switch (ext) {
       case '.ts':
@@ -101,6 +135,8 @@ export class ParserService {
         return 'javascript';
       case '.php':
         return 'php';
+      case '.html':
+        return 'html';
       case '.md':
       case '.mdx':
         return 'markdown';
@@ -114,8 +150,19 @@ export class ParserService {
    */
   isSupported(filePath: string): boolean {
     const ext = path.extname(filePath);
-    const basicSupported = ['.ts', '.tsx', '.js', '.jsx', '.md', '.mdx', '.php'];
+    const fileName = path.basename(filePath);
+    const basicSupported = ['.ts', '.tsx', '.js', '.jsx', '.md', '.mdx', '.php', '.html'];
     const enhancedSupported = ['.pdf', '.doc', '.docx'];
+    
+    // Check for Blade templates
+    if (filePath.endsWith('.blade.php')) {
+      return true;
+    }
+    
+    // Check for Vite config
+    if (fileName.match(/^vite\.config\.(js|ts|mjs|cjs)$/)) {
+      return true;
+    }
     
     if (basicSupported.includes(ext)) {
       return true;

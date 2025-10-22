@@ -622,6 +622,17 @@ export class WorkspaceScanner {
    */
   private detectLanguage(filePath: string): string {
     const ext = path.extname(filePath);
+    const fileName = path.basename(filePath);
+    
+    // Check for Blade templates
+    if (filePath.endsWith('.blade.php')) {
+      return 'blade';
+    }
+    
+    // Check for Vite config
+    if (fileName.match(/^vite\.config\.(js|ts|mjs|cjs)$/)) {
+      return 'vite';
+    }
     
     const languageMap: Record<string, string> = {
       '.ts': 'typescript',
@@ -655,13 +666,26 @@ export class WorkspaceScanner {
     const docFiles: FileIndexEntry[] = [];
 
     // Extensions that use AST parsing (no LLM required)
-    const sourceExtensions = ['.ts', '.tsx', '.js', '.jsx', '.php'];
+    const sourceExtensions = ['.ts', '.tsx', '.js', '.jsx', '.php', '.html'];
     
     // Documentation extensions that may use LLM
     const docExtensions = ['.md', '.mdx', '.pdf', '.doc', '.docx'];
 
     for (const file of files) {
       const ext = path.extname(file.relPath);
+      const fileName = path.basename(file.relPath);
+      
+      // Check for Blade templates (treated as source)
+      if (file.relPath.endsWith('.blade.php')) {
+        sourceFiles.push(file);
+        continue;
+      }
+      
+      // Check for Vite config (treated as source)
+      if (fileName.match(/^vite\.config\.(js|ts|mjs|cjs)$/)) {
+        sourceFiles.push(file);
+        continue;
+      }
       
       if (sourceExtensions.includes(ext)) {
         sourceFiles.push(file);
