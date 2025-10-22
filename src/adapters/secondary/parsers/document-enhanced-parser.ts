@@ -11,7 +11,7 @@ import matter from 'gray-matter';
 import mammoth from 'mammoth';
 import type { DocumentChunk } from '../../../types/chunk';
 import type { DocumentEntityMetadata } from '../../../types/entity';
-import { createEntityExtractor } from '../../../services/entity-extractor';
+import { createEntityExtractor } from '../../../services/entity-extraction';
 
 /**
  * Enhanced document parser with entity extraction

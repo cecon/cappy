@@ -142,11 +142,16 @@ export class WorkspaceScanner {
       const filesToProcess = await this.filterFilesToProcess(files);
       console.log(`📝 ${filesToProcess.length} files need processing`);
 
-      // 4. Queue all files for processing
+      // 4. Sort files: process source code first, then documentation
+      const sortedFiles = this.sortFilesByType(filesToProcess);
+      console.log(`🔀 Sorted files: ${sortedFiles.sourceFiles.length} source code, ${sortedFiles.docFiles.length} documentation`);
+
+      // 5. Queue all files for processing (source code first)
       progress.status = 'processing';
       this.notifyProgress(progress);
 
-      for (const file of filesToProcess) {
+      // Process source code first
+      for (const file of sortedFiles.sourceFiles) {
         this.queue.enqueue(async () => {
           try {
             progress.currentFile = file.relPath;
@@ -164,7 +169,26 @@ export class WorkspaceScanner {
         });
       }
 
-      // 5. Wait for queue to complete
+      // Then process documentation
+      for (const file of sortedFiles.docFiles) {
+        this.queue.enqueue(async () => {
+          try {
+            progress.currentFile = file.relPath;
+            this.notifyProgress(progress);
+            
+            await this.processFile(file);
+            
+            progress.processedFiles++;
+            this.notifyProgress(progress);
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            progress.errors.push({ file: file.relPath, error: errorMsg });
+            console.error(`❌ Error processing ${file.relPath}:`, error);
+          }
+        });
+      }
+
+      // 6. Wait for queue to complete
       await this.queue.drain();
 
       // 6. Build cross-file relationships
@@ -604,6 +628,7 @@ export class WorkspaceScanner {
       '.tsx': 'typescript',
       '.js': 'javascript',
       '.jsx': 'javascript',
+      '.php': 'php',
       '.md': 'markdown',
       '.json': 'json',
       '.yaml': 'yaml',
@@ -620,6 +645,35 @@ export class WorkspaceScanner {
     };
 
     return languageMap[ext] || 'unknown';
+  }
+
+  /**
+   * Sorts files by type: source code first, then documentation
+   */
+  private sortFilesByType(files: FileIndexEntry[]): { sourceFiles: FileIndexEntry[]; docFiles: FileIndexEntry[] } {
+    const sourceFiles: FileIndexEntry[] = [];
+    const docFiles: FileIndexEntry[] = [];
+
+    // Extensions that use AST parsing (no LLM required)
+    const sourceExtensions = ['.ts', '.tsx', '.js', '.jsx', '.php'];
+    
+    // Documentation extensions that may use LLM
+    const docExtensions = ['.md', '.mdx', '.pdf', '.doc', '.docx'];
+
+    for (const file of files) {
+      const ext = path.extname(file.relPath);
+      
+      if (sourceExtensions.includes(ext)) {
+        sourceFiles.push(file);
+      } else if (docExtensions.includes(ext)) {
+        docFiles.push(file);
+      } else {
+        // Other files go to source category
+        sourceFiles.push(file);
+      }
+    }
+
+    return { sourceFiles, docFiles };
   }
 
   /**

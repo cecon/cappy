@@ -10,5 +10,4 @@ export * from "./providers/LLMProvider";
 
 // Core Services
 export * from "./core/EntityDiscoveryService";
-export * from "./core/EntityReconciliationService";
 export { SchemaEvolutionService } from "./core/SchemaEvolutionService";

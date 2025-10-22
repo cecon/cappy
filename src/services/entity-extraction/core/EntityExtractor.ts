@@ -1,10 +1,3 @@
-/**
- * @fileoverview Entity extractor using GitHub Copilot LLM
- * @module services/entity-extractor
- * @author Cappy Team
- * @since 3.1.0
- */
-
 import * as vscode from 'vscode';
 import type {
   ExtractedEntity,
@@ -12,58 +5,9 @@ import type {
   EntityExtractionResult,
   EntityType,
   RelationshipType
-} from '../types/entity';
-import type { DocumentChunk } from '../types/chunk';
-
-/**
- * System prompt for entity extraction
- */
-const ENTITY_EXTRACTION_PROMPT = `You are an expert code documentation analyzer. Your task is to extract structured information from documentation chunks.
-
-INSTRUCTIONS:
-1. Identify entities: classes, functions, APIs, libraries, frameworks, concepts, patterns, technologies, services, components
-2. Identify relationships between entities: uses, implements, extends, references, depends_on, mentions, describes
-3. Return ONLY valid JSON, no additional text
-4. Use high confidence (0.8-1.0) for explicit mentions, lower (0.5-0.7) for implicit references
-5. Extract entity context (the sentence where it's mentioned)
-
-OUTPUT FORMAT (JSON only):
-{
-  "entities": [
-    {
-      "name": "EntityName",
-      "type": "class|function|api|library|framework|concept|pattern|technology|service|component|module|package|tool|other",
-      "confidence": 0.9,
-      "context": "The sentence where this entity is mentioned"
-    }
-  ],
-  "relationships": [
-    {
-      "from": "EntityA",
-      "to": "EntityB",
-      "type": "uses|implements|extends|references|depends_on|mentions|describes|contains|part_of|related_to|configures|calls|instantiates",
-      "confidence": 0.85,
-      "context": "The sentence describing this relationship"
-    }
-  ]
-}
-
-EXAMPLES:
-Input: "The UserService class uses JWT tokens for authentication with Express middleware."
-Output:
-{
-  "entities": [
-    {"name": "UserService", "type": "class", "confidence": 0.95, "context": "The UserService class uses JWT tokens"},
-    {"name": "JWT", "type": "technology", "confidence": 0.9, "context": "uses JWT tokens for authentication"},
-    {"name": "Express", "type": "framework", "confidence": 0.9, "context": "authentication with Express middleware"}
-  ],
-  "relationships": [
-    {"from": "UserService", "to": "JWT", "type": "uses", "confidence": 0.9, "context": "uses JWT tokens for authentication"},
-    {"from": "UserService", "to": "Express", "type": "uses", "confidence": 0.85, "context": "with Express middleware"}
-  ]
-}
-
-Now analyze the following documentation chunk and extract entities and relationships:`;
+} from '../../../types/entity';
+import type { DocumentChunk } from '../../../types/chunk';
+import { ENTITY_EXTRACTION_PROMPT } from '../prompts';
 
 /**
  * Entity extractor using GitHub Copilot LLM
@@ -72,9 +16,6 @@ export class EntityExtractor {
   private model: vscode.LanguageModelChat | null = null;
   private modelName: string = 'unknown';
 
-  /**
-   * Initializes the entity extractor
-   */
   async initialize(): Promise<void> {
     try {
       const models = await vscode.lm.selectChatModels({
@@ -95,9 +36,6 @@ export class EntityExtractor {
     }
   }
 
-  /**
-   * Extracts entities and relationships from a document chunk
-   */
   async extractFromChunk(chunk: DocumentChunk): Promise<EntityExtractionResult | null> {
     if (!this.model) {
       await this.initialize();
@@ -110,7 +48,6 @@ export class EntityExtractor {
     const startTime = Date.now();
 
     try {
-      // Prepare messages
       const messages = [
         vscode.LanguageModelChatMessage.User(ENTITY_EXTRACTION_PROMPT),
         vscode.LanguageModelChatMessage.User(
@@ -118,18 +55,14 @@ export class EntityExtractor {
         )
       ];
 
-      // Call LLM
       const response = await this.model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
 
-      // Collect response
       let jsonResponse = '';
       for await (const fragment of response.text) {
         jsonResponse += fragment;
       }
 
-      // Parse JSON response
       const extracted = this.parseResponse(jsonResponse);
-
       const processingTime = Date.now() - startTime;
 
       console.log(`✨ Extracted ${extracted.entities.length} entities and ${extracted.relationships.length} relationships from chunk ${chunk.id} (${processingTime}ms)`);
@@ -142,7 +75,7 @@ export class EntityExtractor {
           timestamp: new Date().toISOString(),
           model: this.modelName,
           processingTime,
-          tokenCount: jsonResponse.length // Approximate
+          tokenCount: jsonResponse.length
         }
       };
     } catch (error) {
@@ -151,9 +84,6 @@ export class EntityExtractor {
     }
   }
 
-  /**
-   * Extracts entities from multiple chunks in batch
-   */
   async extractFromChunks(chunks: DocumentChunk[]): Promise<EntityExtractionResult[]> {
     const results: EntityExtractionResult[] = [];
 
@@ -162,20 +92,14 @@ export class EntityExtractor {
       if (result) {
         results.push(result);
       }
-
-      // Rate limiting - avoid overwhelming the LLM
       await this.delay(500);
     }
 
     return results;
   }
 
-  /**
-   * Parses LLM response and validates structure
-   */
   private parseResponse(response: string): { entities: ExtractedEntity[]; relationships: EntityRelationship[] } {
     try {
-      // Clean response - remove markdown code blocks if present
       let cleaned = response.trim();
       if (cleaned.startsWith('```json')) {
         cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
@@ -185,7 +109,6 @@ export class EntityExtractor {
 
       const parsed = JSON.parse(cleaned);
 
-      // Validate and normalize entities
       const entities: ExtractedEntity[] = (parsed.entities || []).map((e: unknown) => {
         const entity = e as Record<string, unknown>;
         return {
@@ -197,7 +120,6 @@ export class EntityExtractor {
         };
       }).filter((e: ExtractedEntity) => e.name.length > 0);
 
-      // Validate and normalize relationships
       const relationships: EntityRelationship[] = (parsed.relationships || []).map((r: unknown) => {
         const rel = r as Record<string, unknown>;
         return {
@@ -217,9 +139,6 @@ export class EntityExtractor {
     }
   }
 
-  /**
-   * Normalizes entity type
-   */
   private normalizeEntityType(type: string): EntityType {
     const normalized = String(type || 'other').toLowerCase().trim();
     const validTypes: EntityType[] = [
@@ -231,9 +150,6 @@ export class EntityExtractor {
     return validTypes.includes(normalized as EntityType) ? (normalized as EntityType) : 'other';
   }
 
-  /**
-   * Normalizes relationship type
-   */
   private normalizeRelationshipType(type: string): RelationshipType {
     const normalized = String(type || 'related_to').toLowerCase().trim();
     const validTypes: RelationshipType[] = [
@@ -244,36 +160,20 @@ export class EntityExtractor {
     return validTypes.includes(normalized as RelationshipType) ? (normalized as RelationshipType) : 'related_to';
   }
 
-  /**
-   * Normalizes confidence score
-   */
   private normalizeConfidence(confidence: unknown): number {
     const score = Number(confidence);
     if (isNaN(score)) return 0.5;
     return Math.max(0, Math.min(1, score));
   }
 
-  /**
-   * Delays execution
-   */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /**
-   * Gets available models info
-   */
   async getModelInfo(): Promise<string> {
     if (!this.model) {
       await this.initialize();
     }
     return this.modelName;
   }
-}
-
-/**
- * Factory function to create entity extractor
- */
-export function createEntityExtractor(): EntityExtractor {
-  return new EntityExtractor();
 }

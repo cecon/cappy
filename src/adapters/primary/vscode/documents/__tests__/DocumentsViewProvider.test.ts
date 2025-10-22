@@ -88,6 +88,9 @@ export class UserService {
           toString: () => `webview://${uri.fsPath}`
         })),
       },
+      onDidDispose: vi.fn(() => {
+        return { dispose: vi.fn() };
+      }),
     };
 
     // Clear all mocks

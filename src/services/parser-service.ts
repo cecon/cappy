@@ -8,6 +8,7 @@
 import { createTypeScriptParser } from '../adapters/secondary/parsers/typescript-parser';
 import { createMarkdownParser } from '../adapters/secondary/parsers/markdown-parser';
 import { createDocumentEnhancedParser } from '../adapters/secondary/parsers/document-enhanced-parser';
+import { createPHPParser } from '../adapters/secondary/parsers/php-parser';
 import type { DocumentChunk } from '../types/chunk';
 import * as path from 'path';
 
@@ -18,6 +19,7 @@ export class ParserService {
   private readonly tsParser = createTypeScriptParser();
   private readonly mdParser = createMarkdownParser();
   private readonly enhancedDocParser = createDocumentEnhancedParser();
+  private readonly phpParser = createPHPParser();
   private enhancedParsingEnabled = false;
 
   /**
@@ -42,6 +44,10 @@ export class ParserService {
         case '.jsx':
           console.log(`🔍 Parsing TypeScript/JavaScript: ${filePath}`);
           return await this.tsParser.parseFile(filePath);
+
+        case '.php':
+          console.log(`🐘 Parsing PHP: ${filePath}`);
+          return await this.phpParser.parseFile(filePath);
 
         case '.md':
         case '.mdx':
@@ -93,6 +99,8 @@ export class ParserService {
       case '.js':
       case '.jsx':
         return 'javascript';
+      case '.php':
+        return 'php';
       case '.md':
       case '.mdx':
         return 'markdown';
@@ -106,7 +114,7 @@ export class ParserService {
    */
   isSupported(filePath: string): boolean {
     const ext = path.extname(filePath);
-    const basicSupported = ['.ts', '.tsx', '.js', '.jsx', '.md', '.mdx'];
+    const basicSupported = ['.ts', '.tsx', '.js', '.jsx', '.md', '.mdx', '.php'];
     const enhancedSupported = ['.pdf', '.doc', '.docx'];
     
     if (basicSupported.includes(ext)) {
