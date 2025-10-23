@@ -7,7 +7,9 @@ export type { SchemaEvolutionSuggestion } from "./entities/SchemaEvolutionSugges
 
 // Providers
 export * from "./providers/LLMProvider";
+export { VSCodeLLMProvider } from "./providers/VSCodeLLMProvider";
 
 // Core Services
 export * from "./core/EntityDiscoveryService";
+export { EntityResolutionService } from "./core/entity-resolution-service";
 export { SchemaEvolutionService } from "./core/SchemaEvolutionService";

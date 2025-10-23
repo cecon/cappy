@@ -8,6 +8,9 @@
 import type { VectorStorePort, GraphStorePort } from '../domains/graph/ports/indexing-port';
 import type { DocumentChunk } from '../types/chunk';
 import type { EmbeddingService } from './embedding-service';
+import type { LLMProvider } from './entity-discovery/providers/LLMProvider';
+import { EntityDiscoveryService } from './entity-discovery/core/EntityDiscoveryService';
+import { EntityResolutionService } from './entity-discovery/core/entity-resolution-service';
 
 /**
  * Indexing service coordinating vector embeddings and graph storage
@@ -17,17 +20,22 @@ export class IndexingService {
   private readonly graphStore: GraphStorePort;
   private readonly embeddingService: EmbeddingService;
   private readonly workspaceRoot: string;
+  private readonly entityDiscovery: EntityDiscoveryService;
+  private readonly entityResolver: EntityResolutionService;
 
   constructor(
     vectorStore: VectorStorePort | null, 
     graphStore: GraphStorePort,
     embeddingService: EmbeddingService,
-    workspaceRoot: string
+    workspaceRoot: string,
+    llmProvider?: LLMProvider
   ) {
     this.vectorStore = vectorStore;
     this.graphStore = graphStore;
     this.embeddingService = embeddingService;
     this.workspaceRoot = workspaceRoot;
+    this.entityDiscovery = new EntityDiscoveryService(llmProvider);
+    this.entityResolver = new EntityResolutionService(graphStore);
   }
 
   /**
@@ -78,6 +86,9 @@ export class IndexingService {
 
       // 4. Create chunk nodes in graph (without content)
       await this.graphStore.createChunkNodes(chunks);
+
+      // 4.5. Discover and resolve entities for relevant chunks
+      await this.discoverAndResolveEntities(language, chunks);
 
       // 5. Create CONTAINS relationships (File -> Chunks)
       const containsRels = chunks.map((chunk, index) => ({
@@ -231,6 +242,63 @@ export class IndexingService {
     await this.graphStore.close();
     console.log('✅ Indexing service closed');
   }
+
+  /**
+   * Discovers and resolves entities from chunks incrementally
+   */
+  private async discoverAndResolveEntities(
+    language: string,
+    chunks: DocumentChunk[]
+  ): Promise<void> {
+    for (const chunk of chunks) {
+      if (!this.shouldDiscoverEntities(language, chunk)) {
+        continue;
+      }
+
+      try {
+        console.log(`🔍 Discovering entities in chunk: ${chunk.id}`);
+        
+        const discovery = await this.entityDiscovery.discoverEntities(chunk.content, {
+          allowNewTypes: true,
+          confidenceThreshold: 0.7,
+          maxEntities: 20,
+          includeRelationships: true
+        });
+
+        if (discovery.entities.length === 0) {
+          continue;
+        }
+
+        console.log(`   📊 Discovered ${discovery.entities.length} entities, ${discovery.relationships.length} relationships`);
+
+        for (const entity of discovery.entities) {
+          const entityId = await this.entityResolver.resolveOrCreateEntity(entity);
+          await this.graphStore.linkChunkToEntity(chunk.id, entityId);
+        }
+
+        for (const rel of discovery.relationships) {
+          await this.entityResolver.createRelationshipIfValid(rel);
+        }
+
+        console.log(`   ✅ Resolved and linked entities for chunk ${chunk.id}`);
+      } catch (error) {
+        console.warn(`   ⚠️ Entity discovery failed for chunk ${chunk.id}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Determines if a chunk should have entities discovered
+   */
+  private shouldDiscoverEntities(language: string, chunk: DocumentChunk): boolean {
+    return (
+      chunk.metadata.chunkType === 'jsdoc' ||
+      chunk.metadata.chunkType === 'markdown_section' ||
+      chunk.metadata.chunkType === 'document_section' ||
+      language === 'markdown' ||
+      language === 'mdx'
+    );
+  }
 }
 
 /**
@@ -240,7 +308,8 @@ export function createIndexingService(
   vectorStore: VectorStorePort,
   graphStore: GraphStorePort,
   embeddingService: EmbeddingService,
-  workspaceRoot: string
+  workspaceRoot: string,
+  llmProvider?: LLMProvider
 ): IndexingService {
-  return new IndexingService(vectorStore, graphStore, embeddingService, workspaceRoot);
+  return new IndexingService(vectorStore, graphStore, embeddingService, workspaceRoot, llmProvider);
 }

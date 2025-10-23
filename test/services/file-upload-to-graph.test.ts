@@ -79,7 +79,7 @@ describe('Upload -> Nodes/Relationships (API integration)', () => {
     graph = new SQLiteAdapter(env.graphDir);
     await graph.initialize();
   const embed = new MockEmbeddingService() as unknown as import('../embedding-service').EmbeddingService;
-  const indexing = new IndexingService(null, graph, embed, env.workspace);
+  const indexing = new IndexingService(null, graph, embed, env.workspace, undefined);
 
     // Worker + queue
     const worker = new FileProcessingWorker(parser, hasher, env.workspace, indexing, graph);

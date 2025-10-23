@@ -52,7 +52,8 @@ export async function processSingleFileInternal(options: {
       vectorStore, // Vector store usando SQLite plugin (sqlite-vss)
       graphStore,
       embeddingService,
-      workspaceRoot
+      workspaceRoot,
+      undefined // LLMProvider opcional - não disponível em comandos individuais
     );
     const parserService = new ParserService();
     const relationshipExtractor = new ASTRelationshipExtractor(workspaceRoot);

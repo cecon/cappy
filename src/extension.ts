@@ -365,12 +365,25 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
             }
         }
         
+        // Initialize VSCode LLM Provider for entity discovery
+        let llmProvider;
+        try {
+            const { VSCodeLLMProvider } = await import('./services/entity-discovery/providers/VSCodeLLMProvider.js');
+            llmProvider = new VSCodeLLMProvider();
+            await llmProvider.initialize();
+            console.log('✅ VSCode LLM Provider initialized for entity discovery');
+        } catch (error) {
+            console.warn('⚠️ Failed to initialize LLM provider for entity discovery:', error);
+            llmProvider = undefined;
+        }
+        
         // Initialize indexing service
         const indexingService = new IndexingService(
             vectorStore, // Vector store usando SQLite plugin (sqlite-vss)
             graphStoreInstance,
             embeddingService,
-            workspaceRoot
+            workspaceRoot,
+            llmProvider
         );
         console.log('✅ Indexing service initialized');
 

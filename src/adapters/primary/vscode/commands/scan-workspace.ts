@@ -75,7 +75,8 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
               vectorStore,
               graphStore,
               embeddingService,
-              workspaceRoot
+              workspaceRoot,
+              undefined
             );
             await indexingService.initialize();
 

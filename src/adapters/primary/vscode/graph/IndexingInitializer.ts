@@ -70,7 +70,8 @@ export class IndexingInitializer {
       vectorStore, // Vector store usando SQLite plugin (sqlite-vss)
       graphStore,
       embeddingService,
-      workspaceRoot
+      workspaceRoot,
+      undefined
     );
 
     host.log('✅ Indexing services initialized');

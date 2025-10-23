@@ -129,6 +129,36 @@ export interface GraphStorePort {
   }>;
 
   /**
+   * Creates or updates an entity node in the graph
+   */
+  createEntity(entity: {
+    name: string;
+    type: string;
+    confidence: number;
+    properties: Record<string, unknown>;
+  }): Promise<string>;
+
+  /**
+   * Finds an entity by normalized name and type
+   */
+  findEntityByNameAndType(name: string, type: string | undefined): Promise<{ id: string } | null>;
+
+  /**
+   * Links a chunk to an entity
+   */
+  linkChunkToEntity(chunkId: string, entityId: string): Promise<void>;
+
+  /**
+   * Creates a relationship between two entities
+   */
+  createRelationship(rel: {
+    from: string;
+    to: string;
+    type: string;
+    properties?: Record<string, unknown>;
+  }): Promise<void>;
+
+  /**
    * Closes the connection
    */
   close(): Promise<void>;

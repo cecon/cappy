@@ -845,6 +845,94 @@ export class SQLiteAdapter implements GraphStorePort {
     );
     this.saveToFile();
   }
+
+  /**
+   * Creates or updates an entity node in the graph
+   */
+  async createEntity(entity: {
+    name: string;
+    type: string;
+    confidence: number;
+    properties: Record<string, unknown>;
+  }): Promise<string> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    const entityId = `entity:${entity.name.toLowerCase().replace(/\s+/g, '-')}`;
+    
+    this.db.run(
+      `INSERT OR REPLACE INTO nodes 
+       (id, type, label, discovered_type, discovered_properties, entity_confidence, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entityId,
+        'entity',
+        entity.name,
+        entity.type,
+        JSON.stringify(entity.properties),
+        entity.confidence,
+        'active'
+      ]
+    );
+    this.saveToFile();
+    return entityId;
+  }
+
+  /**
+   * Finds an entity by normalized name and type
+   */
+  async findEntityByNameAndType(name: string, type: string | undefined): Promise<{ id: string } | null> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    const query = type 
+      ? `SELECT id FROM nodes WHERE type = 'entity' AND LOWER(label) = ? AND discovered_type = ? LIMIT 1`
+      : `SELECT id FROM nodes WHERE type = 'entity' AND LOWER(label) = ? LIMIT 1`;
+    
+    const params = type ? [name.toLowerCase(), type] : [name.toLowerCase()];
+    const result = this.db.exec(query, params);
+    
+    if (result.length > 0 && result[0].values.length > 0) {
+      return { id: result[0].values[0][0] as string };
+    }
+    return null;
+  }
+
+  /**
+   * Links a chunk to an entity
+   */
+  async linkChunkToEntity(chunkId: string, entityId: string): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    this.db.run(
+      `INSERT OR IGNORE INTO edges 
+       (from_id, to_id, type, confidence) 
+       VALUES (?, ?, ?, ?)`,
+      [chunkId, entityId, 'references', 1.0]
+    );
+    this.saveToFile();
+  }
+
+  /**
+   * Creates a relationship between two entities
+   */
+  async createRelationship(rel: {
+    from: string;
+    to: string;
+    type: string;
+    properties?: Record<string, unknown>;
+  }): Promise<void> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    const confidence = rel.properties?.confidence as number || 1.0;
+    const context = rel.properties?.context as string || '';
+    
+    this.db.run(
+      `INSERT OR IGNORE INTO edges 
+       (from_id, to_id, type, semantic_context, confidence) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [rel.from, rel.to, rel.type, context, confidence]
+    );
+    this.saveToFile();
+  }
 }
 
 export function createSQLiteAdapter(dbPath: string): GraphStorePort {
