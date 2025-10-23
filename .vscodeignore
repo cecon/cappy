@@ -10,6 +10,9 @@ docs/
 **/*.map
 **/*.test.*
 **/__tests__/**
+# Exclude sharp - not used for text embeddings, only for image processing
+node_modules/**/sharp/**
+node_modules/**/@img/sharp-*/**
 # Keep built output and extension entry
 !out/**
 !src/assets/**

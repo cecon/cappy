@@ -1,4 +1,4 @@
-# 🧠 CappyRAG: The Smart Context Engine Your LLM Deserves
+# 🧠 Cappy: The Smart Context Engine Your LLM Deserves
 
 > **Stop feeding your AI garbage. Start giving it genius.**
 
@@ -14,7 +14,7 @@ You've been there:
 - 🤦 "Why did GitHub Copilot suggest the same broken pattern *again*?"
 - 😤 "I *told* it about that authentication bug 10 times!"
 - 🔥 "It keeps ignoring our architecture docs!"
-- 💸 "We're paying for GPT-4, but it's coding like GPT-3..."
+- 💸 "We're paying for GPT-5, but it's coding like GPT-3..."
 
 **The truth?** Your LLM is brilliant. Your context delivery is broken.
 
@@ -22,7 +22,7 @@ You've been there:
 
 ## 💡 The Solution: Hybrid Retrieval That Actually Works
 
-**CappyRAG** is the missing link between your codebase and your AI. It's not just another RAG system—it's a **context orchestration engine** that:
+**Cappy** is the missing link between your codebase and your AI. It's not just another RAG system—it's a **context orchestration engine** that:
 
 ### ✨ Understands What Your LLM *Really* Needs
 
@@ -30,7 +30,7 @@ You've been there:
 // Instead of blind keyword matching...
 search("authentication") // → 847 irrelevant results
 
-// CappyRAG delivers intelligent, weighted context:
+// Cappy delivers intelligent, weighted context:
 retrieve("JWT authentication") // → Returns:
   ✅ Your auth guard implementation (40% weight - CODE)
   ✅ Your JWT setup guide (30% weight - DOCS)
@@ -99,7 +99,7 @@ const focused = await retriever.retrieve('API error handling', {
 
 ---
 
-## 🎯 Why CappyRAG Destroys Traditional RAG
+## 🎯 Why Cappy Destroys Traditional RAG
 
 ### Traditional RAG (Retrieval-Augmented Generation)
 ```
