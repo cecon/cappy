@@ -1,6 +1,6 @@
-import { EntityDiscoveryResult } from "../entities/EntityDiscoveryResult";
-import { EntityDiscoveryOptions } from "../entities/EntityDiscoveryOptions";
-import { LLMProvider } from "../providers/LLMProvider";
+import type { EntityDiscoveryResult } from "../entities/EntityDiscoveryResult";
+import type { EntityDiscoveryOptions } from "../entities/EntityDiscoveryOptions";
+import type { LLMProvider } from "../providers/LLMProvider";
 
 const ENTITY_DISCOVERY_PROMPT = `
 Analyze the following content and extract ALL entities and relationships.
@@ -56,7 +56,11 @@ Content to analyze:
 `;
 
 export class EntityDiscoveryService {
-  constructor(private llmProvider?: LLMProvider) {}
+  private llmProvider?: LLMProvider;
+  
+  constructor(llmProvider?: LLMProvider) {
+    this.llmProvider = llmProvider;
+  }
 
   async discoverEntities(
     content: string,

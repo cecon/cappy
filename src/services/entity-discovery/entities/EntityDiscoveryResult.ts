@@ -1,5 +1,5 @@
-import { DiscoveredEntity } from "./DiscoveredEntity";
-import { DiscoveredRelationship } from "./DiscoveredRelationship";
+import type { DiscoveredEntity } from "./DiscoveredEntity";
+import type { DiscoveredRelationship } from "./DiscoveredRelationship";
 
 export interface EntityDiscoveryResult {
   entities: DiscoveredEntity[];

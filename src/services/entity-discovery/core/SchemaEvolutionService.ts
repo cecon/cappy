@@ -1,5 +1,5 @@
-import { EntityDiscoveryResult } from "../entities/EntityDiscoveryResult";
-import { SchemaEvolutionSuggestion } from "../entities/SchemaEvolutionSuggestion";
+import type { EntityDiscoveryResult } from "../entities/EntityDiscoveryResult";
+import type { SchemaEvolutionSuggestion } from "../entities/SchemaEvolutionSuggestion";
 
 export class SchemaEvolutionService {
   async analyze(

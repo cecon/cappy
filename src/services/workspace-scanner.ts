@@ -190,9 +190,15 @@ export class WorkspaceScanner {
 
       // 6. Wait for queue to complete
       await this.queue.drain();
+      
+      // 6.5. Wait a bit to ensure all async operations complete
+      console.log('⏳ Waiting for all file indexing to complete...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // 6. Build cross-file relationships
+      // 7. Build cross-file relationships
+      console.log('🔗 Starting cross-file relationship building phase...');
       await this.buildCrossFileRelationships();
+      console.log('✅ Cross-file relationship building completed');
 
       progress.status = 'completed';
       progress.currentFile = '';
@@ -419,6 +425,10 @@ export class WorkspaceScanner {
     // Build a map of exported symbols to files
     const exportedSymbols = new Map<string, string[]>(); // symbol -> [file paths]
 
+    let analyzedFiles = 0;
+    let filesWithImports = 0;
+    let filesWithExports = 0;
+
     for (const file of allFiles) {
       const fullPath = path.join(this.config.workspaceRoot, file.relPath);
       
@@ -428,60 +438,80 @@ export class WorkspaceScanner {
       }
 
       try {
+        analyzedFiles++;
+        
         // Analyze the file for imports/exports
         const analysis = await this.relationshipExtractor.analyze(fullPath);
         
         // Track exports
-        for (const exportName of analysis.exports) {
-          if (!exportedSymbols.has(exportName)) {
-            exportedSymbols.set(exportName, []);
+        if (analysis.exports.length > 0) {
+          filesWithExports++;
+          for (const exportName of analysis.exports) {
+            if (!exportedSymbols.has(exportName)) {
+              exportedSymbols.set(exportName, []);
+            }
+            exportedSymbols.get(exportName)!.push(file.relPath);
           }
-          exportedSymbols.get(exportName)!.push(file.relPath);
         }
 
         // Process imports
-        for (const imp of analysis.imports) {
-          if (!imp.isExternal) {
-            // Internal import - try to resolve to a file
-            const resolvedPath = await this.resolveImportPath(imp.source, file.relPath);
-            
-            if (resolvedPath) {
-              // Create File -> File relationship for import
-              crossFileRels.push({
-                from: file.relPath,
-                to: resolvedPath,
-                type: 'IMPORTS',
-                properties: {
-                  source: imp.source,
-                  specifiers: imp.specifiers
-                }
-              });
+        if (analysis.imports.length > 0) {
+          filesWithImports++;
+          console.log(`  📥 ${file.relPath}: ${analysis.imports.length} imports, ${analysis.exports.length} exports`);
+          
+          for (const imp of analysis.imports) {
+            if (!imp.isExternal) {
+              // Internal import - try to resolve to a file
+              const resolvedPath = await this.resolveImportPath(imp.source, file.relPath);
+              
+              if (resolvedPath) {
+                console.log(`    ✅ Resolved import "${imp.source}" -> ${resolvedPath}`);
+                
+                // Create File -> File relationship for import
+                crossFileRels.push({
+                  from: file.relPath,
+                  to: resolvedPath,
+                  type: 'IMPORTS',
+                  properties: {
+                    source: imp.source,
+                    specifiers: imp.specifiers
+                  }
+                });
 
-              // Create Chunk -> Chunk relationships for imported symbols
-              const sourceChunks = await this.config.graphStore.getFileChunks(file.relPath);
-              const targetChunks = await this.config.graphStore.getFileChunks(resolvedPath);
+                // Create Chunk -> Chunk relationships for imported symbols
+                const sourceChunks = await this.config.graphStore.getFileChunks(file.relPath);
+                const targetChunks = await this.config.graphStore.getFileChunks(resolvedPath);
 
-              for (const specifier of imp.specifiers) {
-                // Find target chunk that exports this symbol
-                const targetChunk = targetChunks.find(c => 
-                  c.label.includes(specifier) || c.id.includes(specifier)
-                );
+                console.log(`    🔍 Source chunks: ${sourceChunks.length}, Target chunks: ${targetChunks.length}`);
 
-                if (targetChunk) {
-                  // Connect all source chunks to this target chunk
-                  for (const sourceChunk of sourceChunks) {
-                    crossFileRels.push({
-                      from: sourceChunk.id,
-                      to: targetChunk.id,
-                      type: 'IMPORTS_SYMBOL',
-                      properties: {
-                        symbol: specifier,
-                        sourceFile: file.relPath,
-                        targetFile: resolvedPath
-                      }
-                    });
+                for (const specifier of imp.specifiers) {
+                  // Find target chunk that exports this symbol
+                  const targetChunk = targetChunks.find(c => 
+                    c.label.includes(specifier) || c.id.includes(specifier)
+                  );
+
+                  if (targetChunk) {
+                    console.log(`      ✅ Found target chunk for symbol "${specifier}": ${targetChunk.id}`);
+                    
+                    // Connect all source chunks to this target chunk
+                    for (const sourceChunk of sourceChunks) {
+                      crossFileRels.push({
+                        from: sourceChunk.id,
+                        to: targetChunk.id,
+                        type: 'IMPORTS_SYMBOL',
+                        properties: {
+                          symbol: specifier,
+                          sourceFile: file.relPath,
+                          targetFile: resolvedPath
+                        }
+                      });
+                    }
+                  } else {
+                    console.log(`      ⚠️ No chunk found for symbol "${specifier}" in ${resolvedPath}`);
                   }
                 }
+              } else {
+                console.log(`    ❌ Could not resolve import "${imp.source}" from ${file.relPath}`);
               }
             }
           }
@@ -490,6 +520,12 @@ export class WorkspaceScanner {
         console.warn(`⚠️ Failed to analyze ${file.relPath} for cross-file relationships:`, error);
       }
     }
+
+    console.log(`📊 Analysis summary:`);
+    console.log(`   - Files analyzed: ${analyzedFiles}`);
+    console.log(`   - Files with imports: ${filesWithImports}`);
+    console.log(`   - Files with exports: ${filesWithExports}`);
+    console.log(`   - Exported symbols: ${exportedSymbols.size}`);
 
     // Save all cross-file relationships
     if (crossFileRels.length > 0) {
