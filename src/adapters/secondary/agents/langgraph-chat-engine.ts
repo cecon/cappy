@@ -316,8 +316,8 @@ export class LangGraphChatEngine implements ChatAgentPort {
   private extractTaskContent(rawText: string): { content: string; title: string } | null {
     // Remove agent markers for cleaner content
     const cleanText = rawText
-      .replaceAll('<!-- agent:done -->', '')
-      .replaceAll('<!-- agent:continue -->', '')
+        .replace(/<!-- agent:done -->/g, '')
+        .replace(/<!-- agent:continue -->/g, '')
       .trim()
 
     if (!cleanText) {
@@ -334,10 +334,10 @@ export class LangGraphChatEngine implements ChatAgentPort {
   private static slugify(value: string): string {
     return value
       .normalize('NFKD')
-      .replaceAll(/[\u0300-\u036f]/g, '')
-      .replaceAll(/[^a-zA-Z0-9]+/g, '-')
-      .replaceAll(/^-+/g, '')
-      .replaceAll(/-+$/g, '')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+/g, '')
+        .replace(/-+$/g, '')
       .toLowerCase() || 'task'
   }
 
