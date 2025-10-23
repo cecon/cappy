@@ -159,6 +159,11 @@ export interface GraphStorePort {
   }): Promise<void>;
 
   /**
+   * Clears all data from the graph database (memory and disk)
+   */
+  clearAll(): Promise<void>;
+
+  /**
    * Closes the connection
    */
   close(): Promise<void>;

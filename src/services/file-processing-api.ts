@@ -29,6 +29,7 @@ export class FileProcessingAPI {
   private graphStore: GraphStorePort | null;
   private port: number;
   private onScanWorkspace?: () => Promise<void>;
+  private onReprocessFile?: (filePath: string) => Promise<void>;
 
   constructor(
     _queue: FileProcessingQueue,
@@ -36,12 +37,14 @@ export class FileProcessingAPI {
     _workspaceRoot: string, // kept for compatibility but no longer used
     port: number = 3456,
     graphStore: GraphStorePort | null = null,
-    onScanWorkspace?: () => Promise<void>
+    onScanWorkspace?: () => Promise<void>,
+    onReprocessFile?: (filePath: string) => Promise<void>
   ) {
     this.database = database;
     this.port = port;
     this.graphStore = graphStore;
     this.onScanWorkspace = onScanWorkspace;
+    this.onReprocessFile = onReprocessFile;
   }
 
   start(): Promise<void> {
@@ -143,37 +146,37 @@ export class FileProcessingAPI {
 
     req.on('end', async () => {
       try {
-        const { fileId } = JSON.parse(body || '{}');
-        if (!fileId) {
+        const { filePath } = JSON.parse(body || '{}');
+        if (!filePath) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Missing fileId' }));
+          res.end(JSON.stringify({ error: 'Missing filePath' }));
           return;
         }
 
-        const metadata = this.database.getFile(String(fileId));
-        if (!metadata) {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'File not found' }));
+        // Check if file exists in graph store
+        if (this.graphStore) {
+          const indexedFiles = await this.graphStore.listAllFiles();
+          const fileExists = indexedFiles.some(f => f.path === filePath);
+          
+          if (!fileExists) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'File not found in graph' }));
+            return;
+          }
+        }
+
+        // Trigger reprocessing via callback
+        if (!this.onReprocessFile) {
+          res.writeHead(501, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Reprocess not supported' }));
           return;
         }
 
-        // Reset fields and set back to pending so the queue will pick it up
-        this.database.updateFile(String(fileId), {
-          status: 'pending',
-          progress: 0,
-          currentStep: null as unknown as string | undefined,
-          errorMessage: null as unknown as string | undefined,
-          chunksCount: null as unknown as number | undefined,
-          nodesCount: null as unknown as number | undefined,
-          relationshipsCount: null as unknown as number | undefined,
-          processingStartedAt: null as unknown as string | undefined,
-          processingCompletedAt: null as unknown as string | undefined
-        });
-
-        console.log(`[FileProcessingAPI] 🔄 Reprocess requested for ${fileId}. Status set to pending.`);
+        console.log(`[FileProcessingAPI] 🔄 Reprocess requested for ${filePath}`);
+        await this.onReprocessFile(filePath);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ message: 'Reprocess scheduled', fileId }));
+        res.end(JSON.stringify({ message: 'File reprocessed successfully', filePath }));
       } catch (error) {
         console.error('[FileProcessingAPI] ❌ Reprocess error:', error);
         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -478,8 +481,11 @@ export class FileProcessingAPI {
             console.warn('[FileProcessingAPI] ⚠️ Could not get chunks for', file.path, err);
           }
 
+          // Use stable ID based on file path for consistent reprocessing
+          const fileId = `indexed-${Buffer.from(file.path).toString('base64').replace(/[/+=]/g, '')}`;
+
           return {
-            fileId: `indexed-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            fileId,
             fileName,
             filePath: file.path,
             status: 'completed',
@@ -506,17 +512,24 @@ export class FileProcessingAPI {
 
   private async handleClearAll(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     try {
-      console.log('[FileProcessingAPI] 🗑️ Clearing all files from database');
+      console.log('[FileProcessingAPI] 🗑️ Clearing all files from database and graph...');
       
-      // Clear all files from database
+      // Clear all files from metadata database (memory + disk)
       this.database.clearAll();
+      console.log('[FileProcessingAPI] ✅ File metadata cleared');
       
-      console.log('[FileProcessingAPI] ✅ All files cleared from database');
+      // Clear all data from graph database (memory + disk)
+      if (this.graphStore) {
+        await this.graphStore.clearAll();
+        console.log('[FileProcessingAPI] ✅ Graph database cleared');
+      }
+      
+      console.log('[FileProcessingAPI] ✅ All data cleared successfully');
       
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ 
         success: true, 
-        message: 'All files cleared successfully' 
+        message: 'All files and graph data cleared successfully' 
       }));
     } catch (error) {
       console.error('[FileProcessingAPI] ❌ Error clearing files:', error);

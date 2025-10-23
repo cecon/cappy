@@ -4,10 +4,10 @@
  * @author Cappy Team
  * @since 3.0.5
  * 
- * Using sql.js for cross-platform compatibility (pure JavaScript SQLite)
+ * Using sqlite3 for native performance and stability
  */
 
-import initSqlJs, { type Database, type SqlJsStatic, type QueryExecResult } from 'sql.js';
+import * as sqlite3 from 'sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -70,15 +70,12 @@ export interface DatabaseStats {
   cancelled: number;
 }
 
-type SqlValue = string | number | null | Uint8Array;
-
 /**
- * SQLite database for file metadata management (using sql.js)
+ * SQLite database for file metadata management (using sqlite3)
  */
 export class FileMetadataDatabase {
-  private db: Database | null = null;
+  private db: sqlite3.Database | null = null;
   private dbPath: string;
-  private SQL: SqlJsStatic | null = null;
 
   constructor(dbPath: string) {
     this.dbPath = dbPath;
@@ -88,98 +85,117 @@ export class FileMetadataDatabase {
    * Initializes database and creates tables
    */
   async initialize(): Promise<void> {
-    this.SQL = await initSqlJs();
-    
-    // Try to load existing database file
-    if (fs.existsSync(this.dbPath)) {
-      const buffer = fs.readFileSync(this.dbPath);
-      this.db = new this.SQL.Database(buffer);
-    } else {
-      // Create new database
-      this.db = new this.SQL.Database();
+    return new Promise((resolve, reject) => {
       // Ensure directory exists
       const dir = path.dirname(this.dbPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-    }
-    
-    this.createTables();
-    this.save();
-    console.log('✅ File metadata database initialized');
-  }
 
-  /**
-   * Saves database to disk
-   */
-  private save(): void {
-    if (!this.db) throw new Error('Database not initialized');
-    const data = this.db.export();
-    fs.writeFileSync(this.dbPath, data);
+      this.db = new sqlite3.Database(this.dbPath, (err) => {
+        if (err) {
+          reject(new Error(`Failed to open database: ${err.message}`));
+          return;
+        }
+
+        // Enable foreign keys and set WAL mode for better concurrency
+        this.db!.run('PRAGMA foreign_keys = ON', (err) => {
+          if (err) {
+            reject(new Error(`Failed to enable foreign keys: ${err.message}`));
+            return;
+          }
+
+          this.db!.run('PRAGMA journal_mode = WAL', (err) => {
+            if (err) {
+              reject(new Error(`Failed to set WAL mode: ${err.message}`));
+              return;
+            }
+
+            this.createTables()
+              .then(() => {
+                console.log('✅ File metadata database initialized with sqlite3');
+                resolve();
+              })
+              .catch(reject);
+          });
+        });
+      });
+    });
   }
 
   /**
    * Creates database tables
    */
-  private createTables(): void {
-    if (!this.db) throw new Error('Database not initialized');
-    
-    // Check if table exists first
-    const tableExistsResult = this.db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='file_metadata'`);
-    const tableExists = tableExistsResult.length > 0 && tableExistsResult[0].values.length > 0;
-    
-    if (tableExists) {
-      // Table exists, check if migration is needed
-      const columnsResult = this.db.exec(`PRAGMA table_info(file_metadata)`);
-      const hasFileContent = columnsResult.length > 0 
-        && columnsResult[0].values.some(row => row[1] === 'file_content');
-      
-      if (!hasFileContent) {
-        console.log('⚠️ Old schema detected, adding file_content column...');
-        try {
-          this.db.run(`ALTER TABLE file_metadata ADD COLUMN file_content TEXT`);
-          console.log('✅ Migration complete: file_content column added');
-          this.save(); // Save immediately after migration
-        } catch (error) {
-          console.error('❌ Migration failed:', error);
-          throw error;
-        }
-      } else {
-        console.log('✅ file_content column exists, schema is up to date');
+  private async createTables(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
       }
-    } else {
-      // Table doesn't exist, create it with full schema
-      console.log('📋 Creating file_metadata table with current schema...');
-    }
-    
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS file_metadata (
-        id TEXT PRIMARY KEY,
-        file_path TEXT NOT NULL UNIQUE,
-        file_name TEXT NOT NULL,
-        file_size INTEGER NOT NULL,
-        file_hash TEXT NOT NULL,
-        file_content TEXT,
-        status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
-        progress INTEGER DEFAULT 0,
-        current_step TEXT,
-        error_message TEXT,
-        retry_count INTEGER DEFAULT 0,
-        max_retries INTEGER DEFAULT 3,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        processing_started_at TEXT,
-        processing_completed_at TEXT,
-        chunks_count INTEGER,
-        nodes_count INTEGER,
-        relationships_count INTEGER
-      );
 
-      CREATE INDEX IF NOT EXISTS idx_status ON file_metadata(status);
-      CREATE INDEX IF NOT EXISTS idx_file_path ON file_metadata(file_path);
-      CREATE INDEX IF NOT EXISTS idx_created_at ON file_metadata(created_at);
-      CREATE INDEX IF NOT EXISTS idx_updated_at ON file_metadata(updated_at);
-    `);
+      this.db.serialize(() => {
+        this.db!.run(`
+          CREATE TABLE IF NOT EXISTS file_metadata (
+            id TEXT PRIMARY KEY,
+            file_path TEXT NOT NULL UNIQUE,
+            file_name TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            file_hash TEXT NOT NULL,
+            file_content TEXT,
+            status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'completed', 'failed', 'cancelled', 'extracting_entities', 'creating_relationships', 'entity_discovery', 'processed', 'error', 'paused')),
+            progress INTEGER DEFAULT 0,
+            current_step TEXT,
+            error_message TEXT,
+            retry_count INTEGER DEFAULT 0,
+            max_retries INTEGER DEFAULT 3,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            processing_started_at TEXT,
+            processing_completed_at TEXT,
+            chunks_count INTEGER,
+            nodes_count INTEGER,
+            relationships_count INTEGER
+          )
+        `, (err) => {
+          if (err) {
+            reject(new Error(`Failed to create table: ${err.message}`));
+            return;
+          }
+
+          // Create indexes
+          this.db!.run(`CREATE INDEX IF NOT EXISTS idx_status ON file_metadata(status)`, (err) => {
+            if (err) {
+              reject(new Error(`Failed to create index: ${err.message}`));
+              return;
+            }
+
+            this.db!.run(`CREATE INDEX IF NOT EXISTS idx_file_path ON file_metadata(file_path)`, (err) => {
+              if (err) {
+                reject(new Error(`Failed to create index: ${err.message}`));
+                return;
+              }
+
+              this.db!.run(`CREATE INDEX IF NOT EXISTS idx_created_at ON file_metadata(created_at)`, (err) => {
+                if (err) {
+                  reject(new Error(`Failed to create index: ${err.message}`));
+                  return;
+                }
+
+                this.db!.run(`CREATE INDEX IF NOT EXISTS idx_updated_at ON file_metadata(updated_at)`, (err) => {
+                  if (err) {
+                    reject(new Error(`Failed to create index: ${err.message}`));
+                    return;
+                  }
+
+                  console.log('📋 File metadata table and indexes created');
+                  resolve();
+                });
+              });
+            });
+          });
+        });
+      });
+    });
   }
 
   /**
@@ -187,9 +203,9 @@ export class FileMetadataDatabase {
    */
   insertFile(metadata: Omit<FileMetadata, 'createdAt' | 'updatedAt'>): void {
     if (!this.db) throw new Error('Database not initialized');
-    
+
     const now = new Date().toISOString();
-    
+
     this.db.run(
       `INSERT INTO file_metadata (
         id, file_path, file_name, file_size, file_hash, file_content, status, progress,
@@ -217,10 +233,13 @@ export class FileMetadataDatabase {
         metadata.chunksCount || null,
         metadata.nodesCount || null,
         metadata.relationshipsCount || null
-      ]
+      ],
+      (err) => {
+        if (err) {
+          console.error('❌ Failed to insert file:', err);
+        }
+      }
     );
-    
-    this.save();
   }
 
   /**
@@ -231,10 +250,10 @@ export class FileMetadataDatabase {
     updates: Partial<Omit<FileMetadata, 'id' | 'createdAt'>>
   ): void {
     if (!this.db) throw new Error('Database not initialized');
-    
+
     const now = new Date().toISOString();
     const fields: string[] = [];
-    const values: SqlValue[] = [];
+    const values: (string | number | null)[] = [];
 
     // Build dynamic UPDATE query
     if (updates.status !== undefined) {
@@ -287,8 +306,12 @@ export class FileMetadataDatabase {
     values.push(id);
 
     const sql = `UPDATE file_metadata SET ${fields.join(', ')} WHERE id = ?`;
-    this.db.run(sql, values);
-    this.save();
+
+    this.db.run(sql, values, (err) => {
+      if (err) {
+        console.error('❌ Failed to update file:', err);
+      }
+    });
   }
 
   /**
@@ -296,9 +319,20 @@ export class FileMetadataDatabase {
    */
   getFile(id: string): FileMetadata | null {
     if (!this.db) throw new Error('Database not initialized');
-    
-    const result = this.db.exec('SELECT * FROM file_metadata WHERE id = ?', [id]);
-    return this.mapFirstRow(result);
+
+    let result: FileMetadata | null = null;
+
+    this.db.get('SELECT * FROM file_metadata WHERE id = ?', [id], (err, row: any) => {
+      if (err) {
+        console.error('❌ Failed to get file:', err);
+        return;
+      }
+      if (row) {
+        result = this.rowToMetadata(row);
+      }
+    });
+
+    return result;
   }
 
   /**
@@ -313,9 +347,20 @@ export class FileMetadataDatabase {
    */
   getAllFileMetadata(): FileMetadata[] {
     if (!this.db) throw new Error('Database not initialized');
-    
-    const result = this.db.exec('SELECT * FROM file_metadata ORDER BY created_at DESC');
-    return this.mapRows(result);
+
+    let results: FileMetadata[] = [];
+
+    this.db.all('SELECT * FROM file_metadata ORDER BY created_at DESC', (err, rows: any[]) => {
+      if (err) {
+        console.error('❌ Failed to get all files:', err);
+        return;
+      }
+      if (rows) {
+        results = rows.map(row => this.rowToMetadata(row));
+      }
+    });
+
+    return results;
   }
 
   /**
@@ -323,9 +368,20 @@ export class FileMetadataDatabase {
    */
   getFileByPath(filePath: string): FileMetadata | null {
     if (!this.db) throw new Error('Database not initialized');
-    
-    const result = this.db.exec('SELECT * FROM file_metadata WHERE file_path = ?', [filePath]);
-    return this.mapFirstRow(result);
+
+    let result: FileMetadata | null = null;
+
+    this.db.get('SELECT * FROM file_metadata WHERE file_path = ?', [filePath], (err, row: any) => {
+      if (err) {
+        console.error('❌ Failed to get file by path:', err);
+        return;
+      }
+      if (row) {
+        result = this.rowToMetadata(row);
+      }
+    });
+
+    return result;
   }
 
   /**
@@ -333,12 +389,24 @@ export class FileMetadataDatabase {
    */
   getFilesByStatus(status: FileProcessingStatus): FileMetadata[] {
     if (!this.db) throw new Error('Database not initialized');
-    
-    const result = this.db.exec(
+
+    let results: FileMetadata[] = [];
+
+    this.db.all(
       'SELECT * FROM file_metadata WHERE status = ? ORDER BY created_at ASC',
-      [status]
+      [status],
+      (err, rows: any[]) => {
+        if (err) {
+          console.error('❌ Failed to get files by status:', err);
+          return;
+        }
+        if (rows) {
+          results = rows.map(row => this.rowToMetadata(row));
+        }
+      }
     );
-    return this.mapRows(result);
+
+    return results;
   }
 
   /**
@@ -346,13 +414,30 @@ export class FileMetadataDatabase {
    */
   getPendingFiles(limit?: number): FileMetadata[] {
     if (!this.db) throw new Error('Database not initialized');
-    
+
+    let results: FileMetadata[] = [];
+
     const sql = limit
       ? 'SELECT * FROM file_metadata WHERE status = "pending" ORDER BY created_at ASC LIMIT ?'
       : 'SELECT * FROM file_metadata WHERE status = "pending" ORDER BY created_at ASC';
-    
-    const result = this.db.exec(sql, limit ? [limit] : []);
-    return this.mapRows(result);
+
+    const callback = (err: any, rows: any[]) => {
+      if (err) {
+        console.error('❌ Failed to get pending files:', err);
+        return;
+      }
+      if (rows) {
+        results = rows.map(row => this.rowToMetadata(row));
+      }
+    };
+
+    if (limit) {
+      this.db.all(sql, [limit], callback);
+    } else {
+      this.db.all(sql, callback);
+    }
+
+    return results;
   }
 
   /**
@@ -360,9 +445,24 @@ export class FileMetadataDatabase {
    */
   getStats(): DatabaseStats {
     if (!this.db) throw new Error('Database not initialized');
-    
-    const result = this.db.exec(`
-      SELECT 
+
+    let stats: DatabaseStats = {
+      total: 0,
+      pending: 0,
+      processing: 0,
+      extractingEntities: 0,
+      creatingRelationships: 0,
+      entityDiscovery: 0,
+      processed: 0,
+      completed: 0,
+      error: 0,
+      failed: 0,
+      paused: 0,
+      cancelled: 0
+    };
+
+    this.db.get(
+      `SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
         SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing,
@@ -374,41 +474,32 @@ export class FileMetadataDatabase {
         SUM(CASE WHEN status = 'error' OR status = 'failed' THEN 1 ELSE 0 END) as error,
         SUM(CASE WHEN status = 'paused' THEN 1 ELSE 0 END) as paused,
         SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
-      FROM file_metadata
-    `);
+      FROM file_metadata`,
+      (err, row: any) => {
+        if (err) {
+          console.error('❌ Failed to get stats:', err);
+          return;
+        }
+        if (row) {
+          stats = {
+            total: row.total || 0,
+            pending: row.pending || 0,
+            processing: row.processing || 0,
+            extractingEntities: row.extracting_entities || 0,
+            creatingRelationships: row.creating_relationships || 0,
+            entityDiscovery: row.entity_discovery || 0,
+            processed: row.processed || 0,
+            completed: row.completed || 0,
+            error: row.error || 0,
+            failed: row.error || 0, // Same as error for backward compatibility
+            paused: row.paused || 0,
+            cancelled: row.cancelled || 0
+          };
+        }
+      }
+    );
 
-    if (result.length === 0 || result[0].values.length === 0) {
-      return { 
-        total: 0, 
-        pending: 0, 
-        processing: 0, 
-        extractingEntities: 0,
-        creatingRelationships: 0,
-        entityDiscovery: 0,
-        processed: 0,
-        completed: 0,
-        error: 0,
-        failed: 0,
-        paused: 0,
-        cancelled: 0 
-      };
-    }
-
-    const row = result[0].values[0];
-    return {
-      total: Number(row[0]) || 0,
-      pending: Number(row[1]) || 0,
-      processing: Number(row[2]) || 0,
-      extractingEntities: Number(row[3]) || 0,
-      creatingRelationships: Number(row[4]) || 0,
-      entityDiscovery: Number(row[5]) || 0,
-      processed: Number(row[6]) || 0,
-      completed: Number(row[7]) || 0,
-      error: Number(row[8]) || 0,
-      failed: Number(row[8]) || 0, // Same as error for backward compatibility
-      paused: Number(row[9]) || 0,
-      cancelled: Number(row[10]) || 0
-    };
+    return stats;
   }
 
   /**
@@ -416,9 +507,12 @@ export class FileMetadataDatabase {
    */
   deleteFile(id: string): void {
     if (!this.db) throw new Error('Database not initialized');
-    
-    this.db.run('DELETE FROM file_metadata WHERE id = ?', [id]);
-    this.save();
+
+    this.db.run('DELETE FROM file_metadata WHERE id = ?', [id], (err) => {
+      if (err) {
+        console.error('❌ Failed to delete file:', err);
+      }
+    });
   }
 
   /**
@@ -426,9 +520,12 @@ export class FileMetadataDatabase {
    */
   deleteFilesByStatus(status: FileProcessingStatus): void {
     if (!this.db) throw new Error('Database not initialized');
-    
-    this.db.run('DELETE FROM file_metadata WHERE status = ?', [status]);
-    this.save();
+
+    this.db.run('DELETE FROM file_metadata WHERE status = ?', [status], (err) => {
+      if (err) {
+        console.error('❌ Failed to delete files by status:', err);
+      }
+    });
   }
 
   /**
@@ -436,9 +533,12 @@ export class FileMetadataDatabase {
    */
   clearAll(): void {
     if (!this.db) throw new Error('Database not initialized');
-    
-    this.db.run('DELETE FROM file_metadata');
-    this.save();
+
+    this.db.run('DELETE FROM file_metadata', (err) => {
+      if (err) {
+        console.error('❌ Failed to clear all files:', err);
+      }
+    });
   }
 
   /**
@@ -446,19 +546,23 @@ export class FileMetadataDatabase {
    */
   resetFailedFiles(): void {
     if (!this.db) throw new Error('Database not initialized');
-    
+
     const now = new Date().toISOString();
-    this.db.run(`
-      UPDATE file_metadata 
-      SET status = 'pending', 
-          error_message = NULL, 
-          updated_at = ?,
-          processing_started_at = NULL,
-          processing_completed_at = NULL
-      WHERE status = 'failed' AND retry_count < max_retries
-    `, [now]);
-    
-    this.save();
+    this.db.run(
+      `UPDATE file_metadata 
+       SET status = 'pending', 
+           error_message = NULL, 
+           updated_at = ?,
+           processing_started_at = NULL,
+           processing_completed_at = NULL
+       WHERE status = 'failed' AND retry_count < max_retries`,
+      [now],
+      (err) => {
+        if (err) {
+          console.error('❌ Failed to reset failed files:', err);
+        }
+      }
+    );
   }
 
   /**
@@ -466,61 +570,41 @@ export class FileMetadataDatabase {
    */
   close(): void {
     if (this.db) {
-      this.save();
-      this.db.close();
+      this.db.close((err) => {
+        if (err) {
+          console.error('❌ Failed to close database:', err);
+        } else {
+          console.log('✅ Database closed');
+        }
+      });
       this.db = null;
     }
   }
 
   /**
-   * Maps QueryExecResult to FileMetadata array
+   * Converts a database row to FileMetadata object
    */
-  private mapRows(result: QueryExecResult[]): FileMetadata[] {
-    if (result.length === 0) return [];
-    
-    const { columns, values } = result[0];
-    return values.map(row => this.rowToMetadata(columns, row));
-  }
-
-  /**
-   * Maps first row of QueryExecResult to FileMetadata
-   */
-  private mapFirstRow(result: QueryExecResult[]): FileMetadata | null {
-    if (result.length === 0 || result[0].values.length === 0) return null;
-    
-    const { columns, values } = result[0];
-    return this.rowToMetadata(columns, values[0]);
-  }
-
-  /**
-   * Converts a row array to FileMetadata object
-   */
-  private rowToMetadata(columns: string[], row: SqlValue[]): FileMetadata {
-    const obj: Record<string, SqlValue> = {};
-    columns.forEach((col, idx) => {
-      obj[col] = row[idx];
-    });
-
+  private rowToMetadata(row: any): FileMetadata {
     return {
-      id: String(obj.id),
-      filePath: String(obj.file_path),
-      fileName: String(obj.file_name),
-      fileSize: Number(obj.file_size),
-      fileHash: String(obj.file_hash),
-      fileContent: obj.file_content ? String(obj.file_content) : undefined,
-      status: String(obj.status) as FileProcessingStatus,
-      progress: Number(obj.progress),
-      currentStep: obj.current_step ? String(obj.current_step) : undefined,
-      errorMessage: obj.error_message ? String(obj.error_message) : undefined,
-      retryCount: Number(obj.retry_count),
-      maxRetries: Number(obj.max_retries),
-      createdAt: String(obj.created_at),
-      updatedAt: String(obj.updated_at),
-      processingStartedAt: obj.processing_started_at ? String(obj.processing_started_at) : undefined,
-      processingCompletedAt: obj.processing_completed_at ? String(obj.processing_completed_at) : undefined,
-      chunksCount: obj.chunks_count ? Number(obj.chunks_count) : undefined,
-      nodesCount: obj.nodes_count ? Number(obj.nodes_count) : undefined,
-      relationshipsCount: obj.relationships_count ? Number(obj.relationships_count) : undefined
+      id: String(row.id),
+      filePath: String(row.file_path),
+      fileName: String(row.file_name),
+      fileSize: Number(row.file_size),
+      fileHash: String(row.file_hash),
+      fileContent: row.file_content ? String(row.file_content) : undefined,
+      status: String(row.status) as FileProcessingStatus,
+      progress: Number(row.progress),
+      currentStep: row.current_step ? String(row.current_step) : undefined,
+      errorMessage: row.error_message ? String(row.error_message) : undefined,
+      retryCount: Number(row.retry_count),
+      maxRetries: Number(row.max_retries),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+      processingStartedAt: row.processing_started_at ? String(row.processing_started_at) : undefined,
+      processingCompletedAt: row.processing_completed_at ? String(row.processing_completed_at) : undefined,
+      chunksCount: row.chunks_count ? Number(row.chunks_count) : undefined,
+      nodesCount: row.nodes_count ? Number(row.nodes_count) : undefined,
+      relationshipsCount: row.relationships_count ? Number(row.relationships_count) : undefined
     };
   }
 }

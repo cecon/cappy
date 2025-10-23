@@ -91,61 +91,62 @@ const DocumentsPage: React.FC = () => {
     vscodeApi?.postMessage({ type, payload });
   };
 
-  // Load documents from API on mount
-  useEffect(() => {
-    const loadDocuments = async () => {
-      try {
-        console.log('[DocumentsPage] Loading documents from API...');
-        const response = await fetch('http://localhost:3456/files/indexed');
-        
-        if (!response.ok) {
-          console.error('[DocumentsPage] Failed to load documents:', response.statusText);
-          return;
-        }
-        
-        const statusResponses = await response.json();
-        console.log('[DocumentsPage] Loaded', statusResponses.length, 'documents from API');
-        
-        // Convert API response to Document format
-        interface StatusResponse {
-          fileId: string;
-          fileName?: string;
-          filePath?: string;
-          summary?: string;
-          status: DocumentStatus;
-          chunksCount?: number;
-          nodesCount?: number;
-          relationshipsCount?: number;
-          error?: string;
-          progress?: number;
-          fileSize?: number;
-        }
-        
-        const docs: Document[] = (statusResponses as StatusResponse[]).map(sr => ({
-          id: sr.fileId,
-          fileName: sr.fileName || 'Unknown',
-          filePath: sr.filePath,
-          summary: sr.summary || '',
-          status: sr.status,
-          length: sr.fileSize || sr.nodesCount || 0,
-          chunks: sr.chunksCount ?? 0,
-          nodesCount: sr.nodesCount,
-          relationshipsCount: sr.relationshipsCount,
-          created: new Date().toISOString().split('T')[0],
-          updated: new Date().toISOString().split('T')[0],
-          progress: sr.progress || 0,
-          error: sr.error,
-          selected: false
-        }));
-        
-        setDocuments(docs);
-        console.log('[DocumentsPage] Documents loaded successfully');
-      } catch (error) {
-        console.error('[DocumentsPage] Error loading documents:', error);
-        // Silently fail - API might not be running yet
+  // Load documents from API
+  const loadDocuments = async () => {
+    try {
+      console.log('[DocumentsPage] Loading documents from API...');
+      const response = await fetch('http://localhost:3456/files/indexed');
+      
+      if (!response.ok) {
+        console.error('[DocumentsPage] Failed to load documents:', response.statusText);
+        return;
       }
-    };
-    
+      
+      const statusResponses = await response.json();
+      console.log('[DocumentsPage] Loaded', statusResponses.length, 'documents from API');
+      
+      // Convert API response to Document format
+      interface StatusResponse {
+        fileId: string;
+        fileName?: string;
+        filePath?: string;
+        summary?: string;
+        status: DocumentStatus;
+        chunksCount?: number;
+        nodesCount?: number;
+        relationshipsCount?: number;
+        error?: string;
+        progress?: number;
+        fileSize?: number;
+      }
+      
+      const docs: Document[] = (statusResponses as StatusResponse[]).map(sr => ({
+        id: sr.fileId,
+        fileName: sr.fileName || 'Unknown',
+        filePath: sr.filePath,
+        summary: sr.summary || '',
+        status: sr.status,
+        length: sr.fileSize || sr.nodesCount || 0,
+        chunks: sr.chunksCount ?? 0,
+        nodesCount: sr.nodesCount,
+        relationshipsCount: sr.relationshipsCount,
+        created: new Date().toISOString().split('T')[0],
+        updated: new Date().toISOString().split('T')[0],
+        progress: sr.progress || 0,
+        error: sr.error,
+        selected: false
+      }));
+      
+      setDocuments(docs);
+      console.log('[DocumentsPage] Documents loaded successfully');
+    } catch (error) {
+      console.error('[DocumentsPage] Error loading documents:', error);
+      // Silently fail - API might not be running yet
+    }
+  };
+
+  // Load documents on mount
+  useEffect(() => {
     loadDocuments();
   }, []);
 
@@ -548,20 +549,29 @@ const DocumentsPage: React.FC = () => {
 
   const reprocessDocument = async (fileId: string) => {
     try {
+      // Find the document to get its filePath
+      const doc = documents.find(d => d.id === fileId);
+      if (!doc?.filePath) {
+        throw new Error('File path not found');
+      }
+
       const res = await fetch('http://localhost:3456/files/reprocess', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId })
+        body: JSON.stringify({ filePath: doc.filePath })
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to reprocess');
       }
 
-      // Optimistically update UI and restart polling
-      setDocuments(prev => prev.map(d => d.id === fileId ? { ...d, status: 'pending', progress: 0, summary: 'Waiting in queue...' } : d));
-      // Poll status until done
-      pollFileStatus(fileId);
+      // Optimistically update UI
+      setDocuments(prev => prev.map(d => d.id === fileId ? { ...d, status: 'processing', progress: 50, summary: '🔄 Reprocessing...' } : d));
+      
+      // Reload documents after a short delay
+      setTimeout(() => {
+        loadDocuments();
+      }, 2000);
     } catch (e) {
       console.error('[DocumentsPage] Reprocess error:', e);
       setDocuments(prev => prev.map(d => d.id === fileId ? { ...d, status: 'failed', summary: `❌ ${String(e)}` } : d));
@@ -848,9 +858,7 @@ const DocumentsPage: React.FC = () => {
                           </tr>
                         ) : (
                           <>
-                            {console.log('[DocumentsPage] Rendering', filteredDocuments.length, 'documents')}
                             {filteredDocuments.map((doc) => {
-                              console.log('[DocumentsPage] Rendering doc:', doc.id, doc.fileName, doc.status);
                               return (
                                 <tr key={doc.id} className="hover:bg-muted/30 transition-colors">
                               <td className="h-16 px-4 align-middle">

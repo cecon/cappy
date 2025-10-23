@@ -355,14 +355,16 @@
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "sigma": "^3.0.2",
-    "sql.js": "^1.13.0",
+    "sqlite3": "^5.1.7",
     "tailwind-merge": "^3.3.1",
     "yaml": "^2.8.1"
   },
   "optionalDependencies": {
+    "@vscode/sqlite3": "^5.1.8-vscode",
     "sharp": "^0.34.4"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
     "@eslint/js": "^9.36.0",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^24.7.2",

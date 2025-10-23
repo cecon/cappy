@@ -80,11 +80,25 @@ export function activate(context: vscode.ExtensionContext) {
     // Create graph panel instance
     const graphPanel = new GraphPanel(context, graphOutputChannel);
 
-    // Initialize file processing system (pass graphPanel to refresh on updates)
-    initializeFileProcessingSystem(context, graphPanel).catch(error => {
-        console.error('Failed to initialize file processing system:', error);
-        vscode.window.showErrorMessage(`Failed to start file processing API: ${error.message}`);
+    // NOTE: Starting the full file processing system initializes several
+    // components that can load native modules (SQLite/Kùzu/sharp). To avoid
+    // native-module crashes during activation, we defer initialization and
+    // expose a command that starts it manually when the user is ready.
+    //
+    // To start processing, run the command: "Cappy: Start File Processing"
+    // (command id: cappy.startProcessing)
+    const startProcessingCommand = vscode.commands.registerCommand('cappy.startProcessing', async () => {
+        try {
+            await initializeFileProcessingSystem(context, graphPanel);
+            vscode.window.showInformationMessage('✅ Cappy: File processing system started');
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            console.error('Failed to initialize file processing system:', error);
+            vscode.window.showErrorMessage(`Failed to start file processing API: ${errMsg}`);
+        }
     });
+    context.subscriptions.push(startProcessingCommand);
+    console.log('⏸️ File processing initialization deferred. Use command: cappy.startProcessing');
     
     // Register the graph visualization command
     const openGraphCommand = vscode.commands.registerCommand('cappy.openGraph', async () => {
@@ -470,8 +484,9 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         );
 
         // Start queue processor (runs in background)
-        queueProcessor.start();
-        console.log('✅ UnifiedQueueProcessor started (background processing)');
+        // TEMPORARILY DISABLED to prevent native module crashes
+        // queueProcessor.start();
+        console.log('⏸️  UnifiedQueueProcessor disabled (native module stability)');
 
         // Initialize file change watcher
         fileWatcher = new FileChangeWatcher(
@@ -485,8 +500,9 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
             }
         );
         
-        await fileWatcher.start();
-        console.log('✅ FileChangeWatcher started (monitoring file changes)');
+        // TEMPORARILY DISABLED to prevent file system watcher crashes
+        // await fileWatcher.start();
+        console.log('⏸️  FileChangeWatcher disabled (native module stability)');
 
         // Initialize queue (LEGACY - kept for compatibility)
         fileQueue = new FileProcessingQueue(fileDatabase, worker, {
@@ -518,6 +534,79 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
                     await vscode.commands.executeCommand('cappy.scanWorkspace');
                 } catch (e) {
                     console.error('[Extension] ❌ Failed to run cappy.scanWorkspace from API:', e);
+                    throw e;
+                }
+            },
+            async (filePath: string) => {
+                try {
+                    console.log('[Extension] 🔄 API requested file reprocess:', filePath);
+
+                    // Normalize and build absolute path
+                    const absPath = path.join(workspaceRoot, filePath);
+
+                    // Best-effort: remove existing nodes for this file so we re-create cleanly
+                    try {
+                        await graphStoreInstance.deleteFile(filePath);
+                        console.log('[Extension] 🗑️ Deleted existing graph data for:', filePath);
+                    } catch (e) {
+                        console.warn('[Extension] ⚠️ Could not delete existing graph data (may not exist):', e);
+                    }
+
+                    // Ensure there is a DB record and set to pending so the queue processes just this file
+                    if (!fileDatabase) {
+                        throw new Error('File metadata database not initialized');
+                    }
+                    const db = fileDatabase;
+                    let record = db.getFileByPath(filePath);
+                    if (!record) {
+                        // Create new record
+                        const stats = await vscode.workspace.fs.stat(vscode.Uri.file(absPath));
+                        const contentHash = await hashService.hashFile(absPath);
+                        const id = `file:${hashService.hashString(filePath)}`;
+                        db.insertFile({
+                            id,
+                            filePath,
+                            fileName: path.basename(filePath),
+                            fileSize: Number(stats.size),
+                            fileHash: contentHash,
+                            fileContent: undefined,
+                            status: 'pending',
+                            progress: 0,
+                            currentStep: 'Queued for reprocessing',
+                            errorMessage: undefined,
+                            retryCount: 0,
+                            maxRetries: 3,
+                            processingStartedAt: undefined,
+                            processingCompletedAt: undefined,
+                            chunksCount: undefined,
+                            nodesCount: undefined,
+                            relationshipsCount: undefined
+                        });
+                        record = db.getFile(id)!;
+                        console.log('[Extension] 📝 Enqueued new DB record for reprocess:', id);
+                    } else {
+                        // Reset existing record to pending
+                        db.updateFile(record.id, {
+                            status: 'pending',
+                            progress: 0,
+                            currentStep: 'Queued for reprocessing',
+                            errorMessage: undefined,
+                            chunksCount: undefined,
+                            nodesCount: undefined,
+                            relationshipsCount: undefined,
+                            processingStartedAt: undefined,
+                            processingCompletedAt: undefined
+                        });
+                        console.log('[Extension] 🔁 Reset existing DB record to pending:', record.id);
+                    }
+
+                    // The UnifiedQueueProcessor will pick this up automatically on next poll
+                    // Optionally trigger an immediate tick
+                    // (no public API to tick; rely on 1s pollInterval)
+
+                    console.log('[Extension] ✅ Single-file reprocess scheduled:', filePath);
+                } catch (e) {
+                    console.error('[Extension] ❌ Failed to reprocess file:', e);
                     throw e;
                 }
             }
