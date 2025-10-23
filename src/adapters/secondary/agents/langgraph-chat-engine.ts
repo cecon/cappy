@@ -1,22 +1,68 @@
 import * as vscode from 'vscode'
-import * as path from 'path'
+import * as path from 'node:path'
 import type { ChatAgentPort, ChatContext } from '../../../domains/chat/ports/agent-port'
 import type { Message } from '../../../domains/chat/entities/message'
 
 const MAX_AGENT_STEPS = 8
 
 const SYSTEM_PROMPT = `
-You are Cappy, an AI planning assistant integrated into VS Code.
-You specialize in producing development-plan JSON files saved under .cappy/tasks/{timestamp}_plan_{slug}.json.
-Primary duties:
-- Collect missing requirements and confirm assumptions before drafting the plan.
-- Structure every proposal with contexts (array of named resources with kind, location, whyItMatters) and steps (id, objective, instructions list, deliverables, acceptanceCriteria, dependencies, contextRefs, estimatedEffort).
-- Recommend validation checklists and prevention rules relevant to each step.
-- Answer in the same language as the user unless explicitly instructed otherwise.
-- When uncertain, ask clarifying questions before continuing.
-- Operate agentically: run an iterative THINK → PLAN → ACTION → REVIEW loop until the task is complete. Use clear bullet lists for PLAN and REVIEW sections.
-- Mark intermediate turns that require more work with \`<!-- agent:continue -->\`. Mark the final output with \`<!-- agent:done -->\` and ensure it contains the finalized JSON draft.
-- After salvar o arquivo, sempre pergunte "Precisa de mais alguma coisa? (responda 'sim' ou 'não')" e, em caso afirmativo, conduza perguntas de follow-up uma a uma até ter clareza da nova tarefa.
+You are Cappy, a helpful AI assistant integrated into VS Code that can interact with the codebase to solve tasks.
+
+<ROLE>
+Your primary role is to assist users by creating comprehensive task files that will guide development work. You focus exclusively on:
+* Reading the codebase database to gather maximum context
+* Creating rich and effective task files with all necessary information
+* Asking clarifying questions one-by-one until no doubts remain
+* Structuring tasks into clear, actionable steps with precise file references
+
+If the user asks a general question like "why is X happening", just answer the question without trying to create a task file.
+</ROLE>
+
+<TASK_FILE_GUIDELINES>
+* Task files must be saved as: TASK_YYYY-MM-DD-HH-MM-SS_SLUG.md in the .cappy/tasks/ directory
+* Use the context retrieval tool extensively to gather codebase information
+* When referencing code from the retriever, always include the line numbers received (e.g., "see lines 45-67 in file.ts")
+* Include precise file paths and line ranges to help the development agent locate relevant code quickly
+* Structure each task with:
+  - **Context**: Resources needed (files, documentation, APIs) with file paths and line numbers
+  - **Objective**: Clear goal statement
+  - **Steps**: Numbered action items with dependencies, deliverables, and acceptance criteria
+  - **Why It Matters**: Technical rationale for each major component
+* ALWAYS add a final step instructing the development agent to:
+  1. Move the completed task file to .cappy/history/YYYY-MM/ directory
+  2. Create a brief summary (2-3 sentences) of what was accomplished
+  3. Run the workspace scanner to update the database with new changes
+</TASK_FILE_GUIDELINES>
+
+<QUESTIONING_STRATEGY>
+* Ask questions one at a time, never in batches
+* Wait for the user's response before asking the next question
+* Continue asking until you have complete clarity about the task
+* Confirm assumptions explicitly before proceeding
+</QUESTIONING_STRATEGY>
+
+<EFFICIENCY>
+* Use the context retrieval tool (cappy_retrieve_context) to understand the codebase before asking questions
+* Leverage line numbers from retrieval results to create precise references
+* Combine related context into cohesive sections
+</EFFICIENCY>
+
+<COMPLETION_PROTOCOL>
+* Mark intermediate work that needs continuation with: <!-- agent:continue -->
+* Mark final output with: <!-- agent:done -->
+* After saving the task file, provide:
+  1. A brief thank you message
+  2. Confirmation that the task was created
+  3. A mini summary (2-3 sentences) of what the task will accomplish
+  4. The file path where it was saved
+* CRITICAL: Every task MUST include a final step that instructs the development agent to:
+  - Move the task file to .cappy/history/YYYY-MM/ after completion
+  - Add a completion summary to the file
+  - Run the workspace scanner to update the codebase database
+  - This ensures the knowledge base stays current with all changes
+</COMPLETION_PROTOCOL>
+
+Answer in the same language as the user unless explicitly instructed otherwise.
 `.trim()
 
 /**
@@ -26,7 +72,7 @@ Primary duties:
  * Supports: streaming responses, tool calling, reasoning display
  */
 export class LangGraphChatEngine implements ChatAgentPort {
-  private promptResolvers = new Map<string, (response: string) => void>()
+  private readonly promptResolvers = new Map<string, (response: string) => void>()
 
   handleUserPromptResponse(messageId: string, response: string): void {
     const resolver = this.promptResolvers.get(messageId)
@@ -132,23 +178,23 @@ export class LangGraphChatEngine implements ChatAgentPort {
 
         if (combinedAssistantText) {
           if (combinedAssistantText.includes('<!-- agent:done -->')) {
-            let planSaved = false
-
             try {
               const savedInfo = await this.persistPlanFromText(combinedAssistantText)
               if (savedInfo) {
-                planSaved = true
-                yield `\n\nPlan saved to \`${savedInfo.relativePath}\`\n\n`
+                // Extract task title for summary
+                const extracted = this.extractTaskContent(combinedAssistantText)
+                const taskTitle = extracted?.title || 'task'
+                
+                yield '\n\n---\n\n'
+                yield '✅ **Task concluída com sucesso!**\n\n'
+                yield `📄 Arquivo criado: \`${savedInfo.relativePath}\`\n\n`
+                yield `📋 **Resumo**: Task "${taskTitle}" criada com contexto completo do código, referências precisas de arquivos e linha, e passos bem estruturados para execução.\n\n`
               } else {
-                yield '\n\nCould not find a valid JSON block to save.\n\n'
+                yield '\n\n⚠️ Não foi possível encontrar conteúdo válido para salvar a task.\n\n'
               }
             } catch (persistError) {
-              const persistMessage = persistError instanceof Error ? persistError.message : 'Unknown error saving plan.'
-              yield `\n\nCould not save plan automatically: ${persistMessage}\n\n`
-            }
-
-            if (planSaved) {
-              yield 'Do you need anything else? (reply "yes" or "no")\n'
+              const persistMessage = persistError instanceof Error ? persistError.message : 'Erro desconhecido ao salvar task.'
+              yield `\n\n❌ Não foi possível salvar a task automaticamente: ${persistMessage}\n\n`
             }
 
             return
@@ -170,7 +216,7 @@ export class LangGraphChatEngine implements ChatAgentPort {
           console.log('[LangGraphChatEngine] Tool call detected:', toolName)
           
           // Send prompt request to frontend for user confirmation
-          const promptMessageId = `prompt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          const promptMessageId = `prompt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
           
           // Yield special marker that ChatMessageHandler will parse into promptRequest
           yield `__PROMPT_REQUEST__:${JSON.stringify({
@@ -223,8 +269,8 @@ export class LangGraphChatEngine implements ChatAgentPort {
               )
 
               resultText = toolResult.content
-                .filter(c => c instanceof vscode.LanguageModelTextPart)
-                .map(c => (c as vscode.LanguageModelTextPart).value)
+                .filter((c): c is vscode.LanguageModelTextPart => c instanceof vscode.LanguageModelTextPart)
+                .map(c => c.value)
                 .join('')
             }
 
@@ -267,61 +313,65 @@ export class LangGraphChatEngine implements ChatAgentPort {
     }
   }
 
-  private extractJsonPlan(rawText: string): { json: string; data: unknown } | null {
-    const codeBlockMatch = rawText.match(/```json\s*([\s\S]*?)```/i)
-    const fallbackMatch = rawText.match(/```\s*([\s\S]*?)```/i)
-    const directMatch = rawText.match(/\{[\s\S]*\}/)
+  private extractTaskContent(rawText: string): { content: string; title: string } | null {
+    // Remove agent markers for cleaner content
+    const cleanText = rawText
+      .replaceAll('<!-- agent:done -->', '')
+      .replaceAll('<!-- agent:continue -->', '')
+      .trim()
 
-    const candidate = codeBlockMatch?.[1]?.trim() ?? fallbackMatch?.[1]?.trim() ?? directMatch?.[0]?.trim()
-
-    if (!candidate) {
+    if (!cleanText) {
       return null
     }
 
-    try {
-      const data = JSON.parse(candidate)
-      return { json: candidate, data }
-    } catch {
-      return null
-    }
+    // Try to extract a title from the markdown
+    const titleMatch = /^#\s+(.+)/m.exec(cleanText)
+    const title = titleMatch?.[1]?.trim() || 'task'
+
+    return { content: cleanText, title }
   }
 
   private static slugify(value: string): string {
     return value
       .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .toLowerCase() || 'plan'
+      .replaceAll(/[\u0300-\u036f]/g, '')
+      .replaceAll(/[^a-zA-Z0-9]+/g, '-')
+      .replaceAll(/^-+/g, '')
+      .replaceAll(/-+$/g, '')
+      .toLowerCase() || 'task'
   }
 
   private async persistPlanFromText(rawText: string): Promise<{ absolutePath: string; relativePath: string } | null> {
-    const extracted = this.extractJsonPlan(rawText)
+    const extracted = this.extractTaskContent(rawText)
 
     if (!extracted) {
       return null
     }
 
-    if (typeof extracted.data !== 'object' || extracted.data === null) {
-      throw new Error('O plano final precisa ser um objeto JSON.')
-    }
-
-    const planObject = extracted.data as Record<string, unknown>
-    const slugSource = this.getSlugSource(planObject)
-    const slug = LangGraphChatEngine.slugify(slugSource)
-    const timestamp = new Date().toISOString().replace(/[:.-]/g, '')
+    const slug = LangGraphChatEngine.slugify(extracted.title)
+    
+    // Format: TASK_YYYY-MM-DD-HH-MM-SS_SLUG.md
+    const now = new Date()
+    const timestamp = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+      String(now.getHours()).padStart(2, '0'),
+      String(now.getMinutes()).padStart(2, '0'),
+      String(now.getSeconds()).padStart(2, '0')
+    ].join('-')
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
     if (!workspaceFolder) {
-      throw new Error('Workspace não encontrado para salvar o plano.')
+      throw new Error('Workspace não encontrado para salvar a task.')
     }
 
     const tasksDirUri = vscode.Uri.joinPath(workspaceFolder.uri, '.cappy', 'tasks')
     await vscode.workspace.fs.createDirectory(tasksDirUri)
 
-    const fileName = `${timestamp}_plan_${slug}.json`
+    const fileName = `TASK_${timestamp}_${slug}.md`
     const fileUri = vscode.Uri.joinPath(tasksDirUri, fileName)
-    const fileContent = Buffer.from(JSON.stringify(planObject, null, 2), 'utf8')
+    const fileContent = Buffer.from(extracted.content, 'utf8')
 
     await vscode.workspace.fs.writeFile(fileUri, fileContent)
 
@@ -329,20 +379,6 @@ export class LangGraphChatEngine implements ChatAgentPort {
       absolutePath: fileUri.fsPath,
       relativePath: path.relative(workspaceFolder.uri.fsPath, fileUri.fsPath)
     }
-  }
-
-  private getSlugSource(plan: Record<string, unknown>): string {
-    const id = plan.id
-    if (typeof id === 'string' && id.trim().length > 0) {
-      return id.trim()
-    }
-
-    const title = plan.title
-    if (typeof title === 'string' && title.trim().length > 0) {
-      return title.trim()
-    }
-
-    return 'plan'
   }
 
   /**
