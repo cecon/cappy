@@ -61,13 +61,11 @@ export function activate(context: vscode.ExtensionContext) {
         console.log('🛠️ Total Language Model tools available:', allTools.length);
         console.log('🛠️ Tool names:', allTools.map(t => t.name).join(', '));
         
-        // Show notification with tools
+        // Log tool registration to console instead of showing a user-facing notification
         if (cappyTools.length > 0) {
-            vscode.window.showInformationMessage(
-                `✅ Cappy: ${cappyTools.length} ferramentas registradas: ${cappyTools.map(t => t.name).join(', ')}`
-            );
+            console.log(`✅ Cappy tools registered: ${cappyTools.map(t => t.name).join(', ')}`);
         } else {
-            vscode.window.showWarningMessage('⚠️ Cappy: Nenhuma ferramenta foi registrada!');
+            console.warn('⚠️ Cappy: Nenhuma ferramenta foi registrada!');
         }
     }, 5000); // Wait 5 seconds for all tools to register
     
@@ -328,6 +326,10 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         const { ConfigService } = await import('./services/config-service.js');
         
         const parserService = new ParserService();
+        // Enable enhanced parsing with LLM entity extraction for documents (.md, .pdf, .docx)
+        parserService.enableEnhancedParsing(true);
+        console.log('✅ Enhanced document parsing enabled (with LLM entity extraction)');
+        
         const hashService = new FileHashService();
         
         // Initialize indexing services
