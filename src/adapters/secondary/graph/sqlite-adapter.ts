@@ -304,6 +304,8 @@ export class SQLiteAdapter implements GraphStorePort {
 
   async createFileNode(filePath: string, language: string, linesOfCode: number): Promise<void> {
     if (!this.db) throw new Error("SQLite not initialized");
+    // Avoid unused parameter warning in current schema
+    void linesOfCode;
     this.db.run(
       `INSERT OR REPLACE INTO nodes (id, type, label, language, file_path) 
        VALUES (?, ?, ?, ?, ?)`,
@@ -415,8 +417,19 @@ export class SQLiteAdapter implements GraphStorePort {
 
   async deleteFileNodes(filePath: string): Promise<void> {
     if (!this.db) throw new Error("SQLite not initialized");
-    this.db.run(`DELETE FROM nodes WHERE id = ?`, [filePath]);
-    this.db.run(`DELETE FROM nodes WHERE type = 'chunk' AND json_extract(properties, '$.filePath') = ?`, [filePath]);
+    // Delete edges connected to the file node
+    this.db.run(`DELETE FROM edges WHERE from_id = ? OR to_id = ?`, [filePath, filePath]);
+    // Collect chunk ids that belong to this file
+    const res = this.db.exec(`SELECT id FROM nodes WHERE type = 'chunk' AND file_path = ?`, [filePath]);
+    const chunkIds = res.length > 0 && res[0].values ? res[0].values.map(v => String(v[0])) : [];
+    // Delete edges connected to those chunks
+    for (const cid of chunkIds) {
+      this.db.run(`DELETE FROM edges WHERE from_id = ? OR to_id = ?`, [cid, cid]);
+    }
+    // Delete chunk nodes for the file
+    this.db.run(`DELETE FROM nodes WHERE type = 'chunk' AND file_path = ?`, [filePath]);
+    // Finally delete the file node
+    this.db.run(`DELETE FROM nodes WHERE id = ? AND type = 'file'`, [filePath]);
     this.saveToFile();
   }
 
@@ -426,12 +439,13 @@ export class SQLiteAdapter implements GraphStorePort {
 
   async listAllFiles(): Promise<Array<{ path: string; language: string; linesOfCode: number }>> {
     if (!this.db) return [];
-    const result = this.db.exec(`SELECT id, properties FROM nodes WHERE type = 'file'`);
+    const result = this.db.exec(`SELECT id, language FROM nodes WHERE type = 'file'`);
     if (result.length === 0 || !result[0].values) return [];
-    return result[0].values.map((row) => {
-      const props = JSON.parse((row[1] as string) || "{}");
-      return { path: row[0] as string, language: props.language || "", linesOfCode: props.linesOfCode || 0 };
-    });
+    return result[0].values.map((row) => ({
+      path: row[0] as string,
+      language: (row[1] as string) || "",
+      linesOfCode: 0,
+    }));
   }
 
   async getFileChunks(filePath: string): Promise<Array<{ id: string; type: string; label: string }>> {
@@ -478,7 +492,7 @@ export class SQLiteAdapter implements GraphStorePort {
 
   async ensureWorkspaceNode(name: string): Promise<void> {
     if (!this.db) throw new Error("SQLite not initialized");
-    this.db.run(`INSERT OR IGNORE INTO nodes (id, type, label, properties) VALUES (?, ?, ?, NULL)`, [
+    this.db.run(`INSERT OR IGNORE INTO nodes (id, type, label) VALUES (?, ?, ?)`, [
       `workspace:${name}`,
       "workspace",
       name,
@@ -568,7 +582,7 @@ export class SQLiteAdapter implements GraphStorePort {
   }>> {
     if (!this.db) return [];
     try {
-      const result = this.db.exec(`SELECT id, from_id, to_id, type, properties FROM edges LIMIT ${limit}`);
+      const result = this.db.exec(`SELECT id, from_id, to_id, type, extra_metadata FROM edges LIMIT ${limit}`);
       if (result.length === 0 || !result[0].values) return [];
       return result[0].values.map((row) => ({
         id: row[0] as number,

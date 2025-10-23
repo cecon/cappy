@@ -296,6 +296,13 @@ const DocumentsPage: React.FC = () => {
   }, [documents, statusFilter, sortField, sortOrder]);
 
   const handleUpload = () => {
+    // If running inside VS Code webview, delegate to extension (uses native file picker and internal pipeline)
+    if (vscodeApi) {
+      console.log('[DocumentsPage] 🆙 handleUpload: Delegating to VS Code extension');
+      postMessage('document/upload');
+      return;
+    }
+    // Fallback: browser file input (for standalone preview/dev)
     console.log('🆙 handleUpload: Clicking file input...');
     fileInputRef.current?.click();
   };
@@ -473,22 +480,24 @@ const DocumentsPage: React.FC = () => {
   };
 
   const handleScan = async () => {
+    // Prefer extension-driven scan when running inside VS Code (more reliable than direct API call)
+    if (vscodeApi) {
+      console.log('[DocumentsPage] 🔍 handleScan: Delegating to VS Code extension');
+      setIsScanning(true);
+      postMessage('document/scan');
+      return;
+    }
+    // Fallback to direct API when running outside VS Code
     console.log('[DocumentsPage] 🔍 handleScan called, calling API /scan/workspace');
     setIsScanning(true);
-    
     try {
       const response = await fetch('http://localhost:3456/scan/workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-      
-      if (!response.ok) {
-        throw new Error(`Scan failed: ${response.statusText}`);
-      }
-      
+      if (!response.ok) throw new Error(`Scan failed: ${response.statusText}`);
       const result = await response.json();
       console.log('[DocumentsPage] ✅ Scan API response:', result);
-      
       // Wait a bit for the scan to populate data, then reload
       setTimeout(async () => {
         try {
@@ -523,8 +532,7 @@ const DocumentsPage: React.FC = () => {
           console.error('[DocumentsPage] Failed to reload after scan:', error);
         }
         setIsScanning(false);
-      }, 2000); // Wait 2 seconds for scan to complete
-      
+      }, 2000);
     } catch (error) {
       console.error('[DocumentsPage] ❌ Scan API error:', error);
       setIsScanning(false);
