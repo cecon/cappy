@@ -15,11 +15,17 @@ import * as path from 'path';
  * File processing status
  */
 export type FileProcessingStatus = 
-  | 'pending'      // Waiting to be processed
-  | 'processing'   // Currently being processed
-  | 'completed'    // Successfully processed
-  | 'failed'       // Processing failed
-  | 'cancelled';   // Processing cancelled
+  | 'pending'                  // Waiting to be processed
+  | 'processing'               // Currently being processed
+  | 'extracting_entities'      // Extracting entities from file
+  | 'creating_relationships'   // Creating relationships in graph
+  | 'entity_discovery'         // Running LLM entity discovery
+  | 'processed'                // Successfully processed (replaces 'completed')
+  | 'completed'                // Legacy status (backward compatibility)
+  | 'error'                    // Processing error (replaces 'failed')
+  | 'failed'                   // Legacy status (backward compatibility)
+  | 'paused'                   // Paused manually by user
+  | 'cancelled';               // Processing cancelled
 
 /**
  * File metadata record
@@ -53,8 +59,14 @@ export interface DatabaseStats {
   total: number;
   pending: number;
   processing: number;
-  completed: number;
-  failed: number;
+  extractingEntities: number;
+  creatingRelationships: number;
+  entityDiscovery: number;
+  processed: number;
+  completed: number;      // Legacy
+  error: number;
+  failed: number;         // Legacy
+  paused: number;
   cancelled: number;
 }
 
@@ -354,14 +366,32 @@ export class FileMetadataDatabase {
         COUNT(*) as total,
         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
         SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing,
+        SUM(CASE WHEN status = 'extracting_entities' THEN 1 ELSE 0 END) as extracting_entities,
+        SUM(CASE WHEN status = 'creating_relationships' THEN 1 ELSE 0 END) as creating_relationships,
+        SUM(CASE WHEN status = 'entity_discovery' THEN 1 ELSE 0 END) as entity_discovery,
+        SUM(CASE WHEN status = 'processed' THEN 1 ELSE 0 END) as processed,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+        SUM(CASE WHEN status = 'error' OR status = 'failed' THEN 1 ELSE 0 END) as error,
+        SUM(CASE WHEN status = 'paused' THEN 1 ELSE 0 END) as paused,
         SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
       FROM file_metadata
     `);
 
     if (result.length === 0 || result[0].values.length === 0) {
-      return { total: 0, pending: 0, processing: 0, completed: 0, failed: 0, cancelled: 0 };
+      return { 
+        total: 0, 
+        pending: 0, 
+        processing: 0, 
+        extractingEntities: 0,
+        creatingRelationships: 0,
+        entityDiscovery: 0,
+        processed: 0,
+        completed: 0,
+        error: 0,
+        failed: 0,
+        paused: 0,
+        cancelled: 0 
+      };
     }
 
     const row = result[0].values[0];
@@ -369,9 +399,15 @@ export class FileMetadataDatabase {
       total: Number(row[0]) || 0,
       pending: Number(row[1]) || 0,
       processing: Number(row[2]) || 0,
-      completed: Number(row[3]) || 0,
-      failed: Number(row[4]) || 0,
-      cancelled: Number(row[5]) || 0
+      extractingEntities: Number(row[3]) || 0,
+      creatingRelationships: Number(row[4]) || 0,
+      entityDiscovery: Number(row[5]) || 0,
+      processed: Number(row[6]) || 0,
+      completed: Number(row[7]) || 0,
+      error: Number(row[8]) || 0,
+      failed: Number(row[8]) || 0, // Same as error for backward compatibility
+      paused: Number(row[9]) || 0,
+      cancelled: Number(row[10]) || 0
     };
   }
 

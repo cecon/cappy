@@ -73,21 +73,16 @@ export class IndexingService {
         chunk.vector = embeddings[i];
       });
 
-      // 2. Insert chunks into vector store if available
-      if (this.vectorStore) {
-        await this.vectorStore.upsertChunks(chunks);
-      } else {
-        console.warn('⚠️ Vector store is disabled; skipping upsertChunks');
-      }
-
-      // 3. Create file node in graph
+      // 2. Create file node in graph FIRST (before chunks, before vector store)
+      // This ensures the file exists in the graph immediately, allowing other files
+      // being processed to find it and create relationships incrementally
       const linesOfCode = Math.max(...chunks.map(c => c.metadata.lineEnd));
       await this.graphStore.createFileNode(filePath, language, linesOfCode);
 
-      // 4. Create chunk nodes in graph (without content)
+      // 3. Create chunk nodes in graph (without content)
       await this.graphStore.createChunkNodes(chunks);
 
-      // 4.5. Discover and resolve entities for relevant chunks
+      // 4. Discover and resolve entities for relevant chunks
       await this.discoverAndResolveEntities(language, chunks);
 
       // 5. Create CONTAINS relationships (File -> Chunks)
@@ -121,61 +116,154 @@ export class IndexingService {
         await this.graphStore.createRelationships(documentsRels);
       }
 
-      // 7. Create cross-file REFERENCES using imports -> exported symbols from other files (best-effort)
-      try {
-        const { ASTRelationshipExtractor } = await import('./ast-relationship-extractor.js');
-        const extractor = new ASTRelationshipExtractor(this.workspaceRoot);
-        const analysis = await extractor.analyze(filePath);
-        if (analysis.imports.length > 0) {
-          // Build a list of candidate files (all file nodes in DB)
-          const files = await this.graphStore.listAllFiles();
-          const rels: Array<{ from: string; to: string; type: string; properties?: Record<string, string|number|boolean> }> = [];
-          const currentFileChunkIds = new Set(chunks.map(c => c.id));
+      // 7. Build cross-file relationships incrementally with existing files in graph
+      await this.buildFileRelationshipsIncremental(filePath, chunks);
 
-          for (const im of analysis.imports) {
-            // Resolve relative path imports to absolute file nodes when possible
-            let targetPath: string | null = null;
-            if (im.source.startsWith('.')) {
-              // Resolve relative to current file
-              const pathMod = await import('path');
-              const resolved = pathMod.resolve((await import('path')).dirname(filePath), im.source);
-              // Try adding common extensions
-              const candidates = [resolved, resolved + '.ts', resolved + '.tsx', resolved + '.js', resolved + '.jsx', resolved + '/index.ts', resolved + '/index.tsx'];
-              for (const c of candidates) {
-                const match = files.find(f => f.path === c);
-                if (match) { targetPath = match.path; break; }
-              }
-            } else {
-              // Bare module specifier: skip (external deps)
-            }
-
-            if (!targetPath) continue;
-
-            // Reference from every chunk in current file to the target file node
-            for (const chunk of chunks) {
-              if (!currentFileChunkIds.has(chunk.id)) continue;
-              rels.push({
-                from: chunk.id,
-                to: targetPath,
-                type: 'REFERENCES',
-                properties: { referenceType: 'import', source: im.source }
-              });
-            }
-          }
-
-          if (rels.length > 0) {
-            await this.graphStore.createRelationships(rels);
-            console.log(`✅ Created ${rels.length} cross-file REFERENCES (imports)`);
-          }
-        }
-      } catch (e) {
-        console.warn('Cross-file relationship build failed:', e);
+      // 8. Insert chunks into vector store (after all graph operations)
+      if (this.vectorStore) {
+        await this.vectorStore.upsertChunks(chunks);
+      } else {
+        console.warn('⚠️ Vector store is disabled; skipping upsertChunks');
       }
 
       console.log(`✅ Indexed ${filePath} successfully`);
     } catch (error) {
       console.error(`❌ Error indexing ${filePath}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Builds cross-file relationships incrementally with files already in the graph
+   * This is called during indexFile() to create relationships as files are processed,
+   * not in a separate batch phase
+   */
+  private async buildFileRelationshipsIncremental(
+    filePath: string, 
+    chunks: DocumentChunk[]
+  ): Promise<void> {
+    try {
+      const { ASTRelationshipExtractor } = await import('./ast-relationship-extractor.js');
+      const extractor = new ASTRelationshipExtractor(this.workspaceRoot);
+      // Analyze using absolute path to avoid relying on extension host CWD
+      const pathMod = await import('path');
+      const absPath = pathMod.isAbsolute(filePath)
+        ? filePath
+        : pathMod.join(this.workspaceRoot, filePath);
+      const analysis = await extractor.analyze(absPath);
+      
+      if (analysis.imports.length === 0) {
+        return; // No imports to process
+      }
+
+      // Get all files already indexed in the graph
+      const existingFiles = await this.graphStore.listAllFiles();
+      const existingFilePaths = new Set(existingFiles.map(f => f.path));
+
+      const rels: Array<{
+        from: string;
+        to: string;
+        type: string;
+        properties?: Record<string, string | number | boolean | string[]>;
+      }> = [];
+
+      console.log(`🔗 [INCREMENTAL] Processing ${analysis.imports.length} imports for ${filePath}`);
+      console.log(`🔗 [INCREMENTAL] Found ${existingFilePaths.size} existing files in graph`);
+
+      for (const im of analysis.imports) {
+        // Skip external dependencies
+        if (im.isExternal || !im.source.startsWith('.')) {
+          continue;
+        }
+
+        // Resolve import path to absolute file path
+        const targetPath = await this.resolveImportPath(im.source, filePath);
+        
+        if (!targetPath) {
+          continue;
+        }
+
+        // Check if target file EXISTS in graph (already indexed)
+        if (existingFilePaths.has(targetPath)) {
+          console.log(`   ✅ Found existing file in graph: ${targetPath}`);
+          
+          // Create File -> File IMPORTS relationship
+          rels.push({
+            from: filePath,
+            to: targetPath,
+            type: 'IMPORTS',
+            properties: {
+              source: im.source,
+              specifiers: im.specifiers
+            }
+          });
+
+          // Create Chunk -> File REFERENCES relationships
+          for (const chunk of chunks) {
+            rels.push({
+              from: chunk.id,
+              to: targetPath,
+              type: 'REFERENCES',
+              properties: {
+                referenceType: 'import',
+                source: im.source
+              }
+            });
+          }
+        } else {
+          console.log(`   ⏭️  Target not yet indexed: ${targetPath} (will connect when processed)`);
+        }
+      }
+
+      if (rels.length > 0) {
+        await this.graphStore.createRelationships(rels);
+        console.log(`✅ [INCREMENTAL] Created ${rels.length} cross-file relationships for ${filePath}`);
+      } else {
+        console.log(`   ℹ️  No cross-file relationships created (targets not yet indexed)`);
+      }
+    } catch (error) {
+      console.warn(`⚠️  Failed to build incremental relationships for ${filePath}:`, error);
+      // Don't throw - this is best-effort
+    }
+  }
+
+  /**
+   * Resolves an import path to an absolute file path
+   */
+  private async resolveImportPath(importSource: string, fromFile: string): Promise<string | null> {
+    try {
+      const pathMod = await import('path');
+      const dirname = pathMod.dirname(fromFile);
+      // Keep paths relative to workspace to match graph store paths
+      const resolved = pathMod.normalize(pathMod.join(dirname, importSource));
+      
+      // Try common extensions
+      const candidates = [
+        resolved,
+        resolved + '.ts',
+        resolved + '.tsx',
+        resolved + '.js',
+        resolved + '.jsx',
+        resolved + '/index.ts',
+        resolved + '/index.tsx',
+        resolved + '/index.js',
+        resolved + '/index.jsx'
+      ];
+      
+      // Check which candidate exists in the graph
+      const existingFiles = await this.graphStore.listAllFiles();
+      const existingPaths = new Set(existingFiles.map(f => f.path));
+      
+      for (const candidate of candidates) {
+        if (existingPaths.has(candidate)) {
+          return candidate;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn(`Failed to resolve import path "${importSource}":`, error);
+      return null;
     }
   }
 

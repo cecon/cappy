@@ -1,11 +1,32 @@
-Nunca use `vsce package --no-dependencie` as dependencias são obrigatórias
-Sempre que eu te pedirt para instalar rode os seguintes comandos:
+## Instalação da Extensão
 
+A extensão tem builds específicas por plataforma para incluir apenas os binários do sharp necessários:
+
+**Windows:**
 ```bash
-Quando pedir para instalar a extensão rode:
 npm run build
-vsce package --dependencies # se nao existir o vsc instale npm install -g @vscode/vsce
-Remove-Item cappy-{package_version}.vsix -Force
+npm run package:win32
+code --install-extension cappy-{version}-win32.vsix --force
+```
+
+**macOS:**
+```bash
+npm run build
+npm run package:darwin
+code --install-extension cappy-{version}-darwin.vsix --force
+```
+
+**Linux:**
+```bash
+npm run build
+npm run package:linux
+code --install-extension cappy-{version}-linux.vsix --force
+```
+
+**Todas as plataformas (para CI/CD):**
+```bash
+npm run build
+npm run package:all
 ```
 <!-- CAPPY INI -->
 # CAPPY — Manual de Comandos (Orquestração de Contexto)

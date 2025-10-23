@@ -104,6 +104,21 @@
         "category": "Cappy"
       },
       {
+        "command": "cappy.pauseQueue",
+        "title": "⏸️ Cappy: Pause Processing Queue",
+        "category": "Cappy"
+      },
+      {
+        "command": "cappy.resumeQueue",
+        "title": "▶️ Cappy: Resume Processing Queue",
+        "category": "Cappy"
+      },
+      {
+        "command": "cappy.queueStatus",
+        "title": "📊 Cappy: Show Queue Status",
+        "category": "Cappy"
+      },
+      {
         "command": "cappy.debugRetrieval",
         "title": "🔎 Cappy: Debug - Retrieval Test",
         "category": "Cappy Debug"
@@ -300,7 +315,15 @@
     "compile-extension": "tsc --project tsconfig.extension.json",
     "watch": "tsc -watch -p ./",
     "package": "npm version patch && npm run compile-extension && vsce package --dependencies",
-    "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix"
+    "package:win32": "node scripts/package-platform.js win32",
+    "package:darwin": "node scripts/package-platform.js darwin",
+    "package:linux": "node scripts/package-platform.js linux",
+    "package:all": "npm run package:win32 && npm run package:darwin && npm run package:linux",
+    "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix",
+    "publish:win32": "node scripts/package-platform.js win32 && vsce publish --packagePath cappy-*-win32.vsix --target win32-x64",
+    "publish:darwin": "node scripts/package-platform.js darwin && vsce publish --packagePath cappy-*-darwin.vsix --target darwin-x64 darwin-arm64",
+    "publish:linux": "node scripts/package-platform.js linux && vsce publish --packagePath cappy-*-linux.vsix --target linux-x64 linux-arm64",
+    "publish:all": "npm run publish:win32 && npm run publish:darwin && npm run publish:linux"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.11.28",
@@ -335,6 +358,9 @@
     "sql.js": "^1.13.0",
     "tailwind-merge": "^3.3.1",
     "yaml": "^2.8.1"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.34.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

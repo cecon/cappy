@@ -18,6 +18,8 @@ import { FileMetadataDatabase } from './services/file-metadata-database';
 import { FileProcessingQueue } from './services/file-processing-queue';
 import { FileProcessingWorker } from './services/file-processing-worker';
 import { FileProcessingAPI } from './services/file-processing-api';
+import { UnifiedQueueProcessor } from './services/unified-queue-processor';
+import { FileChangeWatcher } from './services/file-change-watcher';
 import { createVectorStore } from './adapters/secondary/vector/sqlite-vector-adapter';
 import type { GraphStorePort } from './domains/graph/ports/indexing-port';
 
@@ -25,6 +27,8 @@ import type { GraphStorePort } from './domains/graph/ports/indexing-port';
 let fileDatabase: FileMetadataDatabase | null = null;
 let fileQueue: FileProcessingQueue | null = null;
 let fileAPI: FileProcessingAPI | null = null;
+let queueProcessor: UnifiedQueueProcessor | null = null;
+let fileWatcher: FileChangeWatcher | null = null;
 let graphStore: GraphStorePort | null = null;
 let contextRetrievalToolInstance: ContextRetrievalTool | null = null;
 
@@ -202,6 +206,61 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(reanalyzeCommand);
     console.log('✅ Registered command: cappy.reanalyzeRelationships');
+
+    // Register queue control commands
+    const pauseQueueCommand = vscode.commands.registerCommand('cappy.pauseQueue', () => {
+        if (!queueProcessor) {
+            vscode.window.showWarningMessage('Queue processor not initialized');
+            return;
+        }
+        queueProcessor.pause();
+        vscode.window.showInformationMessage('⏸️ Processing queue paused');
+    });
+    context.subscriptions.push(pauseQueueCommand);
+    console.log('✅ Registered command: cappy.pauseQueue');
+
+    const resumeQueueCommand = vscode.commands.registerCommand('cappy.resumeQueue', () => {
+        if (!queueProcessor) {
+            vscode.window.showWarningMessage('Queue processor not initialized');
+            return;
+        }
+        queueProcessor.resume();
+        vscode.window.showInformationMessage('▶️ Processing queue resumed');
+    });
+    context.subscriptions.push(resumeQueueCommand);
+    console.log('✅ Registered command: cappy.resumeQueue');
+
+    const queueStatusCommand = vscode.commands.registerCommand('cappy.queueStatus', async () => {
+        if (!fileDatabase || !queueProcessor) {
+            vscode.window.showWarningMessage('Queue system not initialized');
+            return;
+        }
+        
+        const stats = fileDatabase.getStats();
+        const state = queueProcessor.getState();
+        
+        const message = [
+            `📊 Queue Status:`,
+            `   Running: ${state.isRunning ? '✅' : '❌'}`,
+            `   Paused: ${state.isPaused ? '⏸️' : '▶️'}`,
+            `   Active: ${state.activeProcesses}`,
+            ``,
+            `📁 Files:`,
+            `   Total: ${stats.total}`,
+            `   Pending: ${stats.pending}`,
+            `   Processing: ${stats.processing}`,
+            `   Extracting Entities: ${stats.extractingEntities}`,
+            `   Creating Relationships: ${stats.creatingRelationships}`,
+            `   Entity Discovery: ${stats.entityDiscovery}`,
+            `   Processed: ${stats.processed}`,
+            `   Error: ${stats.error}`,
+            `   Paused: ${stats.paused}`
+        ].join('\n');
+        
+        vscode.window.showInformationMessage(message, { modal: true });
+    });
+    context.subscriptions.push(queueStatusCommand);
+    console.log('✅ Registered command: cappy.queueStatus');
 
     // Register diagnose graph command
     const diagnoseCommand = vscode.commands.registerCommand('cappy.diagnoseGraph', async () => {
@@ -397,17 +456,49 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         );
         console.log('✅ File processing worker created (with indexing and graph store)');
 
-        // Initialize queue
+        // Initialize NEW unified queue processor
+        queueProcessor = new UnifiedQueueProcessor(
+            fileDatabase,
+            worker,
+            {
+                concurrency: 2,
+                pollInterval: 1000,
+                batchSize: 10,
+                maxRetries: 3,
+                retryDelay: 5000
+            }
+        );
+
+        // Start queue processor (runs in background)
+        queueProcessor.start();
+        console.log('✅ UnifiedQueueProcessor started (background processing)');
+
+        // Initialize file change watcher
+        fileWatcher = new FileChangeWatcher(
+            fileDatabase,
+            hashService,
+            {
+                workspaceRoot,
+                autoAddNewFiles: true,
+                reprocessModified: true,
+                removeDeleted: true
+            }
+        );
+        
+        await fileWatcher.start();
+        console.log('✅ FileChangeWatcher started (monitoring file changes)');
+
+        // Initialize queue (LEGACY - kept for compatibility)
         fileQueue = new FileProcessingQueue(fileDatabase, worker, {
             concurrency: 2,
             maxRetries: 3,
-            autoStart: true
+            autoStart: false // Disabled, using UnifiedQueueProcessor instead
         });
-        console.log('✅ File processing queue started');
+        console.log('⚠️  Legacy FileProcessingQueue created (disabled)');
 
         // Auto-refresh Graph panel when a file completes processing
         try {
-            fileQueue.on('file:complete', async () => {
+            queueProcessor.on('file:complete', async () => {
                 await graphPanel.refreshSubgraph(2);
             });
         } catch (e) {
@@ -437,13 +528,21 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         // Register cleanup on deactivation
         context.subscriptions.push({
             dispose: async () => {
+                if (queueProcessor) {
+                    queueProcessor.stop();
+                    console.log('🛑 UnifiedQueueProcessor stopped');
+                }
+                if (fileWatcher) {
+                    fileWatcher.stop();
+                    console.log('🛑 FileChangeWatcher stopped');
+                }
                 if (fileAPI) {
                     await fileAPI.stop();
                     console.log('🛑 File processing API stopped');
                 }
                 if (fileQueue) {
                     await fileQueue.stop();
-                    console.log('🛑 File processing queue stopped');
+                    console.log('🛑 Legacy file processing queue stopped');
                 }
                 if (fileDatabase) {
                     fileDatabase.close();
@@ -452,7 +551,7 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
             }
         });
 
-        vscode.window.showInformationMessage('✅ File processing system ready on port 3456');
+        vscode.window.showInformationMessage('✅ File processing system ready with queue processor');
     } catch (error) {
         console.error('Failed to initialize file processing system:', error);
         throw error;

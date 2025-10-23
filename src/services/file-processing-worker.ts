@@ -268,6 +268,8 @@ export class FileProcessingWorker {
       console.log(`   - Total relationships: ${totalRelationships}`);
 
       // Step 7: Build cross-file relationships (imports)
+      // NOTE: This may be redundant if using IndexingService with incremental relationships.
+      // The IndexingService.buildFileRelationshipsIncremental() now handles this during indexFile().
       onProgress?.('Building cross-file relationships...', 95);
       console.log(`🔗 [CROSS-FILE] About to call buildCrossFileRelationshipsForFile...`);
       try {
@@ -292,6 +294,10 @@ export class FileProcessingWorker {
   /**
    * Builds cross-file relationships for a single file
    * This detects imports and creates IMPORTS edges between files
+   * 
+   * DEPRECATION NOTE: This method duplicates functionality now handled by
+   * IndexingService.buildFileRelationshipsIncremental(). Consider removing
+   * this once all processing flows use IndexingService exclusively.
    */
   private async buildCrossFileRelationshipsForFile(
     filePath: string,

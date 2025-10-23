@@ -9,6 +9,7 @@ import { parse } from '@typescript-eslint/parser';
 import type { DocumentChunk, GraphRelationship } from '../types/chunk';
 import { ExternalPackageResolver, type PackageResolution } from './external-package-resolver';
 import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Extended import info with external package resolution
@@ -25,9 +26,11 @@ export interface ImportInfo {
  */
 export class ASTRelationshipExtractor {
   private packageResolver: ExternalPackageResolver;
+  private workspaceRoot: string;
 
   constructor(workspaceRoot: string) {
     this.packageResolver = new ExternalPackageResolver(workspaceRoot);
+    this.workspaceRoot = workspaceRoot;
   }
 
   /**
@@ -40,7 +43,10 @@ export class ASTRelationshipExtractor {
     calls: string[];
     typeRefs: string[];
   }> {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const absFilePath = path.isAbsolute(filePath)
+      ? filePath
+      : path.join(this.workspaceRoot, filePath);
+    const content = fs.readFileSync(absFilePath, 'utf-8');
     const ast = parse(content, {
       loc: true,
       range: true,
@@ -51,7 +57,7 @@ export class ASTRelationshipExtractor {
       ecmaFeatures: { jsx: true }
     });
 
-    const imports = await this.extractImportsWithResolution(ast, filePath);
+    const imports = await this.extractImportsWithResolution(ast, absFilePath);
     const exports = this.extractExports(ast);
     const calls = this.extractFunctionCalls(ast);
     const typeRefs = this.extractTypeReferences(ast);
@@ -68,7 +74,10 @@ export class ASTRelationshipExtractor {
     const relationships: GraphRelationship[] = [];
 
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
+      const absFilePath = path.isAbsolute(filePath)
+        ? filePath
+        : path.join(this.workspaceRoot, filePath);
+      const content = fs.readFileSync(absFilePath, 'utf-8');
       
       // Parse the file
       const ast = parse(content, {
@@ -84,7 +93,7 @@ export class ASTRelationshipExtractor {
       });
 
       // Extract imports with resolution
-      const imports = await this.extractImportsWithResolution(ast, filePath);
+  const imports = await this.extractImportsWithResolution(ast, absFilePath);
       const exports = this.extractExports(ast);
       
       // Extract function calls

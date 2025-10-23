@@ -13,7 +13,7 @@ export interface FileStatusResponse {
   fileId: string; // Changed from number to string to match FileMetadata
   fileName?: string;
   filePath?: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'extracting_entities' | 'creating_relationships' | 'entity_discovery' | 'processed' | 'completed' | 'error' | 'failed' | 'paused';
   progress: number;
   summary: string;
   error?: string;
@@ -25,21 +25,19 @@ export interface FileStatusResponse {
 
 export class FileProcessingAPI {
   private server: http.Server | null = null;
-  private queue: FileProcessingQueue;
   private database: FileMetadataDatabase;
   private graphStore: GraphStorePort | null;
   private port: number;
   private onScanWorkspace?: () => Promise<void>;
 
   constructor(
-    queue: FileProcessingQueue,
+    _queue: FileProcessingQueue,
     database: FileMetadataDatabase,
     _workspaceRoot: string, // kept for compatibility but no longer used
     port: number = 3456,
     graphStore: GraphStorePort | null = null,
     onScanWorkspace?: () => Promise<void>
   ) {
-    this.queue = queue;
     this.database = database;
     this.port = port;
     this.graphStore = graphStore;
@@ -281,25 +279,59 @@ export class FileProcessingAPI {
         const hash = crypto.createHash('sha256').update(fileContent).digest('hex');
         console.log('[FileProcessingAPI] File hash:', hash);
 
-        // Use virtual path for uploaded files (no temp folder needed)
+        // Use virtual path for uploaded files
         const virtualPath = `uploaded:${uploadRequest.fileName}`;
         
-        // Enqueue file with content stored in metadata
-        console.log('[FileProcessingAPI] Enqueueing file with embedded content...');
-        const fileId = await this.queue.enqueueWithContent(
-          virtualPath,
-          uploadRequest.fileName,
-          hash,
-          uploadRequest.content, // Keep as base64
-          fileContent.length
-        );
-        console.log('[FileProcessingAPI] ✅ File enqueued with ID:', fileId);
+        // Check if file already exists
+        const existing = this.database.getFileByPath(virtualPath);
+        
+        let fileId: string;
+        if (existing) {
+          // File already uploaded, check hash
+          if (existing.fileHash === hash) {
+            // Same file, return existing
+            console.log('[FileProcessingAPI] ✅ File already in queue:', existing.id);
+            fileId = existing.id;
+          } else {
+            // Different content, mark for reprocessing
+            this.database.updateFile(existing.id, {
+              status: 'pending',
+              fileHash: hash,
+              fileContent: uploadRequest.content,
+              fileSize: fileContent.length,
+              retryCount: 0,
+              errorMessage: undefined,
+              currentStep: 'File updated, reprocessing',
+              updatedAt: new Date().toISOString()
+            });
+            console.log('[FileProcessingAPI] 🔄 File updated, marked for reprocessing:', existing.id);
+            fileId = existing.id;
+          }
+        } else {
+          // New file, add to metadata database
+          fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          
+          this.database.insertFile({
+            id: fileId,
+            filePath: virtualPath,
+            fileName: uploadRequest.fileName,
+            fileSize: fileContent.length,
+            fileHash: hash,
+            fileContent: uploadRequest.content, // Store base64 content
+            status: 'pending', // UnifiedQueueProcessor will pick it up
+            progress: 0,
+            retryCount: 0,
+            maxRetries: 3
+          });
+          
+          console.log('[FileProcessingAPI] ✅ File added to queue:', fileId);
+        }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ 
           fileId,
           status: 'pending',
-          message: 'File enqueued for processing'
+          message: 'File added to processing queue'
         }));
       } catch (error) {
         console.error('[FileProcessingAPI] ❌ Enqueue error:', error);
