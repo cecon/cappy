@@ -4,6 +4,7 @@
   "description": "AI coding companion with Single-Focus Workflow, CappyRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
   "version": "3.0.5",
   "publisher": "eduardocecon",
+  "icon": "src/assets/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/cecon/cappy"
@@ -113,7 +114,7 @@
         {
           "id": "cappy",
           "title": "Cappy",
-          "icon": "resources/icons/cappy-activity.svg"
+          "icon": "src/assets/cappy-activity.svg"
         }
       ]
     },
@@ -123,13 +124,13 @@
           "id": "cappy.chatView",
           "name": "Chat",
           "type": "webview",
-          "icon": "resources/icons/chat.svg"
+          "icon": "src/assets/chat.svg"
         },
         {
           "id": "cappy.documentsView",
           "name": "Documents",
           "type": "webview",
-          "icon": "resources/icons/documents.svg"
+          "icon": "src/assets/documents.svg"
         }
       ]
     },

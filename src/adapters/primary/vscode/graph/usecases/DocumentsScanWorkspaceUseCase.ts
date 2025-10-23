@@ -2,7 +2,8 @@ import type { UseCase, UseCaseContext, WebviewMessage } from './UseCase';
 
 export class DocumentsScanWorkspaceUseCase implements UseCase {
   canHandle(message: WebviewMessage): boolean {
-    return message.type === 'documents/scan-workspace';
+    // Accept both legacy (documents/*) and sidebar (document/*) events
+    return message.type === 'documents/scan-workspace' || message.type === 'document/scan';
   }
 
   async handle(_: WebviewMessage, ctx: UseCaseContext): Promise<void> {

@@ -50,7 +50,7 @@ export class SQLiteAdapter implements GraphStorePort {
     try {
       // Locate WASM
       const extensionPath = path.dirname(path.dirname(path.dirname(path.dirname(__dirname))));
-      const wasmPath = path.join(extensionPath, "resources", "wasm", "sql-wasm.wasm");
+      const wasmPath = path.join(extensionPath, "src", "assets", "sql-wasm.wasm");
 
       const SQL = await initSqlJs({
         locateFile: (file) => (file.endsWith(".wasm") ? wasmPath : file),

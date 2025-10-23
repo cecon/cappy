@@ -242,23 +242,14 @@ export class GraphPanel {
      */
     private async triggerWorkspaceScan() {
         try {
-            if (!this.indexingService) {
-                await this.initializeIndexing();
-            }
-            if (!this.indexingService) {
-                this.log('❌ IndexingService not available');
-                return;
-            }
-            this.sendMessage({ type: 'status', status: 'indexing' });
-            // If IndexingService exposes a fullRescan method, use it; otherwise fallback to indexWorkspace
-            const svc = this.indexingService as unknown as { fullRescan?: () => Promise<unknown> };
-            const stats = typeof svc.fullRescan === 'function'
-                ? await svc.fullRescan()
-                : await this.indexWorkspace();
-            this.sendMessage({ type: 'status', status: 'ready' });
-            if (stats) {
-                this.sendMessage({ type: 'graph-data', data: { stats } });
-            }
+                // Prefer the dedicated scan command which runs the full WorkspaceScanner pipeline
+                this.sendMessage({ type: 'status', status: 'indexing' });
+                this.log('🔍 Triggering workspace scan via command: cappy.scanWorkspace');
+                await vscode.commands.executeCommand('cappy.scanWorkspace');
+                this.log('✅ Workspace scan completed (command)');
+                this.sendMessage({ type: 'status', status: 'ready' });
+                // Refresh subgraph after scan completes
+                await this.refreshSubgraph(2);
         } catch (e) {
             this.log(`❌ Workspace scan failed: ${e}`);
             this.sendMessage({ type: 'error', error: String(e) });

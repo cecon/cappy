@@ -215,7 +215,10 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       });
 
       console.log('⚡ [DocumentsViewProvider] Executing cappy.scanWorkspace command');
+      
+      // Execute the command directly - it has its own progress notification
       await vscode.commands.executeCommand('cappy.scanWorkspace');
+      
       console.log('✅ [DocumentsViewProvider] cappy.scanWorkspace completed');
       
       // Query the indexed files from the API

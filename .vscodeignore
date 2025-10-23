@@ -10,8 +10,7 @@ docs/
 **/*.map
 **/*.test.*
 **/__tests__/**
-**/resources/**/raw/**
 # Keep built output and extension entry
 !out/**
-!resources/**
+!src/assets/**
 # Include package.json, README, LICENSE by default
