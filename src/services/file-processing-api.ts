@@ -370,7 +370,7 @@ export class FileProcessingAPI {
   }
 
   private async handleGetAllFiles(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    const allFiles = await this.database.getAllFileMetadata();
+    const allFiles = this.database.getAllFileMetadata();
     
   const statusResponses: FileStatusResponse[] = allFiles.map((metadata: FileMetadata) => {
       let progress = 0;
@@ -430,22 +430,35 @@ export class FileProcessingAPI {
       }
 
       const indexedFiles = await this.graphStore.listAllFiles();
-      
-      const statusResponses: FileStatusResponse[] = indexedFiles.map((file) => {
-        const fileName = file.path.split('/').pop() || file.path;
-        return {
-          fileId: `indexed-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          fileName,
-          filePath: file.path,
-          status: 'completed',
-          progress: 100,
-          summary: `✅ ${file.language} - ${file.linesOfCode} lines`,
-          chunksCount: 0,
-          nodesCount: 0,
-          relationshipsCount: 0,
-          fileSize: 0
-        };
-      });
+
+      // Enrich with actual chunk counts from the graph store so UI doesn't show "No chunks"
+      const statusResponses: FileStatusResponse[] = await Promise.all(
+        indexedFiles.map(async (file) => {
+          const fileName = file.path.split('/').pop() || file.path;
+
+          let chunksCount = 0;
+          try {
+            const chunks = await this.graphStore!.getFileChunks(file.path);
+            chunksCount = chunks.length;
+          } catch (err) {
+            // If chunk retrieval fails, keep 0 but don't break the entire response
+            console.warn('[FileProcessingAPI] ⚠️ Could not get chunks for', file.path, err);
+          }
+
+          return {
+            fileId: `indexed-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            fileName,
+            filePath: file.path,
+            status: 'completed',
+            progress: 100,
+            summary: `✅ ${file.language} - ${file.linesOfCode} lines`,
+            chunksCount,
+            nodesCount: undefined,
+            relationshipsCount: undefined,
+            fileSize: 0
+          };
+        })
+      );
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(statusResponses));

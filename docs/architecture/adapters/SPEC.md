@@ -13,7 +13,7 @@
 - [Referências](#referências)
 
 ## Objetivo
-Documentar a distinção entre adapters primários e secundários na arquitetura hexagonal do CappyRAG, garantindo que novos componentes respeitem as regras de isolamento do domínio.
+Documentar a distinção entre adapters primários e secundários na arquitetura hexagonal do Cappy, garantindo que novos componentes respeitem as regras de isolamento do domínio.
 
 ## Escopo
 Este SPEC cobre módulos em `src/adapters/primary` e `src/adapters/secondary`, descrevendo seu propósito, contratos e interações com `src/domains` e `src/shared`.

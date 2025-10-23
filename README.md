@@ -68,7 +68,7 @@ CAPPY provides:    ],
 
 - 🎯 **Single-Focus Workflow**: Work on one atomic task at a time with full context    languageOptions: {
 
-- 🧠 **CappyRAG**: Hybrid search combining semantic vectors + knowledge graph      parserOptions: {
+- 🧠 **Hybrid Retriever**: Hybrid search combining semantic vectors + knowledge graph      parserOptions: {
 
 - 📚 **Workspace Intelligence**: Deep understanding of your codebase structure        project: ['./tsconfig.node.json', './tsconfig.app.json'],
 
@@ -98,7 +98,7 @@ CAPPY provides:    ],
 
 import reactX from 'eslint-plugin-react-x'
 
-### 🧠 CappyRAG - Hybrid Retrievalimport reactDom from 'eslint-plugin-react-dom'
+### 🧠 Hybrid Retriever - Hybrid Retrievalimport reactDom from 'eslint-plugin-react-dom'
 
 - **Semantic search** using vector embeddings
 
@@ -214,7 +214,7 @@ Documentation is organized in the `docs/` folder:
 - [OpenAI Setup](docs/guides/OPENAI_SETUP.md) - Alternative LLM setup
 
 ### 🎯 Features
-- [Hybrid Retriever](docs/features/HYBRID_RETRIEVER.md) - CappyRAG documentation
+- [Hybrid Retriever](docs/features/HYBRID_RETRIEVER.md) - Hybrid search documentation
 - [Workspace Scanner](docs/features/WORKSPACE_SCANNER.md) - File indexing system
 - [Context Retrieval](docs/features/CONTEXT_RETRIEVAL_TOOL.md) - Language Model Tools
 

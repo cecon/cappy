@@ -1,7 +1,7 @@
 {
   "name": "cappy",
   "displayName": "Cappy",
-  "description": "AI coding companion with Single-Focus Workflow, CappyRAG hybrid search, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
+  "description": "AI coding companion with Single-Focus Workflow, Hybrid Retriever, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
   "version": "3.0.5",
   "publisher": "eduardocecon",
   "icon": "src/assets/icon.png",
@@ -34,7 +34,7 @@
     "vector-search",
     "graph-database",
     "semantic-search",
-    "cappyrag",
+    "hybrid-retriever",
     "language-model-tools"
   ],
   "activationEvents": [

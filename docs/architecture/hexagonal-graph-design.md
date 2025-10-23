@@ -1,7 +1,7 @@
 # Graph Visualization Architecture - Hexagonal Design
 
 ## 📋 Overview
-Este documento descreve a arquitetura hexagonal implementada para o sistema de visualização de grafos do CappyRAG, migrando de vanilla JavaScript para React + TypeScript com máxima modularização.
+Este documento descreve a arquitetura hexagonal implementada para o sistema de visualização de grafos do Cappy, migrando de vanilla JavaScript para React + TypeScript com máxima modularização.
 
 ## 🏗️ Arquitetura Hexagonal
 

@@ -19,7 +19,7 @@ Start here if you're new to CAPPY:
 ### 🎯 Features
 Core functionality documentation:
 
-- **[Hybrid Retriever](features/HYBRID_RETRIEVER.md)** - CappyRAG hybrid search system
+- **[Hybrid Retriever](features/HYBRID_RETRIEVER.md)** - Hybrid search system
 - **[Hybrid Retriever Quickstart](features/HYBRID_RETRIEVER_QUICKSTART.md)** - Quick setup guide
 - **[Context Retrieval Tool](features/CONTEXT_RETRIEVAL_TOOL.md)** - Language Model Tools integration
 - **[Workspace Scanner](features/WORKSPACE_SCANNER.md)** - File indexing and monitoring
