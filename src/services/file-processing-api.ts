@@ -201,15 +201,11 @@ export class FileProcessingAPI {
 
         console.log(`[FileProcessingAPI] 🗑️  Remove requested for ${fileId} (${filePath})`);
 
-        // Get metadata before deletion
+        // Try to fetch metadata from DB (may be absent for indexed-only entries)
         const metadata = this.database.getFile(String(fileId));
-        if (!metadata) {
-          res.writeHead(404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'File not found' }));
-          return;
-        }
 
-        const actualFilePath = filePath || metadata.filePath;
+        // Determine the file path to operate on (prefer explicit filePath from request)
+        const actualFilePath = filePath || metadata?.filePath;
         let nodesDeleted = 0;
         let chunksDeleted = 0;
         let relationshipsDeleted = 0;
@@ -237,9 +233,14 @@ export class FileProcessingAPI {
           }
         }
 
-        // 2. Delete from database
-        this.database.deleteFile(String(fileId));
-        console.log(`[FileProcessingAPI] ✅ File metadata deleted from database`);
+        // 2. Delete from database if it exists (for uploaded/queued files)
+        if (metadata) {
+          this.database.deleteFile(String(fileId));
+          console.log(`[FileProcessingAPI] ✅ File metadata deleted from database`);
+        } else {
+          // If no metadata, this is likely an indexed-only entry; treat as best-effort graph cleanup
+          console.log(`[FileProcessingAPI] ℹ️  No metadata found for ${fileId}. Skipped DB deletion.`);
+        }
 
         // 3. Queue cleanup happens automatically when file is deleted from database
 
@@ -372,7 +373,7 @@ export class FileProcessingAPI {
   private async handleGetAllFiles(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const allFiles = this.database.getAllFileMetadata();
     
-  const statusResponses: FileStatusResponse[] = allFiles.map((metadata: FileMetadata) => {
+    const statusResponses: FileStatusResponse[] = allFiles.map((metadata: FileMetadata) => {
       let progress = 0;
       let summary = '';
       
