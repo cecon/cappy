@@ -153,12 +153,23 @@ export class TypeScriptParser {
 
       // If symbol found, extract JSDoc
       if (symbol) {
-        const jsdoc = this.extractJSDoc(lines, symbol.lineStart);
+        let jsdoc = this.extractJSDoc(lines, symbol.lineStart);
+        // Fallback: support inline JSDoc on the same line as the symbol
+        if (!jsdoc) {
+          const line = lines[symbol.lineStart - 1] ?? '';
+          const startIdx = line.indexOf('/**');
+          const endIdx = line.indexOf('*/', startIdx + 3);
+          if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+            jsdoc = line.slice(startIdx, endIdx + 2);
+          }
+        }
         if (jsdoc) {
           symbol.jsdoc = jsdoc;
-          // Adjust lineStart to include JSDoc
+          // Adjust lineStart to include JSDoc (best-effort for multi-line only)
           const jsdocLines = jsdoc.split('\n').length;
-          symbol.lineStart = Math.max(1, symbol.lineStart - jsdocLines);
+          if (jsdocLines > 1) {
+            symbol.lineStart = Math.max(1, symbol.lineStart - jsdocLines);
+          }
         }
         symbols.push(symbol);
       }

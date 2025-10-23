@@ -26,7 +26,7 @@ export class ParserService {
   private readonly bladeParser = createBladeParser();
   private readonly htmlParser = createHTMLParser();
   private readonly viteParser = createViteParser();
-  private enhancedParsingEnabled = true; // Enabled by default for LLM entity extraction
+  private enhancedParsingEnabled = false; // Disabled by default; can be enabled for LLM entity extraction
 
   /**
    * Enables enhanced parsing with entity extraction

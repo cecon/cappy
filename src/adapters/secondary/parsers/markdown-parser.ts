@@ -128,38 +128,50 @@ export class MarkdownParser {
       const content = fs.readFileSync(filePath, 'utf-8');
       const { content: markdownContent } = matter(content);
       const chunks: DocumentChunk[] = [];
-      
-      const lines = markdownContent.split('\n');
-      const tokensPerLine = 15; // Rough estimate
-      const linesPerChunk = Math.floor(maxTokens / tokensPerLine);
-      const overlapLines = Math.floor(overlapTokens / tokensPerLine);
-      
-      let lineIndex = 0;
-      
-      while (lineIndex < lines.length) {
-        const endLine = Math.min(lineIndex + linesPerChunk, lines.length);
-        const chunkLines = lines.slice(lineIndex, endLine);
-        const chunkContent = chunkLines.join('\n').trim();
-        
+
+      // Token-based sliding window to handle long lines/paragraphs
+      const tokens = markdownContent.split(/\s+/).filter(Boolean);
+      if (tokens.length === 0) {
+        console.log(`📝 Markdown: Parsed 0 overlapping chunks from ${filePath}`);
+        return [];
+      }
+
+      const windowSize = Math.max(1, maxTokens);
+      const step = Math.max(1, windowSize - Math.max(0, overlapTokens));
+      let start = 0;
+      let chunkNumber = 0;
+
+      while (start < tokens.length) {
+        const end = Math.min(start + windowSize, tokens.length);
+        const chunkContent = tokens.slice(start, end).join(' ').trim();
+
         if (chunkContent.length > 0) {
-          const chunkId = this.generateChunkId(filePath, lineIndex + 1, endLine);
-          
+          const chunkId = this.generateChunkId(filePath, start + 1, end);
           chunks.push({
             id: chunkId,
             content: chunkContent,
             metadata: {
               filePath,
-              lineStart: lineIndex + 1,
-              lineEnd: endLine,
-              chunkType: 'markdown_section'
-            }
+              // Since we are token-based here, approximate line numbers with token indices
+              lineStart: start + 1,
+              lineEnd: end,
+              chunkType: 'markdown_section',
+              chunkNumber,
+              hasOverlap: chunkNumber > 0,
+              overlapTokens: chunkNumber > 0 ? overlapTokens : 0,
+            } as unknown as DocumentChunk['metadata']
           });
+          chunkNumber++;
         }
-        
-        // Move forward with overlap
-        lineIndex += linesPerChunk - overlapLines;
+
+        // Advance with overlap
+        start += step;
+        if (start >= tokens.length && end < tokens.length) {
+          // Safety: ensure progress if step is too small (shouldn't happen due to Math.max)
+          start = end;
+        }
       }
-      
+
       console.log(`📝 Markdown: Parsed ${chunks.length} overlapping chunks from ${filePath}`);
       return chunks;
     } catch (error) {
