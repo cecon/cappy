@@ -15,6 +15,7 @@ import { DocumentsScanWorkspaceUseCase } from './usecases/DocumentsScanWorkspace
 import { DocumentsConfigureSourcesUseCase } from './usecases/DocumentsConfigureSourcesUseCase';
 import { DocumentsConfirmRemoveUseCase } from './usecases/DocumentsConfirmRemoveUseCase';
 import { DocumentsConfirmClearUseCase } from './usecases/DocumentsConfirmClearUseCase';
+import { DebugAnalyzeUseCase } from './usecases/DebugAnalyzeUseCase';
 import { WebviewContentBuilder } from './WebviewContentBuilder';
 import { IndexingInitializer } from './IndexingInitializer';
 import { WorkspaceIndexer } from './WorkspaceIndexer';
@@ -110,6 +111,7 @@ export class GraphPanel {
             new DocumentsConfigureSourcesUseCase(),
             new DocumentsConfirmRemoveUseCase(),
             new DocumentsConfirmClearUseCase(),
+            new DebugAnalyzeUseCase(),
         ];
     }
 

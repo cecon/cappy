@@ -53,6 +53,17 @@ const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange }) => {
                 🔍 Retrieval
               </TabsTrigger>
               <TabsTrigger
+                value="documents"
+                className={cn(
+                  'cursor-pointer px-3 py-1.5 text-xs md:text-sm transition-all',
+                  'data-[state=active]:!bg-primary data-[state=active]:!text-primary-foreground',
+                  currentTab === 'documents' ? '!bg-primary !text-primary-foreground' : 'hover:bg-background/60'
+                )}
+                onClick={() => onTabChange('documents')}
+              >
+                📄 Documents
+              </TabsTrigger>
+              <TabsTrigger
                 value="api"
                 className={cn(
                   'cursor-pointer px-3 py-1.5 text-xs md:text-sm transition-all',
@@ -62,6 +73,17 @@ const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange }) => {
                 onClick={() => onTabChange('api')}
               >
                 📡 API
+              </TabsTrigger>
+              <TabsTrigger
+                value="debug"
+                className={cn(
+                  'cursor-pointer px-3 py-1.5 text-xs md:text-sm transition-all',
+                  'data-[state=active]:!bg-primary data-[state=active]:!text-primary-foreground',
+                  currentTab === 'debug' ? '!bg-primary !text-primary-foreground' : 'hover:bg-background/60'
+                )}
+                onClick={() => onTabChange('debug')}
+              >
+                🐛 Debug
               </TabsTrigger>
             </TabsList>
           </div>

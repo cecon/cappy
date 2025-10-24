@@ -7,6 +7,7 @@
 import sqlite3 from "sqlite3";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as sqliteVec from "sqlite-vec";
 
 import type { GraphStorePort } from "../../../domains/graph/ports/indexing-port";
 import type { DocumentChunk } from "../../../shared/types/chunk";
@@ -19,6 +20,7 @@ export class SQLiteAdapter implements GraphStorePort {
   private readonly dbPath: string;
   private db: sqlite3.Database | null = null;
   private dbFilePath = "";
+  private vecExtensionLoaded = false;
 
   constructor(dbPath: string) {
     this.dbPath = dbPath;
@@ -57,6 +59,23 @@ export class SQLiteAdapter implements GraphStorePort {
       });
 
       await this.run("PRAGMA foreign_keys = ON");
+      
+      // Carregar extensão sqlite-vec
+      try {
+        const vecPath = sqliteVec.getLoadablePath();
+        await new Promise<void>((resolve, reject) => {
+          this.db!.loadExtension(vecPath, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        this.vecExtensionLoaded = true;
+        console.log("✅ SQLite: sqlite-vec extension loaded");
+      } catch (error) {
+        console.warn("⚠️ SQLite: Failed to load sqlite-vec extension:", error);
+        console.warn("   Vector search will use fallback method");
+      }
+      
       await this.createSchema();
       console.log("✅ SQLite: Database initialized");
     } catch (error) {
@@ -238,6 +257,28 @@ export class SQLiteAdapter implements GraphStorePort {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Create vec0 virtual table for efficient vector search (if extension loaded)
+    if (this.vecExtensionLoaded) {
+      try {
+        // Check dimensionality from first vector (assuming 1536 for text-embedding-3-small)
+        const sample = await this.get<{ embedding_json: string }>(
+          `SELECT embedding_json FROM vectors LIMIT 1`
+        );
+        
+        const dimensions = sample ? JSON.parse(sample.embedding_json).length : 1536;
+        
+        await this.run(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_vectors USING vec0(
+            chunk_id TEXT PRIMARY KEY,
+            embedding float[${dimensions}]
+          )
+        `);
+        console.log(`✅ SQLite: vec_vectors table created with ${dimensions} dimensions`);
+      } catch (error) {
+        console.warn("⚠️ SQLite: Failed to create vec_vectors table:", error);
+      }
+    }
     
     // Create indices for performance
     await this.run(`CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(type)`);
@@ -952,6 +993,7 @@ export class SQLiteAdapter implements GraphStorePort {
     if (!this.db) return;
     
     for (const chunk of chunks) {
+      // Armazenar na tabela vectors (formato JSON)
       await this.run(
         `INSERT OR REPLACE INTO vectors (chunk_id, content, embedding_json, metadata) 
          VALUES (?, ?, ?, ?)`,
@@ -962,14 +1004,27 @@ export class SQLiteAdapter implements GraphStorePort {
           chunk.metadata ? JSON.stringify(chunk.metadata) : null
         ]
       );
+      
+      // Se extensão vec está carregada, também armazenar na tabela virtual
+      if (this.vecExtensionLoaded && chunk.embedding && chunk.embedding.length > 0) {
+        try {
+          const vecString = JSON.stringify(chunk.embedding);
+          await this.run(
+            `INSERT OR REPLACE INTO vec_vectors (chunk_id, embedding) VALUES (?, ?)`,
+            [chunk.id, vecString]
+          );
+        } catch (error) {
+          console.warn(`⚠️ Failed to store vector for chunk ${chunk.id}:`, error);
+        }
+      }
     }
   }
 
   /**
-   * Search similar vectors (basic implementation without proper vector distance)
+   * Search similar vectors using sqlite-vec
    */
   async searchSimilar(
-    _queryEmbedding: number[],
+    queryEmbedding: number[],
     limit = 10
   ): Promise<Array<{ 
     id: string; 
@@ -979,8 +1034,66 @@ export class SQLiteAdapter implements GraphStorePort {
   }>> {
     if (!this.db) return [];
     
-    // Implementação simples - retorna os últimos chunks
-    // Para busca vetorial real, use sqlite-vss ou serviço externo
+    // Se a extensão vec está carregada e temos um embedding válido, usar busca vetorial
+    if (this.vecExtensionLoaded && queryEmbedding && queryEmbedding.length > 0) {
+      try {
+        // Serializar vetor para formato do sqlite-vec
+        const vecString = JSON.stringify(queryEmbedding);
+        
+        const rows = await this.all<{
+          chunk_id: string;
+          distance: number;
+        }>(
+          `
+          SELECT 
+            chunk_id,
+            distance
+          FROM vec_vectors
+          WHERE embedding MATCH ?
+          ORDER BY distance
+          LIMIT ?
+          `,
+          [vecString, limit]
+        );
+        
+        // Buscar conteúdo e metadata dos chunks
+        if (rows.length === 0) return [];
+        
+        const ids = rows.map(r => r.chunk_id);
+        const placeholders = ids.map(() => '?').join(',');
+        const chunks = await this.all<{
+          chunk_id: string;
+          content: string;
+          metadata: string | null;
+        }>(
+          `SELECT chunk_id, content, metadata FROM vectors WHERE chunk_id IN (${placeholders})`,
+          ids
+        );
+        
+        // Combinar resultados mantendo a ordem de similaridade
+        const chunkMap = new Map(chunks.map(c => [c.chunk_id, c]));
+        
+        return rows
+          .map(row => {
+            const chunk = chunkMap.get(row.chunk_id);
+            if (!chunk) return null;
+            
+            return {
+              id: chunk.chunk_id,
+              content: chunk.content,
+              score: 1 - row.distance, // Converter distância para score (0-1)
+              metadata: chunk.metadata ? JSON.parse(chunk.metadata) : undefined
+            };
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null);
+      } catch (error) {
+        console.error("❌ SQLite vector search error:", error);
+        console.warn("   Falling back to simple search");
+      }
+    }
+    
+    // Fallback: implementação simples - retorna os últimos chunks
+    console.log("ℹ️ Using fallback search (no vector similarity)");
     const rows = await this.all<{
       chunk_id: string;
       content: string;

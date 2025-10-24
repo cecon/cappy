@@ -1,5 +1,5 @@
 import { ChatView } from './pages/chat/ChatView.tsx'
-import DocumentsPage from './pages/knowledge-base/DocumentsPage.tsx'
+import DocumentsPage from './pages/dashboard/DocumentsPage.tsx'
 
 console.log('[React App] Loading...')
 

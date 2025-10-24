@@ -340,7 +340,7 @@ export function activate(context: vscode.ExtensionContext) {
     const chatService = createChatService(chatEngine);
 
     // Start WebSocket dev server bridge (porta 7001)
-    const devBridge = new DevServerBridge(7001, chatService);
+    const devBridge = new DevServerBridge(7002, chatService);
     context.subscriptions.push({ dispose: () => devBridge.dispose() });
     console.log('🔌 Dev Server Bridge started on port 7001');
 

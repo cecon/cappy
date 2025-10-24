@@ -53,7 +53,7 @@ src/
 │       │   └── layout/
 │       ├── pages/
 │       │   ├── chat/              # Chat Interface
-│       │   └── knowledge-base/    # Documents Panel
+│       │   └── dashboard/         # Documents Panel
 │       ├── primitives/            # UI Primitives (Button, Card, Tabs)
 │       └── [Button|Card].tsx      # Re-exports
 │
@@ -162,7 +162,7 @@ src/
 │   │   │   ├── InputBox.tsx
 │   │   │   └── ToolCard.tsx
 │   │   │
-│   │   └── knowledge-base/         # Knowledge Base Panel
+│   │   └── dashboard/              # Dashboard Panel
 │   │       ├── DocumentsPage.tsx  # Documents management
 │   │       ├── DocumentCard.tsx
 │   │       ├── Filters.tsx
@@ -374,9 +374,9 @@ export const ChatView: React.FC = () => {
 };
 ```
 
-### Knowledge Base Panel
+### Dashboard Panel
 ```typescript
-// nivel1/ui/pages/knowledge-base/DocumentsPage.tsx
+// nivel1/ui/pages/dashboard/DocumentsPage.tsx
 export const DocumentsPage: React.FC = () => {
     // Lista documentos indexados
     // Permite scan de workspace

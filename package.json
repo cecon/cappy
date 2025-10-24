@@ -356,6 +356,7 @@
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "sigma": "^3.0.2",
+    "sqlite-vec": "^0.1.7-alpha.2",
     "sqlite3": "^5.1.7",
     "tailwind-merge": "^3.3.1",
     "ws": "^8.18.3",

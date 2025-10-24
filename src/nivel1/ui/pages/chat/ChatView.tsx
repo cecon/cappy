@@ -85,15 +85,67 @@ class VSCodeChatAdapter implements ChatModelAdapter {
     const handleMessage = async (event: MessageEvent) => {
       const message = event.data;
 
+      console.log('[ChatView] handleMessage:', message.type, 'messageId match:', message.messageId === messageId, message.messageId, messageId);
+
       // Handle stream messages (require messageId match)
-      if (message.messageId !== messageId) return;
+      if (message.messageId !== messageId) {
+        console.log('[ChatView] Skipping message - messageId mismatch');
+        return;
+      }
 
       switch (message.type) {
-        case "streamToken":
+        case "streamToken": {
           // Accumulate all text (reasoning + content)
+          console.log('[ChatView] Adding token:', message.token);
           fullText += message.token;
+          console.log('[ChatView] fullText length:', fullText.length);
+          
+          // Check if token contains __PROMPT_REQUEST__
+          if (message.token.includes('__PROMPT_REQUEST__:')) {
+            const promptRegex = /__PROMPT_REQUEST__:({.+})/;
+            const match = promptRegex.exec(message.token);
+            if (match) {
+              try {
+                const promptData = JSON.parse(match[1]);
+                console.log('[ChatView] Found __PROMPT_REQUEST__ in token:', promptData);
+                
+                // Create pending tool call and add to map
+                const promptMessageId = promptData.messageId;
+                const userDecision = new Promise<boolean>((resolve) => {
+                  const pendingTool: PendingToolCall = {
+                    messageId: promptMessageId,
+                    toolName: promptData.toolCall?.name || "unknown",
+                    args: promptData.toolCall?.input || {},
+                    question: promptData.question || "Execute tool?",
+                    resolver: resolve,
+                  };
+                  this.pendingToolCalls.set(promptMessageId, pendingTool);
+                  console.log('[ChatView] Added pending tool call from token:', pendingTool);
+                });
+
+                // Add marker to text for UI to detect
+                fullText += `\n\n__TOOL_CALL_PENDING__:${promptMessageId}\n\n`;
+                console.log('[ChatView] Added TOOL_CALL_PENDING marker');
+                
+                // Wait for user decision in background
+                userDecision.then((approved) => {
+                  console.log('[ChatView] User decision:', approved);
+                  // Send response to backend
+                  this.vscode.postMessage({
+                    type: "userPromptResponse",
+                    messageId: promptMessageId,
+                    response: approved ? "yes" : "no",
+                  });
+                }).catch(err => console.error('[ChatView] Error waiting for decision:', err));
+              } catch (e) {
+                console.error('[ChatView] Failed to parse __PROMPT_REQUEST__:', e);
+              }
+            }
+          }
           break;
+        }
         case "streamEnd":
+          console.log('[ChatView] Stream ended');
           isDone = true;
           break;
         case "streamError":
@@ -157,8 +209,8 @@ class VSCodeChatAdapter implements ChatModelAdapter {
       abortSignal.addEventListener("abort", handleAbort);
     }
 
-  const onMessage = (evt: Event) => { void handleMessage(evt as MessageEvent); };
-  globalThis.addEventListener("message", onMessage);
+    const onMessage = (evt: Event) => { void handleMessage(evt as MessageEvent); };
+    globalThis.addEventListener("message", onMessage);
 
     try {
       // Send entire conversation history from @assistant-ui to backend
@@ -214,8 +266,7 @@ class VSCodeChatAdapter implements ChatModelAdapter {
         };
       }
     } finally {
-  const onMessage = (evt: Event) => { void handleMessage(evt as MessageEvent); };
-  globalThis.removeEventListener("message", onMessage);
+      globalThis.removeEventListener("message", onMessage);
       if (abortSignal) {
         abortSignal.removeEventListener("abort", handleAbort);
       }
@@ -286,6 +337,14 @@ const UserMessage: React.FC = () => (
   </MessagePrimitive.Root>
 );
 
+const TypingIndicator: React.FC = () => (
+  <div className="flex items-center gap-1">
+    <div className="size-2 animate-bounce rounded-full bg-gray-400 dark:bg-gray-500 [animation-delay:-0.3s]" />
+    <div className="size-2 animate-bounce rounded-full bg-gray-400 dark:bg-gray-500 [animation-delay:-0.15s]" />
+    <div className="size-2 animate-bounce rounded-full bg-gray-400 dark:bg-gray-500" />
+  </div>
+);
+
 const AssistantText: React.FC<{ text: string }> = ({ text }) => {
   const adapter = useChatAdapter();
   // Detect pending tool marker
@@ -294,13 +353,22 @@ const AssistantText: React.FC<{ text: string }> = ({ text }) => {
   const pendingMessageId = pendingMatch?.[1]?.trim();
   const pendingTool = pendingMessageId ? adapter.pendingToolCalls.get(pendingMessageId) : null;
 
-  // Remove marker for display
-  const cleanText = text.replaceAll(/__TOOL_CALL_PENDING__:[^\s]+/g, '').trim();
+  // Remove all special markers for display
+  const cleanText = text
+    .replaceAll(/__TOOL_CALL_PENDING__:[^\s]+/g, '')
+    .replaceAll(/__PROMPT_REQUEST__:[^\n]+/g, '')
+    .replaceAll(/<!-- reasoning:start -->[\s\S]*?<!-- reasoning:end -->/g, '')
+    .trim();
 
   const actions = {
     approveToolCall: (id: string) => adapter.approveToolCall(id),
     denyToolCall: (id: string) => adapter.denyToolCall(id),
   };
+
+  // Show typing indicator when there's no content yet
+  if (!cleanText && !pendingTool) {
+    return <TypingIndicator />;
+  }
 
   return (
     <>

@@ -4,6 +4,8 @@ import Header from './layout/Header';
 import GraphPage from './pages/GraphPage';
 import RetrievalPage from './pages/RetrievalPage';
 import ApiPage from './pages/ApiPage';
+import DocumentsPage from '../pages/dashboard/DocumentsPage';
+import DebugPage from '../pages/debug/DebugPage';
 
 function App() {
   const [currentTab, setCurrentTab] = useState('knowledge-graph');
@@ -35,10 +37,24 @@ function App() {
             </TabsContent>
 
             <TabsContent
+              value="documents"
+              className="h-full overflow-auto"
+            >
+              <DocumentsPage />
+            </TabsContent>
+
+            <TabsContent
               value="api"
               className="h-full overflow-auto"
             >
               <ApiPage />
+            </TabsContent>
+
+            <TabsContent
+              value="debug"
+              className="h-full overflow-auto"
+            >
+              <DebugPage />
             </TabsContent>
           </div>
         </Tabs>

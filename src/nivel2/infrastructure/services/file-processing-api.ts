@@ -109,6 +109,8 @@ export class FileProcessingAPI {
         await this.handleGetIndexedFiles(req, res);
       } else if (req.method === 'POST' && url.pathname === '/files/clear') {
         await this.handleClearAll(req, res);
+      } else if (req.method === 'POST' && url.pathname === '/api/debug/analyze') {
+        await this.handleDebugAnalyze(req, res);
       } else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not found' }));
@@ -539,5 +541,251 @@ export class FileProcessingAPI {
         error: error instanceof Error ? error.message : 'Unknown error' 
       }));
     }
+  }
+
+  private async handleDebugAnalyze(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    try {
+      console.log('[FileProcessingAPI] 🐛 Debug analyze request received');
+      
+      // Parse multipart form data manually
+      const contentType = req.headers['content-type'] || '';
+      if (!contentType.includes('multipart/form-data')) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Content-Type must be multipart/form-data' }));
+        return;
+      }
+
+      const boundary = contentType.split('boundary=')[1];
+      if (!boundary) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing boundary in Content-Type' }));
+        return;
+      }
+
+      // Collect all data chunks
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+
+      req.on('end', async () => {
+        try {
+          const buffer = Buffer.concat(chunks);
+          const parts = this.parseMultipartData(buffer, boundary);
+          
+          if (!parts.file) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'No file uploaded' }));
+            return;
+          }
+
+          const { filename, content } = parts.file;
+          const fileContent = content.toString('utf-8');
+
+          console.log(`[FileProcessingAPI] 🐛 Analyzing file: ${filename}`);
+
+          // Analyze the file
+          const { ASTRelationshipExtractor } = await import('./ast-relationship-extractor.js');
+          const { parse } = await import('@typescript-eslint/parser');
+          
+          let ast: unknown = null;
+          let entities: unknown[] = [];
+          let signatures: unknown[] = [];
+          let error: string | undefined;
+
+          try {
+            // Parse AST
+            ast = parse(fileContent, {
+              loc: true,
+              range: true,
+              comment: true,
+              tokens: false,
+              ecmaVersion: 'latest',
+              sourceType: 'module',
+              ecmaFeatures: { jsx: true }
+            });
+
+            // Extract entities using AST extractor
+            const extractor = new ASTRelationshipExtractor(process.cwd());
+            const analysis = await extractor.analyze(filename);
+            
+            entities = [
+              ...analysis.imports.map(imp => ({
+                type: 'import',
+                source: imp.source,
+                specifiers: imp.specifiers,
+                isExternal: imp.isExternal
+              })),
+              ...analysis.exports.map(exp => ({
+                type: 'export',
+                name: exp
+              })),
+              ...analysis.calls.map(call => ({
+                type: 'call',
+                name: call
+              })),
+              ...analysis.typeRefs.map(ref => ({
+                type: 'typeRef',
+                name: ref
+              }))
+            ];
+
+            // Extract signatures (simplified)
+            signatures = this.extractSimpleSignatures(ast);
+
+          } catch (parseError) {
+            error = parseError instanceof Error ? parseError.message : 'Failed to parse file';
+            console.error('[FileProcessingAPI] ❌ Parse error:', parseError);
+          }
+
+          const response = {
+            fileName: filename,
+            fileSize: content.length,
+            mimeType: this.getMimeType(filename),
+            ast: ast,
+            entities: entities,
+            signatures: signatures,
+            metadata: {
+              lines: fileContent.split('\n').length,
+              characters: fileContent.length,
+              hasErrors: !!error
+            },
+            error: error
+          };
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(response));
+        } catch (error) {
+          console.error('[FileProcessingAPI] ❌ Debug analyze error:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            error: error instanceof Error ? error.message : 'Failed to analyze file' 
+          }));
+        }
+      });
+    } catch (error) {
+      console.error('[FileProcessingAPI] ❌ Debug analyze error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Failed to analyze file' 
+      }));
+    }
+  }
+
+  private parseMultipartData(buffer: Buffer, boundary: string): { file?: { filename: string; content: Buffer } } {
+    const boundaryBuffer = Buffer.from(`--${boundary}`);
+    const parts: { file?: { filename: string; content: Buffer } } = {};
+    
+    let position = 0;
+    while (position < buffer.length) {
+      const boundaryIndex = buffer.indexOf(boundaryBuffer, position);
+      if (boundaryIndex === -1) break;
+      
+      position = boundaryIndex + boundaryBuffer.length;
+      
+      // Find headers end (double CRLF)
+      const headersEnd = buffer.indexOf('\r\n\r\n', position);
+      if (headersEnd === -1) break;
+      
+      const headers = buffer.slice(position, headersEnd).toString('utf-8');
+      position = headersEnd + 4;
+      
+      // Find next boundary
+      const nextBoundary = buffer.indexOf(boundaryBuffer, position);
+      if (nextBoundary === -1) break;
+      
+      // Extract content (remove trailing CRLF)
+      const content = buffer.slice(position, nextBoundary - 2);
+      
+      // Parse filename from Content-Disposition header
+      const filenameMatch = headers.match(/filename="([^"]+)"/);
+      if (filenameMatch) {
+        parts.file = {
+          filename: filenameMatch[1],
+          content: content
+        };
+      }
+      
+      position = nextBoundary;
+    }
+    
+    return parts;
+  }
+
+  private extractSimpleSignatures(ast: unknown): unknown[] {
+    const signatures: unknown[] = [];
+    
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      
+      const n = node as Record<string, unknown>;
+      
+      if (n.type === 'FunctionDeclaration' && n.id) {
+        const id = n.id as Record<string, unknown>;
+        const params = n.params as unknown[];
+        signatures.push({
+          type: 'function',
+          name: id.name,
+          params: params?.map((p: unknown) => (p as Record<string, unknown>).name || (p as Record<string, unknown>).type) || [],
+          async: n.async || false
+        });
+      } else if (n.type === 'ClassDeclaration' && n.id) {
+        const id = n.id as Record<string, unknown>;
+        const superClass = n.superClass as Record<string, unknown> | undefined;
+        signatures.push({
+          type: 'class',
+          name: id.name,
+          superClass: superClass?.name || null
+        });
+      } else if (n.type === 'VariableDeclaration') {
+        const declarations = n.declarations as unknown[];
+        declarations?.forEach((decl: unknown) => {
+          const d = decl as Record<string, unknown>;
+          const id = d.id as Record<string, unknown>;
+          if (id?.name) {
+            signatures.push({
+              type: 'variable',
+              name: id.name,
+              kind: n.kind
+            });
+          }
+        });
+      }
+      
+      // Recursively visit child nodes
+      for (const key in n) {
+        if (key === 'parent' || key === 'loc' || key === 'range') continue;
+        const value = n[key];
+        if (Array.isArray(value)) {
+          value.forEach(visit);
+        } else if (typeof value === 'object') {
+          visit(value);
+        }
+      }
+    };
+    
+    visit(ast);
+    return signatures;
+  }
+
+  private getMimeType(filename: string): string {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      'ts': 'text/typescript',
+      'tsx': 'text/typescript',
+      'js': 'text/javascript',
+      'jsx': 'text/javascript',
+      'py': 'text/x-python',
+      'java': 'text/x-java',
+      'cs': 'text/x-csharp',
+      'cpp': 'text/x-c++src',
+      'c': 'text/x-csrc',
+      'h': 'text/x-chdr',
+      'php': 'text/x-php',
+      'rb': 'text/x-ruby',
+      'go': 'text/x-go',
+      'rs': 'text/x-rust'
+    };
+    return mimeTypes[ext || ''] || 'text/plain';
   }
 }

@@ -56,6 +56,25 @@ export class DevServerBridge {
         }
         break;
       }
+      
+      case 'debug/analyze':
+        await this.handleDebugAnalyze(msg as typeof msg & { payload: { fileName: string; fileSize: number; mimeType: string; content: string } }, ws);
+        break;
+        
+      case 'get-db-status': {
+        // Return mock database status for dev mode
+        ws.send(JSON.stringify({
+          type: 'db-status',
+          payload: {
+            isConnected: true,
+            nodeCount: 0,
+            relationshipCount: 0,
+            status: 'ready',
+            mode: 'development'
+          }
+        }));
+        break;
+      }
         
       default:
         console.warn('⚠️ [DevBridge] Unknown message type:', msg.type);
@@ -100,13 +119,17 @@ export class DevServerBridge {
       
       for await (const token of stream) {
         ws.send(JSON.stringify({
-          type: 'textDelta',
-          text: token
+          type: 'streamToken',
+          messageId,
+          token
         }));
       }
       
       // Signal completion
-      ws.send(JSON.stringify({ type: 'done' }));
+      ws.send(JSON.stringify({ 
+        type: 'streamEnd',
+        messageId
+      }));
       
       console.log('✅ [DevBridge] Message processed');
       
@@ -115,6 +138,45 @@ export class DevServerBridge {
       ws.send(JSON.stringify({
         type: 'error',
         error: error instanceof Error ? error.message : String(error)
+      }));
+    }
+  }
+  
+  private async handleDebugAnalyze(message: { payload: { fileName: string; fileSize: number; mimeType: string; content: string } }, ws: WebSocket) {
+    try {
+      console.log('🐛 [DevBridge] Proxying debug/analyze to Vite dev server...');
+      
+      // Proxy to Vite dev server (código fonte TS com hot reload)
+      const response = await fetch('http://localhost:6001/api/debug/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message.payload)
+      });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        ws.send(JSON.stringify({
+          type: 'debug/analyze-error',
+          payload: { error }
+        }));
+        return;
+      }
+      
+      const result = await response.json();
+      ws.send(JSON.stringify({
+        type: 'debug/analyze-result',
+        payload: result
+      }));
+      
+      console.log('✅ [DevBridge] Analysis proxied successfully');
+      
+    } catch (error) {
+      console.error('❌ [DevBridge] Proxy error:', error);
+      ws.send(JSON.stringify({
+        type: 'debug/analyze-error',
+        payload: {
+          error: error instanceof Error ? error.message : String(error)
+        }
       }));
     }
   }

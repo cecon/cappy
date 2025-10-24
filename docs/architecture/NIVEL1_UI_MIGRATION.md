@@ -12,9 +12,9 @@ This document tracks the migration of all presentation layer components from leg
 - **Provider**: `src/nivel1/adapters/vscode/chat/ChatViewProvider.ts`
 - **Status**: ✅ Fully migrated; lint-clean; builds and tests pass.
 
-### 2. Documents (Knowledge Base) UI Migration
+### 2. Documents (Dashboard) UI Migration
 - **From**: Legacy webview structures
-- **To**: `src/nivel1/ui/pages/knowledge-base/DocumentsPage.tsx`
+- **To**: `src/nivel1/ui/pages/dashboard/DocumentsPage.tsx`
 - **Provider**: `src/nivel1/adapters/vscode/documents/DocumentsViewProvider.ts`
 - **Status**: ✅ Fully migrated; lint-clean; builds and tests pass.
 
@@ -68,7 +68,7 @@ src/nivel1/
 │   │   ├── chat/
 │   │   │   ├── ChatView.tsx
 │   │   │   └── tools/
-│   │   └── knowledge-base/
+│   │   └── dashboard/
 │   │       └── DocumentsPage.tsx
 │   └── graph/
 │       ├── App.tsx
@@ -110,7 +110,7 @@ src/nivel1/
 ### Entry Points
 
 - **Chat**: `src/main.tsx` → `src/App.tsx` (selects page via data-page="chat") → `nivel1/ui/pages/chat/ChatView.tsx`
-- **Documents**: `src/main.tsx` → `src/App.tsx` (selects page via data-page="documents") → `nivel1/ui/pages/knowledge-base/DocumentsPage.tsx`
+- **Documents**: `src/main.tsx` → `src/App.tsx` (selects page via data-page="documents") → `nivel1/ui/pages/dashboard/DocumentsPage.tsx`
 - **Graph**: `src/graph-main.tsx` → `nivel1/ui/graph/App.tsx` (Tabs wrapper for GraphPage/RetrievalPage/ApiPage)
 
 ### Vite Bundle Outputs

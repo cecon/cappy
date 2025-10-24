@@ -24,9 +24,9 @@ export function ToolCallConfirmation({
   };
 
   return (
-    <div className="my-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+    <div className="my-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
       <div className="flex items-start gap-3">
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="font-medium text-sm mb-1">
             🔧 {pendingTool.toolName}
           </div>
@@ -38,7 +38,7 @@ export function ToolCallConfirmation({
               <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                 View parameters
               </summary>
-              <pre className="mt-2 overflow-auto max-h-32 p-2 rounded bg-muted">
+              <pre className="mt-2 overflow-auto max-h-24 p-2 rounded bg-muted text-xs">
                 {JSON.stringify(pendingTool.args, null, 2)}
               </pre>
             </details>
