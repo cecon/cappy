@@ -5,7 +5,7 @@
  * @since 3.0.0
  */
 
-import * as sqlite3 from "sqlite3";
+import sqlite3 from "sqlite3";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -13,7 +13,7 @@ import type { GraphStorePort } from "../../../domains/graph/ports/indexing-port"
 import type { DocumentChunk } from "../../../types/chunk";
 
 /**
- * Simplified SQLite adapter using sqlite3 native bindings
+ * Simplified SQLite adapter using sqlite3
  * Compatible with VS Code Extension Host
  */
 export class SQLiteAdapter implements GraphStorePort {
@@ -47,24 +47,18 @@ export class SQLiteAdapter implements GraphStorePort {
     console.log(`📁 SQLite: Using database file: ${dbFilePath}`);
 
     try {
-      // Locate WASM
-      const extensionPath = path.dirname(path.dirname(path.dirname(path.dirname(__dirname))));
-      const wasmPath = path.join(extensionPath, "src", "assets", "sql-wasm.wasm");
-
-      const SQL = await initSqlJs({
-        locateFile: (file) => (file.endsWith(".wasm") ? wasmPath : file),
+      await new Promise<void>((resolve, reject) => {
+        this.db = new sqlite3.Database(dbFilePath, (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
       });
-      this.SQL = SQL;
 
-      let buffer: Uint8Array | undefined;
-      if (fs.existsSync(dbFilePath)) {
-        buffer = fs.readFileSync(dbFilePath);
-      }
-
-      this.db = new SQL.Database(buffer);
-      this.db.run("PRAGMA foreign_keys = ON");
-      this.createSchema();
-      this.saveToFile();
+      await this.run("PRAGMA foreign_keys = ON");
+      await this.createSchema();
       console.log("✅ SQLite: Database initialized");
     } catch (error) {
       console.error("❌ SQLite initialization error:", error);
@@ -73,27 +67,66 @@ export class SQLiteAdapter implements GraphStorePort {
   }
 
   async reloadFromDisk(): Promise<void> {
-    if (!this.SQL) return;
     try {
-      let buffer: Uint8Array | undefined;
-      if (fs.existsSync(this.dbFilePath)) {
-        buffer = fs.readFileSync(this.dbFilePath);
+      if (this.db) {
+        await new Promise<void>((resolve) => {
+          this.db!.close(() => resolve());
+        });
       }
-      if (this.db) this.db.close();
-      this.db = new this.SQL.Database(buffer);
-      this.db.run("PRAGMA foreign_keys = ON");
-      this.createSchema();
+      
+      await new Promise<void>((resolve, reject) => {
+        this.db = new sqlite3.Database(this.dbFilePath, (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      await this.run("PRAGMA foreign_keys = ON");
+      await this.createSchema();
       console.log("🔄 SQLite: Reloaded database from disk");
     } catch (error) {
       console.error("❌ SQLite reloadFromDisk error:", error);
     }
   }
 
-  private createSchema(): void {
+  private async run(sql: string, params: unknown[] = []): Promise<void> {
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      this.db!.run(sql, params, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+
+  private async all<T = unknown>(sql: string, params: unknown[] = []): Promise<T[]> {
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      this.db!.all(sql, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows as T[]);
+      });
+    });
+  }
+
+  private async get<T = unknown>(sql: string, params: unknown[] = []): Promise<T | undefined> {
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      this.db!.get(sql, params, (err, row) => {
+        if (err) reject(err);
+        else resolve(row as T | undefined);
+      });
+    });
+  }
+
+  private async createSchema(): Promise<void> {
     if (!this.db) return;
     
     // Nodes table - Hybrid schema with structured + dynamic discovery fields
-    this.db.run(`
+    await this.run(`
       CREATE TABLE IF NOT EXISTS nodes (
         id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL DEFAULT 'default',
@@ -161,10 +194,10 @@ export class SQLiteAdapter implements GraphStorePort {
         -- Extensibility
         extra_metadata TEXT
       )
-    `);
+    );
     
     // Edges table - Hybrid with dynamic relationship discovery
-    this.db.run(`
+    await this.run(`
       CREATE TABLE IF NOT EXISTS edges (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         tenant_id TEXT NOT NULL DEFAULT 'default',
@@ -192,10 +225,10 @@ export class SQLiteAdapter implements GraphStorePort {
         
         UNIQUE(tenant_id, from_id, to_id, type)
       )
-    `);
+    );
     
     // Vectors table - for semantic search
-    this.db.run(`
+    await this.run(`
       CREATE TABLE IF NOT EXISTS vectors (
         chunk_id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL DEFAULT 'default',
@@ -208,21 +241,15 @@ export class SQLiteAdapter implements GraphStorePort {
     `);
     
     // Create indices for performance
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(type)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_nodes_tenant_type ON nodes(tenant_id, type)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_nodes_discovered_type ON nodes(discovered_type)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_nodes_file_path ON nodes(file_path)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_nodes_symbol_name ON nodes(symbol_name)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_edges_from_id ON edges(from_id)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_edges_to_id ON edges(to_id)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_edges_type ON edges(type)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_vectors_tenant ON vectors(tenant_id)`);
-  }
-
-  private saveToFile(): void {
-    if (!this.db) return;
-    const data = this.db.export();
-    fs.writeFileSync(this.dbFilePath, Buffer.from(data));
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(type)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_nodes_tenant_type ON nodes(tenant_id, type)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_nodes_discovered_type ON nodes(discovered_type)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_nodes_file_path ON nodes(file_path)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_nodes_symbol_name ON nodes(symbol_name)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_edges_from_id ON edges(from_id)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_edges_to_id ON edges(to_id)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_edges_type ON edges(type)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_vectors_tenant ON vectors(tenant_id)`);
   }
 
   async getSubgraph(
@@ -931,25 +958,6 @@ export class SQLiteAdapter implements GraphStorePort {
       [rel.from, rel.to, rel.type, context, confidence]
     );
     this.saveToFile();
-  }
-
-  /**
-   * Clear all data from database (memory and disk)
-   */
-  async clearAll(): Promise<void> {
-    if (!this.db) throw new Error("SQLite not initialized");
-    
-    console.log('🗑️ Clearing all data from graph database...');
-    
-    // Delete all data from memory
-    this.db.run('DELETE FROM edges');
-    this.db.run('DELETE FROM nodes');
-    this.db.run('DELETE FROM vectors');
-    
-    // Persist empty database to disk
-    this.saveToFile();
-    
-    console.log('✅ Graph database cleared (memory + disk)');
   }
 }
 
