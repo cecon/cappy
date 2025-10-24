@@ -14,7 +14,7 @@ import { FileProcessingWorker } from '../file-processing-worker';
 import { ParserService } from '../parser-service';
 import { FileHashService } from '../file-hash-service';
 import { FileProcessingAPI } from '../file-processing-api';
-import { SQLiteAdapter } from '../../adapters/secondary/graph/sqlite-adapter';
+import { SQLiteAdapter } from '../../src/nivel2/infrastructure/database/sqlite-adapter';
 import { IndexingService } from '../indexing-service';
 
 class MockEmbeddingService {

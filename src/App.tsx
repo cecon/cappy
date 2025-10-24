@@ -1,12 +1,12 @@
-import { ChatView } from './components/ChatView'
-import DocumentsPage from './components/pages/DocumentsPage'
+import { ChatView } from './nivel1/ui/pages/chat/ChatView.tsx'
+import DocumentsPage from './nivel1/ui/pages/knowledge-base/DocumentsPage.tsx'
 
 console.log('[React App] Loading...')
 
 function App() {
   // Detect which page to render based on data-page attribute
   const rootElement = document.getElementById('root')
-  const page = rootElement?.getAttribute('data-page') || 'chat'
+  const page = (rootElement?.dataset.page) || 'chat'
   
   console.log(`[React App] Rendering page: ${page}`)
   

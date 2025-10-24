@@ -11,8 +11,8 @@ import { ParserService } from '../services/parser-service';
 import { IndexingService } from '../services/indexing-service';
 import { ASTRelationshipExtractor } from '../services/ast-relationship-extractor';
 import { EmbeddingService } from '../services/embedding-service';
-import { SQLiteAdapter } from '../adapters/secondary/graph/sqlite-adapter';
-import { createVectorStore } from '../adapters/secondary/vector/sqlite-vector-adapter';
+import { SQLiteAdapter } from '../nivel2/infrastructure/database/sqlite-adapter';
+import { createVectorStore } from '../nivel2/infrastructure/vector/sqlite-vector-adapter';
 import { ConfigService } from '../services/config-service';
 
 /**

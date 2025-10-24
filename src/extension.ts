@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { GraphPanel } from './adapters/primary/vscode/graph/GraphPanel';
-import { ChatViewProvider } from './adapters/primary/vscode/chat/ChatViewProvider';
-import { DocumentsViewProvider } from './adapters/primary/vscode/documents/DocumentsViewProvider';
-import { CreateFileTool } from './adapters/secondary/tools/create-file-tool';
-import { FetchWebTool } from './adapters/secondary/tools/fetch-web-tool';
+import { GraphPanel } from './nivel1/adapters/vscode/graph/GraphPanel';
+import { ChatViewProvider } from './nivel1/adapters/vscode/chat/ChatViewProvider';
+import { DocumentsViewProvider } from './nivel1/adapters/vscode/documents/DocumentsViewProvider';
+import { CreateFileTool } from './nivel2/infrastructure/tools/create-file-tool';
+import { FetchWebTool } from './nivel2/infrastructure/tools/fetch-web-tool';
 import { ContextRetrievalTool } from './domains/chat/tools/native/context-retrieval';
-import { LangGraphChatEngine } from './adapters/secondary/agents/langgraph-chat-engine';
+import { LangGraphChatEngine } from './nivel2/infrastructure/agents/langgraph-chat-engine';
 import { createChatService } from './domains/chat/services/chat-service';
-import { registerScanWorkspaceCommand } from './adapters/primary/vscode/commands/scan-workspace';
+import { registerScanWorkspaceCommand } from './nivel1/adapters/vscode/commands/scan-workspace';
 import { registerProcessSingleFileCommand } from './commands/process-single-file';
 import { registerDebugRetrievalCommand } from './commands/debug-retrieval';
 import { registerDebugCommand, registerDebugDatabaseCommand, registerDebugAddTestDataCommand } from './commands/debug';
@@ -20,8 +20,9 @@ import { FileProcessingWorker } from './services/file-processing-worker';
 import { FileProcessingAPI } from './services/file-processing-api';
 import { UnifiedQueueProcessor } from './services/unified-queue-processor';
 import { FileChangeWatcher } from './services/file-change-watcher';
-import { createVectorStore } from './adapters/secondary/vector/sqlite-vector-adapter';
+import { createVectorStore } from './nivel2/infrastructure/vector/sqlite-vector-adapter';
 import type { GraphStorePort } from './domains/graph/ports/indexing-port';
+import { SQLiteAdapter } from './nivel2/infrastructure/database/index.js';
 
 // Global instances for file processing system
 let fileDatabase: FileMetadataDatabase | null = null;
@@ -395,7 +396,6 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         const { FileHashService } = await import('./services/file-hash-service.js');
         const { EmbeddingService } = await import('./services/embedding-service.js');
         const { IndexingService } = await import('./services/indexing-service.js');
-        const { SQLiteAdapter } = await import('./adapters/secondary/graph/sqlite-adapter.js');
         const { ConfigService } = await import('./services/config-service.js');
         
         const parserService = new ParserService();
@@ -558,7 +558,21 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
                     }
                     const db = fileDatabase;
                     let record = db.getFileByPath(filePath);
-                    if (!record) {
+                    if (record) {
+                        // Reset existing record to pending
+                        db.updateFile(record.id, {
+                            status: 'pending',
+                            progress: 0,
+                            currentStep: 'Queued for reprocessing',
+                            errorMessage: undefined,
+                            chunksCount: undefined,
+                            nodesCount: undefined,
+                            relationshipsCount: undefined,
+                            processingStartedAt: undefined,
+                            processingCompletedAt: undefined
+                        });
+                        console.log('[Extension] 🔁 Reset existing DB record to pending:', record.id);
+                    } else {
                         // Create new record
                         const stats = await vscode.workspace.fs.stat(vscode.Uri.file(absPath));
                         const contentHash = await hashService.hashFile(absPath);
@@ -584,20 +598,6 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
                         });
                         record = db.getFile(id)!;
                         console.log('[Extension] 📝 Enqueued new DB record for reprocess:', id);
-                    } else {
-                        // Reset existing record to pending
-                        db.updateFile(record.id, {
-                            status: 'pending',
-                            progress: 0,
-                            currentStep: 'Queued for reprocessing',
-                            errorMessage: undefined,
-                            chunksCount: undefined,
-                            nodesCount: undefined,
-                            relationshipsCount: undefined,
-                            processingStartedAt: undefined,
-                            processingCompletedAt: undefined
-                        });
-                        console.log('[Extension] 🔁 Reset existing DB record to pending:', record.id);
                     }
 
                     // The UnifiedQueueProcessor will pick this up automatically on next poll

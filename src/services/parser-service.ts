@@ -5,13 +5,13 @@
  * @since 3.0.0
  */
 
-import { createTypeScriptParser } from '../adapters/secondary/parsers/typescript-parser';
-import { createMarkdownParser } from '../adapters/secondary/parsers/markdown-parser';
-import { createDocumentEnhancedParser } from '../adapters/secondary/parsers/document-enhanced-parser';
-import { createPHPParser } from '../adapters/secondary/parsers/php-parser';
-import { createBladeParser } from '../adapters/secondary/parsers/blade-parser';
-import { createHTMLParser } from '../adapters/secondary/parsers/html-parser';
-import { createViteParser } from '../adapters/secondary/parsers/vite-parser';
+import { createTypeScriptParser } from '../nivel2/infrastructure/parsers/typescript-parser';
+import { createMarkdownParser } from '../nivel2/infrastructure/parsers/markdown-parser';
+import { createDocumentEnhancedParser } from '../nivel2/infrastructure/parsers/document-enhanced-parser';
+import { createPHPParser } from '../nivel2/infrastructure/parsers/php-parser';
+import { createBladeParser } from '../nivel2/infrastructure/parsers/blade-parser';
+import { createHTMLParser } from '../nivel2/infrastructure/parsers/html-parser';
+import { createViteParser } from '../nivel2/infrastructure/parsers/vite-parser';
 import type { DocumentChunk } from '../types/chunk';
 import * as path from 'path';
 

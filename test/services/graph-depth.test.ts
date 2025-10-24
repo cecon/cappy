@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
 import initSqlJs from 'sql.js';
-import { SQLiteAdapter } from '../../adapters/secondary/graph/sqlite-adapter';
+import { SQLiteAdapter } from '../../src/nivel2/infrastructure/database/sqlite-adapter';
 import { ParserService } from '../parser-service';
 
 describe('Graph Relationship Depth Test', () => {

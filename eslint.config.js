@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'out', '.cappy', 'node_modules', 'coverage', '**/*.generated.*', '**/chat-dist/**']),
+  globalIgnores(['dist', 'out', '.cappy', 'node_modules', 'coverage', '**/*.generated.*', '**/chat-dist/**', 'src/nivel1/webviews/**', 'src/webview/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
