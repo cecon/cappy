@@ -1,10 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { cappyDevServerPlugin } from './vite-plugin-cappy-dev'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    cappyDevServerPlugin()
+  ],
   
   // Build configuration for VS Code extension
   build: {
@@ -15,6 +19,8 @@ export default defineConfig({
         main: path.resolve(import.meta.dirname, 'index.html'),
         // Graph WebView entry point
         graph: path.resolve(import.meta.dirname, 'graph.html'),
+        // Development dashboard
+        dev: path.resolve(import.meta.dirname, 'dev.html'),
       },
       output: {
         entryFileNames: '[name].js',
@@ -34,9 +40,14 @@ export default defineConfig({
   
   // Development server configuration
   server: {
-    port: 3000,
-    open: false, // Don't auto-open browser
-    cors: true
+    port: 6001,
+    open: '/dev.html', // Open dashboard on dev server start
+    cors: true,
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    }
   },
   
   // Resolve configuration

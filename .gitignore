@@ -33,6 +33,7 @@ old/
 *.njsproj
 *.sln
 *.sw?
+*.generated.css
 
 # LanceDB data
 .cappy/data/

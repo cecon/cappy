@@ -6,15 +6,15 @@
  */
 
 import * as vscode from 'vscode';
-import { WorkspaceScanner } from '../../../../services/workspace-scanner';
-import type { ScanProgress } from '../../../../services/workspace-scanner';
-import { ParserService } from '../../../../services/parser-service';
-import { EmbeddingService } from '../../../../services/embedding-service';
-import { IndexingService } from '../../../../services/indexing-service';
+import { WorkspaceScanner } from '../../../../nivel2/infrastructure/services/workspace-scanner';
+import type { ScanProgress } from '../../../../nivel2/infrastructure/services/workspace-scanner';
+import { ParserService } from '../../../../nivel2/infrastructure/services/parser-service';
+import { EmbeddingService } from '../../../../nivel2/infrastructure/services/embedding-service';
+import { IndexingService } from '../../../../nivel2/infrastructure/services/indexing-service';
 import { SQLiteAdapter } from '../../../../nivel2/infrastructure/database/sqlite-adapter';
 import { SQLiteVectorStore } from '../../../../nivel2/infrastructure/vector/sqlite-vector-adapter';
 import * as path from 'path';
-import { ConfigService } from '../../../../services/config-service';
+import { ConfigService } from '../../../../nivel2/infrastructure/services/config-service';
 
 /**
  * Registers the scan workspace command

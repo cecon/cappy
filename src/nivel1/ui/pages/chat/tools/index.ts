@@ -1,2 +1,2 @@
-export * from './ToolCallConfirmation.tsx';
-export * from './types.ts';
+export * from './ToolCallConfirmation';
+export * from './types';

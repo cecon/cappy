@@ -7,7 +7,7 @@
 
 import * as fs from 'fs';
 import matter from 'gray-matter';
-import type { DocumentChunk } from '../../../types/chunk';
+import type { DocumentChunk } from '../../../shared/types/chunk';
 
 /**
  * Markdown section

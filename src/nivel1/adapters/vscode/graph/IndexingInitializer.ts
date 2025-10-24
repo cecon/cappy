@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { EmbeddingService } from '../../../../services/embedding-service';
+import { EmbeddingService } from '../../../../nivel2/infrastructure/services/embedding-service';
 import { SQLiteAdapter } from '../../../../nivel2/infrastructure/database/sqlite-adapter';
-import { IndexingService } from '../../../../services/indexing-service';
+import { IndexingService } from '../../../../nivel2/infrastructure/services/indexing-service';
 import { createVectorStore } from '../../../../nivel2/infrastructure/vector/sqlite-vector-adapter';
 
 export interface GraphInitResult {

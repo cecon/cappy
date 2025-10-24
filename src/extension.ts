@@ -14,15 +14,16 @@ import { registerDebugRetrievalCommand } from './commands/debug-retrieval';
 import { registerDebugCommand, registerDebugDatabaseCommand, registerDebugAddTestDataCommand } from './commands/debug';
 import { reanalyzeRelationships } from './commands/reanalyze-relationships';
 import { registerResetDatabaseCommand } from './commands/reset-database';
-import { FileMetadataDatabase } from './services/file-metadata-database';
-import { FileProcessingQueue } from './services/file-processing-queue';
-import { FileProcessingWorker } from './services/file-processing-worker';
-import { FileProcessingAPI } from './services/file-processing-api';
-import { UnifiedQueueProcessor } from './services/unified-queue-processor';
-import { FileChangeWatcher } from './services/file-change-watcher';
+import { FileMetadataDatabase } from './nivel2/infrastructure/services/file-metadata-database';
+import { FileProcessingQueue } from './nivel2/infrastructure/services/file-processing-queue';
+import { FileProcessingWorker } from './nivel2/infrastructure/services/file-processing-worker';
+import { FileProcessingAPI } from './nivel2/infrastructure/services/file-processing-api';
+import { UnifiedQueueProcessor } from './nivel2/infrastructure/services/unified-queue-processor';
+import { FileChangeWatcher } from './nivel2/infrastructure/services/file-change-watcher';
 import { createVectorStore } from './nivel2/infrastructure/vector/sqlite-vector-adapter';
 import type { GraphStorePort } from './domains/graph/ports/indexing-port';
 import { SQLiteAdapter } from './nivel2/infrastructure/database/index.js';
+import { DevServerBridge } from './nivel1/adapters/vscode/dev-server-bridge';
 
 // Global instances for file processing system
 let fileDatabase: FileMetadataDatabase | null = null;
@@ -112,7 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
     const searchCommand = vscode.commands.registerCommand('cappy.search', async () => {
 
     const vscode = await import('vscode');
-    const { HybridRetriever } = await import('./services/hybrid-retriever.js');
+    const { HybridRetriever } = await import('./nivel2/infrastructure/services/hybrid-retriever.js');
 
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
@@ -338,6 +339,11 @@ export function activate(context: vscode.ExtensionContext) {
     const chatEngine = new LangGraphChatEngine();
     const chatService = createChatService(chatEngine);
 
+    // Start WebSocket dev server bridge (porta 7001)
+    const devBridge = new DevServerBridge(7001, chatService);
+    context.subscriptions.push({ dispose: () => devBridge.dispose() });
+    console.log('🔌 Dev Server Bridge started on port 7001');
+
     // Register Chat View Provider for sidebar
     const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
     const chatViewDisposable = vscode.window.registerWebviewViewProvider(
@@ -392,11 +398,11 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         console.log('✅ File metadata database initialized at:', dbPath);
 
         // Initialize services for worker
-        const { ParserService } = await import('./services/parser-service.js');
-        const { FileHashService } = await import('./services/file-hash-service.js');
-        const { EmbeddingService } = await import('./services/embedding-service.js');
-        const { IndexingService } = await import('./services/indexing-service.js');
-        const { ConfigService } = await import('./services/config-service.js');
+        const { ParserService } = await import('./nivel2/infrastructure/services/parser-service.js');
+        const { FileHashService } = await import('./nivel2/infrastructure/services/file-hash-service.js');
+        const { EmbeddingService } = await import('./nivel2/infrastructure/services/embedding-service.js');
+        const { IndexingService } = await import('./nivel2/infrastructure/services/indexing-service.js');
+        const { ConfigService } = await import('./nivel2/infrastructure/services/config-service.js');
         
         const parserService = new ParserService();
         // Enable enhanced parsing with LLM entity extraction for documents (.md, .pdf, .docx)
@@ -427,7 +433,7 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         if (contextRetrievalToolInstance && graphStoreInstance) {
             try {
                 // Pass graphStore to HybridRetriever so it can search the database
-                const { HybridRetriever } = await import('./services/hybrid-retriever.js');
+                const { HybridRetriever } = await import('./nivel2/infrastructure/services/hybrid-retriever.js');
                 const hybridRetriever = new HybridRetriever(undefined, graphStoreInstance);
                 
                 // Update the EXISTING instance (don't create a new one!)
@@ -441,7 +447,7 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         // Initialize VSCode LLM Provider for entity discovery
         let llmProvider;
         try {
-            const { VSCodeLLMProvider } = await import('./services/entity-discovery/providers/VSCodeLLMProvider.js');
+            const { VSCodeLLMProvider } = await import('./nivel2/infrastructure/services/entity-discovery/providers/VSCodeLLMProvider.js');
             llmProvider = new VSCodeLLMProvider();
             await llmProvider.initialize();
             console.log('✅ VSCode LLM Provider initialized for entity discovery');

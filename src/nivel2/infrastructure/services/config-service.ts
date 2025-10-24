@@ -8,12 +8,12 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { CappyConfig, TypeScriptChunkingConfig, MarkdownChunkingConfig } from '../types/config';
+import type { SystemCappyConfig, TypeScriptChunkingConfig, MarkdownChunkingConfig } from '../../../shared/types/config';
 
 /**
  * Default configuration
  */
-const DEFAULT_CONFIG: CappyConfig = {
+const DEFAULT_CONFIG: SystemCappyConfig = {
   indexing: {
     enabledFileTypes: ['.ts', '.tsx', '.js', '.jsx', '.md'],
     chunking: {
@@ -58,7 +58,7 @@ const DEFAULT_CONFIG: CappyConfig = {
  * Configuration service
  */
 export class ConfigService {
-  private config: CappyConfig;
+  private config: SystemCappyConfig;
   private configPath: string;
   private workspaceRoot: string;
 
@@ -71,11 +71,11 @@ export class ConfigService {
   /**
    * Loads configuration from file or returns default
    */
-  private loadConfig(): CappyConfig {
+  private loadConfig(): SystemCappyConfig {
     try {
       if (fs.existsSync(this.configPath)) {
         const content = fs.readFileSync(this.configPath, 'utf-8');
-        const loaded = JSON.parse(content) as Partial<CappyConfig>;
+        const loaded = JSON.parse(content) as Partial<SystemCappyConfig>;
         // Merge with defaults to ensure all fields exist
         return { ...DEFAULT_CONFIG, ...loaded };
       }
@@ -88,7 +88,7 @@ export class ConfigService {
   /**
    * Gets the current configuration
    */
-  getConfig(): CappyConfig {
+  getConfig(): SystemCappyConfig {
     return this.config;
   }
 

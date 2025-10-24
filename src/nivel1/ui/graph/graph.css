@@ -1,5 +1,5 @@
 /* Graph-specific entry point - imports everything needed */
-@import './index.css';
+@import '../index.css';
 
 /* Graph page specific overrides */
 body {

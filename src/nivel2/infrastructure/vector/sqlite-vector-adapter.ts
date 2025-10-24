@@ -5,10 +5,10 @@
  * @since 3.0.0
  */
 
-import type { DocumentChunk } from "../../../types/chunk";
+import type { DocumentChunk } from "../../../shared/types/chunk";
 import type { VectorStorePort } from "../../../domains/graph/ports/indexing-port";
-import type { EmbeddingService } from "../../../services/embedding-service";
-import { SQLiteAdapter } from "../graph/sqlite-adapter";
+import type { EmbeddingService } from "../services/embedding-service";
+import { SQLiteAdapter } from "../database/sqlite-adapter";
 
 /**
  * SQLite-based vector store implementing VectorStorePort

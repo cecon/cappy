@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { IndexingService } from '../../../../services/indexing-service';
+import { IndexingService } from '../../../../nivel2/infrastructure/services/indexing-service';
 import type { UseCase, UseCaseContext, WebviewMessage } from './usecases/UseCase';
 import { ReadyUseCase } from './usecases/ReadyUseCase';
 import { LoadSubgraphUseCase } from './usecases/LoadSubgraphUseCase';

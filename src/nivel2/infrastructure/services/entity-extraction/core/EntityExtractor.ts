@@ -5,8 +5,8 @@ import type {
   EntityExtractionResult,
   EntityType,
   RelationshipType
-} from '../../../types/entity';
-import type { DocumentChunk } from '../../../types/chunk';
+} from '../../../../../shared/types/entity';
+import type { DocumentChunk } from '../../../../../shared/types/chunk';
 import { ENTITY_EXTRACTION_PROMPT } from '../prompts';
 
 /**

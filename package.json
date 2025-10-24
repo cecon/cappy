@@ -302,7 +302,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && tailwindcss -i ./src/index.css -o ./src/index.generated.css && tailwindcss -i ./src/graph.css -o ./src/graph.generated.css && vite build",
+    "dev:ui": "vite --open /dev.html",
+    "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
@@ -316,13 +317,13 @@
     "watch": "tsc -watch -p ./",
     "package": "npm version patch && npm run compile-extension && vsce package --dependencies",
     "package:win32": "node scripts/package-platform.js win32",
-  "package:darwin": "node scripts/package-platform.js darwin-x64 && node scripts/package-platform.js darwin-arm64",
+    "package:darwin": "node scripts/package-platform.js darwin-x64 && node scripts/package-platform.js darwin-arm64",
     "package:linux": "node scripts/package-platform.js linux",
     "package:all": "npm run package:win32 && npm run package:darwin && npm run package:linux",
     "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix",
-  "publish:win32": "node scripts/package-platform.js win32 && vsce publish --packagePath cappy-*-win32.vsix",
-  "publish:darwin": "node scripts/package-platform.js darwin-x64 && node scripts/package-platform.js darwin-arm64 && vsce publish --packagePath cappy-*-darwin-x64.vsix && vsce publish --packagePath cappy-*-darwin-arm64.vsix",
-  "publish:linux": "node scripts/package-platform.js linux && vsce publish --packagePath cappy-*-linux.vsix",
+    "publish:win32": "node scripts/package-platform.js win32 && vsce publish --packagePath cappy-*-win32.vsix",
+    "publish:darwin": "node scripts/package-platform.js darwin-x64 && node scripts/package-platform.js darwin-arm64 && vsce publish --packagePath cappy-*-darwin-x64.vsix && vsce publish --packagePath cappy-*-darwin-arm64.vsix",
+    "publish:linux": "node scripts/package-platform.js linux && vsce publish --packagePath cappy-*-linux.vsix",
     "publish:all": "npm run publish:win32 && npm run publish:darwin && npm run publish:linux"
   },
   "dependencies": {
@@ -357,6 +358,7 @@
     "sigma": "^3.0.2",
     "sqlite3": "^5.1.7",
     "tailwind-merge": "^3.3.1",
+    "ws": "^8.18.3",
     "yaml": "^2.8.1"
   },
   "optionalDependencies": {
@@ -372,6 +374,7 @@
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
     "@types/vscode": "^1.105.0",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.0.4",
     "@vitest/ui": "^3.2.4",
     "@vscode/vsce": "^3.6.2",

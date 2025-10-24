@@ -1,7 +1,7 @@
 import * as http from 'http';
 import type { FileProcessingQueue } from './file-processing-queue';
 import type { FileMetadataDatabase, FileMetadata } from './file-metadata-database';
-import type { GraphStorePort } from '../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../domains/graph/ports/indexing-port';
 
 export interface FileUploadRequest {
   filePath: string;

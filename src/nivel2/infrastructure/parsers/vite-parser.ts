@@ -5,7 +5,7 @@
  * @since 3.0.0
  */
 
-import type { DocumentChunk } from '../../../types/chunk';
+import type { DocumentChunk } from '../../../shared/types/chunk';
 import * as fs from 'fs';
 
 /**

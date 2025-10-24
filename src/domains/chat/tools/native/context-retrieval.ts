@@ -6,8 +6,8 @@
 
 import * as vscode from 'vscode';
 import { ToolCategory } from '../types';
-import { HybridRetriever, type HybridRetrieverOptions } from '../../../../services/hybrid-retriever';
-import { GraphService } from '../../../../services/graph-service';
+import { HybridRetriever, type HybridRetrieverOptions } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
+import { GraphService } from '../../../../nivel2/infrastructure/services/graph-service';
 import type { GraphData } from '../../../../domains/graph/types';
 
 interface ContextRetrievalInput {

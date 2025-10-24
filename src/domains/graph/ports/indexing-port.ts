@@ -5,7 +5,7 @@
  * @since 3.0.0
  */
 
-import type { DocumentChunk, FileIndexEntry } from '../../../types/chunk';
+import type { DocumentChunk, FileIndexEntry } from '../../../shared/types/chunk';
 
 /**
  * Vector store port (SQLite with embeddings)

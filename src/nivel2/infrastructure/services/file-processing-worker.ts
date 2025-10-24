@@ -9,9 +9,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ParserService } from './parser-service';
 import { FileHashService } from './file-hash-service';
-import type { DocumentChunk } from '../types/chunk';
+import type { DocumentChunk } from '../../../shared/types/chunk';
 import type { IndexingService } from './indexing-service';
-import type { GraphStorePort } from '../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../domains/graph/ports/indexing-port';
 import { ASTRelationshipExtractor } from './ast-relationship-extractor';
 
 /**

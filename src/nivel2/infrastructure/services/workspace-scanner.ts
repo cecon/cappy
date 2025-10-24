@@ -14,8 +14,8 @@ import { FileMetadataExtractor } from './file-metadata-extractor';
 import { ASTRelationshipExtractor } from './ast-relationship-extractor';
 import { ParserService } from './parser-service';
 import { IndexingService } from './indexing-service';
-import type { FileIndexEntry } from '../types/chunk';
-import type { GraphStorePort } from '../domains/graph/ports/indexing-port';
+import type { FileIndexEntry } from '../../../shared/types/chunk';
+import type { GraphStorePort } from '../../../domains/graph/ports/indexing-port';
 
 /**
  * Workspace scanner configuration

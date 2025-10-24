@@ -9,9 +9,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import matter from 'gray-matter';
 import mammoth from 'mammoth';
-import type { DocumentChunk } from '../../../types/chunk';
-import type { DocumentEntityMetadata } from '../../../types/entity';
-import { createEntityExtractor } from '../../../services/entity-extraction';
+import type { DocumentChunk } from '../../../shared/types/chunk';
+import type { DocumentEntityMetadata } from '../../../shared/types/entity';
+import { createEntityExtractor } from '../services/entity-extraction';
 
 /**
  * Enhanced document parser with entity extraction
@@ -291,9 +291,9 @@ export class DocumentEnhancedParser {
         if (extractionResult) {
           // Add entity metadata to chunk
           const entityMetadata: DocumentEntityMetadata = {
-            entities: extractionResult.entities.map(e => e.name),
+            entities: extractionResult.entities.map((e: { name: unknown; }) => String(e.name)),
             entityTypes: Object.fromEntries(
-              extractionResult.entities.map(e => [e.name, e.type])
+              extractionResult.entities.map((e: { name: unknown; type: unknown; }) => [e.name, e.type])
             ),
             relationships: extractionResult.relationships,
             extractedAt: extractionResult.metadata.timestamp,

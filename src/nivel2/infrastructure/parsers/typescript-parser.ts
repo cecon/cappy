@@ -6,7 +6,7 @@
  */
 
 import { parse } from '@typescript-eslint/parser';
-import type { DocumentChunk } from '../../../types/chunk';
+import type { DocumentChunk } from '../../../shared/types/chunk';
 import * as fs from 'fs';
 
 /**

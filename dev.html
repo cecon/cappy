@@ -1,0 +1,130 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cappy - Development Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-900 text-white">
+    <div class="min-h-screen p-8">
+      <header class="mb-8">
+        <h1 class="text-4xl font-bold mb-2"> Cappy Development Dashboard</h1>
+        <p class="text-gray-400">Ambiente de desenvolvimento para UIs do Cappy Framework</p>
+      </header>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <!-- Chat UI Card -->
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 hover:border-blue-500 transition-colors">
+          <div class="flex items-center mb-4">
+            <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center mr-4">
+              <span class="text-2xl"></span>
+            </div>
+            <div>
+              <h2 class="text-xl font-bold">Chat UI</h2>
+              <p class="text-sm text-gray-400">Interface de conversação</p>
+            </div>
+          </div>
+          <a 
+            href="/" 
+            target="_blank"
+            class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg text-center transition-colors"
+          >
+            Abrir Chat UI 
+          </a>
+          <div class="mt-4 text-xs text-gray-400">
+            <p> Entry: <code class="bg-gray-900 px-2 py-1 rounded">index.html</code></p>
+            <p> Main: <code class="bg-gray-900 px-2 py-1 rounded">src/nivel1/main.tsx</code></p>
+          </div>
+        </div>
+
+        <!-- Graph UI Card -->
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 hover:border-purple-500 transition-colors">
+          <div class="flex items-center mb-4">
+            <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center mr-4">
+              <span class="text-2xl"></span>
+            </div>
+            <div>
+              <h2 class="text-xl font-bold">Graph UI</h2>
+              <p class="text-sm text-gray-400">Visualizador de grafo de conhecimento</p>
+            </div>
+          </div>
+          <a 
+            href="/graph.html" 
+            target="_blank"
+            class="block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg text-center transition-colors"
+          >
+            Abrir Graph UI 
+          </a>
+          <div class="mt-4 text-xs text-gray-400">
+            <p> Entry: <code class="bg-gray-900 px-2 py-1 rounded">graph.html</code></p>
+            <p> Main: <code class="bg-gray-900 px-2 py-1 rounded">src/nivel1/graph-main.tsx</code></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info Panel -->
+      <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <h3 class="text-lg font-bold mb-4"> Informações do Servidor</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p class="text-gray-400 text-sm">Status</p>
+            <p class="font-semibold text-green-400"> Running</p>
+          </div>
+          <div>
+            <p class="text-gray-400 text-sm">Port</p>
+            <p class="font-semibold">6001</p>
+          </div>
+          <div>
+            <p class="text-gray-400 text-sm">Hot Reload</p>
+            <p class="font-semibold text-green-400"> Enabled</p>
+          </div>
+          <div>
+            <p class="text-gray-400 text-sm">Framework</p>
+            <p class="font-semibold">Vite + React</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Commands -->
+      <div class="mt-8 bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <h3 class="text-lg font-bold mb-4"> Comandos Rápidos</h3>
+        <div class="space-y-2 font-mono text-sm">
+          <div class="bg-gray-900 p-3 rounded">
+            <span class="text-gray-400">Iniciar dev server:</span>
+            <code class="text-blue-400 ml-2">npm run dev</code>
+          </div>
+          <div class="bg-gray-900 p-3 rounded">
+            <span class="text-gray-400">Build para produção:</span>
+            <code class="text-blue-400 ml-2">npm run build</code>
+          </div>
+          <div class="bg-gray-900 p-3 rounded">
+            <span class="text-gray-400">Compilar extensão:</span>
+            <code class="text-blue-400 ml-2">npm run compile</code>
+          </div>
+          <div class="bg-gray-900 p-3 rounded">
+            <span class="text-gray-400">Empacotar extensão:</span>
+            <code class="text-blue-400 ml-2">npm run package:win32</code>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <footer class="mt-8 text-center text-gray-500 text-sm">
+        <p>Cappy Framework v3.0.8 - Development Environment</p>
+        <p class="mt-2">Desenvolvido com  por Eduardo Cecon</p>
+      </footer>
+    </div>
+
+    <script>
+      // Auto-refresh status indicator
+      setInterval(() => {
+        fetch('/').then(() => {
+          document.querySelector('.text-green-400').textContent = ' Running';
+        }).catch(() => {
+          document.querySelector('.text-green-400').textContent = ' Offline';
+        });
+      }, 5000);
+    </script>
+  </body>
+</html>

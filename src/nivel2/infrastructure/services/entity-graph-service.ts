@@ -5,15 +5,18 @@
  * @since 3.1.0
  */
 
-import type { GraphStorePort } from '../domains/graph/ports/indexing-port';
-import type { ExtractedEntity, EntityRelationship, EntityExtractionResult } from '../types/entity';
-import type { DocumentChunk } from '../types/chunk';
+import type { GraphStorePort } from '../../../domains/graph/ports/indexing-port';
+import type { ExtractedEntity, EntityRelationship, EntityExtractionResult } from '../../../shared/types/entity';
+import type { DocumentChunk } from '../../../shared/types/chunk';
 
 /**
  * Service for integrating extracted entities into the graph
  */
 export class EntityGraphService {
-  constructor(private graphStore: GraphStorePort) {}
+  private graphStore: GraphStorePort;
+  constructor(graphStore: GraphStorePort) {
+    this.graphStore = graphStore;
+  }
 
   /**
    * Processes extraction results and integrates with graph

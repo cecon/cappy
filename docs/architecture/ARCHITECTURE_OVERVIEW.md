@@ -1,6 +1,147 @@
-# 🏗️ CAPPY - Arquitetura Nivel 1/2/Shared
+# 🏗️ CAPPY - Arquitetura Geral
 
-## 📁 Estrutura de Diretórios
+> **Última Atualização:** Outubro 2025  
+> **Status:** Implementação em andamento - Refatoração Nivel1/Nivel2/Shared
+
+## 📋 Índice
+- [Visão Geral](#visão-geral)
+- [Estrutura Real Atual](#estrutura-real-atual)
+- [Arquitetura Planejada](#arquitetura-planejada)
+- [Separação de Responsabilidades](#separação-de-responsabilidades)
+- [Fluxo de Dados](#fluxo-de-dados)
+- [Documentos Relacionados](#documentos-relacionados)
+
+---
+
+## 🎯 Visão Geral
+
+O Cappy utiliza uma **arquitetura em 3 camadas** inspirada em Clean Architecture e Hexagonal Architecture:
+
+1. **`nivel1/`** - Camada de Apresentação (Frontend/UI/Adapters)
+2. **`nivel2/`** - Camada de Backend (Infraestrutura/Serviços/Lógica)
+3. **`shared/`** - Código compartilhado (Types, Utils, Constants, Errors)
+
+### Status da Migração
+
+- ✅ **UI Components** - Migrados para `nivel1/ui/`
+- ✅ **Adapters VSCode** - Migrados para `nivel1/adapters/vscode/`
+- ✅ **Services** - Migrados para `nivel2/infrastructure/services/`
+- ✅ **Types** - Consolidados em `shared/types/`
+- � **Commands** - Em migração para `nivel1/adapters/vscode/commands/`
+- 🚧 **Domains** - Estrutura em evolução
+
+---
+
+## �📁 Estrutura Real Atual
+
+```
+src/
+├── nivel1/                         # FRONTEND / PRESENTATION LAYER
+│   ├── adapters/
+│   │   └── vscode/
+│   │       ├── chat/              # ChatViewProvider
+│   │       ├── documents/         # DocumentsViewProvider
+│   │       ├── graph/             # GraphPanel + UseCases
+│   │       └── commands/          # Comandos do VS Code
+│   │           └── scan-workspace.ts
+│   │
+│   └── ui/                        # React Components
+│       ├── graph/                 # Graph Visualizer (Sigma.js + React)
+│       │   ├── App.tsx
+│       │   ├── GraphVisualizer.tsx
+│       │   ├── pages/
+│       │   └── layout/
+│       ├── pages/
+│       │   ├── chat/              # Chat Interface
+│       │   └── knowledge-base/    # Documents Panel
+│       ├── primitives/            # UI Primitives (Button, Card, Tabs)
+│       └── [Button|Card].tsx      # Re-exports
+│
+├── nivel2/                        # BACKEND / INFRASTRUCTURE LAYER
+│   └── infrastructure/
+│       ├── services/              # Core Services (migrado de src/services)
+│       │   ├── embedding-service.ts
+│       │   ├── indexing-service.ts
+│       │   ├── parser-service.ts
+│       │   ├── workspace-scanner.ts
+│       │   ├── hybrid-retriever.ts
+│       │   ├── config-service.ts
+│       │   ├── file-processing-*.ts
+│       │   ├── ast-relationship-extractor.ts
+│       │   ├── entity-extraction/
+│       │   └── entity-discovery/
+│       │
+│       ├── parsers/               # File Parsers
+│       │   ├── typescript-parser.ts
+│       │   ├── markdown-parser.ts
+│       │   ├── document-enhanced-parser.ts
+│       │   ├── php-parser.ts
+│       │   ├── blade-parser.ts
+│       │   ├── html-parser.ts
+│       │   └── vite-parser.ts
+│       │
+│       ├── database/              # SQLite Adapter (Graph DB)
+│       │   ├── sqlite-adapter.ts
+│       │   └── index.ts
+│       │
+│       ├── vector/                # Vector Store
+│       │   └── sqlite-vector-adapter.ts
+│       │
+│       ├── tools/                 # LM Tools
+│       │   ├── create-file-tool.ts
+│       │   └── fetch-web-tool.ts
+│       │
+│       ├── agents/                # LangGraph Chat Engine
+│       │   └── langgraph-chat-engine.ts
+│       │
+│       └── history/               # Chat History
+│           └── sqlite-history-adapter.ts
+│
+├── domains/                       # DOMAIN LAYER (Business Logic)
+│   ├── chat/
+│   │   ├── services/
+│   │   │   └── chat-service.ts
+│   │   └── tools/
+│   │       └── native/
+│   │           └── context-retrieval.ts
+│   │
+│   └── graph/
+│       ├── ports/
+│       │   └── indexing-port.ts   # Interfaces (VectorStorePort, GraphStorePort)
+│       └── types/
+│           └── [graph types]
+│
+├── shared/                        # SHARED UTILITIES
+│   ├── types/                     # TypeScript Types (consolidado)
+│   │   ├── chunk.ts              # DocumentChunk, ChunkMetadata
+│   │   ├── entity.ts             # ExtractedEntity, EntityRelationship
+│   │   ├── config.ts             # CappyConfig, SystemCappyConfig
+│   │   ├── documents.ts          # DocumentData, DocumentStatus
+│   │   ├── graph.ts              # GraphNode, NodeType
+│   │   └── tasks.ts              # Task types
+│   │
+│   ├── constants/
+│   ├── errors/
+│   ├── utils/
+│   └── index.ts
+│
+├── commands/                      # Legacy Commands (a migrar)
+│   ├── process-single-file.ts
+│   ├── reanalyze-relationships.ts
+│   ├── diagnose-graph.ts
+│   ├── debug.ts
+│   ├── debug-retrieval.ts
+│   └── reset-database.ts
+│
+├── lib/                          # External Libraries
+└── extension.ts                  # Extension Entry Point
+```
+
+---
+
+## 🎯 Arquitetura Planejada (Ideal)
+
+A estrutura planejada segue Clean Architecture mais estritamente:
 
 ```
 src/
@@ -369,7 +510,59 @@ export function activate(context: vscode.ExtensionContext) {
 └────────────────────────────────────────┘
 ```
 
-**Persistence:** File System (.cappy/)
-**AI:** OpenAI API
-**Graph:** In-memory + FS persistence
-**UI:** VS Code Webviews (React)
+---
+
+## 📚 Documentos Relacionados
+
+Para mais detalhes sobre partes específicas da arquitetura, consulte:
+
+- **[NIVEL1_UI_MIGRATION.md](./NIVEL1_UI_MIGRATION.md)** - Status da migração da UI
+- **[hexagonal-graph-design.md](./hexagonal-graph-design.md)** - Arquitetura hexagonal do Graph
+- **[QUEUE_BASED_PROCESSING_ARCHITECTURE.md](./QUEUE_BASED_PROCESSING_ARCHITECTURE.md)** - Sistema de filas
+- **[../HYBRID_RETRIEVER_README.md](../HYBRID_RETRIEVER_README.md)** - Sistema de recuperação híbrida
+- **[../QUEUE_SYSTEM_GUIDE.md](../QUEUE_SYSTEM_GUIDE.md)** - Guia do sistema de filas
+- **[../TASK_WORKFLOW.md](../TASK_WORKFLOW.md)** - Workflow de tarefas
+
+---
+
+## 🔄 Estado da Refatoração
+
+### ✅ Concluído
+
+1. **Migração de Services** - `src/services/` → `src/nivel2/infrastructure/services/`
+2. **Consolidação de Types** - `src/types/` → `src/shared/types/`
+3. **Migração de UI** - Componentes para `src/nivel1/ui/`
+4. **Migração de Adapters** - ViewProviders para `src/nivel1/adapters/vscode/`
+5. **Remoção de CSS gerados** - Processamento via PostCSS/Tailwind no build
+
+### 🚧 Em Andamento
+
+1. **Migração de Commands** - `src/commands/` → `src/nivel1/adapters/vscode/commands/`
+2. **Organização de Domains** - Estruturar melhor `src/domains/`
+3. **Limpeza de Legacy** - Remover arquivos não utilizados
+
+### 📋 Pendente
+
+1. **Domain Entities** - Criar entities de negócio puras
+2. **Use Cases** - Implementar casos de uso no domínio
+3. **Repository Interfaces** - Separar interfaces de implementações
+4. **Dependency Injection** - Melhorar injeção de dependências
+
+---
+
+## 🦫 Tech Stack
+
+- **Runtime:** VS Code Extension Host (Node.js)
+- **UI:** React + TypeScript + Tailwind CSS
+- **Graph Viz:** Sigma.js + Graphology
+- **Database:** SQLite com extensões (FTS5, sqlite-vec)
+- **Vector Search:** Xenova Transformers (MiniLM-L6-v2)
+- **Embeddings:** @xenova/transformers
+- **LLM:** GitHub Copilot API (via VS Code)
+- **Agents:** LangGraph
+- **Build:** Vite + esbuild + TypeScript
+- **Parsers:** TypeScript AST, Remark (Markdown), Mammoth (DOCX), PDF-parse
+
+---
+
+*Para contribuir com a arquitetura, consulte o [INDEX.md](../INDEX.md) principal.*

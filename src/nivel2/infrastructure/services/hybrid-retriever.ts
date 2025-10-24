@@ -8,8 +8,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import type { GraphData, GraphNode } from '../domains/graph/types';
-import { SearchGraphUseCase, type SearchGraphOptions } from '../domains/graph/use-cases';
+import type { GraphData, GraphNode } from '../../../domains/graph/types';
+import { SearchGraphUseCase, type SearchGraphOptions } from '../../../domains/graph/use-cases';
 
 /**
  * Index entry from docs/rules/tasks indexes
@@ -258,9 +258,9 @@ export class HybridRetriever {
   private graphData: GraphData | null = null;
   private searchUseCase: SearchGraphUseCase;
   private workspaceRoot: string | null = null;
-  private graphStore: import('../domains/graph/ports/indexing-port').GraphStorePort | null = null;
+  private graphStore: import('../../../domains/graph/ports/indexing-port').GraphStorePort | null = null;
   
-  constructor(graphData?: GraphData, graphStore?: import('../domains/graph/ports/indexing-port').GraphStorePort) {
+  constructor(graphData?: GraphData, graphStore?: import('../../../domains/graph/ports/indexing-port').GraphStorePort) {
     this.graphData = graphData || null;
     this.graphStore = graphStore || null;
     this.searchUseCase = new SearchGraphUseCase();

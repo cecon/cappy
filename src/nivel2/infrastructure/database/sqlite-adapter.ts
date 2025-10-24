@@ -9,7 +9,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { GraphStorePort } from "../../../domains/graph/ports/indexing-port";
-import type { DocumentChunk } from "../../../types/chunk";
+import type { DocumentChunk } from "../../../shared/types/chunk";
 
 /**
  * Simplified SQLite adapter using sqlite3

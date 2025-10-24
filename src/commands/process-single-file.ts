@@ -7,13 +7,13 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { ParserService } from '../services/parser-service';
-import { IndexingService } from '../services/indexing-service';
-import { ASTRelationshipExtractor } from '../services/ast-relationship-extractor';
-import { EmbeddingService } from '../services/embedding-service';
+import { ParserService } from '../nivel2/infrastructure/services/parser-service';
+import { IndexingService } from '../nivel2/infrastructure/services/indexing-service';
+import { ASTRelationshipExtractor } from '../nivel2/infrastructure/services/ast-relationship-extractor';
+import { EmbeddingService } from '../nivel2/infrastructure/services/embedding-service';
 import { SQLiteAdapter } from '../nivel2/infrastructure/database/sqlite-adapter';
 import { createVectorStore } from '../nivel2/infrastructure/vector/sqlite-vector-adapter';
-import { ConfigService } from '../services/config-service';
+import { ConfigService } from '../nivel2/infrastructure/services/config-service';
 
 /**
  * Progress callback type

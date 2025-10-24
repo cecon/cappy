@@ -6,7 +6,7 @@
  */
 
 import { parse } from '@typescript-eslint/parser';
-import type { DocumentChunk, GraphRelationship } from '../types/chunk';
+import type { DocumentChunk, GraphRelationship } from '../../../shared/types/chunk';
 import { ExternalPackageResolver, type PackageResolution } from './external-package-resolver';
 import * as fs from 'fs';
 import * as path from 'path';

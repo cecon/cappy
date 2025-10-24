@@ -1,5 +1,5 @@
-import { ChatView } from './nivel1/ui/pages/chat/ChatView.tsx'
-import DocumentsPage from './nivel1/ui/pages/knowledge-base/DocumentsPage.tsx'
+import { ChatView } from './pages/chat/ChatView.tsx'
+import DocumentsPage from './pages/knowledge-base/DocumentsPage.tsx'
 
 console.log('[React App] Loading...')
 

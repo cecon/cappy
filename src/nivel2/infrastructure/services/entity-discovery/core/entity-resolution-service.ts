@@ -1,6 +1,6 @@
 import type { DiscoveredEntity } from '../entities/DiscoveredEntity';
 import type { DiscoveredRelationship } from '../entities/DiscoveredRelationship';
-import type { GraphStorePort } from '../../../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../../../domains/graph/ports/indexing-port';
 
 export class EntityResolutionService {
   private graphStore: GraphStorePort;

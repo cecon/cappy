@@ -7,7 +7,7 @@
 
 import * as vscode from 'vscode';
 import type { GraphStorePort } from '../domains/graph/ports/indexing-port';
-import { ASTRelationshipExtractor } from '../services/ast-relationship-extractor';
+import { ASTRelationshipExtractor } from '../nivel2/infrastructure/services/ast-relationship-extractor';
 import * as path from 'path';
 import * as fs from 'fs';
 

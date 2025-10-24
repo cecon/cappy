@@ -4,7 +4,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { FileMetadataDatabase } from '../services/file-metadata-database';
+import { FileMetadataDatabase } from '../nivel2/infrastructure/services/file-metadata-database';
 
 export function registerDebugCommand(context: vscode.ExtensionContext): void {
   const command = vscode.commands.registerCommand('cappy.debug', async () => {

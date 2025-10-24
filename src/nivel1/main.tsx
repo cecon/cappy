@@ -1,8 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import 'highlight.js/styles/vs2015.css'
-import './index.generated.css'
-import App from './App.tsx'
+import './ui/index.css'
+import App from './ui/App.tsx'
 
 console.log('[React Main] Starting...')
 console.log('[React Main] Root element:', document.getElementById('root'))
