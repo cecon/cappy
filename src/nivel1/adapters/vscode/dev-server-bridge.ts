@@ -1,41 +1,143 @@
 ﻿import { WebSocketServer, WebSocket } from 'ws';
 import type { ChatService } from '../../../domains/chat/services/chat-service';
+import { execSync } from 'child_process';
 
 /**
  * WebSocket server para permitir desenvolvimento no browser
  * conectando com a extensão rodando no VS Code
  */
 export class DevServerBridge {
-  private wss: WebSocketServer;
+  private wss: WebSocketServer | null = null;
   private chatService: ChatService;
+  private port: number;
+  private retryTimeout?: NodeJS.Timeout;
+  private isDisposed = false;
   
   constructor(port: number, chatService: ChatService) {
     this.chatService = chatService;
-    this.wss = new WebSocketServer({ port });
-    
-    console.log(`🔌 [DevBridge] WebSocket server listening on port ${port}`);
-    
-    this.wss.on('connection', (ws) => {
-      console.log('✅ [DevBridge] Client connected');
+    this.port = port;
+    this.startServer();
+  }
+
+  private async startServer() {
+    if (this.isDisposed) {
+      return;
+    }
+
+    try {
+      this.wss = new WebSocketServer({ port: this.port });
       
-      ws.on('message', async (data) => {
-        try {
-          const message = JSON.parse(data.toString());
-          await this.handleMessage(message, ws);
-        } catch (error) {
-          console.error('❌ [DevBridge] Error handling message:', error);
-          ws.send(JSON.stringify({ type: 'error', error: String(error) }));
+      console.log(`🔌 [DevBridge] WebSocket server listening on port ${this.port}`);
+      
+      this.wss.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'EADDRINUSE') {
+          console.warn(`⚠️ [DevBridge] Port ${this.port} is already in use. Attempting to kill the process...`);
+          
+          // Try to free the port
+          const freed = this.tryFreePort(this.port);
+          if (freed) {
+            console.log(`🧨 [DevBridge] Process killed`);
+          }
+          
+          this.scheduleRetry();
+        } else {
+          console.error('❌ [DevBridge] WebSocket server error:', error);
         }
       });
-      
-      ws.on('close', () => {
-        console.log('🔌 [DevBridge] Client disconnected');
+
+      this.wss.on('connection', (ws) => {
+        console.log('✅ [DevBridge] Client connected');
+        
+        ws.on('message', async (data) => {
+          try {
+            const message = JSON.parse(data.toString());
+            await this.handleMessage(message, ws);
+          } catch (error) {
+            console.error('❌ [DevBridge] Error handling message:', error);
+            ws.send(JSON.stringify({ type: 'error', error: String(error) }));
+          }
+        });
+        
+        ws.on('close', () => {
+          console.log('🔌 [DevBridge] Client disconnected');
+        });
+        
+        ws.on('error', (error) => {
+          console.error('❌ [DevBridge] WebSocket error:', error);
+        });
       });
+    } catch (error) {
+      console.error('❌ [DevBridge] Failed to start WebSocket server:', error);
+      this.scheduleRetry();
+    }
+  }
+
+  private scheduleRetry() {
+    if (this.isDisposed) {
+      return;
+    }
+
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+    }
+
+    // Try to kill process occupying the port
+    console.log(`🧨 [DevBridge] Attempting to kill process on port ${this.port}...`);
+    const freed = this.tryFreePort(this.port);
+    
+    const delay = freed ? 1000 : 3000;
+    if (freed) {
+      console.log(`🧨 [DevBridge] Process killed, retrying in ${delay}ms...`);
+    } else {
+      console.warn(`⚠️ [DevBridge] Could not kill process, retrying in ${delay}ms...`);
+    }
+
+    this.retryTimeout = setTimeout(() => {
+      console.log('🔄 [DevBridge] Attempting to restart WebSocket server...');
+      if (this.wss) {
+        this.wss.close();
+        this.wss = null;
+      }
+      this.startServer();
+    }, delay);
+  }
+
+  private tryFreePort(port: number): boolean {
+    try {
+      if (process.platform !== 'win32') return false;
       
-      ws.on('error', (error) => {
-        console.error('❌ [DevBridge] WebSocket error:', error);
-      });
-    });
+      const currentPid = process.pid;
+      const cmd = `netstat -ano | findstr :${port}`;
+      const out = execSync(cmd, { encoding: 'utf8' });
+      const lines = out.trim().split(/\r?\n/).filter(Boolean);
+      let killedAny = false;
+      
+      for (const line of lines) {
+        // PID is the last column
+        const m = line.trim().match(/\s+(\d+)$/);
+        const pid = m ? m[1] : null;
+        
+        if (pid) {
+          // Don't kill ourselves!
+          if (pid === String(currentPid)) {
+            console.log(`⚠️ [DevBridge] PID ${pid} is current process, skipping...`);
+            continue;
+          }
+          
+          try {
+            console.log(`🧨 [DevBridge] Killing PID ${pid} listening on port ${port}`);
+            execSync(`taskkill /PID ${pid} /F`, { encoding: 'utf8' });
+            killedAny = true;
+          } catch (tkErr) {
+            console.warn(`⚠️ [DevBridge] Failed to kill PID ${pid}:`, tkErr);
+          }
+        }
+      }
+      return killedAny;
+    } catch {
+      // netstat returned nothing or failed
+      return false;
+    }
   }
   
   private async handleMessage(message: unknown, ws: WebSocket) {
@@ -182,7 +284,18 @@ export class DevServerBridge {
   }
   
   dispose() {
-    this.wss.close();
+    this.isDisposed = true;
+    
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = undefined;
+    }
+
+    if (this.wss) {
+      this.wss.close();
+      this.wss = null;
+    }
+    
     console.log('🔌 [DevBridge] WebSocket server closed');
   }
 }

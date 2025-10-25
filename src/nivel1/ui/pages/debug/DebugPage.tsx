@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card } from '../../primitives/Card';
 import Button from '../../primitives/Button';
+import GraphVisualizer from '../../graph/GraphVisualizer';
 
 type VSCodeApi = { postMessage: (message: unknown) => void };
 type WindowWithVSCode = Window & {
@@ -22,13 +23,28 @@ interface FileAnalysis {
   signatures?: unknown[];
   metadata?: Record<string, unknown>;
   error?: string;
+  // NOVO: Pipeline de filtragem
+  pipeline?: {
+    original: unknown[];
+    filtered: unknown[];
+    deduplicated: unknown[];
+    normalized: unknown[];
+    enriched: unknown[];
+    stats: {
+      totalRaw: number;
+      totalFiltered: number;
+      discardedCount: number;
+      deduplicatedCount: number;
+      finalCount: number;
+      processingTimeMs: number;
+    };
+  };
 }
 
 export default function DebugPage() {
   const [file, setFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<FileAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedView, setSelectedView] = useState<'ast' | 'entities' | 'signatures' | 'metadata'>('ast');
   const [vscodeApi, setVscodeApi] = useState<VSCodeApi | null>(null);
 
   // Initialize VS Code API
@@ -66,6 +82,11 @@ export default function DebugPage() {
       
       if (message.type === 'debug/analyze-result') {
         console.log('[DebugPage] Received analysis result:', message.payload);
+        console.log('[DebugPage] Has pipeline?', !!message.payload.pipeline);
+        if (message.payload.pipeline) {
+          console.log('[DebugPage] Pipeline keys:', Object.keys(message.payload.pipeline));
+          console.log('[DebugPage] Pipeline stats:', message.payload.pipeline.stats);
+        }
         setAnalysis(message.payload);
         setLoading(false);
       } else if (message.type === 'debug/analyze-error') {
@@ -158,57 +179,6 @@ export default function DebugPage() {
     }
   };
 
-  const renderAST = (node: unknown, depth = 0): React.ReactElement => {
-    if (!node || typeof node !== 'object') {
-      return <span className="text-muted-foreground">{JSON.stringify(node)}</span>;
-    }
-
-    const n = node as Record<string, unknown>;
-    const indent = depth * 20;
-
-    return (
-      <div style={{ marginLeft: `${indent}px` }} className="border-l border-border pl-2 my-1">
-        <div className="font-mono text-sm">
-          {typeof n.type === 'string' && (
-            <span className="text-blue-400 font-semibold">{n.type}</span>
-          )}
-          {Object.entries(n).map(([key, value]) => {
-            if (key === 'type') return null;
-            if (Array.isArray(value)) {
-              return (
-                <div key={key} className="mt-1">
-                  <span className="text-purple-400">{key}</span>
-                  <span className="text-muted-foreground">: [</span>
-                  {value.map((item, idx) => (
-                    <div key={idx}>{renderAST(item, depth + 1)}</div>
-                  ))}
-                  <span className="text-muted-foreground">]</span>
-                </div>
-              );
-            }
-            if (typeof value === 'object' && value !== null) {
-              return (
-                <div key={key} className="mt-1">
-                  <span className="text-purple-400">{key}</span>
-                  <span className="text-muted-foreground">: {'{'}</span>
-                  {renderAST(value, depth + 1)}
-                  <span className="text-muted-foreground">{'}'}</span>
-                </div>
-              );
-            }
-            return (
-              <div key={key} className="mt-1">
-                <span className="text-purple-400">{key}</span>
-                <span className="text-muted-foreground">: </span>
-                <span className="text-green-400">{JSON.stringify(value)}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -266,33 +236,6 @@ export default function DebugPage() {
       {/* Analysis Results */}
       {analysis && (
         <>
-          {/* View Selector */}
-          <div className="flex gap-2">
-            <Button
-              variant={selectedView === 'ast' ? 'primary' : 'outline'}
-              onClick={() => setSelectedView('ast')}
-            >
-              AST
-            </Button>
-            <Button
-              variant={selectedView === 'entities' ? 'primary' : 'outline'}
-              onClick={() => setSelectedView('entities')}
-            >
-              Entities
-            </Button>
-            <Button
-              variant={selectedView === 'signatures' ? 'primary' : 'outline'}
-              onClick={() => setSelectedView('signatures')}
-            >
-              Signatures
-            </Button>
-            <Button
-              variant={selectedView === 'metadata' ? 'primary' : 'outline'}
-              onClick={() => setSelectedView('metadata')}
-            >
-              Metadata
-            </Button>
-          </div>
 
           {/* Results Card */}
           <Card className="p-6">
@@ -303,57 +246,241 @@ export default function DebugPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {selectedView === 'ast' && analysis.ast && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">Abstract Syntax Tree</h3>
-                    <div className="bg-muted p-4 rounded-md overflow-auto max-h-[600px] font-mono text-xs">
-                      {renderAST(analysis.ast)}
+                {analysis.pipeline ? (
+                      <>
+                        <h3 className="text-lg font-semibold mb-4">🔄 Pipeline de Filtragem de Entidades</h3>
+                    
+                    {/* Stats Overview */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                      <div className="bg-muted p-4 rounded-md">
+                        <div className="text-2xl font-bold text-blue-400">{analysis.pipeline.stats.totalRaw}</div>
+                        <div className="text-xs text-muted-foreground">Entidades Brutas</div>
+                      </div>
+                      <div className="bg-muted p-4 rounded-md">
+                        <div className="text-2xl font-bold text-green-400">{analysis.pipeline.stats.finalCount}</div>
+                        <div className="text-xs text-muted-foreground">Entidades Finais</div>
+                      </div>
+                      <div className="bg-muted p-4 rounded-md">
+                        <div className="text-2xl font-bold text-yellow-400">{analysis.pipeline.stats.discardedCount}</div>
+                        <div className="text-xs text-muted-foreground">Descartadas</div>
+                      </div>
+                      <div className="bg-muted p-4 rounded-md">
+                        <div className="text-2xl font-bold text-purple-400">{analysis.pipeline.stats.deduplicatedCount}</div>
+                        <div className="text-xs text-muted-foreground">Mescladas</div>
+                      </div>
+                      <div className="bg-muted p-4 rounded-md">
+                        <div className="text-2xl font-bold text-orange-400">
+                          {((1 - analysis.pipeline.stats.finalCount / analysis.pipeline.stats.totalRaw) * 100).toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-muted-foreground">Taxa de Compressão</div>
+                      </div>
+                      <div className="bg-muted p-4 rounded-md">
+                        <div className="text-2xl font-bold text-cyan-400">{analysis.pipeline.stats.processingTimeMs}ms</div>
+                        <div className="text-xs text-muted-foreground">Tempo de Processamento</div>
+                      </div>
                     </div>
+
+                    {/* Pipeline Flow */}
+                    <div className="space-y-6">
+                      {/* Etapa 1: Raw Entities */}
+                      <div className="border border-border rounded-md p-4">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <span className="text-blue-400">1️⃣</span>
+                          Entidades Brutas (AST)
+                          <span className="text-xs bg-blue-900/30 px-2 py-1 rounded">{analysis.pipeline.original.length}</span>
+                        </h4>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          Todas as entidades extraídas do AST sem nenhum filtro
+                        </p>
+                        <details className="text-xs">
+                          <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                          <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
+                            {JSON.stringify(analysis.pipeline.original, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
+
+                      {/* Arrow */}
+                      <div className="flex items-center justify-center text-muted-foreground">
+                        <span>↓ Filtro de Relevância ↓</span>
+                      </div>
+
+                      {/* Etapa 2: Filtered */}
+                      <div className="border border-border rounded-md p-4">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <span className="text-green-400">2️⃣</span>
+                          Entidades Filtradas
+                          <span className="text-xs bg-green-900/30 px-2 py-1 rounded">{analysis.pipeline.filtered.length}</span>
+                          <span className="text-xs text-red-400">(-{analysis.pipeline.stats.discardedCount})</span>
+                        </h4>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          ❌ Descartadas: variáveis locais, tipos primitivos, imports de assets
+                        </p>
+                        <details className="text-xs">
+                          <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                          <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
+                            {JSON.stringify(analysis.pipeline.filtered, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
+
+                      {/* Arrow */}
+                      <div className="flex items-center justify-center text-muted-foreground">
+                        <span>↓ Deduplicação ↓</span>
+                      </div>
+
+                      {/* Etapa 3: Deduplicated */}
+                      <div className="border border-border rounded-md p-4">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <span className="text-purple-400">3️⃣</span>
+                          Entidades Deduplicadas
+                          <span className="text-xs bg-purple-900/30 px-2 py-1 rounded">{analysis.pipeline.deduplicated.length}</span>
+                          <span className="text-xs text-purple-400">(-{analysis.pipeline.stats.deduplicatedCount})</span>
+                        </h4>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          🔗 Mesclados: imports do mesmo pacote, entidades duplicadas
+                        </p>
+                        <details className="text-xs">
+                          <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                          <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
+                            {JSON.stringify(analysis.pipeline.deduplicated, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
+
+                      {/* Arrow */}
+                      <div className="flex items-center justify-center text-muted-foreground">
+                        <span>↓ Normalização ↓</span>
+                      </div>
+
+                      {/* Etapa 4: Normalized */}
+                      <div className="border border-border rounded-md p-4">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <span className="text-yellow-400">4️⃣</span>
+                          Entidades Normalizadas
+                          <span className="text-xs bg-yellow-900/30 px-2 py-1 rounded">{analysis.pipeline.normalized.length}</span>
+                        </h4>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          📦 Adicionado: package info, categorias (internal/external/builtin), paths normalizados
+                        </p>
+                        <details className="text-xs">
+                          <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                          <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
+                            {JSON.stringify(analysis.pipeline.normalized, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
+
+                      {/* Arrow */}
+                      <div className="flex items-center justify-center text-muted-foreground">
+                        <span>↓ Enriquecimento ↓</span>
+                      </div>
+
+                      {/* Etapa 5: Enriched (Final) */}
+                      <div className="border border-green-500/50 rounded-md p-4 bg-green-900/10">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <span className="text-green-400">5️⃣</span>
+                          Entidades Enriquecidas (SALVAS NO BANCO)
+                          <span className="text-xs bg-green-900/30 px-2 py-1 rounded">{analysis.pipeline.enriched.length}</span>
+                        </h4>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          ✨ Adicionado: relacionamentos, confiança, documentação
+                        </p>
+                        <details className="text-xs">
+                          <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                          <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
+                            {JSON.stringify(analysis.pipeline.enriched, null, 2)}
+                          </pre>
+                        </details>
+
+                        {/* Graph Visualization */}
+                        <div className="mt-6">
+                          <h5 className="font-semibold mb-2 flex items-center gap-2">
+                            <span className="text-cyan-400">🕸️</span>
+                            Visualização de Grafo (Entidades e Relacionamentos)
+                          </h5>
+                          <GraphFromPipeline analysis={analysis} />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center p-8 text-muted-foreground">
+                    <p className="text-lg mb-2">⚠️ Pipeline não disponível</p>
+                    <p className="text-sm">
+                      O arquivo foi analisado com o sistema antigo.
+                      <br />
+                      Recarregue a janela (Ctrl+R) e tente novamente para ver o pipeline de filtragem.
+                    </p>
                   </div>
                 )}
 
-                {selectedView === 'entities' && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">Extracted Entities</h3>
-                    <div className="bg-muted p-4 rounded-md overflow-auto max-h-[600px]">
-                      <pre className="text-xs">
-                        {JSON.stringify(analysis.entities || [], null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-
-                {selectedView === 'signatures' && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">Code Signatures</h3>
-                    <div className="bg-muted p-4 rounded-md overflow-auto max-h-[600px]">
-                      <pre className="text-xs">
-                        {JSON.stringify(analysis.signatures || [], null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-
-                {selectedView === 'metadata' && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">File Metadata</h3>
-                    <div className="bg-muted p-4 rounded-md overflow-auto max-h-[600px]">
-                      <pre className="text-xs">
-                        {JSON.stringify({
-                          fileName: analysis.fileName,
-                          fileSize: analysis.fileSize,
-                          mimeType: analysis.mimeType,
-                          ...analysis.metadata,
-                        }, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </Card>
         </>
       )}
+    </div>
+  );
+}
+
+// ----- Graph adapter from pipeline -----
+type GraphNode = { id: string; label: string; type?: 'file' | 'chunk' | 'workspace' };
+type GraphEdge = { id: string; source: string; target: string; label?: string };
+type PipelineRelationship = { target: string; type: string; confidence?: number };
+type PipelineEntity = { name: string; type: string; relationships?: PipelineRelationship[] };
+
+function GraphFromPipeline({ analysis }: { analysis: FileAnalysis }) {
+  const data = useMemo(() => {
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+    if (!analysis?.pipeline) return { nodes, edges };
+
+    // File node
+    const fileNodeId = `file:${analysis.fileName}`;
+    nodes.push({ id: fileNodeId, label: analysis.fileName, type: 'file' });
+
+    const ensureNode = (id: string, label?: string, type: 'file' | 'chunk' | 'workspace' = 'chunk') => {
+      if (!nodes.find(n => n.id === id)) {
+        nodes.push({ id, label: label || id, type });
+      }
+    };
+
+    const addEdge = (source: string, target: string, label?: string) => {
+      const id = `${source}->${target}:${label || 'rel'}`;
+      if (!edges.find(e => e.id === id)) {
+        edges.push({ id, source, target, label });
+      }
+    };
+
+    // Create entity nodes and link to file
+  for (const e of analysis.pipeline.enriched as Array<PipelineEntity>) {
+      const entityId = `entity:${e.name}:${e.type}`;
+      const entityLabel = `${e.name} (${e.type})`;
+      ensureNode(entityId, entityLabel, 'chunk');
+      addEdge(fileNodeId, entityId, 'contains');
+
+      // Relationships
+      if (Array.isArray(e.relationships)) {
+        for (const r of e.relationships) {
+          // Normalize target id
+          const targetId = String(r.target).startsWith('entity:')
+            ? String(r.target)
+            : `entity:${String(r.target)}`;
+          ensureNode(targetId, String(r.target), 'chunk');
+          addEdge(entityId, targetId, r.type);
+        }
+      }
+    }
+
+    return { nodes, edges };
+  }, [analysis]);
+
+  if (!analysis?.pipeline) return null;
+
+  return (
+    <div className="mt-2">
+      <GraphVisualizer nodes={data.nodes} edges={data.edges} />
     </div>
   );
 }

@@ -5,6 +5,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { FileMetadataDatabase } from '../nivel2/infrastructure/services/file-metadata-database';
+import { parse } from '@typescript-eslint/parser';
+import { EntityFilterPipeline, type RawEntity } from '../nivel2/infrastructure/services/entity-filtering/entity-filter-pipeline';
 
 export function registerDebugCommand(context: vscode.ExtensionContext): void {
   const command = vscode.commands.registerCommand('cappy.debug', async () => {
@@ -208,4 +210,240 @@ export function registerDebugAddTestDataCommand(context: vscode.ExtensionContext
   
   context.subscriptions.push(command);
   console.log('✅ Debug Add Test Data command registered: cappy.debugAddTestData');
+}
+
+/**
+ * Handler for debug analysis from webview
+ */
+export function handleDebugAnalysis(
+  message: { fileName: string; fileSize: number; mimeType: string; content: string },
+  webview: vscode.Webview
+): void {
+  console.log('🔍 Analyzing file:', message.fileName);
+  
+  try {
+    // Parse AST
+    const ast = parse(message.content, {
+      loc: true,
+      range: true,
+      comment: true,
+      tokens: false,
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      ecmaFeatures: { jsx: true }
+    });
+    
+    // Extract raw entities from AST
+    const rawEntities: RawEntity[] = [];
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const extractEntities = (node: any, parent?: any) => {
+      if (!node || typeof node !== 'object') return;
+      
+      // Import declarations
+      if (node.type === 'ImportDeclaration' && node.source) {
+        const source = node.source.value;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const specifiers = (node.specifiers || []).map((s: any) => 
+          s.imported?.name || s.local?.name || 'default'
+        );
+        
+        rawEntities.push({
+          type: 'import',
+          name: specifiers[0] || source,
+          source,
+          specifiers,
+          line: node.loc?.start.line,
+          scope: 'module'
+        });
+      }
+      
+      // Export declarations
+      if (node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration') {
+        if (node.declaration) {
+          const name = node.declaration.id?.name || 
+                      node.declaration.name ||
+                      'default';
+          rawEntities.push({
+            type: 'export',
+            name,
+            line: node.loc?.start.line,
+            scope: 'module'
+          });
+        }
+        
+        if (node.specifiers) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          node.specifiers.forEach((spec: any) => {
+            rawEntities.push({
+              type: 'export',
+              name: spec.exported?.name || spec.local?.name,
+              line: spec.loc?.start.line,
+              scope: 'module'
+            });
+          });
+        }
+      }
+      
+      // Class declarations
+      if (node.type === 'ClassDeclaration' && node.id) {
+        rawEntities.push({
+          type: 'class',
+          name: node.id.name,
+          line: node.loc?.start.line,
+          scope: 'module'
+        });
+        
+        // Class members
+        if (node.body?.body) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          node.body.body.forEach((member: any) => {
+            if (member.type === 'MethodDefinition' && member.key) {
+              rawEntities.push({
+                type: 'function',
+                name: member.key.name,
+                line: member.loc?.start.line,
+                scope: 'module',
+                isPrivate: member.key.name?.startsWith('_') || member.key.name?.startsWith('#')
+              });
+            }
+            
+            if (member.type === 'PropertyDefinition' && member.key) {
+              rawEntities.push({
+                type: 'variable',
+                name: member.key.name,
+                line: member.loc?.start.line,
+                scope: 'module',
+                isPrivate: member.key.name?.startsWith('_') || member.key.name?.startsWith('#')
+              });
+            }
+          });
+        }
+      }
+      
+      // Function declarations
+      if (node.type === 'FunctionDeclaration' && node.id) {
+        rawEntities.push({
+          type: 'function',
+          name: node.id.name,
+          line: node.loc?.start.line,
+          scope: parent?.type === 'Program' ? 'module' : 'local'
+        });
+      }
+      
+      // Variable declarations
+      if (node.type === 'VariableDeclaration') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        node.declarations?.forEach((decl: any) => {
+          if (decl.id?.name) {
+            rawEntities.push({
+              type: 'variable',
+              name: decl.id.name,
+              line: decl.loc?.start.line,
+              scope: parent?.type === 'Program' ? 'module' : 'local'
+            });
+          }
+        });
+      }
+      
+      // Call expressions
+      if (node.type === 'CallExpression' && node.callee) {
+        const name = node.callee.property?.name || 
+                    node.callee.name || 
+                    'anonymous';
+        if (name !== 'anonymous') {
+          rawEntities.push({
+            type: 'call',
+            name,
+            line: node.loc?.start.line,
+            scope: 'local'
+          });
+        }
+      }
+      
+      // Type references
+      if (node.type === 'TSTypeReference' && node.typeName) {
+        const name = node.typeName.name || 
+                    (node.typeName.right?.name);
+        if (name) {
+          rawEntities.push({
+            type: 'typeRef',
+            name,
+            line: node.loc?.start.line,
+            scope: 'global'
+          });
+        }
+      }
+      
+      // Recursively visit children
+      for (const key in node) {
+        if (key === 'loc' || key === 'range' || key === 'parent') continue;
+        const child = node[key];
+        if (Array.isArray(child)) {
+          child.forEach(c => extractEntities(c, node));
+        } else if (child && typeof child === 'object') {
+          extractEntities(child, node);
+        }
+      }
+    };
+    
+    extractEntities(ast.body);
+    
+    // Run through filter pipeline
+    const pipeline = new EntityFilterPipeline({
+      skipLocalVariables: true,
+      skipPrimitiveTypes: true,
+      skipAssetImports: true,
+      skipPrivateMembers: false, // Keep but reduce score
+      mergeIdenticalEntities: true,
+      resolvePackageInfo: true,
+      inferRelationships: true,
+      calculateConfidence: true
+    });
+    
+    void pipeline.process(
+      rawEntities,
+      `/debug/${message.fileName}`
+    ).then(filterResult => {
+      // Send back to webview
+      webview.postMessage({
+        type: 'debug/analyze-result',
+        payload: {
+          fileName: message.fileName,
+          fileSize: message.fileSize,
+          mimeType: message.mimeType,
+          ast: ast.body,
+          rawEntities: filterResult.original,
+          filtered: filterResult.filtered,
+          deduplicated: filterResult.deduplicated,
+          normalized: filterResult.normalized,
+          enriched: filterResult.enriched,
+          stats: filterResult.stats,
+          metadata: {
+            totalLines: message.content.split('\n').length,
+            processingTime: filterResult.stats.processingTimeMs,
+            compressionRate: `${((1 - filterResult.stats.finalCount / filterResult.stats.totalRaw) * 100).toFixed(1)}%`
+          }
+        }
+      });
+      
+      console.log('✅ Analysis complete:', filterResult.stats);
+    }).catch(error => {
+      webview.postMessage({
+        type: 'debug/analyze-error',
+        payload: {
+          error: error instanceof Error ? error.message : String(error)
+        }
+      });
+    });
+    
+  } catch (error) {
+    console.error('❌ Error analyzing file:', error);
+    webview.postMessage({
+      type: 'debug/analyze-error',
+      payload: {
+        error: error instanceof Error ? error.message : String(error)
+      }
+    });
+  }
 }

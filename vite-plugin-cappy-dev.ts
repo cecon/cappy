@@ -1,75 +1,169 @@
 import type { Plugin } from 'vite';
 import path from 'path';
 import fs from 'fs';
+import { execSync } from 'child_process';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
+// (no-op type imports removed)
 
 export function cappyDevServerPlugin(): Plugin {
   let workspaceRoot: string;
-  let wss: WebSocketServer;
-  let extensionWs: WebSocket | null = null;
+  let wss: WebSocketServer | null = null;
+  let retryTimeout: NodeJS.Timeout | null = null;
 
   return {
     name: 'cappy-dev-server',
     
-    configureServer(server) {
+  async configureServer(server) {
       workspaceRoot = process.cwd();
       
       console.log('🧢 [Cappy Dev Server] Backend disponível');
       console.log('📂 Workspace:', workspaceRoot);
       console.log('💡 Dica: Acesse http://localhost:3000/dev.html para o dashboard');
 
-      // WebSocket Server na porta 7001 para comunicação com o frontend
-      wss = new WebSocketServer({ port: 7001 });
-      console.log('🔌 [Vite WebSocket] Listening on port 7001');
-
-      // Tentar conectar com extensão na porta 7002
-      function connectToExtension() {
+      // Fecha WebSocket existente antes de criar novo (hot reload)
+      if (wss) {
         try {
-          extensionWs = new WebSocket('ws://localhost:7002');
+          console.log('🔄 [Vite] Closing existing WebSocket before restart...');
           
-          extensionWs.on('open', () => {
-            console.log('✅ [Vite] Connected to extension on port 7002');
-          });
-
-          extensionWs.on('message', (data) => {
-            // Forward mensagens da extensão para todos os clientes conectados
-            const message = data.toString();
-            console.log('📨 [Extension→Frontend]', JSON.parse(message).type);
-            wss.clients.forEach(client => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(message);
-              }
+          // Clear any pending retry
+          if (retryTimeout) {
+            clearTimeout(retryTimeout);
+            retryTimeout = null;
+          }
+          
+          // Close the WebSocket server
+          const closePromise = new Promise<void>((resolve) => {
+            wss?.close(() => {
+              console.log('✅ [Vite] Old WebSocket closed');
+              resolve();
             });
           });
-
-          extensionWs.on('close', () => {
-            console.log('🔌 [Vite] Extension disconnected');
-            extensionWs = null;
-            // Tentar reconectar após 5s
-            setTimeout(connectToExtension, 5000);
-          });
-
-          extensionWs.on('error', () => {
-            console.log('⚠️ [Vite] Extension not available (LLM features disabled)');
-            extensionWs = null;
-          });
-
-        } catch {
-          console.log('⚠️ [Vite] Could not connect to extension');
-          extensionWs = null;
+          await closePromise;
+          
+          // Wait a bit for the port to be fully released
+          await new Promise(r => setTimeout(r, 500));
+          
+        } catch (err) {
+          console.warn('⚠️ [Vite] Error while closing previous WebSocket:', err);
+        } finally {
+          wss = null;
         }
       }
 
-      // Tentar conectar com extensão
-      connectToExtension();
+      // Helper: attempt to free a port on Windows by finding PID via netstat and taskkill
+      const tryFreePort = (port: number): boolean => {
+        try {
+          if (process.platform !== 'win32') return false;
+          
+          const currentPid = process.pid;
+          const cmd = `netstat -ano | findstr :${port}`;
+          const out = execSync(cmd, { encoding: 'utf8' });
+          const lines = out.trim().split(/\r?\n/).filter(Boolean);
+          let killedAny = false;
+          
+          for (const line of lines) {
+            // PID is the last column
+            const m = line.trim().match(/\s+(\d+)$/);
+            const pid = m ? m[1] : null;
+            
+            if (pid) {
+              // Don't kill ourselves!
+              if (pid === String(currentPid)) {
+                console.log(`⚠️ [Vite] PID ${pid} is current process, skipping...`);
+                continue;
+              }
+              
+              try {
+                console.log(`🧨 [Vite] Killing PID ${pid} listening on port ${port}`);
+                execSync(`taskkill /PID ${pid} /F`);
+                killedAny = true;
+              } catch (tkErr) {
+                console.warn(`⚠️ [Vite] Failed to kill PID ${pid}:`, tkErr);
+              }
+            }
+          }
+          return killedAny;
+        } catch {
+          // netstat returned nothing or failed
+          return false;
+        }
+      };
 
-      wss.on('connection', (ws) => {
+      // WebSocket Server na porta 7001 para comunicação com o frontend
+      // Retry strategy: keep trying indefinitely with 3s delay
+      let retryCount = 0;
+      const startWebSocket = async (): Promise<void> => {
+        try {
+          wss = new WebSocketServer({ port: 7001 });
+          console.log(`🔌 [Vite WebSocket] Listening on port 7001`);
+          
+          // Reset retry count on success
+          retryCount = 0;
+          
+          // Clear any pending retry
+          if (retryTimeout) {
+            clearTimeout(retryTimeout);
+            retryTimeout = null;
+          }
+
+          // Setup event listeners
+          setupWebSocketHandlers();
+          return; // Success
+        } catch (err: unknown) {
+          const error = err as NodeJS.ErrnoException;
+          if (error && error.code === 'EADDRINUSE') {
+            retryCount++;
+            
+            // Only try to kill after 3 failed attempts (give time for graceful close)
+            if (retryCount > 3) {
+              console.warn(`⚠️ [Vite] Port 7001 still in use after ${retryCount} attempts. Attempting to kill the process...`);
+              
+              const freed = tryFreePort(7001);
+              if (freed) {
+                console.log('🧨 [Vite] Process killed, retrying in 1 second...');
+                retryTimeout = setTimeout(() => startWebSocket(), 1000);
+                return;
+              }
+            } else {
+              console.warn(`⚠️ [Vite] Port 7001 is in use (attempt ${retryCount}), waiting for graceful close...`);
+            }
+            
+            // Schedule retry
+            retryTimeout = setTimeout(() => {
+              console.log(`🔄 [Vite] Attempting to restart WebSocket server...`);
+              startWebSocket();
+            }, 1500);
+            return;
+          } else {
+            // Other error - log and retry anyway
+            console.error('❌ [Vite] WebSocket error:', error);
+            retryTimeout = setTimeout(() => startWebSocket(), 3000);
+            return;
+          }
+        }
+      };
+
+      const setupWebSocketHandlers = () => {
+        if (!wss) return;
+
+        // Error handler - just log, don't retry (retry is handled in startWebSocket)
+        wss.on('error', (error: NodeJS.ErrnoException) => {
+          console.error('❌ [Vite] WebSocket error:', error.code || error.message);
+          // Don't close or retry here - let the error propagate naturally
+        });
+
+        // NÃO tentar conectar com extensão em modo dev
+        // (isso causa conflitos e mata o processo)
+        console.log('ℹ️ [Vite] Running in standalone mode (no extension connection)');
+
+        wss.on('connection', (ws: WebSocket) => {
         console.log('👋 [Vite WebSocket] Client connected');
 
-        ws.on('message', async (data) => {
+        ws.on('message', async (data: unknown) => {
           try {
-            const message = JSON.parse(data.toString());
+            const dataStr = String(data);
+            const message = JSON.parse(dataStr);
             console.log('📨 [Frontend→Vite]', message.type);
 
             // Decidir onde processar baseado no tipo
@@ -89,18 +183,13 @@ export function cappyDevServerPlugin(): Plugin {
                 }
               }));
             } else if (message.type === 'sendMessage' || message.type.startsWith('chat/')) {
-              // Proxy para extensão (LLM)
-              if (extensionWs && extensionWs.readyState === WebSocket.OPEN) {
-                console.log('🔀 [Vite] Proxying to extension:', message.type);
-                extensionWs.send(data.toString());
-              } else {
-                ws.send(JSON.stringify({
-                  type: 'error',
-                  payload: {
-                    error: 'Extension not connected. LLM features require VS Code extension.'
-                  }
-                }));
-              }
+              // LLM features não disponíveis em modo dev standalone
+              ws.send(JSON.stringify({
+                type: 'error',
+                payload: {
+                  error: 'LLM features require running inside VS Code extension. Use dev.html for file analysis only.'
+                }
+              }));
             } else {
               console.warn('⚠️ [Vite] Unknown message type:', message.type);
             }
@@ -118,6 +207,10 @@ export function cappyDevServerPlugin(): Plugin {
           console.log('👋 [Vite WebSocket] Client disconnected');
         });
       });
+      };
+
+      // Start WebSocket server
+      await startWebSocket();
 
       // Log de todas as requisições para debug
       server.middlewares.use((req, _res, next) => {
@@ -197,18 +290,13 @@ export function cappyDevServerPlugin(): Plugin {
         
         next();
       });
-    },
-    
-    transformIndexHtml(html) {
-      // Injeta o mock no início de cada página
-      return html.replace('<head>', '<head>\n    <script type="module" src="/@cappy/vscode-mock.js"></script>');
     }
   };
 }
 
 // Handler para Graph API
 async function handleGraphAPI(url: string, res: ServerResponse, workspaceRoot: string) {
-  const dbPath = path.join(workspaceRoot, '.cappy', 'knowledge-graph.db');
+  const dbPath = path.join(workspaceRoot, '.cappy', 'knowledge-graph.db.');
   
   if (url === '/graph/status') {
     const exists = fs.existsSync(dbPath);
@@ -377,10 +465,11 @@ async function handleDebugAnalyzeWS(message: { payload: { fileName: string; file
     // Dynamically import the parser and extractor
     const { parse } = await import('@typescript-eslint/parser');
     const { ASTRelationshipExtractor } = await import('./src/nivel2/infrastructure/services/ast-relationship-extractor.js');
+  const { EntityFilterPipeline } = await import('./src/nivel2/infrastructure/services/entity-filtering/entity-filter-pipeline.js');
     
     // Check file type
     const ext = path.extname(fileName).toLowerCase();
-    const supportedExtensions = ['.ts', '.tsx', '.js', '.jsx'];
+  const supportedExtensions = ['.ts', '.tsx', '.js', '.jsx', '.php'];
     
     if (!supportedExtensions.includes(ext)) {
       ws.send(JSON.stringify({
@@ -392,8 +481,8 @@ async function handleDebugAnalyzeWS(message: { payload: { fileName: string; file
       return;
     }
     
-    // Parse AST
-    const ast = parse(content, {
+    // Only parse TS/JS AST for TS/JS files
+    const ast = ext === '.php' ? undefined : parse(content, {
       loc: true,
       range: true,
       comment: true,
@@ -403,8 +492,8 @@ async function handleDebugAnalyzeWS(message: { payload: { fileName: string; file
       ecmaFeatures: { jsx: true }
     });
     
-    // Use ASTRelationshipExtractor
-    const extractor = new ASTRelationshipExtractor(workspaceRoot);
+  // Use ASTRelationshipExtractor for TS/JS
+  const extractor = new ASTRelationshipExtractor(workspaceRoot);
     
     // Create temp file
     const tempDir = path.join(workspaceRoot, '.cappy-debug-temp');
@@ -417,19 +506,234 @@ async function handleDebugAnalyzeWS(message: { payload: { fileName: string; file
     fs.writeFileSync(tempFilePath, content, 'utf-8');
     
     try {
-      // Analyze
-      const analysis = await extractor.analyze(tempFilePath);
+      let rawEntities: unknown[] = [];
+      let signatures: unknown[] = [];
+      let jsdocChunks: unknown[] = [];
+
+      if (ext === '.php') {
+        // PHP path: use PHPParser to extract full structure
+        const { PHPParser } = await import('./src/nivel2/infrastructure/parsers/php-parser.js');
+        const phpParser = new PHPParser();
+        
+        // Get complete PHP analysis
+        const phpAnalysis = await phpParser.analyze(tempFilePath);
+        
+        // Also get PHPDoc chunks for pipeline
+        const phpChunks = await phpParser.parseFile(tempFilePath);
+        jsdocChunks = phpChunks;
+        console.log(`📝🐘 [Debug WS] PHPDoc chunks extracted: ${phpChunks.length}`);
+        console.log(` [Debug WS] PHP Analysis: ${phpAnalysis.classes.length} classes, ${phpAnalysis.interfaces.length} interfaces, ${phpAnalysis.traits.length} traits, ${phpAnalysis.functions.length} functions`);
+
+        // Build entities from ALL PHP symbols
+        rawEntities = [];
+        
+        // Classes as entities
+        for (const cls of phpAnalysis.classes) {
+          rawEntities.push({
+            type: 'export' as const,
+            name: cls.name,
+            source: tempFilePath,
+            specifiers: [],
+            scope: 'module' as const,
+            metadata: { 
+              symbolKind: 'class', 
+              fullName: cls.fullName,
+              extends: cls.extends,
+              implements: cls.implements,
+              isAbstract: cls.isAbstract,
+              isFinal: cls.isFinal
+            }
+          });
+          
+          // Class methods
+          for (const method of cls.methods) {
+            rawEntities.push({
+              type: 'export' as const,
+              name: `${cls.name}::${method.name}`,
+              source: tempFilePath,
+              specifiers: [],
+              scope: 'module' as const,
+              isPrivate: method.visibility !== 'public',
+              metadata: { 
+                symbolKind: 'method',
+                visibility: method.visibility,
+                isStatic: method.isStatic,
+                className: cls.name
+              }
+            });
+          }
+          
+          // Class properties
+          for (const prop of cls.properties) {
+            rawEntities.push({
+              type: 'export' as const,
+              name: `${cls.name}::$${prop.name}`,
+              source: tempFilePath,
+              specifiers: [],
+              scope: 'module' as const,
+              isPrivate: prop.visibility !== 'public',
+              metadata: { 
+                symbolKind: 'property',
+                visibility: prop.visibility,
+                type: prop.type,
+                className: cls.name
+              }
+            });
+          }
+        }
+        
+        // Interfaces
+        for (const iface of phpAnalysis.interfaces) {
+          rawEntities.push({
+            type: 'export' as const,
+            name: iface.name,
+            source: tempFilePath,
+            specifiers: [],
+            scope: 'module' as const,
+            metadata: { 
+              symbolKind: 'interface',
+              fullName: iface.fullName,
+              extends: iface.extends
+            }
+          });
+        }
+        
+        // Traits
+        for (const trait of phpAnalysis.traits) {
+          rawEntities.push({
+            type: 'export' as const,
+            name: trait.name,
+            source: tempFilePath,
+            specifiers: [],
+            scope: 'module' as const,
+            metadata: { 
+              symbolKind: 'trait',
+              fullName: trait.fullName
+            }
+          });
+        }
+        
+        // Functions
+        for (const func of phpAnalysis.functions) {
+          rawEntities.push({
+            type: 'export' as const,
+            name: func.name,
+            source: tempFilePath,
+            specifiers: [],
+            scope: 'module' as const,
+            metadata: { 
+              symbolKind: 'function',
+              returnType: func.returnType,
+              parameters: func.parameters
+            }
+          });
+        }
+        
+        // Uses (imports)
+        for (const use of phpAnalysis.uses) {
+          rawEntities.push({
+            type: 'import' as const,
+            name: use.fullName,
+            source: use.fullName,
+            specifiers: [use.alias],
+            scope: 'module' as const,
+            isExternal: true,
+            metadata: { 
+              alias: use.alias
+            }
+          });
+        }
+        
+        // Store full PHP analysis for response
+        signatures = [phpAnalysis];
+        
+        console.log(`📊 [Debug WS] Raw entities extracted from PHP: ${rawEntities.length}`);
+      } else {
+        // TS/JS path
+        const analysis = await extractor.analyze(tempFilePath);
+        signatures = extractSignatures(ast);
+        jsdocChunks = extractJSDocChunks(ast, fileName);
+        console.log(`📝 [Debug WS] JSDoc chunks extracted: ${jsdocChunks.length}`);
+
+        rawEntities = [
+          ...analysis.imports.map(imp => ({
+            type: 'import' as const,
+            name: imp.source,
+            source: tempFilePath,
+            specifiers: imp.specifiers || [],
+            isExternal: imp.isExternal,
+            packageResolution: imp.packageResolution
+          })),
+          ...analysis.exports.map(expName => ({
+            type: 'export' as const,
+            name: expName,
+            source: tempFilePath,
+            specifiers: [],
+            isExternal: false,
+            packageResolution: undefined
+          })),
+          ...analysis.calls.map(callName => ({
+            type: 'call' as const,
+            name: callName,
+            source: tempFilePath,
+            specifiers: [],
+            isExternal: false,
+            packageResolution: undefined
+          })),
+          ...analysis.typeRefs.map(typeRefName => ({
+            type: 'typeRef' as const,
+            name: typeRefName,
+            source: tempFilePath,
+            specifiers: [],
+            isExternal: false,
+            packageResolution: undefined
+          }))
+        ];
+        console.log(`📊 [Debug WS] Raw entities extracted: ${rawEntities.length}`);
+      }
       
-      // Extract signatures
-      const signatures = extractSignatures(ast);
+      // 🔥 Inicializa GraphStore para discovery
+      const { SQLiteAdapter } = await import('./src/nivel2/infrastructure/database/sqlite-adapter.js');
+      const dbPath = path.join(workspaceRoot, '.cappy', 'knowledge-graph.db');
+      const graphStore = new SQLiteAdapter(dbPath);
+      
+      // 🔥 Apply pipeline filtering com GraphStore e JSDoc chunks
+      const pipeline = new EntityFilterPipeline(
+        {
+          skipLocalVariables: true,
+          skipPrimitiveTypes: true,
+          skipAssetImports: true,
+          discoverExistingEntities: true,
+          extractDocumentation: true  // ← ATIVA EXTRAÇÃO DE DOCS
+        },
+        graphStore
+      );
+      
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pipelineResult = await pipeline.process(rawEntities as any, tempFilePath, jsdocChunks as any);
+      
+      console.log(`✅ [Debug WS] Pipeline completed:
+        - Original: ${pipelineResult.original.length}
+        - Filtered: ${pipelineResult.filtered.length}
+        - Deduplicated: ${pipelineResult.deduplicated.length}
+        - Normalized: ${pipelineResult.normalized.length}
+        - Enriched: ${pipelineResult.enriched.length}`);
       
       // Build response
-      const response = {
-        fileName,
-        fileSize,
-        mimeType,
-        ast,
-        entities: [
+      const counts = { imports: 0, exports: 0, calls: 0, typeRefs: 0 };
+      let entitiesList: unknown[] = [];
+      if (ext === '.php') {
+        // For PHP, use rawEntities summary and counts
+        entitiesList = rawEntities;
+        counts.exports = rawEntities.length;
+      } else {
+        // For TS/JS, expose analysis breakdown
+        const analysis = await extractor.analyze(tempFilePath); // re-use to compute entities list for response
+        counts.imports = analysis.imports.length;
+        counts.exports = analysis.exports.length;
+        counts.calls = analysis.calls.length;
+        counts.typeRefs = analysis.typeRefs.length;
+        entitiesList = [
           ...analysis.imports.map(imp => ({
             type: 'import',
             source: imp.source,
@@ -449,17 +753,26 @@ async function handleDebugAnalyzeWS(message: { payload: { fileName: string; file
             type: 'typeRef',
             name: ref
           }))
-        ],
+        ];
+      }
+
+      const response = {
+        fileName,
+        fileSize,
+        mimeType,
+        ast,
+        entities: entitiesList,
         signatures,
+        pipeline: pipelineResult,
         metadata: {
           lines: content.split('\n').length,
           characters: content.length,
           hasErrors: false,
           mode: 'vite-websocket',
-          importsCount: analysis.imports.length,
-          exportsCount: analysis.exports.length,
-          callsCount: analysis.calls.length,
-          typeRefsCount: analysis.typeRefs.length
+          importsCount: counts.imports,
+          exportsCount: counts.exports,
+          callsCount: counts.calls,
+          typeRefsCount: counts.typeRefs
         }
       };
       
@@ -503,12 +816,13 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
       console.log('🐛 [Debug API] Analyzing file:', fileName);
       
       // Dynamically import the parser and extractor
-      const { parse } = await import('@typescript-eslint/parser');
-      const { ASTRelationshipExtractor } = await import('./src/nivel2/infrastructure/services/ast-relationship-extractor.js');
+  const { parse } = await import('@typescript-eslint/parser');
+  const { ASTRelationshipExtractor } = await import('./src/nivel2/infrastructure/services/ast-relationship-extractor.js');
+      const { EntityFilterPipeline } = await import('./src/nivel2/infrastructure/services/entity-filtering/entity-filter-pipeline.js');
       
       // Check file type
       const ext = path.extname(fileName).toLowerCase();
-      const supportedExtensions = ['.ts', '.tsx', '.js', '.jsx'];
+  const supportedExtensions = ['.ts', '.tsx', '.js', '.jsx', '.php'];
       
       if (!supportedExtensions.includes(ext)) {
         res.statusCode = 400;
@@ -518,8 +832,8 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
         return;
       }
       
-      // Parse AST
-      const ast = parse(content, {
+      // Only parse TS/JS AST for TS/JS files
+      const ast = ext === '.php' ? undefined : parse(content, {
         loc: true,
         range: true,
         comment: true,
@@ -529,8 +843,8 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
         ecmaFeatures: { jsx: true }
       });
       
-      // Use ASTRelationshipExtractor
-      const extractor = new ASTRelationshipExtractor(workspaceRoot);
+  // Use ASTRelationshipExtractor for TS/JS
+  const extractor = new ASTRelationshipExtractor(workspaceRoot);
       
       // Create temp file
       const tempDir = path.join(workspaceRoot, '.cappy-debug-temp');
@@ -543,19 +857,231 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
       fs.writeFileSync(tempFilePath, content, 'utf-8');
       
       try {
-        // Analyze
-        const analysis = await extractor.analyze(tempFilePath);
+  let rawEntities: unknown[] = [];
+  let signatures: unknown[] = [];
+  let jsdocChunks: unknown[] = [];
+
+        if (ext === '.php') {
+          // PHP path: use PHPParser to extract full structure
+          const { PHPParser } = await import('./src/nivel2/infrastructure/parsers/php-parser.js');
+          const phpParser = new PHPParser();
+          
+          // Get complete PHP analysis
+          const phpAnalysis = await phpParser.analyze(tempFilePath);
+          
+          // Also get PHPDoc chunks for pipeline
+          const phpChunks = await phpParser.parseFile(tempFilePath);
+          jsdocChunks = phpChunks;
+          console.log(`📝🐘 [Debug API] PHPDoc chunks extracted: ${phpChunks.length}`);
+          console.log(`🐘 [Debug API] PHP Analysis: ${phpAnalysis.classes.length} classes, ${phpAnalysis.interfaces.length} interfaces, ${phpAnalysis.traits.length} traits, ${phpAnalysis.functions.length} functions`);
+
+          // Build entities from ALL PHP symbols
+          rawEntities = [];
+          
+          // Classes as entities
+          for (const cls of phpAnalysis.classes) {
+            rawEntities.push({
+              type: 'export' as const,
+              name: cls.name,
+              source: tempFilePath,
+              specifiers: [],
+              scope: 'module' as const,
+              metadata: { 
+                symbolKind: 'class', 
+                fullName: cls.fullName,
+                extends: cls.extends,
+                implements: cls.implements,
+                isAbstract: cls.isAbstract,
+                isFinal: cls.isFinal
+              }
+            });
+            
+            // Class methods
+            for (const method of cls.methods) {
+              rawEntities.push({
+                type: 'export' as const,
+                name: `${cls.name}::${method.name}`,
+                source: tempFilePath,
+                specifiers: [],
+                scope: 'module' as const,
+                isPrivate: method.visibility !== 'public',
+                metadata: { 
+                  symbolKind: 'method',
+                  visibility: method.visibility,
+                  isStatic: method.isStatic,
+                  className: cls.name
+                }
+              });
+            }
+            
+            // Class properties
+            for (const prop of cls.properties) {
+              rawEntities.push({
+                type: 'export' as const,
+                name: `${cls.name}::$${prop.name}`,
+                source: tempFilePath,
+                specifiers: [],
+                scope: 'module' as const,
+                isPrivate: prop.visibility !== 'public',
+                metadata: { 
+                  symbolKind: 'property',
+                  visibility: prop.visibility,
+                  type: prop.type,
+                  className: cls.name
+                }
+              });
+            }
+          }
+          
+          // Interfaces
+          for (const iface of phpAnalysis.interfaces) {
+            rawEntities.push({
+              type: 'export' as const,
+              name: iface.name,
+              source: tempFilePath,
+              specifiers: [],
+              scope: 'module' as const,
+              metadata: { 
+                symbolKind: 'interface',
+                fullName: iface.fullName,
+                extends: iface.extends
+              }
+            });
+          }
+          
+          // Traits
+          for (const trait of phpAnalysis.traits) {
+            rawEntities.push({
+              type: 'export' as const,
+              name: trait.name,
+              source: tempFilePath,
+              specifiers: [],
+              scope: 'module' as const,
+              metadata: { 
+                symbolKind: 'trait',
+                fullName: trait.fullName
+              }
+            });
+          }
+          
+          // Functions
+          for (const func of phpAnalysis.functions) {
+            rawEntities.push({
+              type: 'export' as const,
+              name: func.name,
+              source: tempFilePath,
+              specifiers: [],
+              scope: 'module' as const,
+              metadata: { 
+                symbolKind: 'function',
+                returnType: func.returnType,
+                parameters: func.parameters
+              }
+            });
+          }
+          
+          // Uses (imports)
+          for (const use of phpAnalysis.uses) {
+            rawEntities.push({
+              type: 'import' as const,
+              name: use.fullName,
+              source: use.fullName,
+              specifiers: [use.alias],
+              scope: 'module' as const,
+              isExternal: true,
+              metadata: { 
+                alias: use.alias
+              }
+            });
+          }
+          
+          // Store full PHP analysis for response
+          signatures = [phpAnalysis];
+          
+          console.log(`📊 [Debug API] Raw entities extracted from PHP: ${rawEntities.length}`);
+        } else {
+          const analysis = await extractor.analyze(tempFilePath);
+          signatures = extractSignatures(ast);
+          jsdocChunks = extractJSDocChunks(ast, fileName);
+          console.log(`📝 [Debug API] JSDoc chunks extracted: ${jsdocChunks.length}`);
+
+          rawEntities = [
+            ...analysis.imports.map(imp => ({
+              type: 'import' as const,
+              name: imp.source,
+              source: tempFilePath,
+              specifiers: imp.specifiers || [],
+              isExternal: imp.isExternal,
+              packageResolution: imp.packageResolution
+            })),
+            ...analysis.exports.map(expName => ({
+              type: 'export' as const,
+              name: expName,
+              source: tempFilePath,
+              specifiers: [],
+              isExternal: false,
+              packageResolution: undefined
+            })),
+            ...analysis.calls.map(callName => ({
+              type: 'call' as const,
+              name: callName,
+              source: tempFilePath,
+              specifiers: [],
+              isExternal: false,
+              packageResolution: undefined
+            })),
+            ...analysis.typeRefs.map(typeRefName => ({
+              type: 'typeRef' as const,
+              name: typeRefName,
+              source: tempFilePath,
+              specifiers: [],
+              isExternal: false,
+              packageResolution: undefined
+            }))
+          ];
+          console.log(`📊 [Debug API] Raw entities extracted: ${rawEntities.length}`);
+        }
         
-        // Extract signatures
-        const signatures = extractSignatures(ast);
+        // 🔥 Inicializa GraphStore para discovery
+        const { SQLiteAdapter } = await import('./src/nivel2/infrastructure/database/sqlite-adapter.js');
+        const dbPath = path.join(workspaceRoot, '.cappy', 'knowledge-graph.db');
+        const graphStore = new SQLiteAdapter(dbPath);
+        
+        // 🔥 Apply pipeline filtering com GraphStore e JSDoc chunks
+        const pipeline = new EntityFilterPipeline(
+          {
+            skipLocalVariables: true,
+            skipPrimitiveTypes: true,
+            skipAssetImports: true,
+            discoverExistingEntities: true,
+            extractDocumentation: true  // ← ATIVA EXTRAÇÃO DE DOCS
+          },
+          graphStore
+        );
+        
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pipelineResult = await pipeline.process(rawEntities as any, tempFilePath, jsdocChunks as any);
+        
+        console.log(`✅ [Debug API] Pipeline completed:
+          - Original: ${pipelineResult.original.length}
+          - Filtered: ${pipelineResult.filtered.length}
+          - Deduplicated: ${pipelineResult.deduplicated.length}
+          - Normalized: ${pipelineResult.normalized.length}
+          - Enriched: ${pipelineResult.enriched.length}`);
         
         // Build response
-        const response = {
-          fileName,
-          fileSize,
-          mimeType,
-          ast,
-          entities: [
+        const counts = { imports: 0, exports: 0, calls: 0, typeRefs: 0 };
+        let entitiesList: unknown[] = [];
+        if (ext === '.php') {
+          entitiesList = rawEntities;
+          counts.exports = (rawEntities as unknown[]).length;
+        } else {
+          const analysis = await extractor.analyze(tempFilePath);
+          counts.imports = analysis.imports.length;
+          counts.exports = analysis.exports.length;
+          counts.calls = analysis.calls.length;
+          counts.typeRefs = analysis.typeRefs.length;
+          entitiesList = [
             ...analysis.imports.map(imp => ({
               type: 'import',
               source: imp.source,
@@ -575,17 +1101,26 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
               type: 'typeRef',
               name: ref
             }))
-          ],
+          ];
+        }
+
+        const response = {
+          fileName,
+          fileSize,
+          mimeType,
+          ast,
+          entities: entitiesList,
           signatures,
+          pipeline: pipelineResult,
           metadata: {
             lines: content.split('\n').length,
             characters: content.length,
             hasErrors: false,
             mode: 'vite-dev-server',
-            importsCount: analysis.imports.length,
-            exportsCount: analysis.exports.length,
-            callsCount: analysis.calls.length,
-            typeRefsCount: analysis.typeRefs.length
+            importsCount: counts.imports,
+            exportsCount: counts.exports,
+            callsCount: counts.calls,
+            typeRefsCount: counts.typeRefs
           }
         };
         
@@ -666,6 +1201,98 @@ function extractSignatures(ast: unknown): unknown[] {
   
   visit(ast);
   return signatures;
+}
+
+/**
+ * Extrai chunks de documentação JSDoc do AST
+ */
+function extractJSDocChunks(ast: unknown, fileName: string): Array<{
+  id: string;
+  content: string;
+  metadata: {
+    filePath: string;
+    lineStart: number;
+    lineEnd: number;
+    chunkType: 'jsdoc';
+    symbolName?: string;
+  };
+}> {
+  const chunks: Array<{
+    id: string;
+    content: string;
+    metadata: {
+      filePath: string;
+      lineStart: number;
+      lineEnd: number;
+      chunkType: 'jsdoc';
+      symbolName?: string;
+    };
+  }> = [];
+  
+  const visit = (node: unknown, parentName?: string): void => {
+    if (!node || typeof node !== 'object') return;
+    const n = node as Record<string, unknown>;
+    
+    // Extrai comentários JSDoc
+    if (n.leadingComments && Array.isArray(n.leadingComments)) {
+      for (const comment of n.leadingComments) {
+        const c = comment as Record<string, unknown>;
+        if (c.type === 'CommentBlock' && typeof c.value === 'string') {
+          const content = c.value.trim();
+          
+          // Verifica se é JSDoc (começa com **)
+          if (content.startsWith('*')) {
+            const symbolName = parentName || extractSymbolNameFromNode(n);
+            const loc = c.loc as { start?: { line?: number }; end?: { line?: number } } | undefined;
+            
+            chunks.push({
+              id: `jsdoc:${fileName}:${symbolName || chunks.length}`,
+              content: `/**${content}*/`,
+              metadata: {
+                filePath: fileName,
+                lineStart: loc?.start?.line || 0,
+                lineEnd: loc?.end?.line || 0,
+                chunkType: 'jsdoc',
+                symbolName
+              }
+            });
+          }
+        }
+      }
+    }
+    
+    // Recursão
+    for (const key in n) {
+      if (key === 'parent' || key === 'loc' || key === 'range' || key === 'leadingComments') continue;
+      const value = n[key];
+      
+      const currentName = extractSymbolNameFromNode(n) || parentName;
+      
+      if (Array.isArray(value)) {
+        value.forEach(child => visit(child, currentName));
+      } else if (typeof value === 'object') {
+        visit(value, currentName);
+      }
+    }
+  };
+  
+  visit(ast);
+  return chunks;
+}
+
+/**
+ * Extrai o nome do símbolo de um nó AST
+ */
+function extractSymbolNameFromNode(node: Record<string, unknown>): string | undefined {
+  if (node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') {
+    const id = node.id as Record<string, unknown> | undefined;
+    return id?.name as string | undefined;
+  }
+  if (node.type === 'VariableDeclarator') {
+    const id = node.id as Record<string, unknown> | undefined;
+    return id?.name as string | undefined;
+  }
+  return undefined;
 }
 
 // Script que mockeia a API do VS Code

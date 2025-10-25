@@ -1,5 +1,6 @@
 import type { UseCase, UseCaseContext, WebviewMessage } from './UseCase';
 import { ASTRelationshipExtractor } from '../../../../../nivel2/infrastructure/services/ast-relationship-extractor';
+import { EntityFilterPipeline, type RawEntity } from '../../../../../nivel2/infrastructure/services/entity-filtering/entity-filter-pipeline';
 import { parse } from '@typescript-eslint/parser';
 import * as path from 'path';
 
@@ -71,10 +72,92 @@ export class DebugAnalyzeUseCase implements UseCase {
       
       try {
         // Analyze using our infrastructure
+        ctx.log(`🔍 [Debug] Running AST analysis...`);
         const analysis = await extractor.analyze(tempFilePath);
+        
+        ctx.log(`📝 [Debug] AST analysis complete - Imports: ${analysis.imports.length}, Exports: ${analysis.exports.length}`);
         
         // Extract signatures
         const signatures = this.extractSignatures(ast);
+        
+        // ============================================
+        // NOVO: PIPELINE DE FILTRAGEM
+        // ============================================
+        
+        // Construir entidades brutas
+        const rawEntities: RawEntity[] = [];
+        
+        // Add imports
+        analysis.imports.forEach(imp => {
+          rawEntities.push({
+            type: 'import' as const,
+            name: imp.specifiers[0] || imp.source,
+            source: imp.source,
+            specifiers: imp.specifiers,
+            scope: 'module' as const,
+            metadata: {
+              isExternal: imp.isExternal,
+              packageResolution: imp.packageResolution
+            }
+          });
+        });
+        
+        // Add exports
+        analysis.exports.forEach(exp => {
+          rawEntities.push({
+            type: 'export' as const,
+            name: exp,
+            scope: 'module' as const
+          });
+        });
+        
+        // Add calls
+        analysis.calls.forEach(call => {
+          rawEntities.push({
+            type: 'call' as const,
+            name: call,
+            scope: 'local' as const
+          });
+        });
+        
+        // Add type refs
+        analysis.typeRefs.forEach(ref => {
+          rawEntities.push({
+            type: 'typeRef' as const,
+            name: ref,
+            scope: 'global' as const
+          });
+        });
+        
+        ctx.log(`🔍 [Debug] Raw entities extracted: ${rawEntities.length}`);
+        
+        if (rawEntities.length === 0) {
+          ctx.log(`⚠️ [Debug] No entities found! This might be an issue.`);
+        }
+        
+        ctx.log(`📝 [Debug] Breakdown - Imports: ${analysis.imports.length}, Exports: ${analysis.exports.length}, Calls: ${analysis.calls.length}, TypeRefs: ${analysis.typeRefs.length}`);
+        
+        // Processar através do pipeline de filtragem
+        ctx.log(`🔄 [Debug] Starting pipeline processing...`);
+        const pipeline = new EntityFilterPipeline({
+          skipLocalVariables: true,
+          skipPrimitiveTypes: true,
+          skipAssetImports: true,
+          skipPrivateMembers: false,
+          mergeIdenticalEntities: true,
+          resolvePackageInfo: true,
+          inferRelationships: true,
+          calculateConfidence: true
+        });
+        
+        const filterResult = await pipeline.process(rawEntities, tempFilePath);
+        
+        ctx.log(`📊 [Debug] Pipeline completed!`);
+        ctx.log(`   • Raw: ${filterResult.stats.totalRaw}`);
+        ctx.log(`   • Filtered: ${filterResult.stats.totalFiltered} (-${filterResult.stats.discardedCount})`);
+        ctx.log(`   • Deduplicated: ${filterResult.deduplicated.length} (-${filterResult.stats.deduplicatedCount})`);
+        ctx.log(`   • Final: ${filterResult.stats.finalCount}`);
+        ctx.log(`   • Compression: ${((1 - filterResult.stats.finalCount / filterResult.stats.totalRaw) * 100).toFixed(1)}%`);
         
         // Build response
         const response = {
@@ -82,40 +165,54 @@ export class DebugAnalyzeUseCase implements UseCase {
           fileSize,
           mimeType,
           ast,
-          entities: [
-            ...analysis.imports.map(imp => ({
-              type: 'import',
-              source: imp.source,
-              specifiers: imp.specifiers,
-              isExternal: imp.isExternal,
-              packageResolution: imp.packageResolution
-            })),
-            ...analysis.exports.map(exp => ({
-              type: 'export',
-              name: exp
-            })),
-            ...analysis.calls.map(call => ({
-              type: 'call',
-              name: call
-            })),
-            ...analysis.typeRefs.map(ref => ({
-              type: 'typeRef',
-              name: ref
-            }))
-          ],
+          // NOVO: Incluir todas as etapas do pipeline
+          pipeline: {
+            raw: filterResult.original,
+            filtered: filterResult.filtered,
+            deduplicated: filterResult.deduplicated,
+            normalized: filterResult.normalized,
+            enriched: filterResult.enriched,
+            stats: filterResult.stats
+          },
+          // Legacy format (manter compatibilidade)
+          entities: filterResult.enriched.map(e => ({
+            type: e.type,
+            name: e.name,
+            source: e.source,
+            category: e.category,
+            confidence: e.confidence,
+            relationships: e.relationships,
+            packageInfo: e.packageInfo
+          })),
           signatures,
           metadata: {
             lines: content.split('\n').length,
             characters: content.length,
             hasErrors: false,
-            mode: 'backend-analysis',
+            mode: 'pipeline-analysis',
+            // Stats originais
             importsCount: analysis.imports.length,
             exportsCount: analysis.exports.length,
             callsCount: analysis.calls.length,
-            typeRefsCount: analysis.typeRefs.length
+            typeRefsCount: analysis.typeRefs.length,
+            // Stats do pipeline
+            pipelineStats: {
+              totalRaw: filterResult.stats.totalRaw,
+              totalFiltered: filterResult.stats.totalFiltered,
+              discardedCount: filterResult.stats.discardedCount,
+              deduplicatedCount: filterResult.stats.deduplicatedCount,
+              finalCount: filterResult.stats.finalCount,
+              processingTimeMs: filterResult.stats.processingTimeMs,
+              compressionRate: `${((1 - filterResult.stats.finalCount / filterResult.stats.totalRaw) * 100).toFixed(1)}%`
+            }
           }
         };
 
+        ctx.log(`📤 [Debug] Sending response with pipeline data...`);
+        ctx.log(`   • Pipeline object keys: ${Object.keys(response.pipeline || {}).join(', ')}`);
+        ctx.log(`   • Pipeline.raw length: ${response.pipeline?.raw?.length || 0}`);
+        ctx.log(`   • Pipeline.enriched length: ${response.pipeline?.enriched?.length || 0}`);
+        
         ctx.sendMessage({
           type: 'debug/analyze-result',
           payload: response
