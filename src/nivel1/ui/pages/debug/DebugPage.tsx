@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Card } from '../../primitives/Card';
-import Button from '../../primitives/Button';
+import { Card, Button } from '../../primitives';
 import GraphVisualizer from '../../graph/GraphVisualizer';
 
 type VSCodeApi = { postMessage: (message: unknown) => void };

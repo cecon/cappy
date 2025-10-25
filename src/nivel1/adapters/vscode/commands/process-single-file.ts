@@ -55,7 +55,7 @@ export async function processSingleFileInternal(options: {
       workspaceRoot,
       undefined // LLMProvider opcional - não disponível em comandos individuais
     );
-    const parserService = new ParserService(workspaceRoot);
+  const parserService = new ParserService();
     const relationshipExtractor = new ASTRelationshipExtractor(workspaceRoot);
 
     await indexingService.initialize();

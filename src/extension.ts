@@ -9,11 +9,16 @@ import { ContextRetrievalTool } from './domains/chat/tools/native/context-retrie
 import { LangGraphChatEngine } from './nivel2/infrastructure/agents/langgraph-chat-engine';
 import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './nivel1/adapters/vscode/commands/scan-workspace';
-import { registerProcessSingleFileCommand } from './commands/process-single-file';
-import { registerDebugRetrievalCommand } from './commands/debug-retrieval';
-import { registerDebugCommand, registerDebugDatabaseCommand, registerDebugAddTestDataCommand } from './commands/debug';
-import { reanalyzeRelationships } from './commands/reanalyze-relationships';
-import { registerResetDatabaseCommand } from './commands/reset-database';
+import { 
+  registerProcessSingleFileCommand,
+  registerDebugRetrievalCommand,
+  registerDebugCommand,
+  registerDebugDatabaseCommand,
+  registerDebugAddTestDataCommand,
+  registerReanalyzeRelationshipsCommand,
+  registerResetDatabaseCommand,
+  registerDiagnoseGraphCommand
+} from './nivel1/adapters/vscode/commands';
 import { FileMetadataDatabase } from './nivel2/infrastructure/services/file-metadata-database';
 import { FileProcessingQueue } from './nivel2/infrastructure/services/file-processing-queue';
 import { FileProcessingWorker } from './nivel2/infrastructure/services/file-processing-worker';
@@ -217,25 +222,11 @@ export function activate(context: vscode.ExtensionContext) {
     registerDebugAddTestDataCommand(context);
     console.log('✅ Registered command: cappy.debugAddTestData');
 
-    // Register reanalyze relationships command
-    const reanalyzeCommand = vscode.commands.registerCommand('cappy.reanalyzeRelationships', async () => {
-        if (!graphStore) {
-            vscode.window.showErrorMessage('Graph store not initialized');
-            return;
-        }
-        if (!fileDatabase) {
-            vscode.window.showErrorMessage('File database not initialized');
-            return;
-        }
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceRoot) {
-            vscode.window.showErrorMessage('No workspace folder open');
-            return;
-        }
-        await reanalyzeRelationships(graphStore, workspaceRoot, fileDatabase);
-    });
-    context.subscriptions.push(reanalyzeCommand);
-    console.log('✅ Registered command: cappy.reanalyzeRelationships');
+    // Register reanalyze relationships command (needs graphStore and fileDatabase)
+    if (graphStore && fileDatabase) {
+        registerReanalyzeRelationshipsCommand(context, graphStore, fileDatabase);
+        console.log('✅ Registered command: cappy.reanalyzeRelationships');
+    }
 
     // Register queue control commands
     const pauseQueueCommand = vscode.commands.registerCommand('cappy.pauseQueue', () => {
@@ -293,21 +284,8 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('✅ Registered command: cappy.queueStatus');
 
     // Register diagnose graph command
-    const diagnoseCommand = vscode.commands.registerCommand('cappy.diagnoseGraph', async () => {
-        if (!graphStore) {
-            vscode.window.showErrorMessage('Graph store not initialized');
-            return;
-        }
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceRoot) {
-            vscode.window.showErrorMessage('No workspace folder open');
-            return;
-        }
-        const { diagnoseGraph } = await import('./commands/diagnose-graph.js');
-        const outputChannel = vscode.window.createOutputChannel('Cappy Graph Diagnostics');
-        await diagnoseGraph(graphStore, outputChannel, workspaceRoot);
-    });
-    context.subscriptions.push(diagnoseCommand);
+    // Register diagnose graph command
+    registerDiagnoseGraphCommand(context, graphStore);
     console.log('✅ Registered command: cappy.diagnoseGraph');
 
     // Register reset database command
@@ -412,16 +390,13 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         console.log('✅ File metadata database initialized at:', dbPath);
 
         // Initialize services for worker
-        const { ParserService } = await import('./nivel2/infrastructure/services/parser-service.js');
+    const { ParserService } = await import('./nivel2/infrastructure/services/parser-service.js');
         const { FileHashService } = await import('./nivel2/infrastructure/services/file-hash-service.js');
         const { EmbeddingService } = await import('./nivel2/infrastructure/services/embedding-service.js');
         const { IndexingService } = await import('./nivel2/infrastructure/services/indexing-service.js');
         const { ConfigService } = await import('./nivel2/infrastructure/services/config-service.js');
         
-        const parserService = new ParserService(workspaceRoot);
-        // Enable enhanced parsing with AST entity extraction for code files
-        parserService.enableEnhancedParsing(true);
-        console.log('✅ Enhanced document parsing enabled (with AST entity extraction)');
+    const parserService = new ParserService();
         
         const hashService = new FileHashService();
         

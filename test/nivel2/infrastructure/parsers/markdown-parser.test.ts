@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createMarkdownParser, MarkdownParser } from '../markdown-parser';
+import { createMarkdownParser, MarkdownParser } from '@/nivel2/infrastructure/parsers/markdown-parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

@@ -4,10 +4,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { WorkspaceScanQueue } from '../workspace-scan-queue';
-import { FileHashService } from '../file-hash-service';
-import { IgnorePatternMatcher } from '../ignore-pattern-matcher';
-import { FileMetadataExtractor } from '../file-metadata-extractor';
+import { WorkspaceScanQueue } from '@/nivel2/infrastructure/services/workspace-scan-queue';
+import { FileHashService } from '@/nivel2/infrastructure/services/file-hash-service';
+import { IgnorePatternMatcher } from '@/nivel2/infrastructure/services/ignore-pattern-matcher';
+import { FileMetadataExtractor } from '@/nivel2/infrastructure/services/file-metadata-extractor';
 
 describe('WorkspaceScanQueue', () => {
   it('should process tasks with concurrency control', async () => {

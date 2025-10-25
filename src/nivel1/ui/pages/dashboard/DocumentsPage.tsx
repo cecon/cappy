@@ -1,6 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../primitives/Card.tsx';
-import Button from '../../primitives/Button.tsx';
+import { Card, CardHeader, CardTitle, CardContent, Button } from '../../primitives';
 
 type VSCodeApi = { postMessage: (message: unknown) => void };
 type WindowWithVSCode = Window & {

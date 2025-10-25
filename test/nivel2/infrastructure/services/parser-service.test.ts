@@ -4,10 +4,10 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createParserService, ParserService } from '../parser-service';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import { createParserService, ParserService } from '@/nivel2/infrastructure/services/parser-service';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 
 describe('ParserService', () => {
   let service: ParserService;
@@ -15,7 +15,7 @@ describe('ParserService', () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parser-service-test-'));
-    service = createParserService(tempDir);
+    service = createParserService();
   });
 
   describe('File Type Detection', () => {
@@ -176,33 +176,13 @@ function Component() {
       expect(service.isSupported('file.json')).toBe(false);
     });
 
-    it('should support document files only when enhanced parsing is enabled', () => {
-      expect(service.isSupported('file.pdf')).toBe(false);
-      expect(service.isSupported('file.docx')).toBe(false);
-      
-      service.enableEnhancedParsing(true);
-      
+    it('should support document files by default', () => {
       expect(service.isSupported('file.pdf')).toBe(true);
       expect(service.isSupported('file.docx')).toBe(true);
     });
   });
 
-  describe('Enhanced Parsing', () => {
-    it('should start with enhanced parsing disabled', () => {
-      expect(service.isEnhancedParsingEnabled()).toBe(false);
-    });
-
-    it('should enable enhanced parsing', () => {
-      service.enableEnhancedParsing(true);
-      expect(service.isEnhancedParsingEnabled()).toBe(true);
-    });
-
-    it('should disable enhanced parsing', () => {
-      service.enableEnhancedParsing(true);
-      service.enableEnhancedParsing(false);
-      expect(service.isEnhancedParsingEnabled()).toBe(false);
-    });
-  });
+  // Enhanced parsing removed in favor of explicit parsers
 
   describe('Unsupported Files', () => {
     it('should return empty array for unsupported files', async () => {
@@ -297,9 +277,9 @@ function Component() {
 
   describe('Factory Function', () => {
     it('should create a new ParserService instance', () => {
-      const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parser-factory-test-'));
-      const service1 = createParserService(testDir);
-      const service2 = createParserService(testDir);
+  fs.mkdtempSync(path.join(os.tmpdir(), 'parser-factory-test-'));
+  const service1 = createParserService();
+  const service2 = createParserService();
 
       expect(service1).toBeInstanceOf(ParserService);
       expect(service2).toBeInstanceOf(ParserService);

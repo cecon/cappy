@@ -1,6 +1,6 @@
 import React from 'react';
 import logo from '../../../../assets/cappy-activity.svg';
-import { TabsList, TabsTrigger } from '../../primitives/Tabs';
+import { TabsList, TabsTrigger } from '../../primitives';
 import { cn } from '../../../../lib/utils';
 
 interface HeaderProps {

@@ -6,15 +6,15 @@
  */
 
 import * as vscode from 'vscode';
-import type { GraphStorePort } from '../domains/graph/ports/indexing-port';
-import { ASTRelationshipExtractor } from '../nivel2/infrastructure/services/ast-relationship-extractor';
-import { FileMetadataDatabase } from '../nivel2/infrastructure/services/file-metadata-database';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as os from 'os';
+import type { GraphStorePort } from '../../../../domains/graph/ports/indexing-port';
+import { ASTRelationshipExtractor } from '../../../../nivel2/infrastructure/services/ast-relationship-extractor';
+import type { FileMetadataDatabase } from '../../../../nivel2/infrastructure/services/file-metadata-database';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 
 /**
- * Reanalyzes all relationships for indexed files
+ * Reanalyzes all file relationships
  */
 export async function reanalyzeRelationships(
   graphStore: GraphStorePort,
@@ -218,11 +218,31 @@ export async function reanalyzeRelationships(
         vscode.window.showInformationMessage(message);
 
       } catch (error) {
-        console.error('❌ Error reanalyzing relationships:', error);
+        console.error('❌ Reanalyze error:', error);
         vscode.window.showErrorMessage(`Failed to reanalyze relationships: ${error}`);
       }
     }
   );
+}
+
+/**
+ * Register the reanalyze relationships command
+ */
+export function registerReanalyzeRelationshipsCommand(
+  context: vscode.ExtensionContext,
+  graphStore: GraphStorePort,
+  fileDatabase: FileMetadataDatabase
+): void {
+  const command = vscode.commands.registerCommand('cappy.reanalyzeRelationships', async () => {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+      vscode.window.showErrorMessage('No workspace folder open');
+      return;
+    }
+    await reanalyzeRelationships(graphStore, workspaceRoot, fileDatabase);
+  });
+
+  context.subscriptions.push(command);
 }
 
 /**

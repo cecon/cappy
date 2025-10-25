@@ -13,7 +13,7 @@ import { EmbeddingService } from '../../../../nivel2/infrastructure/services/emb
 import { IndexingService } from '../../../../nivel2/infrastructure/services/indexing-service';
 import { SQLiteAdapter } from '../../../../nivel2/infrastructure/database/sqlite-adapter';
 import { SQLiteVectorStore } from '../../../../nivel2/infrastructure/vector/sqlite-vector-adapter';
-import * as path from 'path';
+import * as path from 'node:path';
 import { ConfigService } from '../../../../nivel2/infrastructure/services/config-service';
 
 /**
@@ -70,7 +70,7 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
             
             progress.report({ message: '📦 Setting up parsers...', increment: 5 });
             
-            const parserService = new ParserService(workspaceRoot);
+            const parserService = new ParserService();
             const indexingService = new IndexingService(
               vectorStore,
               graphStore,
@@ -112,7 +112,7 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
               const shortName = fileName.length > 30 ? fileName.substring(0, 27) + '...' : fileName;
               
               progress.report({
-                message: `${statusEmoji} ${processed}/${total} files ${shortName ? `- ${shortName}` : ''}`,
+                message: statusEmoji + ' ' + processed + '/' + total + ' files' + (shortName ? ' - ' + shortName : ''),
                 increment: increment > 0 ? increment : undefined
               });
             });

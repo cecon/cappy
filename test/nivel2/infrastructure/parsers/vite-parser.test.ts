@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createViteParser } from '../vite-parser';
+import { createViteParser } from '@/nivel2/infrastructure/parsers/vite-parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

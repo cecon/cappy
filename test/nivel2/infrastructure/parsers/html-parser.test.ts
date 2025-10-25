@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createHTMLParser } from '../html-parser';
+import { createHTMLParser } from '@/nivel2/infrastructure/parsers/html-parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

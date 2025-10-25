@@ -1,1 +1,1 @@
-export { Card, CardHeader, CardTitle, CardContent } from './primitives/Card.tsx';
+export { Card, CardHeader, CardTitle, CardContent } from './primitives/Card';

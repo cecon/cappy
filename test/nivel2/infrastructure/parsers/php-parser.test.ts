@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createPHPParser, PHPParser } from '../php-parser';
+import { createPHPParser, PHPParser } from '@/nivel2/infrastructure/parsers/php-parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

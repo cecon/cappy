@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createBladeParser } from '../blade-parser';
+import { createBladeParser } from '@/nivel2/infrastructure/parsers/blade-parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

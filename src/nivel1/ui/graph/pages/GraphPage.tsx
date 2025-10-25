@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent } from '../../primitives/Card';
-import Button from '../../primitives/Button';
+import { Card, CardContent, Button } from '../../primitives';
 import GraphVisualizer from '../GraphVisualizer';
 
 const GraphPage: React.FC = () => {

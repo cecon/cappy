@@ -11,11 +11,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { FileMetadataDatabase } from '../file-metadata-database';
-import { FileProcessingQueue } from '../file-processing-queue';
-import { FileProcessingWorker } from '../file-processing-worker';
-import { ParserService } from '../parser-service';
-import { FileHashService } from '../file-hash-service';
+import { FileMetadataDatabase } from '@/nivel2/infrastructure/services/file-metadata-database';
+import { FileProcessingQueue } from '@/nivel2/infrastructure/services/file-processing-queue';
+import { FileProcessingWorker } from '@/nivel2/infrastructure/services/file-processing-worker';
+import { ParserService } from '@/nivel2/infrastructure/services/parser-service';
+import { FileHashService } from '@/nivel2/infrastructure/services/file-hash-service';
 
 /**
  * Test workspace structure

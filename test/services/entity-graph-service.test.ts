@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { GraphStorePort } from '../../domains/graph/ports/indexing-port';
-import type { ExtractedEntity } from '../../types/entity';
-import { createEntityGraphService } from '../entity-graph-service';
+import type { GraphStorePort } from '@/domains/graph/ports/indexing-port';
+import type { ExtractedEntity } from '@/types/entity';
+import { createEntityGraphService } from '@/nivel2/infrastructure/services/entity-graph-service';
 
 describe('EntityGraphService', () => {
   let graphStore: GraphStorePort;

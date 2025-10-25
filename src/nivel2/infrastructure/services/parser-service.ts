@@ -5,15 +5,15 @@
  * @since 3.0.0
  */
 
-import { createTypeScriptParser } from '../parsers/typescript-parser';
-import { createMarkdownParser } from '../parsers/markdown-parser';
-import { createDocumentEnhancedParser } from '../parsers/document-enhanced-parser';
-import { createPHPParser } from '../parsers/php-parser';
-import { createBladeParser } from '../parsers/blade-parser';
-import { createHTMLParser } from '../parsers/html-parser';
-import { createViteParser } from '../parsers/vite-parser';
-import type { DocumentChunk } from '../../../shared/types/chunk';
-import * as path from 'node:path';
+import { createTypeScriptParser } from "../parsers/typescript-parser";
+import { createMarkdownParser } from "../parsers/markdown-parser";
+import { createDocumentParser } from "../parsers/document-parser";
+import { createPHPParser } from "../parsers/php-parser";
+import { createBladeParser } from "../parsers/blade-parser";
+import { createHTMLParser } from "../parsers/html-parser";
+import { createViteParser } from "../parsers/vite-parser";
+import type { DocumentChunk } from "../../../shared/types/chunk";
+import * as path from "node:path";
 
 /**
  * Parser service coordinating different file type parsers
@@ -21,90 +21,65 @@ import * as path from 'node:path';
 export class ParserService {
   private readonly tsParser = createTypeScriptParser();
   private readonly mdParser = createMarkdownParser();
-  private readonly enhancedDocParser;
+  private readonly documentParser = createDocumentParser();
   private readonly phpParser = createPHPParser();
   private readonly bladeParser = createBladeParser();
   private readonly htmlParser = createHTMLParser();
   private readonly viteParser = createViteParser();
-  private enhancedParsingEnabled = false; // Disabled by default; can be enabled for AST entity extraction
-  private readonly workspaceRoot: string;
-
-  constructor(workspaceRoot: string) {
-    this.workspaceRoot = workspaceRoot;
-    this.enhancedDocParser = createDocumentEnhancedParser(workspaceRoot);
-  }
-
-  /**
-   * Enables enhanced parsing with AST entity extraction
-   */
-  enableEnhancedParsing(enabled = true): void {
-    this.enhancedParsingEnabled = enabled;
-    console.log(`📚 Enhanced document parsing (AST-based) ${enabled ? 'enabled' : 'disabled'}`);
-  }
 
   /**
    * Parses a file based on its extension
    */
-  async parseFile(filePath: string, useOverlap = false): Promise<DocumentChunk[]> {
+  async parseFile(
+    filePath: string,
+    useOverlap = false
+  ): Promise<DocumentChunk[]> {
     const ext = path.extname(filePath);
-    
+
     try {
       switch (ext) {
-        case '.ts':
-        case '.tsx':
-        case '.js':
-        case '.jsx':
+        case ".ts":
+        case ".tsx":
+        case ".js":
+        case ".jsx":
           console.log(`🔍 Parsing TypeScript/JavaScript: ${filePath}`);
           return await this.tsParser.parseFile(filePath);
 
-        case '.php':
+        case ".php":
           // Check if it's a Blade template
-          if (filePath.endsWith('.blade.php')) {
+          if (filePath.endsWith(".blade.php")) {
             console.log(`�️ Parsing Blade template: ${filePath}`);
             return await this.bladeParser.parseFile(filePath);
           }
           console.log(`�🐘 Parsing PHP: ${filePath}`);
           return await this.phpParser.parseFile(filePath);
 
-        case '.html':
+        case ".html":
           console.log(`🌐 Parsing HTML: ${filePath}`);
           return await this.htmlParser.parseFile(filePath);
 
-        case '.md':
-        case '.mdx':
-          // Use enhanced parser if enabled
-          if (this.enhancedParsingEnabled) {
-            console.log(`🧠 Parsing Markdown with entity extraction: ${filePath}`);
-            return await this.enhancedDocParser.parseFile(filePath, true);
-          }
-          
-          // Fallback to standard parser
+        case ".md":
+        case ".mdx":
           console.log(`🔍 Parsing Markdown: ${filePath}`);
           if (useOverlap) {
             return await this.mdParser.parseFileWithOverlap(filePath, 512, 100);
-          } else {
-            return await this.mdParser.parseFile(filePath);
           }
+          return await this.mdParser.parseFile(filePath);
 
-        case '.pdf':
-        case '.doc':
-        case '.docx':
-          // Enhanced parser for documents
-          if (this.enhancedParsingEnabled) {
-            console.log(`🧠 Parsing document with entity extraction: ${filePath}`);
-            return await this.enhancedDocParser.parseFile(filePath, true);
-          }
-          console.warn(`⚠️ Enhanced parsing disabled - cannot parse: ${ext}`);
-          return [];
+        case ".pdf":
+        case ".doc":
+        case ".docx":
+          console.log(`📄 Parsing document: ${filePath}`);
+          return await this.documentParser.parseFile(filePath, 512, 100);
 
         default: {
           // Check if it's a Vite config file
           const fileName = path.basename(filePath);
-          if (fileName.match(/^vite\.config\.(js|ts|mjs|cjs)$/)) {
+          if (new RegExp(/^vite\.config\.(js|ts|mjs|cjs)$/).exec(fileName)) {
             console.log(`⚡ Parsing Vite config: ${filePath}`);
             return await this.viteParser.parseFile(filePath);
           }
-          
+
           console.warn(`⚠️ Unsupported file type: ${ext}`);
           return [];
         }
@@ -121,33 +96,37 @@ export class ParserService {
   getLanguage(filePath: string): string {
     const ext = path.extname(filePath);
     const fileName = path.basename(filePath);
-    
+
     // Check for Blade templates
-    if (filePath.endsWith('.blade.php')) {
-      return 'blade';
+    if (filePath.endsWith(".blade.php")) {
+      return "blade";
     }
-    
+
     // Check for Vite config
-    if (fileName.match(/^vite\.config\.(js|ts|mjs|cjs)$/)) {
-      return 'vite';
+    if (new RegExp(/^vite\.config\.(js|ts|mjs|cjs)$/).exec(fileName)) {
+      return "vite";
     }
-    
+
     switch (ext) {
-      case '.ts':
-      case '.tsx':
-        return 'typescript';
-      case '.js':
-      case '.jsx':
-        return 'javascript';
-      case '.php':
-        return 'php';
-      case '.html':
-        return 'html';
-      case '.md':
-      case '.mdx':
-        return 'markdown';
+      case ".ts":
+      case ".tsx":
+        return "typescript";
+      case ".js":
+      case ".jsx":
+        return "javascript";
+      case ".php":
+        return "php";
+      case ".html":
+        return "html";
+      case ".md":
+      case ".mdx":
+        return "markdown";
+      case ".pdf":
+      case ".doc":
+      case ".docx":
+        return "document";
       default:
-        return 'unknown';
+        return "unknown";
     }
   }
 
@@ -157,41 +136,42 @@ export class ParserService {
   isSupported(filePath: string): boolean {
     const ext = path.extname(filePath);
     const fileName = path.basename(filePath);
-    const basicSupported = ['.ts', '.tsx', '.js', '.jsx', '.md', '.mdx', '.php', '.html'];
-    const enhancedSupported = ['.pdf', '.doc', '.docx'];
-    
+    const basicSupported = [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".md",
+      ".mdx",
+      ".php",
+      ".html",
+    ];
+    const documentSupported = [".pdf", ".doc", ".docx"];
+
     // Check for Blade templates
-    if (filePath.endsWith('.blade.php')) {
+    if (filePath.endsWith(".blade.php")) {
       return true;
     }
-    
+
     // Check for Vite config
-    if (fileName.match(/^vite\.config\.(js|ts|mjs|cjs)$/)) {
+    if (new RegExp(/^vite\.config\.(js|ts|mjs|cjs)$/).exec(fileName)) {
       return true;
     }
-    
+
     if (basicSupported.includes(ext)) {
       return true;
     }
-    
-    if (enhancedSupported.includes(ext) && this.enhancedParsingEnabled) {
-      return true;
-    }
-    
-    return false;
-  }
 
-  /**
-   * Checks if enhanced parsing is enabled
-   */
-  isEnhancedParsingEnabled(): boolean {
-    return this.enhancedParsingEnabled;
+    if (documentSupported.includes(ext)) return true;
+
+    return false;
   }
 }
 
 /**
  * Factory function to create parser service
  */
-export function createParserService(workspaceRoot: string): ParserService {
-  return new ParserService(workspaceRoot);
+// workspaceRoot is kept in signature for backward compatibility
+export function createParserService(): ParserService {
+  return new ParserService();
 }

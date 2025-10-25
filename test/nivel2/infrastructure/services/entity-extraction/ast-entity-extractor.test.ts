@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { ASTEntityExtractor } from '../core/ASTEntityExtractor';
+import { ASTEntityExtractor } from '@/nivel2/infrastructure/services/entity-extraction/core/ASTEntityExtractor';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -267,11 +267,11 @@ describe('ASTEntityExtractor', () => {
       
       // Direct declarations should have high confidence
       const definedFn = entities.find(e => e.name === 'definedFunction' && e.type === 'function' && e.isExported !== undefined);
-      expect(definedFn?.confidence).toBe(1.0);
+      expect(definedFn?.confidence).toBe(1);
 
       // Imports should have high confidence
       const importedPkg = entities.find(e => e.name === 'external-package');
-      expect(importedPkg?.confidence).toBe(1.0);
+      expect(importedPkg?.confidence).toBe(1);
     });
   });
 

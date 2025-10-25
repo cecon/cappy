@@ -15,11 +15,11 @@ export default defineConfig({
         '**/*.d.ts',
         '**/*.config.*',
         '**/test-*.ts',
-        '**/__tests__/**',
+        'test/__mocks__/**',
       ],
     },
-    include: ['src/**/*.{test,spec}.ts'],
-    exclude: ['node_modules', 'out', 'dist'],
+    include: ['test/**/*.{test,spec}.ts'],
+    exclude: ['node_modules', 'out', 'dist', 'test/__mocks__'],
   },
   resolve: {
     alias: {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Tabs, TabsContent } from '../primitives/Tabs';
+import { Tabs, TabsContent } from '../primitives';
 import Header from './layout/Header';
 import GraphPage from './pages/GraphPage';
 import RetrievalPage from './pages/RetrievalPage';

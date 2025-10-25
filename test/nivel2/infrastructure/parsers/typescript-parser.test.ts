@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createTypeScriptParser, TypeScriptParser } from '../typescript-parser';
+import { createTypeScriptParser, TypeScriptParser } from '@/nivel2/infrastructure/parsers/typescript-parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

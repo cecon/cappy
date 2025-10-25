@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { HybridRetriever, type HybridRetrieverOptions } from './hybrid-retriever';
-import type { GraphData } from '../domains/graph/types';
+import { HybridRetriever, type HybridRetrieverOptions } from '@/nivel2/infrastructure/services/hybrid-retriever';
+import type { GraphData } from '@/domains/graph/types';
 
 describe('HybridRetriever', () => {
   let retriever: HybridRetriever;

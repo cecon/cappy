@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardContent } from '../../primitives/Card';
+import { Card, CardContent } from '../../primitives';
 
 const ApiPage: React.FC = () => {
   return (
