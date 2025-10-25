@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
+import * as path from 'node:path';
 
 import { EmbeddingService } from '../nivel2/infrastructure/services/embedding-service';
 import { SQLiteAdapter } from '../nivel2/infrastructure/database/sqlite-adapter';
@@ -24,6 +24,15 @@ export function registerDebugRetrievalCommand(context: vscode.ExtensionContext) 
       const sqlitePath = configService.getGraphDataPath(workspaceRoot);
 
       output.appendLine(`🔧 Using graph DB at: ${path.join(sqlitePath, 'graph-store.db')}`);
+
+      // Ensure the index is up to date by triggering the same scan pipeline used elsewhere
+      try {
+        output.appendLine('🚀 Syncing index: running cappy.scanWorkspace (same pipeline used by Scan)...');
+        await vscode.commands.executeCommand('cappy.scanWorkspace');
+        output.appendLine('✅ Workspace scan complete. Proceeding with retrieval.');
+      } catch (e) {
+        output.appendLine(`⚠️ Could not run workspace scan automatically: ${String(e)}. Continuing with current index.`);
+      }
 
       // Initialize services (same wiring as the rest of the extension)
       const embeddingService = new EmbeddingService();
@@ -77,7 +86,7 @@ export function registerDebugRetrievalCommand(context: vscode.ExtensionContext) 
         for (const c of top) {
           const fp = c.metadata.filePath;
           const loc = `${c.metadata.lineStart}-${c.metadata.lineEnd}`;
-          const snippet = (c.content || '').replace(/\s+/g, ' ').slice(0, 120);
+          const snippet = (c.content || '').replaceAll(/\s+/g, ' ').slice(0, 120);
           output.appendLine(`   • ${label}: ${fp}:${loc} — ${snippet}`);
         }
         if (chunks.length > top.length) {
