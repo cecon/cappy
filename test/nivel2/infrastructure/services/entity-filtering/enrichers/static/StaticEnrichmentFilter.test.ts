@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { StaticEnrichmentFilter } from '../../../../../../src/nivel2/infrastructure/services/entity-filtering/filters/StaticEnrichmentFilter';
-import type { NormalizedEntity } from '../../../../../../src/nivel2/infrastructure/services/entity-filtering/types/FilterTypes';
+import { StaticEnrichmentFilter } from '../../../../../../../src/nivel2/infrastructure/services/entity-filtering/filters/StaticEnrichmentFilter.js';
+import type { NormalizedEntity } from '../../../../../../../src/nivel2/infrastructure/services/entity-filtering/types/FilterTypes.js';
 
 describe('StaticEnrichmentFilter - main.tsx Analysis', () => {
   const MAIN_TSX_SOURCE = `/**
