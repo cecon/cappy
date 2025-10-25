@@ -28,6 +28,7 @@ interface FileAnalysis {
     filtered: unknown[];
     deduplicated: unknown[];
     normalized: unknown[];
+    staticEnriched?: unknown[]; // ← NOVO: Static Enrichment
     enriched: unknown[];
     stats: {
       totalRaw: number;
@@ -85,7 +86,11 @@ export default function DebugPage() {
         if (message.payload.pipeline) {
           console.log('[DebugPage] Pipeline keys:', Object.keys(message.payload.pipeline));
           console.log('[DebugPage] Pipeline stats:', message.payload.pipeline.stats);
+          console.log('[DebugPage] Enriched entities count:', message.payload.pipeline.enriched?.length || 0);
+          console.log('[DebugPage] First 3 enriched:', message.payload.pipeline.enriched?.slice(0, 3));
         }
+        console.log('[DebugPage] Analysis imports:', message.payload.analysis?.imports?.length || 0);
+        console.log('[DebugPage] Analysis exports:', message.payload.analysis?.exports?.length || 0);
         setAnalysis(message.payload);
         setLoading(false);
       } else if (message.type === 'debug/analyze-error') {
@@ -372,8 +377,64 @@ export default function DebugPage() {
 
                       {/* Arrow */}
                       <div className="flex items-center justify-center text-muted-foreground">
-                        <span>↓ Enriquecimento ↓</span>
+                        <span>↓ Enriquecimento Estático ↓</span>
                       </div>
+
+                      {/* Etapa 4.5: Static Enrichment (NOVO!) */}
+                      {analysis.pipeline.staticEnriched && analysis.pipeline.staticEnriched.length > 0 && (
+                        <>
+                          <div className="border border-cyan-500/50 rounded-md p-4 bg-cyan-900/10">
+                            <h4 className="font-semibold mb-2 flex items-center gap-2">
+                              <span className="text-cyan-400">🔬</span>
+                              Entidades com Enriquecimento Estático
+                              <span className="text-xs bg-cyan-900/30 px-2 py-1 rounded">{analysis.pipeline.staticEnriched.length}</span>
+                            </h4>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              ✨ Adicionado: JSDoc, tipos semânticos, relacionamentos estáticos, confiança calculada
+                            </p>
+                            
+                            {/* Static Enrichment Stats */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                              <div className="bg-muted/50 p-2 rounded">
+                                <div className="text-xs text-muted-foreground">Com JSDoc</div>
+                                <div className="text-lg font-bold text-cyan-400">
+                                  {analysis.pipeline.staticEnriched.filter((e: any) => e.jsdoc).length}
+                                </div>
+                              </div>
+                              <div className="bg-muted/50 p-2 rounded">
+                                <div className="text-xs text-muted-foreground">Tipos Únicos</div>
+                                <div className="text-lg font-bold text-purple-400">
+                                  {new Set(analysis.pipeline.staticEnriched.map((e: any) => e.semanticType)).size}
+                                </div>
+                              </div>
+                              <div className="bg-muted/50 p-2 rounded">
+                                <div className="text-xs text-muted-foreground">Relacionamentos</div>
+                                <div className="text-lg font-bold text-yellow-400">
+                                  {analysis.pipeline.staticEnriched.reduce((sum: number, e: any) => sum + (e.staticRelationships?.length || 0), 0)}
+                                </div>
+                              </div>
+                              <div className="bg-muted/50 p-2 rounded">
+                                <div className="text-xs text-muted-foreground">Confiança Média</div>
+                                <div className="text-lg font-bold text-green-400">
+                                  {(analysis.pipeline.staticEnriched.reduce((sum: number, e: any) => sum + (e.staticConfidence || 0), 0) / analysis.pipeline.staticEnriched.length).toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <details className="text-xs">
+                              <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                              <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
+                                {JSON.stringify(analysis.pipeline.staticEnriched, null, 2)}
+                              </pre>
+                            </details>
+                          </div>
+
+                          {/* Arrow */}
+                          <div className="flex items-center justify-center text-muted-foreground">
+                            <span>↓ Enriquecimento LLM ↓</span>
+                          </div>
+                        </>
+                      )}
 
                       {/* Etapa 5: Enriched (Final) */}
                       <div className="border border-green-500/50 rounded-md p-4 bg-green-900/10">

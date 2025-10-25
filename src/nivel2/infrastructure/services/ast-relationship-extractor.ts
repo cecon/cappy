@@ -5,16 +5,18 @@
  * @since 3.0.0
  * 
  * This service extracts relationships between code entities using AST analysis.
- * It works in conjunction with ASTEntityExtractor for comprehensive code analysis.
+ * It now uses ASTEntityExtractor + EntityFilterPipeline for comprehensive code analysis.
  * 
  * @see ASTEntityExtractor - For entity extraction
+ * @see EntityFilterPipeline - For entity filtering
+ * @see ASTEntityAdapter - For type conversion
  * @see ExternalPackageResolver - For package dependency resolution
  */
 
-import { parse } from '@typescript-eslint/parser';
 import type { DocumentChunk, GraphRelationship } from '../../../shared/types/chunk';
 import { ExternalPackageResolver, type PackageResolution } from './external-package-resolver';
-import * as fs from 'fs';
+import { ASTEntityExtractor } from './entity-extraction/core/ASTEntityExtractor';
+import { ASTEntityAdapter } from './entity-conversion/ASTEntityAdapter';
 import * as path from 'path';
 
 /**
@@ -29,10 +31,11 @@ export interface ImportInfo {
 
 /**
  * Service for extracting relationships from AST
+ * Now delegates entity extraction to ASTEntityExtractor
  */
 export class ASTRelationshipExtractor {
-  private packageResolver: ExternalPackageResolver;
-  private workspaceRoot: string;
+  private readonly packageResolver: ExternalPackageResolver;
+  private readonly workspaceRoot: string;
 
   constructor(workspaceRoot: string) {
     this.packageResolver = new ExternalPackageResolver(workspaceRoot);
@@ -41,7 +44,7 @@ export class ASTRelationshipExtractor {
 
   /**
    * Analyzes a file and returns import/export/call/type reference info
-   * Now includes external package resolution
+   * Now uses ASTEntityExtractor + ASTEntityAdapter for extraction
    */
   async analyze(filePath: string): Promise<{
     imports: ImportInfo[];
@@ -52,26 +55,38 @@ export class ASTRelationshipExtractor {
     const absFilePath = path.isAbsolute(filePath)
       ? filePath
       : path.join(this.workspaceRoot, filePath);
-    const content = fs.readFileSync(absFilePath, 'utf-8');
-    const ast = parse(content, {
-      loc: true,
-      range: true,
-      comment: true,
-      tokens: false,
-      ecmaVersion: 'latest',
-      sourceType: 'module',
-      ecmaFeatures: { jsx: true }
-    });
-
-    const imports = await this.extractImportsWithResolution(ast, absFilePath);
-    const exports = this.extractExports(ast);
-    const calls = this.extractFunctionCalls(ast);
-    const typeRefs = this.extractTypeReferences(ast);
-    return { imports, exports, calls, typeRefs };
+    
+    // Use ASTEntityExtractor for entity extraction
+    const extractor = new ASTEntityExtractor(this.workspaceRoot);
+    const astEntities = await extractor.extractFromFile(absFilePath);
+    
+    // Convert to analysis format
+    const analysis = ASTEntityAdapter.toAnalysisFormat(astEntities);
+    
+    // Resolve package info for external imports
+    const importsWithResolution: ImportInfo[] = [];
+    for (const imp of analysis.imports) {
+      const importInfo: ImportInfo = { ...imp };
+      if (imp.isExternal) {
+        try {
+          importInfo.packageResolution = await this.packageResolver.resolveExternalImport(imp.source, absFilePath);
+        } catch (error) {
+          console.warn(`⚠️ Failed to resolve package ${imp.source}:`, error);
+        }
+      }
+      importsWithResolution.push(importInfo);
+    }
+    
+    return {
+      imports: importsWithResolution,
+      exports: analysis.exports,
+      calls: analysis.calls,
+      typeRefs: analysis.typeRefs
+    };
   }
   /**
    * Extracts relationships from a file's AST
-   * Now includes external package dependencies
+   * Now uses analyze() which leverages ASTEntityExtractor
    */
   async extract(
     filePath: string,
@@ -83,30 +98,9 @@ export class ASTRelationshipExtractor {
       const absFilePath = path.isAbsolute(filePath)
         ? filePath
         : path.join(this.workspaceRoot, filePath);
-      const content = fs.readFileSync(absFilePath, 'utf-8');
-      
-      // Parse the file
-      const ast = parse(content, {
-        loc: true,
-        range: true,
-        comment: true,
-        tokens: false,
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-        ecmaFeatures: {
-          jsx: true
-        }
-      });
 
-      // Extract imports with resolution
-  const imports = await this.extractImportsWithResolution(ast, absFilePath);
-      const exports = this.extractExports(ast);
-      
-      // Extract function calls
-      const calls = this.extractFunctionCalls(ast);
-      
-      // Extract type references
-      const typeRefs = this.extractTypeReferences(ast);
+      // Use analyze() which now uses ASTEntityExtractor
+      const { imports, exports, calls, typeRefs } = await this.analyze(absFilePath);
 
       // Log summary
       const externalCount = imports.filter(i => i.isExternal).length;
@@ -210,210 +204,5 @@ export class ASTRelationshipExtractor {
     }
 
     return relationships;
-  }
-
-  /**
-   * Extracts import statements with external package resolution
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async extractImportsWithResolution(ast: any, filePath: string): Promise<ImportInfo[]> {
-    const imports: ImportInfo[] = [];
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const visit = async (node: any) => {
-      if (!node) return;
-
-      // Handle standard imports
-      if (node.type === 'ImportDeclaration') {
-        const source = node.source?.value;
-        const specifiers: string[] = [];
-
-        if (node.specifiers) {
-          for (const spec of node.specifiers) {
-            if (spec.imported?.name) {
-              specifiers.push(spec.imported.name);
-            } else if (spec.local?.name) {
-              specifiers.push(spec.local.name);
-            }
-          }
-        }
-
-        if (source) {
-          const isExternal = this.packageResolver.isExternalImport(source);
-          const importInfo: ImportInfo = {
-            source,
-            specifiers,
-            isExternal
-          };
-          if (isExternal) {
-            try {
-              importInfo.packageResolution = await this.packageResolver.resolveExternalImport(source, filePath);
-            } catch (error) {
-              console.warn(`⚠️ Failed to resolve external package: ${source}`, error);
-            }
-          }
-          imports.push(importInfo);
-        }
-      }
-
-      // Handle export * from ... and export { ... } from ...
-      if ((node.type === 'ExportAllDeclaration' || node.type === 'ExportNamedDeclaration') && node.source) {
-        const source = node.source.value;
-        const specifiers: string[] = [];
-
-        // For ExportNamedDeclaration, collect exported specifiers
-        if (node.specifiers) {
-          for (const spec of node.specifiers) {
-            if (spec.exported?.name) {
-              specifiers.push(spec.exported.name);
-            }
-          }
-        }
-
-        if (source) {
-          const isExternal = this.packageResolver.isExternalImport(source);
-          const importInfo: ImportInfo = {
-            source,
-            specifiers,
-            isExternal
-          };
-          if (isExternal) {
-            try {
-              importInfo.packageResolution = await this.packageResolver.resolveExternalImport(source, filePath);
-            } catch (error) {
-              console.warn(`⚠️ Failed to resolve external package: ${source}`, error);
-            }
-          }
-          imports.push(importInfo);
-        }
-      }
-
-      // Recursively visit children
-      for (const key in node) {
-        if (key !== 'parent' && typeof node[key] === 'object') {
-          if (Array.isArray(node[key])) {
-            for (const child of node[key]) {
-              await visit(child);
-            }
-          } else {
-            await visit(node[key]);
-          }
-        }
-      }
-    };
-
-    await visit(ast);
-    return imports;
-  }
-
-  /**
-   * Extracts export statements
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private extractExports(ast: any): string[] {
-    const exports: string[] = [];
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const visit = (node: any) => {
-      if (!node) return;
-
-      if (node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration') {
-        if (node.declaration) {
-          // Export declaration
-          if (node.declaration.id?.name) {
-            exports.push(node.declaration.id.name);
-          }
-        } else if (node.specifiers) {
-          // Export specifiers
-          for (const spec of node.specifiers) {
-            if (spec.exported?.name) {
-              exports.push(spec.exported.name);
-            }
-          }
-        }
-      }
-
-      // Recursively visit children
-      for (const key in node) {
-        if (key !== 'parent' && typeof node[key] === 'object') {
-          if (Array.isArray(node[key])) {
-            node[key].forEach(visit);
-          } else {
-            visit(node[key]);
-          }
-        }
-      }
-    };
-
-    visit(ast);
-    return exports;
-  }
-
-  /**
-   * Extracts function calls
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private extractFunctionCalls(ast: any): string[] {
-    const calls: string[] = [];
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const visit = (node: any) => {
-      if (!node) return;
-
-      if (node.type === 'CallExpression') {
-        if (node.callee?.name) {
-          calls.push(node.callee.name);
-        } else if (node.callee?.property?.name) {
-          calls.push(node.callee.property.name);
-        }
-      }
-
-      // Recursively visit children
-      for (const key in node) {
-        if (key !== 'parent' && typeof node[key] === 'object') {
-          if (Array.isArray(node[key])) {
-            node[key].forEach(visit);
-          } else {
-            visit(node[key]);
-          }
-        }
-      }
-    };
-
-    visit(ast);
-    return calls;
-  }
-
-  /**
-   * Extracts type references
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private extractTypeReferences(ast: any): string[] {
-    const typeRefs: string[] = [];
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const visit = (node: any) => {
-      if (!node) return;
-
-      if (node.type === 'TSTypeReference') {
-        if (node.typeName?.name) {
-          typeRefs.push(node.typeName.name);
-        }
-      }
-
-      // Recursively visit children
-      for (const key in node) {
-        if (key !== 'parent' && typeof node[key] === 'object') {
-          if (Array.isArray(node[key])) {
-            node[key].forEach(visit);
-          } else {
-            visit(node[key]);
-          }
-        }
-      }
-    };
-
-    visit(ast);
-    return typeRefs;
   }
 }

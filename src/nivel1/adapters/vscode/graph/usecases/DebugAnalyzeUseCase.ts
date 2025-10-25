@@ -1,6 +1,7 @@
 import type { UseCase, UseCaseContext, WebviewMessage } from './UseCase';
 import { ASTRelationshipExtractor } from '../../../../../nivel2/infrastructure/services/ast-relationship-extractor';
-import { EntityFilterPipeline, type RawEntity } from '../../../../../nivel2/infrastructure/services/entity-filtering/entity-filter-pipeline';
+import { EntityFilterPipeline } from '../../../../../nivel2/infrastructure/services/entity-filtering/core/EntityFilterPipeline';
+import { ASTEntityAdapter } from '../../../../../nivel2/infrastructure/services/entity-conversion/ASTEntityAdapter';
 import { parse } from '@typescript-eslint/parser';
 import * as path from 'path';
 
@@ -81,53 +82,12 @@ export class DebugAnalyzeUseCase implements UseCase {
         const signatures = this.extractSignatures(ast);
         
         // ============================================
-        // NOVO: PIPELINE DE FILTRAGEM
+        // PIPELINE INTEGRADO: extraction + filtering
         // ============================================
         
-        // Construir entidades brutas
-        const rawEntities: RawEntity[] = [];
-        
-        // Add imports
-        analysis.imports.forEach(imp => {
-          rawEntities.push({
-            type: 'import' as const,
-            name: imp.specifiers[0] || imp.source,
-            source: imp.source,
-            specifiers: imp.specifiers,
-            scope: 'module' as const,
-            metadata: {
-              isExternal: imp.isExternal,
-              packageResolution: imp.packageResolution
-            }
-          });
-        });
-        
-        // Add exports
-        analysis.exports.forEach(exp => {
-          rawEntities.push({
-            type: 'export' as const,
-            name: exp,
-            scope: 'module' as const
-          });
-        });
-        
-        // Add calls
-        analysis.calls.forEach(call => {
-          rawEntities.push({
-            type: 'call' as const,
-            name: call,
-            scope: 'local' as const
-          });
-        });
-        
-        // Add type refs
-        analysis.typeRefs.forEach(ref => {
-          rawEntities.push({
-            type: 'typeRef' as const,
-            name: ref,
-            scope: 'global' as const
-          });
-        });
+        // Usar ASTEntityAdapter para converter análise → RawEntities
+        ctx.log(`🔄 [Debug] Converting analysis to raw entities...`);
+        const rawEntities = ASTEntityAdapter.fromAnalysisFormat(analysis);
         
         ctx.log(`🔍 [Debug] Raw entities extracted: ${rawEntities.length}`);
         
@@ -150,7 +110,7 @@ export class DebugAnalyzeUseCase implements UseCase {
           calculateConfidence: true
         });
         
-        const filterResult = await pipeline.process(rawEntities, tempFilePath);
+        const filterResult = await pipeline.process(rawEntities, tempFilePath, undefined, content);
         
         ctx.log(`📊 [Debug] Pipeline completed!`);
         ctx.log(`   • Raw: ${filterResult.stats.totalRaw}`);
@@ -171,6 +131,7 @@ export class DebugAnalyzeUseCase implements UseCase {
             filtered: filterResult.filtered,
             deduplicated: filterResult.deduplicated,
             normalized: filterResult.normalized,
+            staticEnriched: filterResult.staticEnriched, // ← NOVO: Enriquecimento estático
             enriched: filterResult.enriched,
             stats: filterResult.stats
           },
