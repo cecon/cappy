@@ -1,7 +1,8 @@
 import type { UseCase, UseCaseContext, WebviewMessage } from './UseCase';
-import { ASTRelationshipExtractor } from '../../../../../nivel2/infrastructure/services/ast-relationship-extractor';
-import { EntityFilterPipeline } from '../../../../../nivel2/infrastructure/services/entity-filtering/core/EntityFilterPipeline';
+import { ASTEntityExtractor } from '../../../../../nivel2/infrastructure/services/entity-extraction/core/ASTEntityExtractor';
 import { ASTEntityAdapter } from '../../../../../nivel2/infrastructure/services/entity-conversion/ASTEntityAdapter';
+import { EntityFilterPipeline } from '../../../../../nivel2/infrastructure/services/entity-filtering/core/EntityFilterPipeline';
+import { EmbeddingService } from '../../../../../nivel2/infrastructure/services/embedding-service';
 import { parse } from '@typescript-eslint/parser';
 import * as path from 'path';
 
@@ -52,12 +53,12 @@ export class DebugAnalyzeUseCase implements UseCase {
         ecmaFeatures: { jsx: true }
       });
 
-      // Use ASTRelationshipExtractor to get detailed analysis
+      // Use ASTEntityExtractor to get detailed analysis
       // Create a temporary file path for analysis
       const workspaceFolder = ctx.vscode.workspace.workspaceFolders?.[0];
       const workspaceRoot = workspaceFolder?.uri.fsPath || process.cwd();
       
-      const extractor = new ASTRelationshipExtractor(workspaceRoot);
+      const extractor = new ASTEntityExtractor(workspaceRoot);
       
       // Create temp file to analyze
       const tempFilePath = path.join(workspaceRoot, '.cappy-debug-temp', fileName);
@@ -73,10 +74,10 @@ export class DebugAnalyzeUseCase implements UseCase {
       
       try {
         // Analyze using our infrastructure
-        ctx.log(`🔍 [Debug] Running AST analysis...`);
-        const analysis = await extractor.analyze(tempFilePath);
+        ctx.log(`🔍 [Debug] Running AST analysis with new extractor...`);
+        const astEntities = await extractor.extractFromFile(tempFilePath);
         
-        ctx.log(`📝 [Debug] AST analysis complete - Imports: ${analysis.imports.length}, Exports: ${analysis.exports.length}`);
+        ctx.log(`📝 [Debug] AST extraction complete - Total entities: ${astEntities.length}`);
         
         // Extract signatures
         const signatures = this.extractSignatures(ast);
@@ -85,20 +86,30 @@ export class DebugAnalyzeUseCase implements UseCase {
         // PIPELINE INTEGRADO: extraction + filtering
         // ============================================
         
-        // Usar ASTEntityAdapter para converter análise → RawEntities
-        ctx.log(`🔄 [Debug] Converting analysis to raw entities...`);
-        const rawEntities = ASTEntityAdapter.fromAnalysisFormat(analysis);
+        // Usar ASTEntityAdapter para converter ASTEntity[] → RawEntity[]
+        ctx.log(`🔄 [Debug] Converting ${astEntities.length} AST entities to raw entities...`);
+        const rawEntities = ASTEntityAdapter.toRawEntities(astEntities);
         
-        ctx.log(`🔍 [Debug] Raw entities extracted: ${rawEntities.length}`);
+        ctx.log(`🔍 [Debug] Raw entities converted: ${rawEntities.length}`);
+        ctx.log(`🔍 [Debug] Raw entities types: ${rawEntities.map(e => e.type).join(', ')}`);
         
         if (rawEntities.length === 0) {
           ctx.log(`⚠️ [Debug] No entities found! This might be an issue.`);
         }
         
-        ctx.log(`📝 [Debug] Breakdown - Imports: ${analysis.imports.length}, Exports: ${analysis.exports.length}, Calls: ${analysis.calls.length}, TypeRefs: ${analysis.typeRefs.length}`);
+        // Log breakdown by type
+        const breakdown = astEntities.reduce((acc, e) => {
+          acc[e.type] = (acc[e.type] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        ctx.log(`📝 [Debug] Entity types: ${JSON.stringify(breakdown)}`);
         
         // Processar através do pipeline de filtragem
         ctx.log(`🔄 [Debug] Starting pipeline processing...`);
+        
+        // Inicializar EmbeddingService para gerar embeddings de JSDoc
+        const embeddingService = new EmbeddingService();
+        
         const pipeline = new EntityFilterPipeline({
           skipLocalVariables: true,
           skipPrimitiveTypes: true,
@@ -108,7 +119,7 @@ export class DebugAnalyzeUseCase implements UseCase {
           resolvePackageInfo: true,
           inferRelationships: true,
           calculateConfidence: true
-        });
+        }, undefined, embeddingService); // ← Passar embedding service
         
         const filterResult = await pipeline.process(rawEntities, tempFilePath, undefined, content);
         
@@ -131,7 +142,8 @@ export class DebugAnalyzeUseCase implements UseCase {
             filtered: filterResult.filtered,
             deduplicated: filterResult.deduplicated,
             normalized: filterResult.normalized,
-            staticEnriched: filterResult.staticEnriched, // ← NOVO: Enriquecimento estático
+            staticEnriched: filterResult.staticEnriched, // ← Enriquecimento estático
+            jsdocEmbedded: filterResult.jsdocEmbedded,   // ← Embeddings de JSDoc (NOVO!)
             enriched: filterResult.enriched,
             stats: filterResult.stats
           },
@@ -151,11 +163,12 @@ export class DebugAnalyzeUseCase implements UseCase {
             characters: content.length,
             hasErrors: false,
             mode: 'pipeline-analysis',
-            // Stats originais
-            importsCount: analysis.imports.length,
-            exportsCount: analysis.exports.length,
-            callsCount: analysis.calls.length,
-            typeRefsCount: analysis.typeRefs.length,
+            // Stats das entidades extraídas
+            totalEntities: astEntities.length,
+            exportedCount: astEntities.filter(e => e.isExported).length,
+            functionsCount: breakdown['function'] || 0,
+            classesCount: breakdown['class'] || 0,
+            componentCount: breakdown['component'] || 0,
             // Stats do pipeline
             pipelineStats: {
               totalRaw: filterResult.stats.totalRaw,

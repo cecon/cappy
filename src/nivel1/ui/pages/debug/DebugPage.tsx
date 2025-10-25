@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Card, Button } from '../../primitives';
-import GraphVisualizer from '../../graph/GraphVisualizer';
+import { useState, useEffect, useMemo } from "react";
+import { Card, Button } from "../../primitives";
+import GraphVisualizer from "../../graph/GraphVisualizer";
 
 type VSCodeApi = { postMessage: (message: unknown) => void };
 type WindowWithVSCode = Window & {
@@ -28,7 +28,8 @@ interface FileAnalysis {
     filtered: unknown[];
     deduplicated: unknown[];
     normalized: unknown[];
-    staticEnriched?: unknown[]; // ← NOVO: Static Enrichment
+    staticEnriched?: unknown[]; // ← Static Enrichment
+    jsdocEmbedded?: unknown[]; // ← JSDoc Embeddings (NOVO!)
     enriched: unknown[];
     stats: {
       totalRaw: number;
@@ -50,21 +51,22 @@ export default function DebugPage() {
   // Initialize VS Code API
   useEffect(() => {
     try {
-      const w = (globalThis as { window: unknown }).window as WindowWithVSCode & { acquireVsCodeApi?: () => VSCodeApi };
-      
-      if (typeof w.acquireVsCodeApi === 'function') {
+      const w = (globalThis as { window: unknown })
+        .window as WindowWithVSCode & { acquireVsCodeApi?: () => VSCodeApi };
+
+      if (typeof w.acquireVsCodeApi === "function") {
         const api = w.acquireVsCodeApi();
         w.vscodeApi = api;
         setVscodeApi(api);
-        console.log('[DebugPage] VS Code API acquired');
+        console.log("[DebugPage] VS Code API acquired");
       } else if (w.vscodeApi) {
         setVscodeApi(w.vscodeApi);
-        console.log('[DebugPage] VS Code API reused');
+        console.log("[DebugPage] VS Code API reused");
       } else {
-        console.warn('[DebugPage] VS Code API not available');
+        console.warn("[DebugPage] VS Code API not available");
       }
     } catch (error) {
-      console.error('[DebugPage] Error acquiring VS Code API:', error);
+      console.error("[DebugPage] Error acquiring VS Code API:", error);
     }
   }, []);
 
@@ -72,41 +74,62 @@ export default function DebugPage() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
-      
+
       // Clear timeout if exists
-      const timeoutId = (window as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout })._debugAnalysisTimeout;
+      const timeoutId = (
+        window as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout }
+      )._debugAnalysisTimeout;
       if (timeoutId) {
         clearTimeout(timeoutId);
-        delete (window as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout })._debugAnalysisTimeout;
+        delete (window as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout })
+          ._debugAnalysisTimeout;
       }
-      
-      if (message.type === 'debug/analyze-result') {
-        console.log('[DebugPage] Received analysis result:', message.payload);
-        console.log('[DebugPage] Has pipeline?', !!message.payload.pipeline);
+
+      if (message.type === "debug/analyze-result") {
+        console.log("[DebugPage] Received analysis result:", message.payload);
+        console.log("[DebugPage] Has pipeline?", !!message.payload.pipeline);
         if (message.payload.pipeline) {
-          console.log('[DebugPage] Pipeline keys:', Object.keys(message.payload.pipeline));
-          console.log('[DebugPage] Pipeline stats:', message.payload.pipeline.stats);
-          console.log('[DebugPage] Enriched entities count:', message.payload.pipeline.enriched?.length || 0);
-          console.log('[DebugPage] First 3 enriched:', message.payload.pipeline.enriched?.slice(0, 3));
+          console.log(
+            "[DebugPage] Pipeline keys:",
+            Object.keys(message.payload.pipeline)
+          );
+          console.log(
+            "[DebugPage] Pipeline stats:",
+            message.payload.pipeline.stats
+          );
+          console.log(
+            "[DebugPage] Enriched entities count:",
+            message.payload.pipeline.enriched?.length || 0
+          );
+          console.log(
+            "[DebugPage] First 3 enriched:",
+            message.payload.pipeline.enriched?.slice(0, 3)
+          );
         }
-        console.log('[DebugPage] Analysis imports:', message.payload.analysis?.imports?.length || 0);
-        console.log('[DebugPage] Analysis exports:', message.payload.analysis?.exports?.length || 0);
+        console.log(
+          "[DebugPage] Analysis imports:",
+          message.payload.analysis?.imports?.length || 0
+        );
+        console.log(
+          "[DebugPage] Analysis exports:",
+          message.payload.analysis?.exports?.length || 0
+        );
         setAnalysis(message.payload);
         setLoading(false);
-      } else if (message.type === 'debug/analyze-error') {
-        console.error('[DebugPage] Analysis error:', message.payload);
+      } else if (message.type === "debug/analyze-error") {
+        console.error("[DebugPage] Analysis error:", message.payload);
         setAnalysis({
-          fileName: file?.name || 'unknown',
+          fileName: file?.name || "unknown",
           fileSize: file?.size || 0,
-          mimeType: file?.type || 'unknown',
+          mimeType: file?.type || "unknown",
           error: message.payload.error,
         });
         setLoading(false);
       }
     };
 
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
   }, [file]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,7 +142,7 @@ export default function DebugPage() {
 
   const handleAnalyze = async () => {
     if (!file) {
-      console.error('[DebugPage] Cannot analyze: no file selected');
+      console.error("[DebugPage] Cannot analyze: no file selected");
       return;
     }
 
@@ -128,22 +151,26 @@ export default function DebugPage() {
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type,
-        error: 'Not connected to VS Code. Please reload the window (Ctrl+Shift+P → "Developer: Reload Window") to enable backend analysis.',
+        error:
+          'Not connected to VS Code. Please reload the window (Ctrl+Shift+P → "Developer: Reload Window") to enable backend analysis.',
       });
       return;
     }
 
     setLoading(true);
-    
+
     // Set a timeout to detect if analysis doesn't respond
     const timeoutId = setTimeout(() => {
       if (loading) {
-        console.error('[DebugPage] Analysis timeout - no response from extension');
+        console.error(
+          "[DebugPage] Analysis timeout - no response from extension"
+        );
         setAnalysis({
           fileName: file.name,
           fileSize: file.size,
           mimeType: file.type,
-          error: 'Analysis timeout. The extension might not be responding. Try reloading the window.',
+          error:
+            "Analysis timeout. The extension might not be responding. Try reloading the window.",
         });
         setLoading(false);
       }
@@ -153,31 +180,32 @@ export default function DebugPage() {
       // Read file content
       const fileContent = await file.text();
 
-      console.log('[DebugPage] Sending analyze request to extension');
-      
+      console.log("[DebugPage] Sending analyze request to extension");
+
       // Send message to extension for analysis
       vscodeApi.postMessage({
-        type: 'debug/analyze',
+        type: "debug/analyze",
         payload: {
           fileName: file.name,
           fileSize: file.size,
-          mimeType: file.type || 'text/plain',
-          content: fileContent
-        }
+          mimeType: file.type || "text/plain",
+          content: fileContent,
+        },
       });
-      
+
       // Clear timeout when we get a response (in useEffect listener)
       // Store timeoutId for cleanup
-      (window as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout })._debugAnalysisTimeout = timeoutId;
-      
+      (
+        window as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout }
+      )._debugAnalysisTimeout = timeoutId;
     } catch (error) {
       clearTimeout(timeoutId);
-      console.error('[DebugPage] Error analyzing file:', error);
+      console.error("[DebugPage] Error analyzing file:", error);
       setAnalysis({
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       });
       setLoading(false);
     }
@@ -192,9 +220,15 @@ export default function DebugPage() {
             Upload files to analyze AST, entities, and signatures
           </p>
           <div className="flex items-center gap-2 mt-2">
-            <span className={`inline-flex h-2 w-2 rounded-full ${vscodeApi ? 'bg-green-400' : 'bg-yellow-400'}`} />
+            <span
+              className={`inline-flex h-2 w-2 rounded-full ${
+                vscodeApi ? "bg-green-400" : "bg-yellow-400"
+              }`}
+            />
             <span className="text-xs text-muted-foreground">
-              {vscodeApi ? 'Connected to VS Code' : 'Running in browser (reload window to connect)'}
+              {vscodeApi
+                ? "Connected to VS Code"
+                : "Running in browser (reload window to connect)"}
             </span>
           </div>
         </div>
@@ -226,11 +260,12 @@ export default function DebugPage() {
                   <span className="font-medium">File:</span> {file.name}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  <span className="font-medium">Size:</span> {(file.size / 1024).toFixed(2)} KB
+                  <span className="font-medium">Size:</span>{" "}
+                  {(file.size / 1024).toFixed(2)} KB
                 </p>
               </div>
               <Button onClick={handleAnalyze} disabled={loading}>
-                {loading ? 'Analyzing...' : 'Analyze'}
+                {loading ? "Analyzing..." : "Analyze"}
               </Button>
             </div>
           )}
@@ -240,7 +275,6 @@ export default function DebugPage() {
       {/* Analysis Results */}
       {analysis && (
         <>
-
           {/* Results Card */}
           <Card className="p-6">
             {analysis.error ? (
@@ -251,36 +285,66 @@ export default function DebugPage() {
             ) : (
               <div className="space-y-4">
                 {analysis.pipeline ? (
-                      <>
-                        <h3 className="text-lg font-semibold mb-4">🔄 Pipeline de Filtragem de Entidades</h3>
-                    
+                  <>
+                    <h3 className="text-lg font-semibold mb-4">
+                      🔄 Pipeline de Filtragem de Entidades
+                    </h3>
+
                     {/* Stats Overview */}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                       <div className="bg-muted p-4 rounded-md">
-                        <div className="text-2xl font-bold text-blue-400">{analysis.pipeline.stats.totalRaw}</div>
-                        <div className="text-xs text-muted-foreground">Entidades Brutas</div>
+                        <div className="text-2xl font-bold text-blue-400">
+                          {analysis.pipeline.stats.totalRaw}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Entidades Brutas
+                        </div>
                       </div>
                       <div className="bg-muted p-4 rounded-md">
-                        <div className="text-2xl font-bold text-green-400">{analysis.pipeline.stats.finalCount}</div>
-                        <div className="text-xs text-muted-foreground">Entidades Finais</div>
+                        <div className="text-2xl font-bold text-green-400">
+                          {analysis.pipeline.stats.finalCount}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Entidades Finais
+                        </div>
                       </div>
                       <div className="bg-muted p-4 rounded-md">
-                        <div className="text-2xl font-bold text-yellow-400">{analysis.pipeline.stats.discardedCount}</div>
-                        <div className="text-xs text-muted-foreground">Descartadas</div>
+                        <div className="text-2xl font-bold text-yellow-400">
+                          {analysis.pipeline.stats.discardedCount}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Descartadas
+                        </div>
                       </div>
                       <div className="bg-muted p-4 rounded-md">
-                        <div className="text-2xl font-bold text-purple-400">{analysis.pipeline.stats.deduplicatedCount}</div>
-                        <div className="text-xs text-muted-foreground">Mescladas</div>
+                        <div className="text-2xl font-bold text-purple-400">
+                          {analysis.pipeline.stats.deduplicatedCount}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Mescladas
+                        </div>
                       </div>
                       <div className="bg-muted p-4 rounded-md">
                         <div className="text-2xl font-bold text-orange-400">
-                          {((1 - analysis.pipeline.stats.finalCount / analysis.pipeline.stats.totalRaw) * 100).toFixed(1)}%
+                          {(
+                            (1 -
+                              analysis.pipeline.stats.finalCount /
+                                analysis.pipeline.stats.totalRaw) *
+                            100
+                          ).toFixed(1)}
+                          %
                         </div>
-                        <div className="text-xs text-muted-foreground">Taxa de Compressão</div>
+                        <div className="text-xs text-muted-foreground">
+                          Taxa de Compressão
+                        </div>
                       </div>
                       <div className="bg-muted p-4 rounded-md">
-                        <div className="text-2xl font-bold text-cyan-400">{analysis.pipeline.stats.processingTimeMs}ms</div>
-                        <div className="text-xs text-muted-foreground">Tempo de Processamento</div>
+                        <div className="text-2xl font-bold text-cyan-400">
+                          {analysis.pipeline.stats.processingTimeMs}ms
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Tempo de Processamento
+                        </div>
                       </div>
                     </div>
 
@@ -291,15 +355,23 @@ export default function DebugPage() {
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
                           <span className="text-blue-400">1️⃣</span>
                           Entidades Brutas (AST)
-                          <span className="text-xs bg-blue-900/30 px-2 py-1 rounded">{analysis.pipeline.original.length}</span>
+                          <span className="text-xs bg-blue-900/30 px-2 py-1 rounded">
+                            {analysis.pipeline.original.length}
+                          </span>
                         </h4>
                         <p className="text-xs text-muted-foreground mb-3">
                           Todas as entidades extraídas do AST sem nenhum filtro
                         </p>
                         <details className="text-xs">
-                          <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                          <summary className="cursor-pointer hover:text-primary">
+                            Ver detalhes
+                          </summary>
                           <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
-                            {JSON.stringify(analysis.pipeline.original, null, 2)}
+                            {JSON.stringify(
+                              analysis.pipeline.original,
+                              null,
+                              2
+                            )}
                           </pre>
                         </details>
                       </div>
@@ -314,16 +386,27 @@ export default function DebugPage() {
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
                           <span className="text-green-400">2️⃣</span>
                           Entidades Filtradas
-                          <span className="text-xs bg-green-900/30 px-2 py-1 rounded">{analysis.pipeline.filtered.length}</span>
-                          <span className="text-xs text-red-400">(-{analysis.pipeline.stats.discardedCount})</span>
+                          <span className="text-xs bg-green-900/30 px-2 py-1 rounded">
+                            {analysis.pipeline.filtered.length}
+                          </span>
+                          <span className="text-xs text-red-400">
+                            (-{analysis.pipeline.stats.discardedCount})
+                          </span>
                         </h4>
                         <p className="text-xs text-muted-foreground mb-3">
-                          ❌ Descartadas: variáveis locais, tipos primitivos, imports de assets
+                          ❌ Descartadas: variáveis locais, tipos primitivos,
+                          imports de assets
                         </p>
                         <details className="text-xs">
-                          <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                          <summary className="cursor-pointer hover:text-primary">
+                            Ver detalhes
+                          </summary>
                           <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
-                            {JSON.stringify(analysis.pipeline.filtered, null, 2)}
+                            {JSON.stringify(
+                              analysis.pipeline.filtered,
+                              null,
+                              2
+                            )}
                           </pre>
                         </details>
                       </div>
@@ -338,16 +421,27 @@ export default function DebugPage() {
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
                           <span className="text-purple-400">3️⃣</span>
                           Entidades Deduplicadas
-                          <span className="text-xs bg-purple-900/30 px-2 py-1 rounded">{analysis.pipeline.deduplicated.length}</span>
-                          <span className="text-xs text-purple-400">(-{analysis.pipeline.stats.deduplicatedCount})</span>
+                          <span className="text-xs bg-purple-900/30 px-2 py-1 rounded">
+                            {analysis.pipeline.deduplicated.length}
+                          </span>
+                          <span className="text-xs text-purple-400">
+                            (-{analysis.pipeline.stats.deduplicatedCount})
+                          </span>
                         </h4>
                         <p className="text-xs text-muted-foreground mb-3">
-                          🔗 Mesclados: imports do mesmo pacote, entidades duplicadas
+                          🔗 Mesclados: imports do mesmo pacote, entidades
+                          duplicadas
                         </p>
                         <details className="text-xs">
-                          <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                          <summary className="cursor-pointer hover:text-primary">
+                            Ver detalhes
+                          </summary>
                           <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
-                            {JSON.stringify(analysis.pipeline.deduplicated, null, 2)}
+                            {JSON.stringify(
+                              analysis.pipeline.deduplicated,
+                              null,
+                              2
+                            )}
                           </pre>
                         </details>
                       </div>
@@ -360,17 +454,26 @@ export default function DebugPage() {
                       {/* Etapa 4: Normalized */}
                       <div className="border border-border rounded-md p-4">
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
-                          <span className="text-yellow-400">4️⃣</span>
-                          Entidades Normalizadas
-                          <span className="text-xs bg-yellow-900/30 px-2 py-1 rounded">{analysis.pipeline.normalized.length}</span>
+                          <span className="text-yellow-400">4️⃣</span> Entidades
+                          Normalizadas
+                          <span className="text-xs bg-yellow-900/30 px-2 py-1 rounded">
+                            {analysis.pipeline.normalized.length}
+                          </span>
                         </h4>
                         <p className="text-xs text-muted-foreground mb-3">
-                          📦 Adicionado: package info, categorias (internal/external/builtin), paths normalizados
+                          📦 Adicionado: package info, categorias
+                          (internal/external/builtin), paths normalizados
                         </p>
                         <details className="text-xs">
-                          <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                          <summary className="cursor-pointer hover:text-primary">
+                            Ver detalhes
+                          </summary>
                           <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
-                            {JSON.stringify(analysis.pipeline.normalized, null, 2)}
+                            {JSON.stringify(
+                              analysis.pipeline.normalized,
+                              null,
+                              2
+                            )}
                           </pre>
                         </details>
                       </div>
@@ -381,75 +484,212 @@ export default function DebugPage() {
                       </div>
 
                       {/* Etapa 4.5: Static Enrichment (NOVO!) */}
-                      {analysis.pipeline.staticEnriched && analysis.pipeline.staticEnriched.length > 0 && (
-                        <>
-                          <div className="border border-cyan-500/50 rounded-md p-4 bg-cyan-900/10">
-                            <h4 className="font-semibold mb-2 flex items-center gap-2">
-                              <span className="text-cyan-400">🔬</span>
-                              Entidades com Enriquecimento Estático
-                              <span className="text-xs bg-cyan-900/30 px-2 py-1 rounded">{analysis.pipeline.staticEnriched.length}</span>
-                            </h4>
-                            <p className="text-xs text-muted-foreground mb-3">
-                              ✨ Adicionado: JSDoc, tipos semânticos, relacionamentos estáticos, confiança calculada
-                            </p>
-                            
-                            {/* Static Enrichment Stats */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                              <div className="bg-muted/50 p-2 rounded">
-                                <div className="text-xs text-muted-foreground">Com JSDoc</div>
-                                <div className="text-lg font-bold text-cyan-400">
-                                  {analysis.pipeline.staticEnriched.filter((e: any) => e.jsdoc).length}
+                      {analysis.pipeline.staticEnriched &&
+                        analysis.pipeline.staticEnriched.length > 0 && (
+                          <>
+                            <div className="border border-cyan-500/50 rounded-md p-4 bg-cyan-900/10">
+                              <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                <span className="text-cyan-400">🔬</span>
+                                Entidades com Enriquecimento Estático
+                                <span className="text-xs bg-cyan-900/30 px-2 py-1 rounded">
+                                  {analysis.pipeline.staticEnriched.length}
+                                </span>
+                              </h4>
+                              <p className="text-xs text-muted-foreground mb-3">
+                                ✨ Adicionado: JSDoc, tipos semânticos,
+                                relacionamentos estáticos, confiança calculada
+                              </p>
+
+                              {/* Static Enrichment Stats */}
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                                <div className="bg-muted/50 p-2 rounded">
+                                  <div className="text-xs text-muted-foreground">
+                                    Com JSDoc
+                                  </div>
+                                  <div className="text-lg font-bold text-cyan-400">
+                                    {
+                                      analysis.pipeline.staticEnriched.filter(
+                                        (e: any) => e.jsdoc
+                                      ).length
+                                    }
+                                  </div>
+                                </div>
+                                <div className="bg-muted/50 p-2 rounded">
+                                  <div className="text-xs text-muted-foreground">
+                                    Tipos Únicos
+                                  </div>
+                                  <div className="text-lg font-bold text-purple-400">
+                                    {
+                                      new Set(
+                                        analysis.pipeline.staticEnriched.map(
+                                          (e: any) => e.semanticType
+                                        )
+                                      ).size
+                                    }
+                                  </div>
+                                </div>
+                                <div className="bg-muted/50 p-2 rounded">
+                                  <div className="text-xs text-muted-foreground">
+                                    Relacionamentos
+                                  </div>
+                                  <div className="text-lg font-bold text-yellow-400">
+                                    {analysis.pipeline.staticEnriched.reduce(
+                                      (sum: number, e: any) =>
+                                        sum +
+                                        (e.staticRelationships?.length || 0),
+                                      0
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="bg-muted/50 p-2 rounded">
+                                  <div className="text-xs text-muted-foreground">
+                                    Confiança Média
+                                  </div>
+                                  <div className="text-lg font-bold text-green-400">
+                                    {(
+                                      analysis.pipeline.staticEnriched.reduce(
+                                        (sum: number, e: any) =>
+                                          sum + (e.staticConfidence || 0),
+                                        0
+                                      ) /
+                                      analysis.pipeline.staticEnriched.length
+                                    ).toFixed(2)}
+                                  </div>
                                 </div>
                               </div>
-                              <div className="bg-muted/50 p-2 rounded">
-                                <div className="text-xs text-muted-foreground">Tipos Únicos</div>
-                                <div className="text-lg font-bold text-purple-400">
-                                  {new Set(analysis.pipeline.staticEnriched.map((e: any) => e.semanticType)).size}
-                                </div>
-                              </div>
-                              <div className="bg-muted/50 p-2 rounded">
-                                <div className="text-xs text-muted-foreground">Relacionamentos</div>
-                                <div className="text-lg font-bold text-yellow-400">
-                                  {analysis.pipeline.staticEnriched.reduce((sum: number, e: any) => sum + (e.staticRelationships?.length || 0), 0)}
-                                </div>
-                              </div>
-                              <div className="bg-muted/50 p-2 rounded">
-                                <div className="text-xs text-muted-foreground">Confiança Média</div>
-                                <div className="text-lg font-bold text-green-400">
-                                  {(analysis.pipeline.staticEnriched.reduce((sum: number, e: any) => sum + (e.staticConfidence || 0), 0) / analysis.pipeline.staticEnriched.length).toFixed(2)}
-                                </div>
-                              </div>
+
+                              <details className="text-xs">
+                                <summary className="cursor-pointer hover:text-primary">
+                                  Ver detalhes
+                                </summary>
+                                <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
+                                  {JSON.stringify(
+                                    analysis.pipeline.staticEnriched,
+                                    null,
+                                    2
+                                  )}
+                                </pre>
+                              </details>
                             </div>
 
-                            <details className="text-xs">
-                              <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
-                              <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
-                                {JSON.stringify(analysis.pipeline.staticEnriched, null, 2)}
-                              </pre>
-                            </details>
-                          </div>
+                            {/* Arrow */}
+                            <div className="flex items-center justify-center text-muted-foreground">
+                              <span>↓ Geração de Embeddings ↓</span>
+                            </div>
+                          </>
+                        )}
 
-                          {/* Arrow */}
-                          <div className="flex items-center justify-center text-muted-foreground">
-                            <span>↓ Enriquecimento LLM ↓</span>
-                          </div>
-                        </>
-                      )}
+                      {/* Etapa 4.5: JSDoc Embeddings (NOVO!) */}
+                      {analysis.pipeline.jsdocEmbedded &&
+                        analysis.pipeline.jsdocEmbedded.length > 0 && (
+                          <>
+                            <div className="border border-indigo-500/50 rounded-md p-4 bg-indigo-900/10">
+                              <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                <span className="text-indigo-400">🔮</span>{" "}
+                                Embeddings Vetoriais de JSDoc
+                                <span className="text-xs bg-indigo-900/30 px-2 py-1 rounded">
+                                  {analysis.pipeline.jsdocEmbedded.length}
+                                </span>
+                              </h4>
+                              <p className="text-xs text-muted-foreground mb-3">
+                                🧠 Adicionado: vetores de 384 dimensões para
+                                busca semântica de documentação
+                              </p>
+
+                              {/* JSDoc Embeddings Stats */}
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                                <div className="bg-muted/50 p-2 rounded">
+                                  <div className="text-xs text-muted-foreground">
+                                    Com Embeddings
+                                  </div>
+                                  <div className="text-lg font-bold text-indigo-400">
+                                    {
+                                      analysis.pipeline.jsdocEmbedded.filter(
+                                        (e: any) => e.jsdocEmbedding
+                                      ).length
+                                    }
+                                  </div>
+                                </div>
+                                <div className="bg-muted/50 p-2 rounded">
+                                  <div className="text-xs text-muted-foreground">
+                                    Dimensões
+                                  </div>
+                                  <div className="text-lg font-bold text-purple-400">
+                                    {analysis.pipeline.jsdocEmbedded.find(
+                                      (e: any) => e.jsdocEmbedding
+                                    )?.jsdocEmbedding?.dimensions || 384}
+                                  </div>
+                                </div>
+                                <div className="bg-muted/50 p-2 rounded">
+                                  <div className="text-xs text-muted-foreground">
+                                    Modelo
+                                  </div>
+                                  <div className="text-xs font-bold text-cyan-400 truncate">
+                                    all-MiniLM-L6-v2
+                                  </div>
+                                </div>
+                                <div className="bg-muted/50 p-2 rounded">
+                                  <div className="text-xs text-muted-foreground">
+                                    Tamanho Total
+                                  </div>
+                                  <div className="text-lg font-bold text-green-400">
+                                    {(
+                                      (analysis.pipeline.jsdocEmbedded.filter(
+                                        (e: any) => e.jsdocEmbedding
+                                      ).length *
+                                        384 *
+                                        4) /
+                                      1024
+                                    ).toFixed(1)}{" "}
+                                    KB
+                                  </div>
+                                </div>
+                              </div>
+
+                              <details className="text-xs">
+                                <summary className="cursor-pointer hover:text-primary">
+                                  Ver detalhes
+                                </summary>
+                                <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
+                                  {JSON.stringify(
+                                    analysis.pipeline.jsdocEmbedded,
+                                    null,
+                                    2
+                                  )}
+                                </pre>
+                              </details>
+                            </div>
+
+                            {/* Arrow */}
+                            <div className="flex items-center justify-center text-muted-foreground">
+                              <span>↓ Enriquecimento LLM ↓</span>
+                            </div>
+                          </>
+                        )}
 
                       {/* Etapa 5: Enriched (Final) */}
                       <div className="border border-green-500/50 rounded-md p-4 bg-green-900/10">
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
-                          <span className="text-green-400">5️⃣</span>
-                          Entidades Enriquecidas (SALVAS NO BANCO)
-                          <span className="text-xs bg-green-900/30 px-2 py-1 rounded">{analysis.pipeline.enriched.length}</span>
+                          <span className="text-green-400">5️⃣</span> Entidades
+                          Enriquecidas (SALVAS NO BANCO)
+                          <span className="text-xs bg-green-900/30 px-2 py-1 rounded">
+                            {analysis.pipeline.enriched.length}
+                          </span>
                         </h4>
                         <p className="text-xs text-muted-foreground mb-3">
-                          ✨ Adicionado: relacionamentos, confiança, documentação
+                          ✨ Adicionado: relacionamentos, confiança,
+                          documentação
                         </p>
                         <details className="text-xs">
-                          <summary className="cursor-pointer hover:text-primary">Ver detalhes</summary>
+                          <summary className="cursor-pointer hover:text-primary">
+                            Ver detalhes
+                          </summary>
                           <pre className="mt-2 bg-muted p-2 rounded overflow-auto max-h-40">
-                            {JSON.stringify(analysis.pipeline.enriched, null, 2)}
+                            {JSON.stringify(
+                              analysis.pipeline.enriched,
+                              null,
+                              2
+                            )}
                           </pre>
                         </details>
 
@@ -470,11 +710,11 @@ export default function DebugPage() {
                     <p className="text-sm">
                       O arquivo foi analisado com o sistema antigo.
                       <br />
-                      Recarregue a janela (Ctrl+R) e tente novamente para ver o pipeline de filtragem.
+                      Recarregue a janela (Ctrl+R) e tente novamente para ver o
+                      pipeline de filtragem.
                     </p>
                   </div>
                 )}
-
               </div>
             )}
           </Card>
@@ -485,10 +725,22 @@ export default function DebugPage() {
 }
 
 // ----- Graph adapter from pipeline -----
-type GraphNode = { id: string; label: string; type?: 'file' | 'chunk' | 'workspace' };
+type GraphNode = {
+  id: string;
+  label: string;
+  type?: "file" | "chunk" | "workspace";
+};
 type GraphEdge = { id: string; source: string; target: string; label?: string };
-type PipelineRelationship = { target: string; type: string; confidence?: number };
-type PipelineEntity = { name: string; type: string; relationships?: PipelineRelationship[] };
+type PipelineRelationship = {
+  target: string;
+  type: string;
+  confidence?: number;
+};
+type PipelineEntity = {
+  name: string;
+  type: string;
+  relationships?: PipelineRelationship[];
+};
 
 function GraphFromPipeline({ analysis }: { analysis: FileAnalysis }) {
   const data = useMemo(() => {
@@ -498,36 +750,40 @@ function GraphFromPipeline({ analysis }: { analysis: FileAnalysis }) {
 
     // File node
     const fileNodeId = `file:${analysis.fileName}`;
-    nodes.push({ id: fileNodeId, label: analysis.fileName, type: 'file' });
+    nodes.push({ id: fileNodeId, label: analysis.fileName, type: "file" });
 
-    const ensureNode = (id: string, label?: string, type: 'file' | 'chunk' | 'workspace' = 'chunk') => {
-      if (!nodes.find(n => n.id === id)) {
+    const ensureNode = (
+      id: string,
+      label?: string,
+      type: "file" | "chunk" | "workspace" = "chunk"
+    ) => {
+      if (!nodes.find((n) => n.id === id)) {
         nodes.push({ id, label: label || id, type });
       }
     };
 
     const addEdge = (source: string, target: string, label?: string) => {
-      const id = `${source}->${target}:${label || 'rel'}`;
-      if (!edges.find(e => e.id === id)) {
+      const id = `${source}->${target}:${label || "rel"}`;
+      if (!edges.find((e) => e.id === id)) {
         edges.push({ id, source, target, label });
       }
     };
 
     // Create entity nodes and link to file
-  for (const e of analysis.pipeline.enriched as Array<PipelineEntity>) {
+    for (const e of analysis.pipeline.enriched as Array<PipelineEntity>) {
       const entityId = `entity:${e.name}:${e.type}`;
       const entityLabel = `${e.name} (${e.type})`;
-      ensureNode(entityId, entityLabel, 'chunk');
-      addEdge(fileNodeId, entityId, 'contains');
+      ensureNode(entityId, entityLabel, "chunk");
+      addEdge(fileNodeId, entityId, "contains");
 
       // Relationships
       if (Array.isArray(e.relationships)) {
         for (const r of e.relationships) {
           // Normalize target id
-          const targetId = String(r.target).startsWith('entity:')
+          const targetId = String(r.target).startsWith("entity:")
             ? String(r.target)
             : `entity:${String(r.target)}`;
-          ensureNode(targetId, String(r.target), 'chunk');
+          ensureNode(targetId, String(r.target), "chunk");
           addEdge(entityId, targetId, r.type);
         }
       }

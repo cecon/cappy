@@ -922,7 +922,8 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
       
       // Dynamically import the parser and extractor
   const { parse } = await import('@typescript-eslint/parser');
-  const { ASTRelationshipExtractor } = await import('./src/nivel2/infrastructure/services/ast-relationship-extractor.js');
+  const { ASTEntityExtractor } = await import('./src/nivel2/infrastructure/services/entity-extraction/core/ASTEntityExtractor');
+  const { ASTEntityAdapter } = await import('./src/nivel2/infrastructure/services/entity-conversion/ASTEntityAdapter');
       const { EntityFilterPipeline } = await import('./src/nivel2/infrastructure/services/entity-filtering/entity-filter-pipeline.js');
       
       // Check file type
@@ -948,8 +949,8 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
         ecmaFeatures: { jsx: true }
       });
       
-  // Use ASTRelationshipExtractor for TS/JS
-  const extractor = new ASTRelationshipExtractor(workspaceRoot);
+  // Use ASTEntityExtractor for TS/JS (NEW HEXAGONAL ARCHITECTURE)
+  const extractor = new ASTEntityExtractor(workspaceRoot);
       
       // Create temp file
       const tempDir = path.join(workspaceRoot, '.cappy-debug-temp');
@@ -1105,45 +1106,19 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
           
           console.log(`📊 [Debug API] Raw entities extracted from PHP: ${rawEntities.length}`);
         } else {
-          const analysis = await extractor.analyze(tempFilePath);
+          // ✨ Use NEW ASTEntityExtractor (with line numbers!)
+          const astEntities = await extractor.extractFromFile(tempFilePath);
+          console.log(`🔍 [ASTEntityExtractor] Starting extraction for: ${tempFilePath}`);
+          console.log(`� [ASTEntityExtractor] File size: ${content.length} chars`);
+          console.log(`✨ [ASTEntityExtractor] Extracted ${astEntities.length} entities from ${tempFilePath}`);
+          
+          // Convert ASTEntity[] → RawEntity[] using adapter
+          rawEntities = ASTEntityAdapter.toRawEntities(astEntities);
+          
+          // Extract JSDoc chunks and signatures for visualization
           signatures = extractSignatures(ast);
           jsdocChunks = extractJSDocChunks(ast, fileName);
           console.log(`📝 [Debug API] JSDoc chunks extracted: ${jsdocChunks.length}`);
-
-          rawEntities = [
-            ...analysis.imports.map(imp => ({
-              type: 'import' as const,
-              name: imp.source,
-              source: tempFilePath,
-              specifiers: imp.specifiers || [],
-              isExternal: imp.isExternal,
-              packageResolution: imp.packageResolution
-            })),
-            ...analysis.exports.map(expName => ({
-              type: 'export' as const,
-              name: expName,
-              source: tempFilePath,
-              specifiers: [],
-              isExternal: false,
-              packageResolution: undefined
-            })),
-            ...analysis.calls.map(callName => ({
-              type: 'call' as const,
-              name: callName,
-              source: tempFilePath,
-              specifiers: [],
-              isExternal: false,
-              packageResolution: undefined
-            })),
-            ...analysis.typeRefs.map(typeRefName => ({
-              type: 'typeRef' as const,
-              name: typeRefName,
-              source: tempFilePath,
-              specifiers: [],
-              isExternal: false,
-              packageResolution: undefined
-            }))
-          ];
           console.log(`📊 [Debug API] Raw entities extracted: ${rawEntities.length}`);
         }
         
@@ -1152,7 +1127,11 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
         const dbPath = path.join(workspaceRoot, '.cappy', 'knowledge-graph.db');
         const graphStore = new SQLiteAdapter(dbPath);
         
-        // 🔥 Apply pipeline filtering com GraphStore e JSDoc chunks
+        // 🔥 Inicializa EmbeddingService para JSDoc embeddings
+        const { EmbeddingService } = await import('./src/nivel2/infrastructure/services/embedding-service.js');
+        const embeddingService = new EmbeddingService();
+        
+        // 🔥 Apply pipeline filtering com GraphStore, EmbeddingService, JSDoc chunks E sourceCode
         const pipeline = new EntityFilterPipeline(
           {
             skipLocalVariables: true,
@@ -1161,11 +1140,12 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
             discoverExistingEntities: true,
             extractDocumentation: true  // ← ATIVA EXTRAÇÃO DE DOCS
           },
-          graphStore
+          graphStore,
+          embeddingService  // ← PASSA EMBEDDING SERVICE
         );
         
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pipelineResult = await pipeline.process(rawEntities as any, tempFilePath, jsdocChunks as any);
+  const pipelineResult = await pipeline.process(rawEntities as any, tempFilePath, jsdocChunks as any, content);  // ← PASSA SOURCE CODE!
         
         console.log(`✅ [Debug API] Pipeline completed:
           - Original: ${pipelineResult.original.length}
@@ -1181,32 +1161,14 @@ async function handleDebugAnalyze(req: IncomingMessage, res: ServerResponse, wor
           entitiesList = rawEntities;
           counts.exports = (rawEntities as unknown[]).length;
         } else {
-          const analysis = await extractor.analyze(tempFilePath);
-          counts.imports = analysis.imports.length;
-          counts.exports = analysis.exports.length;
-          counts.calls = analysis.calls.length;
-          counts.typeRefs = analysis.typeRefs.length;
-          entitiesList = [
-            ...analysis.imports.map(imp => ({
-              type: 'import',
-              source: imp.source,
-              specifiers: imp.specifiers,
-              isExternal: imp.isExternal,
-              packageResolution: imp.packageResolution
-            })),
-            ...analysis.exports.map(exp => ({
-              type: 'export',
-              name: exp
-            })),
-            ...analysis.calls.map(call => ({
-              type: 'call',
-              name: call
-            })),
-            ...analysis.typeRefs.map(ref => ({
-              type: 'typeRef',
-              name: ref
-            }))
-          ];
+          // Count entities by type from rawEntities (already has all info)
+          entitiesList = rawEntities;
+          for (const entity of rawEntities as Array<{ type: string }>) {
+            if (entity.type === 'import') counts.imports++;
+            else if (entity.type === 'export') counts.exports++;
+            else if (entity.type === 'call') counts.calls++;
+            else if (entity.type === 'typeRef') counts.typeRefs++;
+          }
         }
 
         const response = {

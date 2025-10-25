@@ -102,8 +102,8 @@ export class JSDocExtractor {
       
       // Extrair params
       const params = block.tags
-        .filter(t => t.tag === 'param' || t.tag === 'arg' || t.tag === 'argument')
-        .map(t => ({
+        .filter((t: any) => t.tag === 'param' || t.tag === 'arg' || t.tag === 'argument')
+        .map((t: any) => ({
           name: t.name,
           type: t.type,
           description: t.description,
@@ -112,7 +112,7 @@ export class JSDocExtractor {
         }));
       
       // Extrair returns
-      const returnTag = block.tags.find(t => t.tag === 'returns' || t.tag === 'return');
+      const returnTag = block.tags.find((t: any) => t.tag === 'returns' || t.tag === 'return');
       const returns = returnTag ? {
         type: returnTag.type,
         description: returnTag.description,
@@ -120,28 +120,28 @@ export class JSDocExtractor {
       
       // Extrair throws
       const throws = block.tags
-        .filter(t => t.tag === 'throws' || t.tag === 'throw' || t.tag === 'exception')
-        .map(t => ({
+        .filter((t: any) => t.tag === 'throws' || t.tag === 'throw' || t.tag === 'exception')
+        .map((t: any) => ({
           type: t.type,
           description: t.description,
         }));
       
       // Extrair examples
       const examples = block.tags
-        .filter(t => t.tag === 'example')
-        .map(t => t.description);
+        .filter((t: any) => t.tag === 'example')
+        .map((t: any) => t.description);
       
       // Extrair outros metadados
-      const deprecatedTag = block.tags.find(t => t.tag === 'deprecated');
-      const sinceTag = block.tags.find(t => t.tag === 'since');
-      const authorTag = block.tags.find(t => t.tag === 'author');
-      const asyncTag = block.tags.find(t => t.tag === 'async');
+      const deprecatedTag = block.tags.find((t: any) => t.tag === 'deprecated');
+      const sinceTag = block.tags.find((t: any) => t.tag === 'since');
+      const authorTag = block.tags.find((t: any) => t.tag === 'author');
+      const asyncTag = block.tags.find((t: any) => t.tag === 'async');
       
       // Outros tags genéricos
       const genericTags = block.tags
-        .filter(t => !['param', 'returns', 'return', 'throws', 'throw', 'exception', 
+        .filter((t: any) => !['param', 'returns', 'return', 'throws', 'throw', 'exception', 
                        'example', 'deprecated', 'since', 'author', 'async'].includes(t.tag))
-        .map(t => ({
+        .map((t: any) => ({
           tag: t.tag,
           name: t.name,
           type: t.type,

@@ -16,6 +16,7 @@ import { RelevanceFilter } from '../filters/RelevanceFilter';
 import { DeduplicationFilter } from '../filters/DeduplicationFilter';
 import { NormalizationFilter } from '../filters/NormalizationFilter';
 import { StaticEnrichmentFilter } from '../filters/StaticEnrichmentFilter';
+import { JSDocEmbeddingFilter } from '../filters/JSDocEmbeddingFilter';
 import { EnrichmentFilter } from '../filters/EnrichmentFilter';
 
 /**
@@ -28,10 +29,12 @@ import { EnrichmentFilter } from '../filters/EnrichmentFilter';
 export class EntityFilterPipeline {
   private readonly config: FilterPipelineConfig;
   private readonly graphStore?: GraphStorePort;
+  private readonly embeddingService?: any;
 
   constructor(
     config: Partial<FilterPipelineConfig> = {},
-    graphStore?: GraphStorePort
+    graphStore?: GraphStorePort,
+    embeddingService?: any
   ) {
     this.config = {
       skipLocalVariables: config.skipLocalVariables ?? true,
@@ -50,6 +53,7 @@ export class EntityFilterPipeline {
       discoverExistingEntities: config.discoverExistingEntities ?? true
     };
     this.graphStore = graphStore;
+    this.embeddingService = embeddingService;
   }
 
   /**
@@ -82,9 +86,13 @@ export class EntityFilterPipeline {
     const staticEnriched = StaticEnrichmentFilter.apply(normalized, sourceCode, filePath);
     console.log(`✅ Filtro 3.5 (Enriquecimento Estático): ${staticEnriched.length} entidades`);
 
-    // Filtro 4: Enriquecimento (LLM-based)
-    const enriched = await EnrichmentFilter.apply(staticEnriched, this.config, chunks, this.graphStore);
-    console.log(`✅ Filtro 4 (Enriquecimento LLM): ${enriched.length} entidades finais`);
+    // Filtro 4.5: JSDoc Vector Embeddings (NOVO!)
+    const jsdocEmbedded = await JSDocEmbeddingFilter.apply(staticEnriched, this.embeddingService);
+    console.log(`✅ Filtro 4.5 (JSDoc Embeddings): ${jsdocEmbedded.length} entidades`);
+
+    // Filtro 5: Enriquecimento (LLM-based)
+    const enriched = await EnrichmentFilter.apply(jsdocEmbedded, this.config, chunks, this.graphStore);
+    console.log(`✅ Filtro 5 (Enriquecimento LLM): ${enriched.length} entidades finais`);
 
     const processingTimeMs = Date.now() - startTime;
 
@@ -93,7 +101,8 @@ export class EntityFilterPipeline {
       filtered,
       deduplicated,
       normalized,
-      staticEnriched, // ← NOVA ETAPA
+      staticEnriched, // ← Etapa 3.5
+      jsdocEmbedded,  // ← Etapa 4.5 (NOVA!)
       enriched,
       stats: {
         totalRaw: rawEntities.length,

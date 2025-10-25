@@ -158,7 +158,7 @@ export class SemanticTypeInferrer {
     }
     
     // 8. Tipo definição
-    if (entity.type === 'interface' || entity.type === 'type') {
+    if (entity.type === 'typeRef') {
       return 'type-definition';
     }
     

@@ -22,7 +22,6 @@ export interface StaticallyEnrichedEntity extends NormalizedEntity {
   location?: {
     file: string;
     line: number;
-    column?: number;
   };
 }
 
@@ -39,7 +38,17 @@ export class StaticEnrichmentFilter {
     sourceCode?: string,
     filePath?: string
   ): StaticallyEnrichedEntity[] {
-    console.log(`\n🔬 [StaticEnrichment] Enriching ${entities.length} entities...`);
+    console.log(`🔬 [StaticEnrichment] Enriching ${entities.length} entities...`);
+    console.log(`   📄 Source code provided: ${!!sourceCode}, length: ${sourceCode?.length || 0}`);
+    console.log(`   📍 File path: ${filePath || 'none'}`);
+    
+    // Log first 3 entities to check if they have line numbers
+    console.log(`   📊 First 3 entities:`, entities.slice(0, 3).map(e => ({
+      name: e.name,
+      type: e.type,
+      line: e.line,
+      hasLine: !!e.line
+    })));
     
     const enriched: StaticallyEnrichedEntity[] = [];
     
@@ -81,7 +90,6 @@ export class StaticEnrichmentFilter {
       const location = entity.line ? {
         file: filePath || entity.source || 'unknown',
         line: entity.line,
-        column: entity.column,
       } : undefined;
       
       enriched.push({
@@ -121,9 +129,13 @@ export class StaticEnrichmentFilter {
     sourceCode?: string,
     filePath?: string
   ): StaticallyEnrichedEntity {
+    console.log(`   🔍 [StaticEnrich] Checking entity: ${entity.name}, line: ${entity.line}, hasSourceCode: ${!!sourceCode}`);
     const jsdoc = sourceCode && entity.line
       ? JSDocExtractor.extractFromSource(sourceCode, entity.line)
       : null;
+    if (jsdoc) {
+      console.log(`   📝 [StaticEnrich] Found JSDoc for ${entity.name}!`);
+    }
     
     const semanticType = SemanticTypeInferrer.infer(entity, jsdoc, sourceCode);
     
@@ -144,7 +156,6 @@ export class StaticEnrichmentFilter {
     const location = entity.line ? {
       file: filePath || entity.source || 'unknown',
       line: entity.line,
-      column: entity.column,
     } : undefined;
     
     return {

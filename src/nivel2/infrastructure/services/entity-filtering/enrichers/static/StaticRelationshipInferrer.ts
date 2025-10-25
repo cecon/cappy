@@ -56,7 +56,7 @@ export class StaticRelationshipInferrer {
     }
     
     // 3. Relacionamentos de herança (extends, implements)
-    if (sourceCode && (entity.type === 'class' || entity.type === 'interface')) {
+    if (sourceCode && (entity.type === 'class' || entity.type === 'typeRef')) {
       relationships.push(...this.inferInheritanceRelationships(entity, allEntities, sourceCode));
     }
     
@@ -124,7 +124,7 @@ export class StaticRelationshipInferrer {
           evidence.push('jsx-element');
         }
         // Tipo/Interface usage
-        else if (otherEntity.type === 'interface' || otherEntity.type === 'type') {
+        else if (otherEntity.type === 'typeRef') {
           relType = 'uses';
           evidence.push('type-reference');
         }

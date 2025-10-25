@@ -65,6 +65,7 @@ export interface FilterPipelineResult {
   deduplicated: DeduplicatedEntity[];
   normalized: NormalizedEntity[];
   staticEnriched?: unknown[]; // Entidades com enriquecimento estático
+  jsdocEmbedded?: unknown[];  // Entidades com embeddings de JSDoc (NOVO!)
   enriched: EnrichedEntity[];
   stats: {
     totalRaw: number;

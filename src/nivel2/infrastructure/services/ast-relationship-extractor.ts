@@ -16,7 +16,6 @@
 import type { DocumentChunk, GraphRelationship } from '../../../shared/types/chunk';
 import { ExternalPackageResolver, type PackageResolution } from './external-package-resolver';
 import { ASTEntityExtractor } from './entity-extraction/core/ASTEntityExtractor';
-import { ASTEntityAdapter } from './entity-conversion/ASTEntityAdapter';
 import * as path from 'path';
 
 /**
@@ -44,7 +43,7 @@ export class ASTRelationshipExtractor {
 
   /**
    * Analyzes a file and returns import/export/call/type reference info
-   * Now uses ASTEntityExtractor + ASTEntityAdapter for extraction
+   * Now uses ASTEntityExtractor for extraction
    */
   async analyze(filePath: string): Promise<{
     imports: ImportInfo[];
@@ -60,12 +59,52 @@ export class ASTRelationshipExtractor {
     const extractor = new ASTEntityExtractor(this.workspaceRoot);
     const astEntities = await extractor.extractFromFile(absFilePath);
     
-    // Convert to analysis format
-    const analysis = ASTEntityAdapter.toAnalysisFormat(astEntities);
+    // Process entities directly instead of converting to old format
+    const imports: Array<{ source: string; specifiers: string[]; isExternal: boolean }> = [];
+    const exports: string[] = [];
+    const calls: string[] = [];
+    const typeRefs: string[] = [];
+
+    // Group imports by source
+    const importMap = new Map<string, { specifiers: string[]; isExternal: boolean }>();
+    
+    for (const entity of astEntities) {
+      // Handle imports
+      if (entity.kind === 'import' && entity.originalModule) {
+        const source = entity.originalModule;
+        const isExternal = entity.category === 'external' || entity.category === 'builtin';
+        
+        if (!importMap.has(source)) {
+          importMap.set(source, { specifiers: [], isExternal });
+        }
+        importMap.get(source)!.specifiers.push(entity.name);
+      }
+      // Handle exports
+      else if (entity.isExported) {
+        exports.push(entity.name);
+      }
+      // Handle calls
+      else if (entity.kind === 'call') {
+        calls.push(entity.name);
+      }
+      // Handle type references
+      else if (entity.type === 'interface' || entity.type === 'type') {
+        typeRefs.push(entity.name);
+      }
+    }
+
+    // Convert import map to array
+    for (const [source, data] of importMap.entries()) {
+      imports.push({
+        source,
+        specifiers: data.specifiers,
+        isExternal: data.isExternal
+      });
+    }
     
     // Resolve package info for external imports
     const importsWithResolution: ImportInfo[] = [];
-    for (const imp of analysis.imports) {
+    for (const imp of imports) {
       const importInfo: ImportInfo = { ...imp };
       if (imp.isExternal) {
         try {
@@ -79,11 +118,12 @@ export class ASTRelationshipExtractor {
     
     return {
       imports: importsWithResolution,
-      exports: analysis.exports,
-      calls: analysis.calls,
-      typeRefs: analysis.typeRefs
+      exports,
+      calls,
+      typeRefs
     };
   }
+
   /**
    * Extracts relationships from a file's AST
    * Now uses analyze() which leverages ASTEntityExtractor

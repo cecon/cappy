@@ -11,7 +11,8 @@ import { WorkspaceScanQueue } from './workspace-scan-queue';
 import { FileHashService } from './file-hash-service';
 import { IgnorePatternMatcher } from './ignore-pattern-matcher';
 import { FileMetadataExtractor } from './file-metadata-extractor';
-import { ASTRelationshipExtractor } from './ast-relationship-extractor';
+import { ASTEntityExtractor } from './entity-extraction/core/ASTEntityExtractor';
+import { ASTEntityAdapter } from './entity-conversion/ASTEntityAdapter';
 import { ParserService } from './parser-service';
 import { IndexingService } from './indexing-service';
 import type { FileIndexEntry } from '../../../shared/types/chunk';
@@ -58,7 +59,7 @@ export class WorkspaceScanner {
   private readonly hashService: FileHashService;
   private readonly ignorePatterns: IgnorePatternMatcher;
   private readonly metadataExtractor: FileMetadataExtractor;
-  private readonly relationshipExtractor: ASTRelationshipExtractor;
+  private readonly entityExtractor: ASTEntityExtractor;
   private readonly fileIndex: Map<string, FileIndexEntry> = new Map();
   private progressCallback?: (progress: ScanProgress) => void;
   private stats: ScanProgress = {
@@ -78,7 +79,7 @@ export class WorkspaceScanner {
     this.hashService = new FileHashService();
     this.ignorePatterns = new IgnorePatternMatcher(config.workspaceRoot);
     this.metadataExtractor = new FileMetadataExtractor();
-    this.relationshipExtractor = new ASTRelationshipExtractor(config.workspaceRoot);
+    this.entityExtractor = new ASTEntityExtractor(config.workspaceRoot);
   }
 
   /**
@@ -383,18 +384,14 @@ export class WorkspaceScanner {
         // 4. Index with embeddings
         await this.config.indexingService.indexFile(file.relPath, language, chunks);
         
-        // 5. Extract AST relationships
-        console.log(`   🕸️ Extracting AST relationships for ${file.relPath}...`);
-        const relationships = await this.relationshipExtractor.extract(fullPath, chunks);
-        console.log(`   🔗 Extracted ${relationships.length} relationships`);
+        // 5. Extract AST entities and relationships
+        console.log(`   🕸️ Extracting AST entities for ${file.relPath}...`);
+        const astEntities = await this.entityExtractor.extractFromFile(fullPath);
+        const rawEntities = ASTEntityAdapter.toRawEntities(astEntities);
+        console.log(`   � Extracted ${rawEntities.length} entities`);
         
-        // 6. Create relationships in graph
-        if (relationships.length > 0) {
-          console.log(`   💾 Saving ${relationships.length} relationships to graph...`);
-          await this.config.graphStore.createRelationships(relationships);
-        } else {
-          console.log(`   ⚠️ No relationships extracted for ${file.relPath}`);
-        }
+        // Note: Relationship creation from entities would go here if needed
+        // For now, we're just extracting entities
       }
     } else if (this.isConfigFile(file.relPath)) {
       // Index config files differently (no chunking, just metadata)
@@ -440,32 +437,37 @@ export class WorkspaceScanner {
       try {
         analyzedFiles++;
         
-        // Analyze the file for imports/exports
-        const analysis = await this.relationshipExtractor.analyze(fullPath);
+        // Analyze the file for imports/exports using new extractor
+        const astEntities = await this.entityExtractor.extractFromFile(fullPath);
         
-        // Track exports
-        if (analysis.exports.length > 0) {
+        // Count exports
+        const exports = astEntities.filter(e => e.isExported);
+        if (exports.length > 0) {
           filesWithExports++;
-          for (const exportName of analysis.exports) {
-            if (!exportedSymbols.has(exportName)) {
-              exportedSymbols.set(exportName, []);
+          for (const entity of exports) {
+            if (!exportedSymbols.has(entity.name)) {
+              exportedSymbols.set(entity.name, []);
             }
-            exportedSymbols.get(exportName)!.push(file.relPath);
+            exportedSymbols.get(entity.name)!.push(file.relPath);
           }
         }
 
-        // Process imports
-        if (analysis.imports.length > 0) {
+        // Count imports
+        const imports = astEntities.filter(e => e.kind === 'import');
+        if (imports.length > 0) {
           filesWithImports++;
-          console.log(`  📥 ${file.relPath}: ${analysis.imports.length} imports, ${analysis.exports.length} exports`);
+          console.log(`  📥 ${file.relPath}: ${imports.length} imports, ${exports.length} exports`);
           
-          for (const imp of analysis.imports) {
-            if (!imp.isExternal) {
+          for (const imp of imports) {
+            const impSource = imp.originalModule || imp.source;
+            const isExternal = imp.category === 'external' || imp.category === 'builtin';
+            
+            if (!isExternal && impSource) {
               // Internal import - try to resolve to a file
-              const resolvedPath = await this.resolveImportPath(imp.source, file.relPath);
+              const resolvedPath = await this.resolveImportPath(impSource, file.relPath);
               
               if (resolvedPath) {
-                console.log(`    ✅ Resolved import "${imp.source}" -> ${resolvedPath}`);
+                console.log(`    ✅ Resolved import "${impSource}" -> ${resolvedPath}`);
                 
                 // Create File -> File relationship for import
                 crossFileRels.push({
@@ -473,8 +475,8 @@ export class WorkspaceScanner {
                   to: resolvedPath,
                   type: 'IMPORTS',
                   properties: {
-                    source: imp.source,
-                    specifiers: imp.specifiers
+                    source: impSource,
+                    specifiers: [imp.name] // New format: one entity per import
                   }
                 });
 
@@ -484,34 +486,32 @@ export class WorkspaceScanner {
 
                 console.log(`    🔍 Source chunks: ${sourceChunks.length}, Target chunks: ${targetChunks.length}`);
 
-                for (const specifier of imp.specifiers) {
-                  // Find target chunk that exports this symbol
-                  const targetChunk = targetChunks.find(c => 
-                    c.label.includes(specifier) || c.id.includes(specifier)
-                  );
+                // Find target chunk that exports this symbol
+                const targetChunk = targetChunks.find(c => 
+                  c.label.includes(imp.name) || c.id.includes(imp.name)
+                );
 
-                  if (targetChunk) {
-                    console.log(`      ✅ Found target chunk for symbol "${specifier}": ${targetChunk.id}`);
-                    
-                    // Connect all source chunks to this target chunk
-                    for (const sourceChunk of sourceChunks) {
-                      crossFileRels.push({
-                        from: sourceChunk.id,
-                        to: targetChunk.id,
-                        type: 'IMPORTS_SYMBOL',
-                        properties: {
-                          symbol: specifier,
-                          sourceFile: file.relPath,
-                          targetFile: resolvedPath
-                        }
-                      });
-                    }
-                  } else {
-                    console.log(`      ⚠️ No chunk found for symbol "${specifier}" in ${resolvedPath}`);
+                if (targetChunk) {
+                  console.log(`      ✅ Found target chunk for symbol "${imp.name}": ${targetChunk.id}`);
+                  
+                  // Connect all source chunks to this target chunk
+                  for (const sourceChunk of sourceChunks) {
+                    crossFileRels.push({
+                      from: sourceChunk.id,
+                      to: targetChunk.id,
+                      type: 'IMPORTS_SYMBOL',
+                      properties: {
+                        symbol: imp.name,
+                        sourceFile: file.relPath,
+                        targetFile: resolvedPath
+                      }
+                    });
                   }
+                } else {
+                  console.log(`      ⚠️ No chunk found for symbol "${imp.name}" in ${resolvedPath}`);
                 }
               } else {
-                console.log(`    ❌ Could not resolve import "${imp.source}" from ${file.relPath}`);
+                console.log(`    ❌ Could not resolve import "${impSource}" from ${file.relPath}`);
               }
             }
           }
