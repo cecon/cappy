@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
+import * as path from 'node:path';
 import { GraphPanel } from './nivel1/adapters/vscode/graph/GraphPanel';
 import { ChatViewProvider } from './nivel1/adapters/vscode/chat/ChatViewProvider';
 import { DocumentsViewProvider } from './nivel1/adapters/vscode/documents/DocumentsViewProvider';
@@ -147,7 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        if (!result || !result.contexts.length) {
+        if (!result?.contexts?.length) {
             vscode.window.showInformationMessage(`No relevant context found for: "${query}"`);
             return;
         }
@@ -159,12 +159,26 @@ export function activate(context: vscode.ExtensionContext) {
             detail?: string;
             ctx: typeof result.contexts[0];
         };
-        const items: QuickPickItem[] = result.contexts.map(ctx => ({
-            label: `${ctx.source === 'code' ? '💻' : ctx.source === 'documentation' ? '📚' : ctx.source === 'prevention' ? '🛡️' : ctx.source === 'task' ? '✅' : '📄'} ${ctx.metadata.title || ctx.id}`,
-            description: ctx.filePath ? `${ctx.filePath}` : undefined,
-            detail: ctx.snippet ? ctx.snippet.replace(/\n/g, ' ').slice(0, 200) : ctx.content.slice(0, 200),
-            ctx
-        }));
+        const items: QuickPickItem[] = result.contexts.map(ctx => {
+            let icon: string;
+            if (ctx.source === 'code') {
+                icon = '💻';
+            } else if (ctx.source === 'documentation') {
+                icon = '📚';
+            } else if (ctx.source === 'prevention') {
+                icon = '🛡️';
+            } else if (ctx.source === 'task') {
+                icon = '✅';
+            } else {
+                icon = '📄';
+            }
+            return {
+                label: `${icon} ${ctx.metadata.title || ctx.id}`,
+                description: ctx.filePath ? `${ctx.filePath}` : undefined,
+                detail: ctx.snippet ? ctx.snippet.replaceAll('\n', ' ').slice(0, 200) : ctx.content.slice(0, 200),
+                ctx
+            };
+        });
 
         const picked = await vscode.window.showQuickPick(items, {
             title: `Hybrid Search Results (${result.contexts.length})` ,
@@ -339,10 +353,10 @@ export function activate(context: vscode.ExtensionContext) {
     const chatEngine = new LangGraphChatEngine();
     const chatService = createChatService(chatEngine);
 
-    // Start WebSocket dev server bridge (porta 7001)
+    // Start WebSocket dev server bridge (porta 7002)
     const devBridge = new DevServerBridge(7002, chatService);
     context.subscriptions.push({ dispose: () => devBridge.dispose() });
-    console.log('🔌 Dev Server Bridge started on port 7001');
+    console.log('🔌 Dev Server Bridge started on port 7002');
 
     // Register Chat View Provider for sidebar
     const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
@@ -404,10 +418,10 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         const { IndexingService } = await import('./nivel2/infrastructure/services/indexing-service.js');
         const { ConfigService } = await import('./nivel2/infrastructure/services/config-service.js');
         
-        const parserService = new ParserService();
-        // Enable enhanced parsing with LLM entity extraction for documents (.md, .pdf, .docx)
+        const parserService = new ParserService(workspaceRoot);
+        // Enable enhanced parsing with AST entity extraction for code files
         parserService.enableEnhancedParsing(true);
-        console.log('✅ Enhanced document parsing enabled (with LLM entity extraction)');
+        console.log('✅ Enhanced document parsing enabled (with AST entity extraction)');
         
         const hashService = new FileHashService();
         
@@ -563,7 +577,7 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
                         throw new Error('File metadata database not initialized');
                     }
                     const db = fileDatabase;
-                    let record = db.getFileByPath(filePath);
+                    const record = db.getFileByPath(filePath);
                     if (record) {
                         // Reset existing record to pending
                         db.updateFile(record.id, {
@@ -602,7 +616,6 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
                             nodesCount: undefined,
                             relationshipsCount: undefined
                         });
-                        record = db.getFile(id)!;
                         console.log('[Extension] 📝 Enqueued new DB record for reprocess:', id);
                     }
 
@@ -636,7 +649,7 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
                     console.log('🛑 File processing API stopped');
                 }
                 if (fileQueue) {
-                    await fileQueue.stop();
+                    fileQueue.stop();
                     console.log('🛑 Legacy file processing queue stopped');
                 }
                 if (fileDatabase) {

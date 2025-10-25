@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef } from "react";
+import { createContext, useContext, useMemo, useRef } from "react";
 import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
@@ -85,20 +85,19 @@ class VSCodeChatAdapter implements ChatModelAdapter {
     const handleMessage = async (event: MessageEvent) => {
       const message = event.data;
 
-      console.log('[ChatView] handleMessage:', message.type, 'messageId match:', message.messageId === messageId, message.messageId, messageId);
+  // Handle stream messages from backend
 
       // Handle stream messages (require messageId match)
       if (message.messageId !== messageId) {
-        console.log('[ChatView] Skipping message - messageId mismatch');
+  // Ignore messages for other requests
         return;
       }
 
       switch (message.type) {
         case "streamToken": {
           // Accumulate all text (reasoning + content)
-          console.log('[ChatView] Adding token:', message.token);
+          // Append token to full text
           fullText += message.token;
-          console.log('[ChatView] fullText length:', fullText.length);
           
           // Check if token contains __PROMPT_REQUEST__
           if (message.token.includes('__PROMPT_REQUEST__:')) {
@@ -107,7 +106,6 @@ class VSCodeChatAdapter implements ChatModelAdapter {
             if (match) {
               try {
                 const promptData = JSON.parse(match[1]);
-                console.log('[ChatView] Found __PROMPT_REQUEST__ in token:', promptData);
                 
                 // Create pending tool call and add to map
                 const promptMessageId = promptData.messageId;
@@ -120,32 +118,28 @@ class VSCodeChatAdapter implements ChatModelAdapter {
                     resolver: resolve,
                   };
                   this.pendingToolCalls.set(promptMessageId, pendingTool);
-                  console.log('[ChatView] Added pending tool call from token:', pendingTool);
                 });
 
                 // Add marker to text for UI to detect
                 fullText += `\n\n__TOOL_CALL_PENDING__:${promptMessageId}\n\n`;
-                console.log('[ChatView] Added TOOL_CALL_PENDING marker');
                 
                 // Wait for user decision in background
                 userDecision.then((approved) => {
-                  console.log('[ChatView] User decision:', approved);
                   // Send response to backend
                   this.vscode.postMessage({
                     type: "userPromptResponse",
                     messageId: promptMessageId,
                     response: approved ? "yes" : "no",
                   });
-                }).catch(err => console.error('[ChatView] Error waiting for decision:', err));
-              } catch (e) {
-                console.error('[ChatView] Failed to parse __PROMPT_REQUEST__:', e);
+                }).catch(() => {/* no-op */});
+              } catch {
+                // Ignore malformed prompt hints
               }
             }
           }
           break;
         }
         case "streamEnd":
-          console.log('[ChatView] Stream ended');
           isDone = true;
           break;
         case "streamError":
@@ -154,7 +148,6 @@ class VSCodeChatAdapter implements ChatModelAdapter {
           isDone = true;
           break;
         case "promptRequest": {
-          console.log('[ChatView] Received promptRequest:', message.promptMessageId);
           
           // Create pending tool call and add to map
           const userDecision = new Promise<boolean>((resolve) => {
@@ -166,18 +159,15 @@ class VSCodeChatAdapter implements ChatModelAdapter {
               resolver: resolve,
             };
             this.pendingToolCalls.set(message.promptMessageId, pendingTool);
-            console.log('[ChatView] Added pending tool call:', pendingTool);
           });
 
           // Add marker to text
           fullText += `\n\n__TOOL_CALL_PENDING__:${message.promptMessageId}\n\n`;
-          console.log('[ChatView] Added marker to fullText:', fullText.substring(fullText.length - 100));
           
           // The periodic yield loop below will pick up this change and render the UI
           
           // Wait for user decision
           const approved = await userDecision;
-          console.log('[ChatView] User decision:', approved);
 
           // Send response to backend
           this.vscode.postMessage({
@@ -393,11 +383,26 @@ const AssistantMessage: React.FC = () => (
 );
 
 export function ChatView({ sessionId }: Readonly<ChatViewProps>) {
-  const vscode = useRef((globalThis as unknown as { vscodeApi?: VsCodeApi }).vscodeApi);
+  // Resolve VS Code API lazily to allow the dev mock script to attach later
+  const vscodeApi = useMemo<VsCodeApi>(() => {
+    try {
+      if (typeof globalThis !== 'undefined' && (globalThis as unknown as { window?: unknown }).window) {
+        const w = (globalThis as unknown as { window: unknown }).window as Window & { vscodeApi?: VsCodeApi; acquireVsCodeApi?: () => VsCodeApi };
+        if (w.vscodeApi) return w.vscodeApi;
+        if (typeof w.acquireVsCodeApi === 'function') {
+          const api = w.acquireVsCodeApi();
+          w.vscodeApi = api;
+          return api;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return { postMessage: () => {} };
+  }, []);
 
-  const noopApi: VsCodeApi = { postMessage: () => {} };
   const adapter = useRef(
-    new VSCodeChatAdapter(vscode.current ?? noopApi, sessionId)
+    new VSCodeChatAdapter(vscodeApi, sessionId)
   ).current;
   const runtime = useLocalRuntime(adapter);
 

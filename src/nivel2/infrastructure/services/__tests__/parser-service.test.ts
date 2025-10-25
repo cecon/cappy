@@ -14,8 +14,8 @@ describe('ParserService', () => {
   let tempDir: string;
 
   beforeEach(() => {
-    service = createParserService();
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parser-service-test-'));
+    service = createParserService(tempDir);
   });
 
   describe('File Type Detection', () => {
@@ -297,8 +297,9 @@ function Component() {
 
   describe('Factory Function', () => {
     it('should create a new ParserService instance', () => {
-      const service1 = createParserService();
-      const service2 = createParserService();
+      const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parser-factory-test-'));
+      const service1 = createParserService(testDir);
+      const service2 = createParserService(testDir);
 
       expect(service1).toBeInstanceOf(ParserService);
       expect(service2).toBeInstanceOf(ParserService);

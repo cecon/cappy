@@ -70,7 +70,7 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
             
             progress.report({ message: '📦 Setting up parsers...', increment: 5 });
             
-            const parserService = new ParserService();
+            const parserService = new ParserService(workspaceRoot);
             const indexingService = new IndexingService(
               vectorStore,
               graphStore,

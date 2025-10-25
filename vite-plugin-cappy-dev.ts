@@ -1,8 +1,8 @@
 import type { Plugin } from 'vite';
-import path from 'path';
-import fs from 'fs';
-import { execSync } from 'child_process';
-import type { IncomingMessage, ServerResponse } from 'http';
+import path from 'node:path';
+import fs from 'node:fs';
+import { execSync } from 'node:child_process';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 // (no-op type imports removed)
 
@@ -10,9 +10,28 @@ export function cappyDevServerPlugin(): Plugin {
   let workspaceRoot: string;
   let wss: WebSocketServer | null = null;
   let retryTimeout: NodeJS.Timeout | null = null;
+  // Track connected frontend clients (browser dev UIs)
+  const clients = new Set<WebSocket>();
+  // Connection to the installed extension's DevServerBridge (ws://localhost:7002)
+  let bridgeWs: WebSocket | null = null;
+  let bridgeReconnectTimer: NodeJS.Timeout | null = null;
+  const BRIDGE_PORT = 7002;
 
   return {
     name: 'cappy-dev-server',
+    // Inject VS Code API mock script into all HTML pages in dev
+    transformIndexHtml(html) {
+      return {
+        html,
+        tags: [
+          {
+            tag: 'script',
+            attrs: { src: '/@cappy/vscode-mock.js' },
+            injectTo: 'head'
+          }
+        ]
+      };
+    },
     
   async configureServer(server) {
       workspaceRoot = process.cwd();
@@ -153,12 +172,16 @@ export function cappyDevServerPlugin(): Plugin {
           // Don't close or retry here - let the error propagate naturally
         });
 
-        // NÃO tentar conectar com extensão em modo dev
-        // (isso causa conflitos e mata o processo)
-        console.log('ℹ️ [Vite] Running in standalone mode (no extension connection)');
+  // Tentar conectar com a extensão instalada (DevServerBridge na porta 7002)
+  ensureBridgeConnection();
 
         wss.on('connection', (ws: WebSocket) => {
         console.log('👋 [Vite WebSocket] Client connected');
+        clients.add(ws);
+
+        ws.on('close', () => {
+          clients.delete(ws);
+        });
 
         ws.on('message', async (data: unknown) => {
           try {
@@ -168,28 +191,41 @@ export function cappyDevServerPlugin(): Plugin {
 
             // Decidir onde processar baseado no tipo
             if (message.type === 'debug/analyze') {
-              // Processar localmente
-              await handleDebugAnalyzeWS(message, ws, workspaceRoot);
+              // Se a extensão estiver conectada, envie via bridge (ela proxy para o Vite dev server)
+              if (bridgeWs && bridgeWs.readyState === bridgeWs.OPEN) {
+                bridgeWs.send(dataStr);
+              } else {
+                // Processar localmente
+                await handleDebugAnalyzeWS(message, ws, workspaceRoot);
+              }
             } else if (message.type === 'get-db-status') {
-              // Processar localmente
-              ws.send(JSON.stringify({
-                type: 'db-status',
-                payload: {
-                  isConnected: true,
-                  nodeCount: 0,
-                  relationshipCount: 0,
-                  status: 'ready',
-                  mode: 'development'
-                }
-              }));
-            } else if (message.type === 'sendMessage' || message.type.startsWith('chat/')) {
-              // LLM features não disponíveis em modo dev standalone
-              ws.send(JSON.stringify({
-                type: 'error',
-                payload: {
-                  error: 'LLM features require running inside VS Code extension. Use dev.html for file analysis only.'
-                }
-              }));
+              if (bridgeWs && bridgeWs.readyState === bridgeWs.OPEN) {
+                bridgeWs.send(dataStr);
+              } else {
+                // Resposta local padrão
+                ws.send(JSON.stringify({
+                  type: 'db-status',
+                  payload: {
+                    isConnected: true,
+                    nodeCount: 0,
+                    relationshipCount: 0,
+                    status: 'ready',
+                    mode: 'development'
+                  }
+                }));
+              }
+            } else if (message.type === 'sendMessage' || (typeof message.type === 'string' && message.type.startsWith('chat/')) || message.type === 'userPromptResponse') {
+              if (bridgeWs && bridgeWs.readyState === bridgeWs.OPEN) {
+                bridgeWs.send(dataStr);
+              } else {
+                // Sem ponte com a extensão, notificar indisponibilidade
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  payload: {
+                    error: 'Extension bridge not connected (port 7002). Open VS Code with Cappy installed to enable LLM features.'
+                  }
+                }));
+              }
             } else {
               console.warn('⚠️ [Vite] Unknown message type:', message.type);
             }
@@ -208,6 +244,75 @@ export function cappyDevServerPlugin(): Plugin {
         });
       });
       };
+
+      function ensureBridgeConnection() {
+        if (bridgeWs && bridgeWs.readyState === bridgeWs.OPEN) {
+          return;
+        }
+
+        // Avoid multiple timers
+        if (bridgeReconnectTimer) {
+          clearTimeout(bridgeReconnectTimer);
+          bridgeReconnectTimer = null;
+        }
+
+        tryConnectBridge();
+      }
+
+      function tryConnectBridge() {
+        if (bridgeWs && (bridgeWs.readyState === bridgeWs.OPEN || bridgeWs.readyState === bridgeWs.CONNECTING)) {
+          return;
+        }
+
+        try {
+          const ws = new WebSocket(`ws://localhost:${BRIDGE_PORT}`);
+          bridgeWs = ws;
+
+          ws.on('open', () => {
+            console.log(`🔗 [Vite] Connected to extension DevBridge on port ${BRIDGE_PORT}`);
+            // Inform connected clients
+            for (const client of clients) {
+              try { client.send(JSON.stringify({ type: 'bridge/status', payload: { connected: true, port: BRIDGE_PORT } })); } catch {}
+            }
+          });
+
+          ws.on('message', (data) => {
+            // Broadcast responses from extension to all connected frontend clients
+            for (const client of clients) {
+              try { client.send(String(data)); } catch {}
+            }
+          });
+
+          const scheduleReconnect = () => {
+            if (bridgeReconnectTimer) return;
+            bridgeReconnectTimer = setTimeout(() => {
+              bridgeReconnectTimer = null;
+              console.log('🔄 [Vite] Reconnecting to extension DevBridge...');
+              tryConnectBridge();
+            }, 2000);
+          };
+
+          ws.on('close', () => {
+            console.warn('⚠️ [Vite] Extension DevBridge connection closed');
+            for (const client of clients) {
+              try { client.send(JSON.stringify({ type: 'bridge/status', payload: { connected: false } })); } catch {}
+            }
+            scheduleReconnect();
+          });
+
+          ws.on('error', (err) => {
+            console.warn('⚠️ [Vite] Extension DevBridge connection error:', (err as Error).message);
+            scheduleReconnect();
+          });
+
+        } catch (err) {
+          console.warn('⚠️ [Vite] Failed to connect to extension DevBridge:', (err as Error).message);
+          bridgeReconnectTimer = setTimeout(() => {
+            bridgeReconnectTimer = null;
+            tryConnectBridge();
+          }, 2000);
+        }
+      }
 
       // Start WebSocket server
       await startWebSocket();

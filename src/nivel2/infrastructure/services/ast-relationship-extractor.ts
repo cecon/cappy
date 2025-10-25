@@ -3,6 +3,12 @@
  * @module services/ast-relationship-extractor
  * @author Cappy Team
  * @since 3.0.0
+ * 
+ * This service extracts relationships between code entities using AST analysis.
+ * It works in conjunction with ASTEntityExtractor for comprehensive code analysis.
+ * 
+ * @see ASTEntityExtractor - For entity extraction
+ * @see ExternalPackageResolver - For package dependency resolution
  */
 
 import { parse } from '@typescript-eslint/parser';

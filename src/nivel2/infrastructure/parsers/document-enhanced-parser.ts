@@ -11,24 +11,26 @@ import matter from 'gray-matter';
 import mammoth from 'mammoth';
 import type { DocumentChunk } from '../../../shared/types/chunk';
 import type { DocumentEntityMetadata } from '../../../shared/types/entity';
-import { createEntityExtractor } from '../services/entity-extraction';
+import { createASTEntityExtractor } from '../services/entity-extraction';
 
 /**
- * Enhanced document parser with entity extraction
+ * Enhanced document parser with AST-based entity extraction
  * Supports: .md, .mdx, .pdf, .docx, .doc
  */
 export class DocumentEnhancedParser {
-  private entityExtractor = createEntityExtractor();
-  private initialized = false;
+  private readonly entityExtractor;
+  private readonly workspaceRoot: string;
+
+  constructor(workspaceRoot: string) {
+    this.workspaceRoot = workspaceRoot;
+    this.entityExtractor = createASTEntityExtractor(workspaceRoot);
+  }
 
   /**
-   * Initializes the parser and entity extractor
+   * Initializes the parser (no longer needs async initialization)
    */
   async initialize(): Promise<void> {
-    if (!this.initialized) {
-      await this.entityExtractor.initialize();
-      this.initialized = true;
-    }
+    // AST extractor doesn't need async initialization
   }
 
   /**
@@ -359,6 +361,6 @@ export class DocumentEnhancedParser {
 /**
  * Factory function to create enhanced document parser
  */
-export function createDocumentEnhancedParser(): DocumentEnhancedParser {
-  return new DocumentEnhancedParser();
+export function createDocumentEnhancedParser(workspaceRoot: string): DocumentEnhancedParser {
+  return new DocumentEnhancedParser(workspaceRoot);
 }

@@ -33,6 +33,7 @@ export type EntityType =
   | 'function'
   | 'interface'
   | 'type'
+  | 'variable'
   | 'api'
   | 'library'
   | 'framework'
@@ -82,7 +83,8 @@ export type RelationshipType =
   | 'related_to'
   | 'configures'
   | 'calls'
-  | 'instantiates';
+  | 'instantiates'
+  | 'imports';
 
 /**
  * Result of entity extraction

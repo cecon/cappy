@@ -13,7 +13,7 @@ import { createBladeParser } from '../parsers/blade-parser';
 import { createHTMLParser } from '../parsers/html-parser';
 import { createViteParser } from '../parsers/vite-parser';
 import type { DocumentChunk } from '../../../shared/types/chunk';
-import * as path from 'path';
+import * as path from 'node:path';
 
 /**
  * Parser service coordinating different file type parsers
@@ -21,19 +21,25 @@ import * as path from 'path';
 export class ParserService {
   private readonly tsParser = createTypeScriptParser();
   private readonly mdParser = createMarkdownParser();
-  private readonly enhancedDocParser = createDocumentEnhancedParser();
+  private readonly enhancedDocParser;
   private readonly phpParser = createPHPParser();
   private readonly bladeParser = createBladeParser();
   private readonly htmlParser = createHTMLParser();
   private readonly viteParser = createViteParser();
-  private enhancedParsingEnabled = false; // Disabled by default; can be enabled for LLM entity extraction
+  private enhancedParsingEnabled = false; // Disabled by default; can be enabled for AST entity extraction
+  private readonly workspaceRoot: string;
+
+  constructor(workspaceRoot: string) {
+    this.workspaceRoot = workspaceRoot;
+    this.enhancedDocParser = createDocumentEnhancedParser(workspaceRoot);
+  }
 
   /**
-   * Enables enhanced parsing with entity extraction
+   * Enables enhanced parsing with AST entity extraction
    */
   enableEnhancedParsing(enabled = true): void {
     this.enhancedParsingEnabled = enabled;
-    console.log(`📚 Enhanced document parsing ${enabled ? 'enabled' : 'disabled'}`);
+    console.log(`📚 Enhanced document parsing (AST-based) ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   /**
@@ -186,6 +192,6 @@ export class ParserService {
 /**
  * Factory function to create parser service
  */
-export function createParserService(): ParserService {
-  return new ParserService();
+export function createParserService(workspaceRoot: string): ParserService {
+  return new ParserService(workspaceRoot);
 }
