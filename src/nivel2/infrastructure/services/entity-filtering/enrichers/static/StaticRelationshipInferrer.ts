@@ -75,7 +75,7 @@ export class StaticRelationshipInferrer {
       relationships.push({
         target: entity.source,
         type: 'imports',
-        confidence: 1.0, // Import é explícito
+        confidence: 1, // Import é explícito
         evidence: ['explicit-import-statement'],
       });
     }
@@ -96,7 +96,6 @@ export class StaticRelationshipInferrer {
     sourceCode: string
   ): InferredRelationship[] {
     const relationships: InferredRelationship[] = [];
-    const entityNames = allEntities.map(e => e.name);
     
     // Procurar por menções de outras entidades no código desta entidade
     // Extrair a declaração da entidade
@@ -120,12 +119,10 @@ export class StaticRelationshipInferrer {
         }
         // JSX usage
         else if (this.isJSXUsage(otherEntity.name, declaration)) {
-          relType = 'uses';
           evidence.push('jsx-element');
         }
         // Tipo/Interface usage
         else if (otherEntity.type === 'typeRef') {
-          relType = 'uses';
           evidence.push('type-reference');
         }
         // Outro uso genérico
@@ -149,7 +146,7 @@ export class StaticRelationshipInferrer {
   
   private static inferInheritanceRelationships(
     entity: NormalizedEntity,
-    allEntities: NormalizedEntity[],
+    _allEntities: NormalizedEntity[],
     sourceCode: string
   ): InferredRelationship[] {
     const relationships: InferredRelationship[] = [];
@@ -161,12 +158,12 @@ export class StaticRelationshipInferrer {
     );
     
     const extendsMatch = extendsPattern.exec(sourceCode);
-    if (extendsMatch && extendsMatch[1]) {
+    if (extendsMatch?.[1]) {
       const baseClass = extendsMatch[1];
       relationships.push({
         target: baseClass,
         type: 'extends',
-        confidence: 1.0, // Extends é explícito
+        confidence: 1, // Extends é explícito
         evidence: ['class-declaration'],
       });
     }
@@ -178,13 +175,13 @@ export class StaticRelationshipInferrer {
     );
     
     const implementsMatch = implementsPattern.exec(sourceCode);
-    if (implementsMatch && implementsMatch[1]) {
+    if (implementsMatch?.[1]) {
       const interfaces = implementsMatch[1].split(',').map(s => s.trim());
       for (const iface of interfaces) {
         relationships.push({
           target: iface,
           type: 'implements',
-          confidence: 1.0, // Implements é explícito
+          confidence: 1, // Implements é explícito
           evidence: ['class-declaration'],
         });
       }
@@ -197,13 +194,13 @@ export class StaticRelationshipInferrer {
     );
     
     const ifaceExtendsMatch = ifaceExtendsPattern.exec(sourceCode);
-    if (ifaceExtendsMatch && ifaceExtendsMatch[1]) {
+    if (ifaceExtendsMatch?.[1]) {
       const baseInterfaces = ifaceExtendsMatch[1].split(',').map(s => s.trim());
       for (const base of baseInterfaces) {
         relationships.push({
           target: base,
           type: 'extends',
-          confidence: 1.0,
+          confidence: 1,
           evidence: ['interface-declaration'],
         });
       }
@@ -218,19 +215,81 @@ export class StaticRelationshipInferrer {
     entity: NormalizedEntity,
     allEntities: NormalizedEntity[]
   ): InferredRelationship[] {
-    const relationships: InferredRelationship[] = [];
+    return [
+      ...this.inferPackageDependencies(entity),
+      ...this.inferImportDependencies(entity, allEntities),
+      ...this.inferCategoryDependencies(entity),
+    ];
+  }
+
+  private static inferPackageDependencies(entity: NormalizedEntity): InferredRelationship[] {
+    if (!entity.packageInfo) return [];
     
-    // Se tem package info, criar dependência
-    if (entity.packageInfo) {
+    return [{
+      target: entity.packageInfo.name,
+      type: 'depends-on',
+      confidence: 1,
+      evidence: ['package-json'],
+    }];
+  }
+
+  private static inferImportDependencies(
+    entity: NormalizedEntity,
+    allEntities: NormalizedEntity[]
+  ): InferredRelationship[] {
+    if (entity.type !== 'import' || !entity.source) return [];
+    
+    const relationships: InferredRelationship[] = [];
+    const sourceModule = entity.source;
+    
+    // Encontrar entidades exportadas do mesmo módulo
+    const exportedEntities = allEntities.filter(
+      e => e.type === 'export' && e.source === sourceModule
+    );
+    
+    for (const exported of exportedEntities) {
       relationships.push({
-        target: entity.packageInfo.name,
+        target: exported.name,
         type: 'depends-on',
-        confidence: 1.0,
-        evidence: ['package-json'],
+        confidence: 0.8,
+        evidence: ['import-from-same-module'],
       });
     }
     
+    // Se há specifiers no import, criar dependência direta com eles
+    if (entity.specifiers) {
+      for (const specifier of entity.specifiers) {
+        const targetEntity = allEntities.find(e => e.name === specifier);
+        if (targetEntity) {
+          relationships.push({
+            target: specifier,
+            type: 'depends-on',
+            confidence: 0.9,
+            evidence: ['import-specifier'],
+          });
+        }
+      }
+    }
+    
     return relationships;
+  }
+
+  private static inferCategoryDependencies(entity: NormalizedEntity): InferredRelationship[] {
+    if (entity.category !== 'external' || !entity.source) return [];
+    
+    // Extrair nome do pacote do source (ex: 'react' de 'react' ou '@mui/material' de '@mui/material')
+    const packageName = entity.source.startsWith('@') 
+      ? entity.source.split('/').slice(0, 2).join('/')
+      : entity.source.split('/')[0];
+    
+    if (packageName === entity.name) return [];
+    
+    return [{
+      target: packageName,
+      type: 'depends-on',
+      confidence: 0.85,
+      evidence: ['external-package'],
+    }];
   }
 
   // ==================== Helper Methods ====================

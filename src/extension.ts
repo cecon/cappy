@@ -284,9 +284,10 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('✅ Registered command: cappy.queueStatus');
 
     // Register diagnose graph command
-    // Register diagnose graph command
-    registerDiagnoseGraphCommand(context, graphStore);
-    console.log('✅ Registered command: cappy.diagnoseGraph');
+    if (graphStore) {
+        registerDiagnoseGraphCommand(context, graphStore);
+        console.log('✅ Registered command: cappy.diagnoseGraph');
+    }
 
     // Register reset database command
     registerResetDatabaseCommand(context);

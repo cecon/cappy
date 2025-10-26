@@ -13,6 +13,32 @@ interface ASTNode {
   [key: string]: unknown;
 }
 
+interface JSDocEmbedding {
+  dimensions: number;
+  model?: string;
+  vector?: number[];
+}
+
+interface StaticRelationship {
+  target: string;
+  type: string;
+  confidence?: number;
+  evidence?: string[];
+}
+
+interface StaticEnrichedEntity {
+  name: string;
+  type: string;
+  jsdoc?: unknown;
+  semanticType?: string;
+  staticRelationships?: StaticRelationship[];
+  staticConfidence?: number;
+}
+
+interface JSDocEmbeddedEntity extends StaticEnrichedEntity {
+  jsdocEmbedding?: JSDocEmbedding;
+}
+
 interface FileAnalysis {
   fileName: string;
   fileSize: number;
@@ -28,8 +54,8 @@ interface FileAnalysis {
     filtered: unknown[];
     deduplicated: unknown[];
     normalized: unknown[];
-    staticEnriched?: unknown[]; // ← Static Enrichment
-    jsdocEmbedded?: unknown[]; // ← JSDoc Embeddings (NOVO!)
+    staticEnriched?: StaticEnrichedEntity[];
+    jsdocEmbedded?: JSDocEmbeddedEntity[];
     enriched: unknown[];
     stats: {
       totalRaw: number;
@@ -77,11 +103,11 @@ export default function DebugPage() {
 
       // Clear timeout if exists
       const timeoutId = (
-        window as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout }
+        globalThis as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout }
       )._debugAnalysisTimeout;
       if (timeoutId) {
         clearTimeout(timeoutId);
-        delete (window as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout })
+        delete (globalThis as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout })
           ._debugAnalysisTimeout;
       }
 
@@ -196,7 +222,7 @@ export default function DebugPage() {
       // Clear timeout when we get a response (in useEffect listener)
       // Store timeoutId for cleanup
       (
-        window as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout }
+        globalThis as unknown as { _debugAnalysisTimeout?: NodeJS.Timeout }
       )._debugAnalysisTimeout = timeoutId;
     } catch (error) {
       clearTimeout(timeoutId);
@@ -353,7 +379,7 @@ export default function DebugPage() {
                       {/* Etapa 1: Raw Entities */}
                       <div className="border border-border rounded-md p-4">
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
-                          <span className="text-blue-400">1️⃣</span>
+                          <span className="text-blue-400">1️⃣</span>{" "}
                           Entidades Brutas (AST)
                           <span className="text-xs bg-blue-900/30 px-2 py-1 rounded">
                             {analysis.pipeline.original.length}
@@ -385,7 +411,7 @@ export default function DebugPage() {
                       <div className="border border-border rounded-md p-4">
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
                           <span className="text-green-400">2️⃣</span>
-                          Entidades Filtradas
+                          <span>Entidades Filtradas</span>
                           <span className="text-xs bg-green-900/30 px-2 py-1 rounded">
                             {analysis.pipeline.filtered.length}
                           </span>
@@ -420,7 +446,7 @@ export default function DebugPage() {
                       <div className="border border-border rounded-md p-4">
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
                           <span className="text-purple-400">3️⃣</span>
-                          Entidades Deduplicadas
+                          <span>Entidades Deduplicadas</span>
                           <span className="text-xs bg-purple-900/30 px-2 py-1 rounded">
                             {analysis.pipeline.deduplicated.length}
                           </span>
@@ -454,7 +480,7 @@ export default function DebugPage() {
                       {/* Etapa 4: Normalized */}
                       <div className="border border-border rounded-md p-4">
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
-                          <span className="text-yellow-400">4️⃣</span> Entidades
+                          <span className="text-yellow-400">4️⃣</span>{" "}Entidades
                           Normalizadas
                           <span className="text-xs bg-yellow-900/30 px-2 py-1 rounded">
                             {analysis.pipeline.normalized.length}
@@ -489,7 +515,7 @@ export default function DebugPage() {
                           <>
                             <div className="border border-cyan-500/50 rounded-md p-4 bg-cyan-900/10">
                               <h4 className="font-semibold mb-2 flex items-center gap-2">
-                                <span className="text-cyan-400">🔬</span>
+                                <span className="text-cyan-400">🔬</span>{" "}
                                 Entidades com Enriquecimento Estático
                                 <span className="text-xs bg-cyan-900/30 px-2 py-1 rounded">
                                   {analysis.pipeline.staticEnriched.length}
@@ -509,7 +535,7 @@ export default function DebugPage() {
                                   <div className="text-lg font-bold text-cyan-400">
                                     {
                                       analysis.pipeline.staticEnriched.filter(
-                                        (e: any) => e.jsdoc
+                                        (e: StaticEnrichedEntity) => e.jsdoc
                                       ).length
                                     }
                                   </div>
@@ -522,7 +548,7 @@ export default function DebugPage() {
                                     {
                                       new Set(
                                         analysis.pipeline.staticEnriched.map(
-                                          (e: any) => e.semanticType
+                                          (e: StaticEnrichedEntity) => e.semanticType
                                         )
                                       ).size
                                     }
@@ -534,7 +560,7 @@ export default function DebugPage() {
                                   </div>
                                   <div className="text-lg font-bold text-yellow-400">
                                     {analysis.pipeline.staticEnriched.reduce(
-                                      (sum: number, e: any) =>
+                                      (sum: number, e: StaticEnrichedEntity) =>
                                         sum +
                                         (e.staticRelationships?.length || 0),
                                       0
@@ -548,7 +574,7 @@ export default function DebugPage() {
                                   <div className="text-lg font-bold text-green-400">
                                     {(
                                       analysis.pipeline.staticEnriched.reduce(
-                                        (sum: number, e: any) =>
+                                        (sum: number, e: StaticEnrichedEntity) =>
                                           sum + (e.staticConfidence || 0),
                                         0
                                       ) /
@@ -580,8 +606,7 @@ export default function DebugPage() {
                         )}
 
                       {/* Etapa 4.5: JSDoc Embeddings (NOVO!) */}
-                      {analysis.pipeline.jsdocEmbedded &&
-                        analysis.pipeline.jsdocEmbedded.length > 0 && (
+                      {analysis.pipeline.jsdocEmbedded && (
                           <>
                             <div className="border border-indigo-500/50 rounded-md p-4 bg-indigo-900/10">
                               <h4 className="font-semibold mb-2 flex items-center gap-2">
@@ -592,8 +617,7 @@ export default function DebugPage() {
                                 </span>
                               </h4>
                               <p className="text-xs text-muted-foreground mb-3">
-                                🧠 Adicionado: vetores de 384 dimensões para
-                                busca semântica de documentação
+                                🧠 Vetores de 384 dimensões para busca semântica de documentação
                               </p>
 
                               {/* JSDoc Embeddings Stats */}
@@ -605,7 +629,7 @@ export default function DebugPage() {
                                   <div className="text-lg font-bold text-indigo-400">
                                     {
                                       analysis.pipeline.jsdocEmbedded.filter(
-                                        (e: any) => e.jsdocEmbedding
+                                        (e: JSDocEmbeddedEntity) => e.jsdocEmbedding
                                       ).length
                                     }
                                   </div>
@@ -615,9 +639,12 @@ export default function DebugPage() {
                                     Dimensões
                                   </div>
                                   <div className="text-lg font-bold text-purple-400">
-                                    {analysis.pipeline.jsdocEmbedded.find(
-                                      (e: any) => e.jsdocEmbedding
-                                    )?.jsdocEmbedding?.dimensions || 384}
+                                    {(() => {
+                                      const item = analysis.pipeline.jsdocEmbedded.find(
+                                        (e: JSDocEmbeddedEntity) => e.jsdocEmbedding && 'jsdocEmbedding' in e
+                                      );
+                                      return item?.jsdocEmbedding?.dimensions || 384;
+                                    })()}
                                   </div>
                                 </div>
                                 <div className="bg-muted/50 p-2 rounded">
@@ -635,7 +662,7 @@ export default function DebugPage() {
                                   <div className="text-lg font-bold text-green-400">
                                     {(
                                       (analysis.pipeline.jsdocEmbedded.filter(
-                                        (e: any) => e.jsdocEmbedding
+                                        (e: JSDocEmbeddedEntity) => e.jsdocEmbedding
                                       ).length *
                                         384 *
                                         4) /
@@ -670,8 +697,12 @@ export default function DebugPage() {
                       {/* Etapa 5: Enriched (Final) */}
                       <div className="border border-green-500/50 rounded-md p-4 bg-green-900/10">
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
-                          <span className="text-green-400">5️⃣</span> Entidades
-                          Enriquecidas (SALVAS NO BANCO)
+                          <span className="text-green-400">5️⃣</span>
+                          {" "}
+                          <span>
+                            Entidades Enriquecidas (SALVAS NO BANCO)
+                          </span>
+                          {" "}
                           <span className="text-xs bg-green-900/30 px-2 py-1 rounded">
                             {analysis.pipeline.enriched.length}
                           </span>
@@ -697,7 +728,10 @@ export default function DebugPage() {
                         <div className="mt-6">
                           <h5 className="font-semibold mb-2 flex items-center gap-2">
                             <span className="text-cyan-400">🕸️</span>
-                            Visualização de Grafo (Entidades e Relacionamentos)
+                            {" "}
+                            <span>
+                              Visualização de Grafo (Entidades e Relacionamentos)
+                            </span>
                           </h5>
                           <GraphFromPipeline analysis={analysis} />
                         </div>
@@ -742,7 +776,7 @@ type PipelineEntity = {
   relationships?: PipelineRelationship[];
 };
 
-function GraphFromPipeline({ analysis }: { analysis: FileAnalysis }) {
+function GraphFromPipeline({ analysis }: Readonly<{ analysis: FileAnalysis }>) {
   const data = useMemo(() => {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
@@ -757,14 +791,14 @@ function GraphFromPipeline({ analysis }: { analysis: FileAnalysis }) {
       label?: string,
       type: "file" | "chunk" | "workspace" = "chunk"
     ) => {
-      if (!nodes.find((n) => n.id === id)) {
+      if (!nodes.some((n) => n.id === id)) {
         nodes.push({ id, label: label || id, type });
       }
     };
 
     const addEdge = (source: string, target: string, label?: string) => {
       const id = `${source}->${target}:${label || "rel"}`;
-      if (!edges.find((e) => e.id === id)) {
+      if (!edges.some((e) => e.id === id)) {
         edges.push({ id, source, target, label });
       }
     };

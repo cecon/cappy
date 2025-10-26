@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 
-import { EmbeddingService } from '../nivel2/infrastructure/services/embedding-service';
-import { SQLiteAdapter } from '../nivel2/infrastructure/database/sqlite-adapter';
-import { createVectorStore } from '../nivel2/infrastructure/vector/sqlite-vector-adapter';
-import { IndexingService } from '../nivel2/infrastructure/services/indexing-service';
-import { ConfigService } from '../nivel2/infrastructure/services/config-service';
+import { EmbeddingService } from '../../../../nivel2/infrastructure/services/embedding-service';
+import { SQLiteAdapter } from '../../../../nivel2/infrastructure/database/sqlite-adapter';
+import { createVectorStore } from '../../../../nivel2/infrastructure/vector/sqlite-vector-adapter';
+import { IndexingService } from '../../../../nivel2/infrastructure/services/indexing-service';
+import { ConfigService } from '../../../../nivel2/infrastructure/services/config-service';
 
 export function registerDebugRetrievalCommand(context: vscode.ExtensionContext) {
   const disposable = vscode.commands.registerCommand('cappy.debugRetrieval', async () => {

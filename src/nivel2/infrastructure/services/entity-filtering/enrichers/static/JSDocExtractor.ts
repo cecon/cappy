@@ -55,8 +55,13 @@ export class JSDocExtractor {
   ): ParsedJSDoc | null {
     const lines = sourceCode.split('\n');
     
+    // ⚠️ entityLine é 1-based, array é 0-based
+    const arrayIndex = entityLine - 1;
+    
+    console.log(`   🔍 [JSDocExtractor] Looking for JSDoc before line ${entityLine} (array index ${arrayIndex})`);
+    
     // Procurar comentário JSDoc antes da linha da entidade
-    let commentEndLine = entityLine - 1;
+    let commentEndLine = arrayIndex - 1;
     let commentStartLine = -1;
     
     // Encontrar fim do comentário (pode ter linhas vazias entre comentário e declaração)
@@ -64,10 +69,16 @@ export class JSDocExtractor {
       commentEndLine--;
     }
     
-    if (commentEndLine < 0) return null;
+    if (commentEndLine < 0) {
+      console.log(`   ❌ [JSDocExtractor] No content before entity line`);
+      return null;
+    }
+    
+    console.log(`   📝 [JSDocExtractor] Checking line ${commentEndLine}: "${lines[commentEndLine].trim().substring(0, 50)}..."`);
     
     // Verificar se termina com */
     if (!lines[commentEndLine].trim().endsWith('*/')) {
+      console.log(`   ❌ [JSDocExtractor] Line doesn't end with */`);
       return null;
     }
     
@@ -78,11 +89,13 @@ export class JSDocExtractor {
     }
     
     if (!lines[commentStartLine].trim().startsWith('/**')) {
+      console.log(`   ❌ [JSDocExtractor] No /** found`);
       return null;
     }
     
     // Extrair bloco de comentário
     const commentBlock = lines.slice(commentStartLine, commentEndLine + 1).join('\n');
+    console.log(`   ✅ [JSDocExtractor] Found JSDoc block (lines ${commentStartLine}-${commentEndLine})`);
     
     return this.parseJSDoc(commentBlock);
   }
@@ -101,9 +114,18 @@ export class JSDocExtractor {
       const block = parsed[0];
       
       // Extrair params
+      type ParamTag = {
+        tag: string;
+        name: string;
+        type?: string;
+        description?: string;
+        optional?: boolean;
+        default?: string;
+      };
+
       const params = block.tags
-        .filter((t: any) => t.tag === 'param' || t.tag === 'arg' || t.tag === 'argument')
-        .map((t: any) => ({
+        .filter((t: ParamTag) => t.tag === 'param' || t.tag === 'arg' || t.tag === 'argument')
+        .map((t: ParamTag) => ({
           name: t.name,
           type: t.type,
           description: t.description,
@@ -112,7 +134,7 @@ export class JSDocExtractor {
         }));
       
       // Extrair returns
-      const returnTag = block.tags.find((t: any) => t.tag === 'returns' || t.tag === 'return');
+      const returnTag = block.tags.find((t: ParamTag) => t.tag === 'returns' || t.tag === 'return');
       const returns = returnTag ? {
         type: returnTag.type,
         description: returnTag.description,
@@ -120,28 +142,28 @@ export class JSDocExtractor {
       
       // Extrair throws
       const throws = block.tags
-        .filter((t: any) => t.tag === 'throws' || t.tag === 'throw' || t.tag === 'exception')
-        .map((t: any) => ({
+        .filter((t: ParamTag) => t.tag === 'throws' || t.tag === 'throw' || t.tag === 'exception')
+        .map((t: ParamTag) => ({
           type: t.type,
           description: t.description,
         }));
       
       // Extrair examples
       const examples = block.tags
-        .filter((t: any) => t.tag === 'example')
-        .map((t: any) => t.description);
+        .filter((t: ParamTag) => t.tag === 'example')
+        .map((t: ParamTag) => t.description);
       
       // Extrair outros metadados
-      const deprecatedTag = block.tags.find((t: any) => t.tag === 'deprecated');
-      const sinceTag = block.tags.find((t: any) => t.tag === 'since');
-      const authorTag = block.tags.find((t: any) => t.tag === 'author');
-      const asyncTag = block.tags.find((t: any) => t.tag === 'async');
-      
+      const deprecatedTag = block.tags.find((t: ParamTag) => t.tag === 'deprecated');
+      const sinceTag = block.tags.find((t: ParamTag) => t.tag === 'since');
+      const authorTag = block.tags.find((t: ParamTag) => t.tag === 'author');
+      const asyncTag = block.tags.find((t: ParamTag) => t.tag === 'async');
+
       // Outros tags genéricos
       const genericTags = block.tags
-        .filter((t: any) => !['param', 'returns', 'return', 'throws', 'throw', 'exception', 
+        .filter((t: ParamTag) => !['param', 'returns', 'return', 'throws', 'throw', 'exception', 
                        'example', 'deprecated', 'since', 'author', 'async'].includes(t.tag))
-        .map((t: any) => ({
+        .map((t: ParamTag) => ({
           tag: t.tag,
           name: t.name,
           type: t.type,
@@ -155,7 +177,7 @@ export class JSDocExtractor {
         returns,
         throws: throws.length > 0 ? throws : undefined,
         tags: genericTags,
-        examples: examples.length > 0 ? examples : undefined,
+        examples: examples.length > 0 ? examples.filter((e): e is string => typeof e === 'string') : undefined,
         deprecated: deprecatedTag?.description,
         since: sinceTag?.description,
         author: authorTag?.description,

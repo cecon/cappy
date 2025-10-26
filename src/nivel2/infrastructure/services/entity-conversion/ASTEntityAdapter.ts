@@ -31,7 +31,7 @@ export class ASTEntityAdapter {
     const rawEntity: RawEntity = {
       type: this.mapEntityType(astEntity.type),
       name: astEntity.name,
-      scope: this.mapScope(astEntity.category),
+      scope: this.mapScope(astEntity),  // ← Pass full entity, not just category
       line: astEntity.line
     };
 
@@ -74,15 +74,19 @@ export class ASTEntityAdapter {
 
   /**
    * Mapeia categoria AST para escopo de entidade raw
+   * Considera se a entidade é exportada para determinar se é module ou local scope
    */
-  private static mapScope(category: ASTEntity['category']): RawEntity['scope'] {
-    const scopeMap: Record<ASTEntity['category'], RawEntity['scope']> = {
-      'internal': 'local',
-      'external': 'module',
-      'builtin': 'global',
-      'jsx': 'local'
-    };
-
-    return scopeMap[category] || 'local';
+  private static mapScope(astEntity: ASTEntity): RawEntity['scope'] {
+    // Se é external ou builtin, sempre global/module
+    if (astEntity.category === 'external') return 'module';
+    if (astEntity.category === 'builtin') return 'global';
+    
+    // Se é internal mas EXPORTADA, deve ser module scope (API pública do arquivo)
+    if (astEntity.category === 'internal' && astEntity.isExported) {
+      return 'module';
+    }
+    
+    // Se é internal e NÃO exportada, é local (implementação interna)
+    return 'local';
   }
 }

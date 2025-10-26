@@ -25,11 +25,11 @@ export interface FileStatusResponse {
 
 export class FileProcessingAPI {
   private server: http.Server | null = null;
-  private database: FileMetadataDatabase;
-  private graphStore: GraphStorePort | null;
-  private port: number;
-  private onScanWorkspace?: () => Promise<void>;
-  private onReprocessFile?: (filePath: string) => Promise<void>;
+  private readonly database: FileMetadataDatabase;
+  private readonly graphStore: GraphStorePort | null;
+  private readonly port: number;
+  private readonly onScanWorkspace?: () => Promise<void>;
+  private readonly onReprocessFile?: (filePath: string) => Promise<void>;
 
   constructor(
     _queue: FileProcessingQueue,
@@ -92,32 +92,38 @@ export class FileProcessingAPI {
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     try {
       const url = new URL(req.url || '', `http://localhost:${this.port}`);
-      
-      if (req.method === 'POST' && url.pathname === '/files/enqueue') {
-        await this.handleEnqueue(req, res);
-      } else if (req.method === 'POST' && url.pathname === '/files/reprocess') {
-        await this.handleReprocess(req, res);
-      } else if (req.method === 'POST' && url.pathname === '/scan/workspace') {
-        await this.handleScanWorkspace(req, res);
-      } else if (req.method === 'DELETE' && url.pathname === '/files/remove') {
-        await this.handleRemove(req, res);
-      } else if (req.method === 'GET' && url.pathname === '/files/status') {
-        await this.handleGetStatus(req, res);
-      } else if (req.method === 'GET' && url.pathname === '/files/all') {
-        await this.handleGetAllFiles(req, res);
-      } else if (req.method === 'GET' && url.pathname === '/files/indexed') {
-        await this.handleGetIndexedFiles(req, res);
-      } else if (req.method === 'POST' && url.pathname === '/files/clear') {
-        await this.handleClearAll(req, res);
+      const routeKey = `${req.method}:${url.pathname}`;
+      const routeHandlers: Record<string, (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>> = {
+        'POST:/files/enqueue': this.handleEnqueue.bind(this),
+        'POST:/files/reprocess': this.handleReprocess.bind(this),
+        'POST:/scan/workspace': this.handleScanWorkspace.bind(this),
+        'DELETE:/files/remove': this.handleRemove.bind(this),
+        'GET:/files/status': this.handleGetStatus.bind(this),
+        'GET:/files/all': this.handleGetAllFiles.bind(this),
+        'GET:/files/indexed': this.handleGetIndexedFiles.bind(this),
+        'POST:/files/clear': this.handleClearAll.bind(this),
+      };
+
+      const handler = routeHandlers[routeKey];
+      if (handler) {
+        await handler(req, res);
       } else {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Not found' }));
+        this.handleNotFound(res);
       }
     } catch (error) {
-      console.error('[FileProcessingAPI] Request error:', error);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Internal server error' }));
+      this.handleRequestError(error, res);
     }
+  }
+
+  private handleNotFound(res: http.ServerResponse) {
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Not found' }));
+  }
+
+  private handleRequestError(error: unknown, res: http.ServerResponse) {
+    console.error('[FileProcessingAPI] Request error:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Internal server error' }));
   }
 
   private async handleScanWorkspace(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -355,7 +361,7 @@ export class FileProcessingAPI {
       return;
     }
 
-    const metadata = await this.database.getFile(fileIdStr);
+    const metadata = this.database.getFile(fileIdStr);
 
     if (!metadata) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -369,7 +375,6 @@ export class FileProcessingAPI {
     
     switch (metadata.status) {
       case 'pending':
-        progress = 0;
         summary = 'Waiting in queue...';
         break;
       case 'processing':
@@ -382,7 +387,6 @@ export class FileProcessingAPI {
         break;
       case 'failed':
       case 'cancelled':
-        progress = 0;
         summary = `❌ Failed: ${metadata.errorMessage}`;
         break;
     }
@@ -414,7 +418,6 @@ export class FileProcessingAPI {
       
       switch (metadata.status) {
         case 'pending':
-          progress = 0;
           summary = 'Waiting in queue...';
           break;
         case 'processing':
@@ -427,7 +430,6 @@ export class FileProcessingAPI {
           break;
         case 'failed':
         case 'cancelled':
-          progress = 0;
           summary = `❌ Failed: ${metadata.errorMessage}`;
           break;
       }
@@ -482,7 +484,7 @@ export class FileProcessingAPI {
           }
 
           // Use stable ID based on file path for consistent reprocessing
-          const fileId = `indexed-${Buffer.from(file.path).toString('base64').replace(/[/+=]/g, '')}`;
+          const fileId = `indexed-${Buffer.from(file.path).toString('base64').replaceAll('/', '').replaceAll('+', '').replaceAll('=', '')}`;
 
           return {
             fileId,

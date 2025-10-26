@@ -7,13 +7,13 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { ParserService } from '../nivel2/infrastructure/services/parser-service';
-import { IndexingService } from '../nivel2/infrastructure/services/indexing-service';
-import { ASTRelationshipExtractor } from '../nivel2/infrastructure/services/ast-relationship-extractor';
-import { EmbeddingService } from '../nivel2/infrastructure/services/embedding-service';
-import { SQLiteAdapter } from '../nivel2/infrastructure/database/sqlite-adapter';
-import { createVectorStore } from '../nivel2/infrastructure/vector/sqlite-vector-adapter';
-import { ConfigService } from '../nivel2/infrastructure/services/config-service';
+import { ParserService } from '../../../../nivel2/infrastructure/services/parser-service';
+import { IndexingService } from '../../../../nivel2/infrastructure/services/indexing-service';
+import { ASTRelationshipExtractor } from '../../../../nivel2/infrastructure/services/ast-relationship-extractor';
+import { EmbeddingService } from '../../../../nivel2/infrastructure/services/embedding-service';
+import { SQLiteAdapter } from '../../../../nivel2/infrastructure/database/sqlite-adapter';
+import { createVectorStore } from '../../../../nivel2/infrastructure/vector/sqlite-vector-adapter';
+import { ConfigService } from '../../../../nivel2/infrastructure/services/config-service';
 
 /**
  * Progress callback type
@@ -70,14 +70,15 @@ export async function processSingleFileInternal(options: {
   let chunks = await parserService.parseFile(filePath);
 
     console.log(`\n📦 CHUNKS EXTRACTED: ${chunks.length}`);
-    chunks.forEach((chunk, i) => {
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
       console.log(`\n  Chunk ${i + 1}/${chunks.length}:`);
       console.log(`    ID: ${chunk.id}`);
       console.log(`    Type: ${chunk.metadata.chunkType}`);
       console.log(`    Symbol: ${chunk.metadata.symbolName || 'N/A'}`);
       console.log(`    Lines: ${chunk.metadata.lineStart}-${chunk.metadata.lineEnd}`);
       console.log(`    Content Preview: ${chunk.content.substring(0, 100)}...`);
-    });
+    }
 
     if (chunks.length === 0) {
       // Fallback: create single file-level code chunk including entire file
@@ -112,13 +113,14 @@ export async function processSingleFileInternal(options: {
     const relationships = await relationshipExtractor.extract(filePath, chunks);
     
     console.log(`\n📊 RELATIONSHIPS FOUND: ${relationships.length}`);
-    relationships.forEach((rel, i) => {
+    for (let i = 0; i < relationships.length; i++) {
+      const rel = relationships[i];
       console.log(`\n  Relationship ${i + 1}/${relationships.length}:`);
       console.log(`    Type: ${rel.type}`);
       console.log(`    From: ${rel.from}`);
       console.log(`    To: ${rel.to}`);
       console.log(`    Properties:`, rel.properties);
-    });
+    }
 
     // Index in Vector Store
     onProgress?.('Generating embeddings...', 70);

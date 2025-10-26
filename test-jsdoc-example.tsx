@@ -16,7 +16,7 @@
  * />
  * @since 1.0.0
  */
-export function TaskApp({ title, darkMode }) {
+export function TaskApp({ title, darkMode }: { title: string; darkMode: boolean }) {
   return <div className={darkMode ? 'dark' : 'light'}>{title}</div>;
 }
 
@@ -36,12 +36,17 @@ export function TaskApp({ title, darkMode }) {
  * }
  * @deprecated Use o novo hook useAuthV2 que suporta OAuth
  */
-export function useAuth() {
+function useAuth() {
   return {
     isAuthenticated: false,
     user: null,
-    login: async (email, password) => {},
-    logout: () => {}
+    login: async (email: string, password: string) => {
+      // Implementação de login
+      console.log('Login attempt:', email, password);
+    },
+    logout: () => {
+      // Implementação de logout
+    }
   };
 }
 
@@ -52,6 +57,9 @@ export function useAuth() {
  * o desempenho e evitar sobrecarga de memória. Suporta processamento paralelo.
  */
 export class BatchProcessor {
+  private batchSize: number;
+  private maxParallel: number;
+
   /**
    * Cria uma nova instância do processador em lote
    * @param {number} batchSize - Tamanho de cada lote (padrão: 100)
@@ -78,7 +86,7 @@ export class BatchProcessor {
    * );
    * console.log(results); // [2, 4, 6, 8, 10]
    */
-  async process(items, processFn) {
+  async process<T, R>(items: T[], processFn: (item: T) => R): Promise<R[]> {
     return items.map(processFn);
   }
 }
@@ -89,7 +97,7 @@ export class BatchProcessor {
  * @description Conjunto de funções para validar campos de formulário
  * seguindo as melhores práticas de UX e segurança.
  */
-export const FormValidator = {
+const FormValidator = {
   /**
    * Valida formato de email
    * @param {string} email - Email a ser validado
@@ -98,7 +106,7 @@ export const FormValidator = {
    * FormValidator.isValidEmail('user@example.com'); // true
    * FormValidator.isValidEmail('invalid'); // false
    */
-  isValidEmail(email) {
+  isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   },
 
@@ -113,10 +121,24 @@ export const FormValidator = {
    * console.log(result.score); // 85
    * console.log(result.missing); // []
    */
-  validatePassword(password) {
+  validatePassword(password: string): { score: number; missing: string[] } {
+    const missing: string[] = [];
+    let score = 0;
+
+    // Validação básica para exemplo
+    if (password.length >= 8) score += 25;
+    if (/[A-Z]/.test(password)) score += 25;
+    if (/[a-z]/.test(password)) score += 25;
+    if (/\d/.test(password)) score += 25;
+
+    if (password.length < 8) missing.push('minimum-length');
+    if (!/[A-Z]/.test(password)) missing.push('uppercase');
+    if (!/[a-z]/.test(password)) missing.push('lowercase');
+    if (!/\d/.test(password)) missing.push('number');
+
     return {
-      score: 85,
-      missing: []
+      score,
+      missing
     };
   }
 };
@@ -128,10 +150,14 @@ export const FormValidator = {
  * @property {number} timeout - Timeout em milissegundos
  * @property {Object} headers - Headers padrão das requisições
  */
-export const API_CONFIG = {
+const API_CONFIG = {
   baseURL: 'https://api.example.com',
   timeout: 5000,
   headers: {
     'Content-Type': 'application/json'
   }
 };
+
+// Export for documentation purposes
+// eslint-disable-next-line react-refresh/only-export-components
+export { FormValidator, API_CONFIG, useAuth };
