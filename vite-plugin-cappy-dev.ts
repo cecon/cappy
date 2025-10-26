@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from "ws";
 // Type-only imports for pipeline and chunks
 import type { RawEntity, FilterPipelineResult } from "./src/nivel2/infrastructure/services/entity-filtering/types/FilterTypes";
 import type { DocumentChunk } from "./src/shared/types/chunk";
+import type { ASTEntity } from "./src/nivel2/infrastructure/services/entity-extraction/types/ASTEntity";
 // (no-op type imports removed)
 
 export function cappyDevServerPlugin(): Plugin {
@@ -1091,22 +1092,8 @@ async function processDebugAnalyzeEnd(
   const { fileName, fileSize, mimeType, content } = JSON.parse(body);
   console.log("🐛 [Debug API] Analyzing file:", fileName);
 
-  // Dynamically import the parser and extractor
-  const { parse } = await import("@typescript-eslint/parser");
-  const { ASTEntityExtractor } = await import(
-    "./src/nivel2/infrastructure/services/entity-extraction/core/ASTEntityExtractor"
-  );
-  const { ASTEntityAdapter } = await import(
-    "./src/nivel2/infrastructure/services/entity-conversion/ASTEntityAdapter"
-  );
-  const { EntityFilterPipeline } = await import(
-    "./src/nivel2/infrastructure/services/entity-filtering/entity-filter-pipeline.js"
-  );
-
-  // Check file type
   const ext = path.extname(fileName).toLowerCase();
   const supportedExtensions = [".ts", ".tsx", ".js", ".jsx", ".php"];
-
   if (!supportedExtensions.includes(ext)) {
     res.statusCode = 400;
     res.end(
@@ -1119,253 +1106,48 @@ async function processDebugAnalyzeEnd(
     return;
   }
 
-  // Only parse TS/JS AST for TS/JS files
-  const ast =
-    ext === ".php"
-      ? undefined
-      : parse(content, {
-          loc: true,
-          range: true,
-          comment: true,
-          tokens: false,
-          ecmaVersion: "latest" as const,
-          sourceType: "module",
-          ecmaFeatures: { jsx: true },
-        });
-
-  // Use ASTEntityExtractor for TS/JS (NEW HEXAGONAL ARCHITECTURE)
-  const extractor = new ASTEntityExtractor(workspaceRoot);
-
-  // Create temp file
   const tempDir = path.join(workspaceRoot, ".cappy-debug-temp");
   const tempFilePath = path.join(tempDir, fileName);
-
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-  }
-
+  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
   fs.writeFileSync(tempFilePath, content, "utf-8");
 
   try {
-    let rawEntities: RawEntity[] = [];
-    let signatures: unknown[] = [];
-    let jsdocChunks: DocumentChunk[] = [];
+    const { parse } = await import("@typescript-eslint/parser");
+    const { ASTEntityExtractor } = await import(
+      "./src/nivel2/infrastructure/services/entity-extraction/core/ASTEntityExtractor"
+    );
 
-    if (ext === ".php") {
-      // PHP path: use PHPParser to extract full structure
-      const { PHPParser } = await import(
-        "./src/nivel2/infrastructure/parsers/php-parser.js"
-      );
-      const phpParser = new PHPParser();
-
-      // Get complete PHP analysis
-      const phpAnalysis = await phpParser.analyze(tempFilePath);
-
-      // Also get PHPDoc chunks for pipeline
-      const phpChunks = await phpParser.parseFile(tempFilePath);
-      jsdocChunks = phpChunks;
-      console.log(`📝🐘 [Debug API] PHPDoc chunks extracted: ${phpChunks.length}`);
-      console.log(
-        `🐘 [Debug API] PHP Analysis: ${phpAnalysis.classes.length} classes, ${phpAnalysis.interfaces.length} interfaces, ${phpAnalysis.traits.length} traits, ${phpAnalysis.functions.length} functions`
-      );
-
-      // Build entities from ALL PHP symbols
-      rawEntities = [];
-
-      // Classes as entities
-      for (const cls of phpAnalysis.classes) {
-        rawEntities.push({
-          type: "export" as const,
-          name: cls.name,
-          source: tempFilePath,
-          specifiers: [],
-          scope: "module" as const,
-          metadata: {
-            symbolKind: "class",
-            fullName: cls.fullName,
-            extends: cls.extends,
-            implements: cls.implements,
-            isAbstract: cls.isAbstract,
-            isFinal: cls.isFinal,
-          },
-        });
-
-        // Class methods
-        for (const method of cls.methods) {
-          rawEntities.push({
-            type: "export" as const,
-            name: `${cls.name}::${method.name}`,
-            source: tempFilePath,
-            specifiers: [],
-            scope: "module" as const,
-            isPrivate: method.visibility !== "public",
-            metadata: {
-              symbolKind: "method",
-              visibility: method.visibility,
-              isStatic: method.isStatic,
-              className: cls.name,
-            },
+    const ast =
+      ext === ".php"
+        ? undefined
+        : parse(content, {
+            loc: true,
+            range: true,
+            comment: true,
+            tokens: false,
+            ecmaVersion: "latest" as const,
+            sourceType: "module",
+            ecmaFeatures: { jsx: true },
           });
-        }
 
-        // Class properties
-        for (const prop of cls.properties) {
-          rawEntities.push({
-            type: "export" as const,
-            name: `${cls.name}::$${prop.name}`,
-            source: tempFilePath,
-            specifiers: [],
-            scope: "module" as const,
-            isPrivate: prop.visibility !== "public",
-            metadata: {
-              symbolKind: "property",
-              visibility: prop.visibility,
-              type: prop.type,
-              className: cls.name,
-            },
-          });
-        }
-      }
+    const extractor = new ASTEntityExtractor(workspaceRoot);
 
-      // Interfaces
-      for (const iface of phpAnalysis.interfaces) {
-        rawEntities.push({
-          type: "export" as const,
-          name: iface.name,
-          source: tempFilePath,
-          specifiers: [],
-          scope: "module" as const,
-          metadata: {
-            symbolKind: "interface",
-            fullName: iface.fullName,
-            extends: iface.extends,
-          },
-        });
-      }
+    const tsJs = ext === ".php" ? null : await analyzeTsJsPath(tempFilePath, fileName, content, extractor, ast);
+    const php = ext === ".php" ? await analyzePhpPath(tempFilePath) : null;
 
-      // Traits
-      for (const trait of phpAnalysis.traits) {
-        rawEntities.push({
-          type: "export" as const,
-          name: trait.name,
-          source: tempFilePath,
-          specifiers: [],
-          scope: "module" as const,
-          metadata: {
-            symbolKind: "trait",
-            fullName: trait.fullName,
-          },
-        });
-      }
+    const rawEntities: RawEntity[] = ext === ".php" ? php!.rawEntities : tsJs!.rawEntities;
+    const signatures: unknown[] = ext === ".php" ? php!.signatures : tsJs!.signatures;
+    const jsdocChunks: DocumentChunk[] = ext === ".php" ? php!.jsdocChunks : tsJs!.jsdocChunks;
 
-      // Functions
-      for (const func of phpAnalysis.functions) {
-        rawEntities.push({
-          type: "export" as const,
-          name: func.name,
-          source: tempFilePath,
-          specifiers: [],
-          scope: "module" as const,
-          metadata: {
-            symbolKind: "function",
-            returnType: func.returnType,
-            parameters: func.parameters,
-          },
-        });
-      }
-
-      // Uses (imports)
-      for (const use of phpAnalysis.uses) {
-        rawEntities.push({
-          type: "import" as const,
-          name: use.fullName,
-          source: use.fullName,
-          specifiers: [use.alias],
-          scope: "module" as const,
-          metadata: {
-            alias: use.alias,
-            isExternal: true,
-          },
-        });
-      }
-
-      // Store full PHP analysis for response
-      signatures = [phpAnalysis];
-
-      console.log(`📊 [Debug API] Raw entities extracted from PHP: ${rawEntities.length}`);
-    } else {
-      // ✨ Use NEW ASTEntityExtractor (with line numbers!)
-      const astEntities = await extractor.extractFromFile(tempFilePath);
-      console.log(`🔍 [ASTEntityExtractor] Starting extraction for: ${tempFilePath}`);
-      console.log(`� [ASTEntityExtractor] File size: ${content.length} chars`);
-      console.log(`✨ [ASTEntityExtractor] Extracted ${astEntities.length} entities from ${tempFilePath}`);
-
-      // Convert ASTEntity[] → RawEntity[] using adapter
-      rawEntities = ASTEntityAdapter.toRawEntities(astEntities) as RawEntity[];
-
-      // Extract JSDoc chunks and signatures for visualization
-      signatures = extractSignatures(ast);
-      jsdocChunks = extractJSDocChunks(ast, fileName);
-      console.log(`📝 [Debug API] JSDoc chunks extracted: ${jsdocChunks.length}`);
-      console.log(`📊 [Debug API] Raw entities extracted: ${rawEntities.length}`);
-    }
-
-    // 🔥 Inicializa GraphStore para discovery
-    const { SQLiteAdapter } = await import(
-      "./src/nivel2/infrastructure/database/sqlite-adapter.js"
-    );
-    const dbPath = path.join(workspaceRoot, ".cappy", "knowledge-graph.db");
-    const graphStore = new SQLiteAdapter(dbPath);
-
-    // 🔥 Inicializa EmbeddingService para JSDoc embeddings
-    const { EmbeddingService } = await import(
-      "./src/nivel2/infrastructure/services/embedding-service.js"
-    );
-    const embeddingService = new EmbeddingService();
-
-    // 🔥 Apply pipeline filtering com GraphStore, EmbeddingService, JSDoc chunks E sourceCode
-    const pipeline = new EntityFilterPipeline(
-      {
-        skipLocalVariables: true,
-        skipPrimitiveTypes: true,
-        skipAssetImports: true,
-        discoverExistingEntities: true,
-        extractDocumentation: true, // ← ATIVA EXTRAÇÃO DE DOCS
-      },
-      graphStore,
-      embeddingService // ← PASSA EMBEDDING SERVICE
-    );
-
-    const pipelineResult: FilterPipelineResult = await pipeline.process(
+    const pipelineResult = await runPipelineWithServices(
       rawEntities,
       tempFilePath,
       jsdocChunks,
-      content
+      content,
+      workspaceRoot
     );
 
-    console.log(`✅ [Debug API] Pipeline completed:
-      - Original: ${pipelineResult.original.length}
-      - Filtered: ${pipelineResult.filtered.length}
-      - Deduplicated: ${pipelineResult.deduplicated.length}
-      - Normalized: ${pipelineResult.normalized.length}
-      - Enriched: ${pipelineResult.enriched.length}`);
-
-    // Build response
-    const counts = { imports: 0, exports: 0, calls: 0, typeRefs: 0 };
-    let entitiesList: unknown[] = [];
-    if (ext === ".php") {
-      entitiesList = rawEntities;
-      counts.exports = (rawEntities as unknown[]).length;
-    } else {
-      // Count entities by type from rawEntities (already has all info)
-      entitiesList = rawEntities;
-      for (const entity of rawEntities as Array<{ type: string }>) {
-        if (entity.type === "import") counts.imports++;
-        else if (entity.type === "export") counts.exports++;
-        else if (entity.type === "call") counts.calls++;
-        else if (entity.type === "typeRef") counts.typeRefs++;
-      }
-    }
+    const { entitiesList, counts } = computeCountsAndEntities(rawEntities, ext);
 
     const response = {
       fileName,
@@ -1390,13 +1172,205 @@ async function processDebugAnalyzeEnd(
     res.end(JSON.stringify(response));
     console.log("✅ [Debug API] Analysis complete");
   } finally {
-    // Cleanup
     try {
       fs.unlinkSync(tempFilePath);
     } catch {
-      // Ignore cleanup errors
+      // ignore
     }
   }
+}
+
+async function analyzePhpPath(tempFilePath: string): Promise<{
+  rawEntities: RawEntity[];
+  signatures: unknown[];
+  jsdocChunks: DocumentChunk[];
+}> {
+  const { PHPParser } = await import(
+    "./src/nivel2/infrastructure/parsers/php-parser.js"
+  );
+  const phpParser = new PHPParser();
+  const phpAnalysis = await phpParser.analyze(tempFilePath);
+  const phpChunks = await phpParser.parseFile(tempFilePath);
+
+  const rawEntities: RawEntity[] = [];
+  for (const cls of phpAnalysis.classes) {
+    rawEntities.push({
+      type: "export" as const,
+      name: cls.name,
+      source: tempFilePath,
+      specifiers: [],
+      scope: "module" as const,
+      metadata: {
+        symbolKind: "class",
+        fullName: cls.fullName,
+        extends: cls.extends,
+        implements: cls.implements,
+        isAbstract: cls.isAbstract,
+        isFinal: cls.isFinal,
+      },
+    });
+    for (const method of cls.methods) {
+      rawEntities.push({
+        type: "export" as const,
+        name: `${cls.name}::${method.name}`,
+        source: tempFilePath,
+        specifiers: [],
+        scope: "module" as const,
+        isPrivate: method.visibility !== "public",
+        metadata: {
+          symbolKind: "method",
+          visibility: method.visibility,
+          isStatic: method.isStatic,
+          className: cls.name,
+        },
+      });
+    }
+    for (const prop of cls.properties) {
+      rawEntities.push({
+        type: "export" as const,
+        name: `${cls.name}::$${prop.name}`,
+        source: tempFilePath,
+        specifiers: [],
+        scope: "module" as const,
+        isPrivate: prop.visibility !== "public",
+        metadata: {
+          symbolKind: "property",
+          visibility: prop.visibility,
+          type: prop.type,
+          className: cls.name,
+        },
+      });
+    }
+  }
+  for (const iface of phpAnalysis.interfaces) {
+    rawEntities.push({
+      type: "export" as const,
+      name: iface.name,
+      source: tempFilePath,
+      specifiers: [],
+      scope: "module" as const,
+      metadata: {
+        symbolKind: "interface",
+        fullName: iface.fullName,
+        extends: iface.extends,
+      },
+    });
+  }
+  for (const trait of phpAnalysis.traits) {
+    rawEntities.push({
+      type: "export" as const,
+      name: trait.name,
+      source: tempFilePath,
+      specifiers: [],
+      scope: "module" as const,
+      metadata: {
+        symbolKind: "trait",
+        fullName: trait.fullName,
+      },
+    });
+  }
+  for (const func of phpAnalysis.functions) {
+    rawEntities.push({
+      type: "export" as const,
+      name: func.name,
+      source: tempFilePath,
+      specifiers: [],
+      scope: "module" as const,
+      metadata: {
+        symbolKind: "function",
+        returnType: func.returnType,
+        parameters: func.parameters,
+      },
+    });
+  }
+  for (const use of phpAnalysis.uses) {
+    rawEntities.push({
+      type: "import" as const,
+      name: use.fullName,
+      source: use.fullName,
+      specifiers: [use.alias],
+      scope: "module" as const,
+      metadata: {
+        alias: use.alias,
+        isExternal: true,
+      },
+    });
+  }
+  return { rawEntities, signatures: [phpAnalysis], jsdocChunks: phpChunks };
+}
+
+async function analyzeTsJsPath(
+  tempFilePath: string,
+  fileName: string,
+  content: string,
+  extractor: { extractFromFile: (file: string) => Promise<unknown[]> },
+  ast: unknown
+): Promise<{ rawEntities: RawEntity[]; signatures: unknown[]; jsdocChunks: DocumentChunk[] }> {
+  const astEntities = await extractor.extractFromFile(tempFilePath);
+  console.log(`🔍 [ASTEntityExtractor] Starting extraction for: ${tempFilePath}`);
+  console.log(`� [ASTEntityExtractor] File size: ${content.length} chars`);
+  console.log(`✨ [ASTEntityExtractor] Extracted ${astEntities.length} entities from ${tempFilePath}`);
+
+  const { ASTEntityAdapter } = await import(
+    "./src/nivel2/infrastructure/services/entity-conversion/ASTEntityAdapter"
+  );
+  const rawEntities = ASTEntityAdapter.toRawEntities(astEntities as ASTEntity[]) as RawEntity[];
+  const signatures = extractSignatures(ast);
+  const jsdocChunks = extractJSDocChunks(ast, fileName);
+  console.log(`📝 [Debug API] JSDoc chunks extracted: ${jsdocChunks.length}`);
+  console.log(`📊 [Debug API] Raw entities extracted: ${rawEntities.length}`);
+  return { rawEntities, signatures, jsdocChunks };
+}
+
+async function runPipelineWithServices(
+  rawEntities: RawEntity[],
+  tempFilePath: string,
+  jsdocChunks: DocumentChunk[],
+  content: string,
+  workspaceRoot: string
+): Promise<FilterPipelineResult> {
+  const { EntityFilterPipeline } = await import(
+    "./src/nivel2/infrastructure/services/entity-filtering/entity-filter-pipeline.js"
+  );
+  const { SQLiteAdapter } = await import(
+    "./src/nivel2/infrastructure/database/sqlite-adapter.js"
+  );
+  const { EmbeddingService } = await import(
+    "./src/nivel2/infrastructure/services/embedding-service.js"
+  );
+
+  const dbPath = path.join(workspaceRoot, ".cappy", "knowledge-graph.db");
+  const graphStore = new SQLiteAdapter(dbPath);
+  const embeddingService = new EmbeddingService();
+  const pipeline = new EntityFilterPipeline(
+    {
+      skipLocalVariables: true,
+      skipPrimitiveTypes: true,
+      skipAssetImports: true,
+      discoverExistingEntities: true,
+      extractDocumentation: true,
+    },
+    graphStore,
+    embeddingService
+  );
+
+  return pipeline.process(rawEntities, tempFilePath, jsdocChunks, content);
+}
+
+function computeCountsAndEntities(rawEntities: RawEntity[], ext: string) {
+  const counts = { imports: 0, exports: 0, calls: 0, typeRefs: 0 };
+  const entitiesList: unknown[] = rawEntities;
+  if (ext === ".php") {
+    counts.exports = (rawEntities as unknown[]).length;
+  } else {
+    for (const entity of rawEntities as Array<{ type: string }>) {
+      if (entity.type === "import") counts.imports++;
+      else if (entity.type === "export") counts.exports++;
+      else if (entity.type === "call") counts.calls++;
+      else if (entity.type === "typeRef") counts.typeRefs++;
+    }
+  }
+  return { entitiesList, counts } as const;
 }
 
 function extractSignatures(ast: unknown): unknown[] {
