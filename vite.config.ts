@@ -40,7 +40,7 @@ export default defineConfig({
   
   // Development server configuration
   server: {
-    port: 6001,
+    port: 6007,
     open: '/dev.html', // Open dashboard on dev server start
     cors: true,
     headers: {

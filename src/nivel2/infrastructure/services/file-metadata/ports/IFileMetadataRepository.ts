@@ -4,6 +4,7 @@
  */
 
 import type { FileMetadata, FileProcessingStatus, DatabaseStats } from '../domain/FileMetadata';
+import type { PaginationOptions, PaginatedResult } from '../types';
 
 /**
  * Repository port for file metadata operations
@@ -42,19 +43,7 @@ export interface IFileMetadataRepository {
   /**
    * Gets files with pagination and filtering
    */
-  getFilesPaginated(options: {
-    page: number;
-    limit: number;
-    status?: FileProcessingStatus;
-    sortBy?: 'id' | 'created_at' | 'updated_at';
-    sortOrder?: 'asc' | 'desc';
-  }): Promise<{
-    files: FileMetadata[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }>;
+  getFilesPaginated(options: PaginationOptions): Promise<PaginatedResult>;
 
   /**
    * Gets files by status

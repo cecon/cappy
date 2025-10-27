@@ -35,8 +35,17 @@ export class DocumentManagement {
     this.workspaceRoot = workspaceRoot;
   }
 
-  async refreshDocuments(client: IWebSocketClient): Promise<void> {
-    console.log("🔄 [DocumentManagement] Atualizando lista de documentos...");
+  async refreshDocuments(
+    client: IWebSocketClient,
+    paginationParams?: {
+      page?: number;
+      limit?: number;
+      status?: string;
+      sortBy?: 'id' | 'created_at' | 'updated_at';
+      sortOrder?: 'asc' | 'desc';
+    }
+  ): Promise<void> {
+    console.log("🔄 [DocumentManagement] Atualizando lista de documentos...", paginationParams);
 
     const dbPath = path.join(this.workspaceRoot, ".cappy", "file-metadata.db");
     console.log("💾 [DocumentManagement] Database path:", dbPath);
@@ -45,7 +54,7 @@ export class DocumentManagement {
       console.log("⚠️  [DocumentManagement] Database não encontrado - retornando lista vazia");
       client.send({
         type: "document/list",
-        payload: { documents: [] },
+        payload: { documents: [], total: 0, page: 1, limit: 10, totalPages: 0 },
       });
       return;
     }
@@ -60,18 +69,29 @@ export class DocumentManagement {
       const db = new FileMetadataDatabase(dbPath);
       await db.initialize();
 
-      console.log("📊 [DocumentManagement] Lendo arquivos do database...");
-      const allFiles = await db.getAllFiles();
-      console.log(`📊 [DocumentManagement] Encontrados ${allFiles.length} arquivos no database`);
+      // ALWAYS use pagination - defaults if not provided
+      const { page = 1, limit = 10, status, sortBy = 'updated_at', sortOrder = 'desc' } = paginationParams || {};
+      
+      console.log(`📊 [DocumentManagement] Consultando página ${page} (${limit} itens por página)...`);
+      
+      const result = await db.getFilesPaginated({
+        page,
+        limit,
+        status: status as 'pending' | 'processing' | 'completed' | 'failed' | undefined,
+        sortBy,
+        sortOrder
+      });
 
-      if (allFiles.length > 0) {
-        console.log("📋 [DocumentManagement] Primeiros 5 arquivos:");
-        allFiles.slice(0, 5).forEach((file, idx) => {
+      console.log(`📊 [DocumentManagement] Encontrados ${result.files.length} arquivos (página ${result.page}/${result.totalPages}, total: ${result.total})`);
+
+      if (result.files.length > 0) {
+        console.log("📋 [DocumentManagement] Primeiros 5 arquivos da página:");
+        result.files.slice(0, 5).forEach((file, idx) => {
           console.log(`   ${idx + 1}. ${file.fileName} (${file.status})`);
         });
       }
 
-      const documents: DocumentItem[] = allFiles.map((file: FileMetadata) => {
+      const documents: DocumentItem[] = result.files.map((file: FileMetadata) => {
         let status = "pending";
         if (file.status === "completed" || file.status === "processed") {
           status = "completed";
@@ -101,13 +121,19 @@ export class DocumentManagement {
 
       db.close();
 
-      console.log(`📤 [DocumentManagement] Enviando ${documents.length} documentos para o frontend`);
+      console.log(`📤 [DocumentManagement] Enviando ${documents.length} documentos para o frontend (página ${result.page})`);
       client.send({
         type: "document/list",
-        payload: { documents },
+        payload: { 
+          documents,
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
+          totalPages: result.totalPages
+        },
       });
 
-      console.log(`✅ [DocumentManagement] Lista de documentos atualizada (${documents.length} items)`);
+      console.log(`✅ [DocumentManagement] Lista de documentos atualizada (${documents.length} items, página ${result.page}/${result.totalPages})`);
     } catch (error) {
       console.error("❌ [DocumentManagement] Erro ao ler database:", error);
       if (error instanceof Error) {
@@ -116,7 +142,7 @@ export class DocumentManagement {
       }
       client.send({
         type: "document/list",
-        payload: { documents: [] },
+        payload: { documents: [], total: 0, page: 1, limit: 10, totalPages: 0 },
       });
     }
   }

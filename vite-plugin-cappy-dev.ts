@@ -225,8 +225,8 @@ export function cappyDevServerPlugin(): Plugin {
 
             // Document Management
             if (type === "document/refresh") {
-              console.log("🔄 [Handler] Processando document/refresh...");
-              await documentManagement.refreshDocuments(client);
+              console.log("🔄 [Handler] Processando document/refresh com paginação...", payload);
+              await documentManagement.refreshDocuments(client, payload);
               return;
             }
 

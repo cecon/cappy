@@ -9,6 +9,16 @@ import { FileMetadataService } from './application/FileMetadataService';
 // Domain
 export type { FileMetadata, FileProcessingStatus, DatabaseStats } from './domain/FileMetadata';
 
+// Types
+export type { 
+  PaginationOptions, 
+  PaginatedResult, 
+  SQLiteFileRow, 
+  SQLiteCountRow, 
+  SQLiteStatsRow,
+  SQLiteAggregatedStatsRow 
+} from './types';
+
 // Ports
 export type { IFileMetadataRepository } from './ports/IFileMetadataRepository';
 

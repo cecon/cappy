@@ -249,7 +249,7 @@ export class DevServerBridge {
       console.log('🐛 [DevBridge] Proxying debug/analyze to Vite dev server...');
       
       // Proxy to Vite dev server (código fonte TS com hot reload)
-      const response = await fetch('http://localhost:6001/api/debug/analyze', {
+      const response = await fetch('http://localhost:6007/api/debug/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(message.payload)

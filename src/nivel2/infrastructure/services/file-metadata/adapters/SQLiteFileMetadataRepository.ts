@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { IFileMetadataRepository } from '../ports/IFileMetadataRepository';
 import type { FileMetadata, FileProcessingStatus, DatabaseStats } from '../domain/FileMetadata';
+import type { PaginationOptions, PaginatedResult, SQLiteFileRow, SQLiteCountRow, SQLiteAggregatedStatsRow } from '../types';
 
 /**
  * SQLite adapter for file metadata repository
@@ -264,7 +265,7 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
         return;
       }
 
-      this.db.get('SELECT * FROM file_metadata WHERE id = ?', [id], (err, row: any) => {
+      this.db.get('SELECT * FROM file_metadata WHERE id = ?', [id], (err, row: SQLiteFileRow | undefined) => {
         if (err) {
           reject(new Error(`Failed to get file: ${err.message}`));
         } else if (row) {
@@ -283,7 +284,7 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
         return;
       }
 
-      this.db.get('SELECT * FROM file_metadata WHERE file_path = ?', [filePath], (err, row: any) => {
+      this.db.get('SELECT * FROM file_metadata WHERE file_path = ?', [filePath], (err, row: SQLiteFileRow | undefined) => {
         if (err) {
           reject(new Error(`Failed to get file by path: ${err.message}`));
         } else if (row) {
@@ -302,7 +303,7 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
         return;
       }
 
-      this.db.all('SELECT * FROM file_metadata ORDER BY created_at DESC', (err, rows: any[]) => {
+      this.db.all('SELECT * FROM file_metadata ORDER BY created_at DESC', (err, rows: SQLiteFileRow[]) => {
         if (err) {
           reject(new Error(`Failed to get all files: ${err.message}`));
         } else {
@@ -312,19 +313,7 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
     });
   }
 
-  async getFilesPaginated(options: {
-    page: number;
-    limit: number;
-    status?: FileProcessingStatus;
-    sortBy?: 'id' | 'created_at' | 'updated_at';
-    sortOrder?: 'asc' | 'desc';
-  }): Promise<{
-    files: FileMetadata[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }> {
+  async getFilesPaginated(options: PaginationOptions): Promise<PaginatedResult> {
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('Database not initialized'));
@@ -344,7 +333,7 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
       // Get total count
       const countSql = `SELECT COUNT(*) as total FROM file_metadata ${whereClause}`;
       
-      this.db.get(countSql, whereParams, (err, countRow: any) => {
+      this.db.get(countSql, whereParams, (err, countRow: SQLiteCountRow) => {
         if (err) {
           reject(new Error(`Failed to count files: ${err.message}`));
           return;
@@ -357,7 +346,7 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
         const dataSql = `SELECT * FROM file_metadata ${whereClause} ${orderByClause} LIMIT ? OFFSET ?`;
         const dataParams = [...whereParams, limit, offset];
 
-        this.db!.all(dataSql, dataParams, (err, rows: any[]) => {
+        this.db!.all(dataSql, dataParams, (err, rows: SQLiteFileRow[]) => {
           if (err) {
             reject(new Error(`Failed to get paginated files: ${err.message}`));
           } else {
@@ -384,7 +373,7 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
       this.db.all(
         'SELECT * FROM file_metadata WHERE status = ? ORDER BY created_at ASC',
         [status],
-        (err, rows: any[]) => {
+        (err, rows: SQLiteFileRow[]) => {
           if (err) {
             reject(new Error(`Failed to get files by status: ${err.message}`));
           } else {
@@ -406,7 +395,7 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
         ? 'SELECT * FROM file_metadata WHERE status = "pending" ORDER BY created_at ASC LIMIT ?'
         : 'SELECT * FROM file_metadata WHERE status = "pending" ORDER BY created_at ASC';
 
-      const callback = (err: any, rows: any[]) => {
+      const callback = (err: Error | null, rows: SQLiteFileRow[]) => {
         if (err) {
           reject(new Error(`Failed to get pending files: ${err.message}`));
         } else {
@@ -443,7 +432,7 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
           SUM(CASE WHEN status = 'paused' THEN 1 ELSE 0 END) as paused,
           SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
         FROM file_metadata`,
-        (err, row: any) => {
+        (err, row: SQLiteAggregatedStatsRow) => {
           if (err) {
             reject(new Error(`Failed to get stats: ${err.message}`));
           } else {
@@ -564,7 +553,7 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
     });
   }
 
-  private rowToMetadata(row: any): FileMetadata {
+  private rowToMetadata(row: SQLiteFileRow): FileMetadata {
     return {
       id: String(row.id),
       filePath: String(row.file_path),
