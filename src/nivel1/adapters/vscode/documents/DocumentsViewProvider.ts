@@ -275,55 +275,39 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      // Use pagination if provided, otherwise get all files
-      if (paginationParams) {
-        const { page = 1, limit = 10, status, sortBy = 'updated_at', sortOrder = 'desc' } = paginationParams;
-        
-        const result = await this._fileDatabase.getFilesPaginated({
-          page,
-          limit,
-          status: status as FileProcessingStatus | undefined,
-          sortBy,
-          sortOrder
-        });
+      // ALWAYS use pagination - use defaults if not provided
+      const { page = 1, limit = 10, status, sortBy = 'updated_at', sortOrder = 'desc' } = paginationParams || {};
+      
+      const result = await this._fileDatabase.getFilesPaginated({
+        page,
+        limit,
+        status: status as FileProcessingStatus | undefined,
+        sortBy,
+        sortOrder
+      });
 
-        console.log(`📊 [DocumentsViewProvider] Found ${result.files.length} files (page ${result.page}/${result.totalPages}, total: ${result.total})`);
-        
-        // Convert database records to DocumentItem format
-        const documents: DocumentItem[] = result.files.map((file: FileMetadata) => this.mapFileToDocument(file));
-        
-        // Send paginated result to webview
-        console.log(`📤 [DocumentsViewProvider] Sending ${documents.length} documents to webview (paginated)`);
-        this._view?.webview.postMessage({
-          type: 'document/list',
-          payload: { 
-            documents,
-            total: result.total,
-            page: result.page,
-            limit: result.limit,
-            totalPages: result.totalPages
-          }
-        });
-      } else {
-        // Fallback to getting all files (for backward compatibility)
-        const allFiles = await this._fileDatabase.getAllFiles();
-        console.log(`📊 [DocumentsViewProvider] Found ${allFiles.length} files in database`);
-        
-        const documents: DocumentItem[] = allFiles.map((file: FileMetadata) => this.mapFileToDocument(file));
-        
-        // Update internal documents map
-        this.documents.clear();
-        for (const doc of documents) {
-          this.documents.set(doc.id, doc);
-        }
-        
-        // Send to webview
-        console.log(`📤 [DocumentsViewProvider] Sending ${documents.length} documents to webview`);
-        this._view?.webview.postMessage({
-          type: 'document/list',
-          payload: { documents, total: documents.length, page: 1, limit: documents.length, totalPages: 1 }
-        });
+      console.log(`📊 [DocumentsViewProvider] Found ${result.files.length} files (page ${result.page}/${result.totalPages}, total: ${result.total})`);
+      
+      // Convert database records to DocumentItem format
+      const documents: DocumentItem[] = result.files.map((file: FileMetadata) => this.mapFileToDocument(file));
+      
+      // Update internal documents map for the current page
+      for (const doc of documents) {
+        this.documents.set(doc.id, doc);
       }
+      
+      // Send paginated result to webview
+      console.log(`📤 [DocumentsViewProvider] Sending ${documents.length} documents to webview (paginated)`);
+      this._view?.webview.postMessage({
+        type: 'document/list',
+        payload: { 
+          documents,
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
+          totalPages: result.totalPages
+        }
+      });
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error loading documents from database:', error);
       this._view?.webview.postMessage({

@@ -975,13 +975,13 @@ const DocumentsPage: React.FC = () => {
                         </svg>
                       </Button>
                       <span className="text-sm">
-                        Page {currentPage} of {totalPages}
+                        Page {currentPage} of {totalPages || 1}
                       </span>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages || 1, prev + 1))}
+                        disabled={currentPage === (totalPages || 1)}
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -990,8 +990,8 @@ const DocumentsPage: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setCurrentPage(totalPages)}
-                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(totalPages || 1)}
+                        disabled={currentPage === (totalPages || 1)}
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
