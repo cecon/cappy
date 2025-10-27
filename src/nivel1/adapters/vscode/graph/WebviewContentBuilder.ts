@@ -54,7 +54,7 @@ export class WebviewContentBuilder {
     if (!htmlContent.includes('Content-Security-Policy')) {
       htmlContent = htmlContent.replace(
         '<meta name="viewport"',
-        `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${cspSource}; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource} http://localhost:3456;">\n    <meta name="viewport"`
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${cspSource}; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource};">\n    <meta name="viewport"`
       );
     }
 

@@ -13,6 +13,7 @@ import type { ASTEntity } from "./src/nivel2/infrastructure/services/entity-extr
 export function cappyDevServerPlugin(): Plugin {
   let workspaceRoot: string;
   let wss: WebSocketServer | null = null;
+  
   let retryTimeout: NodeJS.Timeout | null = null;
   // Track connected frontend clients (browser dev UIs)
   const clients = new Set<WebSocket>();
@@ -275,6 +276,17 @@ export function cappyDevServerPlugin(): Plugin {
             return;
           }
 
+          // Handle document/* messages - ALWAYS LOCAL (não precisa de bridge)
+          if (typeof type === "string" && type.startsWith("document/")) {
+            console.log(`📄 [Vite] Detected document message: ${type} (processing locally)`);
+            try {
+              await handleDocumentMessage(message, ws, workspaceRoot);
+            } catch (error) {
+              console.error(`❌ [Vite] Error in document handler:`, error);
+            }
+            return;
+          }
+
           console.warn("⚠️ [Vite] Unknown message type:", type);
         } catch (error) {
           console.error("❌ [Vite WebSocket] Error:", error);
@@ -298,6 +310,7 @@ export function cappyDevServerPlugin(): Plugin {
         wss.on("error", handleWsError);
 
         // Tentar conectar com a extensão instalada (DevServerBridge na porta 7002)
+        // Bridge é usado apenas para LLM/Chat, não para documents
         ensureBridgeConnection();
 
         wss.on("connection", handleWsConnection);
@@ -491,6 +504,149 @@ export function cappyDevServerPlugin(): Plugin {
       });
     },
   };
+}
+
+// Handler para Document messages (modo desenvolvimento com dados reais)
+async function handleDocumentMessage(
+  message: { type: string; payload?: unknown }, 
+  ws: WebSocket, 
+  workspaceRoot: string
+) {
+  const { type } = message;
+  console.log(`📄 [Vite] Handling document message: ${type}`);
+
+  try {
+    switch (type) {
+      case 'document/refresh':
+        await handleDocumentRefresh(ws, workspaceRoot);
+        break;
+        
+      case 'document/scan':
+        await handleDocumentScan(ws, workspaceRoot);
+        break;
+        
+      case 'document/upload':
+      case 'document/process':
+      case 'document/retry':
+      case 'document/clear':
+        console.log(`⚠️ [Vite] Document action '${type}' not implemented in dev mode`);
+        ws.send(JSON.stringify({
+          type: 'error',
+          payload: {
+            error: `Document action '${type}' requires VS Code extension. Run 'npm run build' and reload extension.`
+          }
+        }));
+        break;
+        
+      default:
+        console.warn(`⚠️ [Vite] Unknown document message type: ${type}`);
+    }
+  } catch (error) {
+    console.error(`❌ [Vite] Error handling document message:`, error);
+    ws.send(JSON.stringify({
+      type: 'error',
+      payload: {
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }));
+  }
+}
+
+// Carrega lista de documentos do banco de dados
+async function handleDocumentRefresh(ws: WebSocket, workspaceRoot: string) {
+  console.log('🔄 [Vite] Refreshing document list from database...');
+  
+  const dbPath = path.join(workspaceRoot, '.cappy', 'file-metadata.db');
+  
+  if (!fs.existsSync(dbPath)) {
+    console.log('⚠️ [Vite] Database not found, returning empty list');
+    ws.send(JSON.stringify({
+      type: 'document/list',
+      payload: { documents: [] }
+    }));
+    return;
+  }
+
+  try {
+    // Importa dinamicamente o FileMetadataDatabase
+    const { FileMetadataDatabase } = await import(
+      './src/nivel2/infrastructure/services/file-metadata-database.js'
+    );
+    
+    const db = new FileMetadataDatabase(dbPath);
+    await db.initialize();
+    
+    const allFiles = db.getAllFileMetadata();
+    console.log(`� [Vite] Found ${allFiles.length} files in database`);
+    
+    // Converte para formato do DocumentItem
+    const documents = allFiles.map((file) => {
+      let status = 'pending';
+      if (file.status === 'completed' || file.status === 'processed') {
+        status = 'completed';
+      } else if (file.status === 'processing') {
+        status = 'processing';
+      } else if (file.status === 'failed' || file.status === 'error') {
+        status = 'failed';
+      }
+      
+      return {
+        id: file.id,
+        fileName: file.fileName,
+        filePath: file.filePath,
+        summary: file.errorMessage || '',
+        status,
+        length: file.fileSize || 0,
+        chunks: file.chunksCount || 0,
+        created: file.processingStartedAt || new Date().toISOString(),
+        updated: file.processingCompletedAt || new Date().toISOString(),
+        trackId: file.id,
+        processingStartTime: file.processingStartedAt,
+        processingEndTime: file.processingCompletedAt,
+        currentStep: file.currentStep,
+        progress: file.progress
+      };
+    });
+    
+    db.close();
+    
+    ws.send(JSON.stringify({
+      type: 'document/list',
+      payload: { documents }
+    }));
+    
+    console.log(`� [Vite] Sent ${documents.length} documents to frontend`);
+  } catch (error) {
+    console.error('❌ [Vite] Error reading database:', error);
+    ws.send(JSON.stringify({
+      type: 'document/list',
+      payload: { documents: [] }
+    }));
+  }
+}
+
+// Executa scan do workspace
+async function handleDocumentScan(ws: WebSocket, workspaceRoot: string) {
+  console.log('🔍 [Vite] Workspace scan requested in dev mode');
+  
+  ws.send(JSON.stringify({
+    type: 'document/scan-started'
+  }));
+  
+  console.log('⚠️ [Vite] Full scan requires VS Code extension with all services');
+  console.log('📄 [Vite] Simulating scan completion...');
+  
+  // Simula um pequeno delay
+  setTimeout(async () => {
+    ws.send(JSON.stringify({
+      type: 'document/scan-completed'
+    }));
+    
+    console.log('✅ [Vite] Scan simulation completed');
+    
+    // Recarrega a lista após o scan (mostra dados existentes do banco)
+    await handleDocumentRefresh(ws, workspaceRoot);
+  }, 1000);
 }
 
 // Handler para Graph API

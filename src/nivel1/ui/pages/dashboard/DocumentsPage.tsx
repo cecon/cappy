@@ -195,26 +195,20 @@ const DocumentsPage: React.FC = () => {
     setDocuments((prev) => prev.filter((d) => d.id !== fileId));
   }, []);
 
-  // Load documents from API
+  // Load documents from extension via postMessage
   const loadDocuments = useCallback(async () => {
     try {
-      console.log('[DocumentsPage] Loading documents from API...');
-      const response = await fetch('http://localhost:3456/files/indexed');
-      
-      if (!response.ok) {
-        console.error('[DocumentsPage] Failed to load documents:', response.statusText);
-        return;
+      console.log('[DocumentsPage] Requesting documents from extension...');
+      // Request documents via postMessage instead of HTTP API
+      if (vscodeApi) {
+        vscodeApi.postMessage({
+          type: 'document/refresh'
+        });
       }
-      
-      const statusResponses = await response.json();
-      console.log('[DocumentsPage] Loaded', (statusResponses as Array<unknown>).length, 'documents from API');
-      setDocsFromStatusResponses(statusResponses as Array<Record<string, unknown>>);
-      console.log('[DocumentsPage] Documents loaded successfully');
     } catch (error) {
-      console.error('[DocumentsPage] Error loading documents:', error);
-      // Silently fail - API might not be running yet
+      console.error('[DocumentsPage] Error requesting documents:', error);
     }
-  }, [setDocsFromStatusResponses]);
+  }, [vscodeApi]);
 
   // Load documents on mount
   useEffect(() => {
@@ -244,27 +238,12 @@ const DocumentsPage: React.FC = () => {
           break;
         }
         case 'document/clear-confirmed': {
-          // Call API to clear all files from database
-          console.log('[DocumentsPage] Clearing all documents...');
-          fetch('http://localhost:3456/files/clear', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-          })
-            .then(response => response.json())
-            .then(result => {
-              if (result.success) {
-                console.log('[DocumentsPage] ✅ All files cleared from database');
-                setDocuments([]);
-              } else {
-                console.error('[DocumentsPage] ❌ Failed to clear files:', result.error);
-              }
-            })
-            .catch(error => {
-              console.error('[DocumentsPage] ❌ Error clearing files:', error);
-            });
+          console.log('[DocumentsPage] ✅ Clear confirmed by extension');
+          // The extension will send document/cleared when done
           break;
         }
         case 'document/cleared': {
+          console.log('[DocumentsPage] Documents cleared, resetting UI');
           setDocuments([]);
           break;
         }
@@ -278,20 +257,10 @@ const DocumentsPage: React.FC = () => {
           break;
         }
         case 'document/scan-completed': {
+          console.log('[DocumentsPage] ✅ Scan completed, reloading documents...');
           setIsScanning(false);
-          // Reload documents after scan completes
-          const reloadAfterScan = async () => {
-            try {
-              const response = await fetch('http://localhost:3456/files/indexed');
-              if (!response.ok) return;
-              const statusResponses = (await response.json()) as Array<Record<string, unknown>>;
-              setDocsFromStatusResponses(statusResponses);
-              console.log('[DocumentsPage] Reloaded', statusResponses.length, 'documents after scan');
-            } catch (error) {
-              console.error('[DocumentsPage] Failed to reload after scan:', error);
-            }
-          };
-          reloadAfterScan();
+          // Reload documents after scan completes via postMessage
+          loadDocuments();
           break;
         }
       }
@@ -299,7 +268,7 @@ const DocumentsPage: React.FC = () => {
 
     globalThis.addEventListener('message', handleMessage as EventListener);
     return () => globalThis.removeEventListener('message', handleMessage as EventListener);
-  }, [removeDocumentById, setDocsFromStatusResponses, updateDocument]);
+  }, [removeDocumentById, setDocsFromStatusResponses, updateDocument, loadDocuments]);
 
   // Estatísticas calculadas
   const stats = useMemo(() => {
@@ -485,63 +454,10 @@ const DocumentsPage: React.FC = () => {
   };
 
   const handleScan = async () => {
-    // Prefer extension-driven scan when running inside VS Code (more reliable than direct API call)
-    if (vscodeApi) {
-      console.log('[DocumentsPage] 🔍 handleScan: Delegating to VS Code extension');
-      setIsScanning(true);
-      postMessage('document/scan');
-      return;
-    }
-    // Fallback to direct API when running outside VS Code
-    console.log('[DocumentsPage] 🔍 handleScan called, calling API /scan/workspace');
+    // Use extension-driven scan via postMessage
+    console.log('[DocumentsPage] 🔍 handleScan: Delegating to VS Code extension');
     setIsScanning(true);
-    try {
-      const response = await fetch('http://localhost:3456/scan/workspace', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (!response.ok) throw new Error(`Scan failed: ${response.statusText}`);
-      const result = await response.json();
-      console.log('[DocumentsPage] ✅ Scan API response:', result);
-      // Wait a bit for the scan to populate data, then reload
-      setTimeout(async () => {
-        try {
-          const filesResponse = await fetch('http://localhost:3456/files/indexed');
-          if (filesResponse.ok) {
-            const statusResponses = await filesResponse.json();
-            interface StatusResponse {
-              fileId: string;
-              fileName?: string;
-              filePath?: string;
-              summary?: string;
-              status: DocumentStatus;
-              chunksCount?: number;
-              fileSize?: number;
-            }
-            const docs: Document[] = (statusResponses as StatusResponse[]).map((sr) => ({
-              id: sr.fileId,
-              fileName: sr.fileName || 'Unknown',
-              filePath: sr.filePath,
-              summary: sr.summary || '',
-              status: sr.status,
-              length: sr.fileSize || 0,
-              chunks: sr.chunksCount || 0,
-              created: new Date().toISOString(),
-              updated: new Date().toISOString(),
-              selected: false,
-            }));
-            setDocuments(docs);
-            console.log('[DocumentsPage] Reloaded', docs.length, 'documents after scan');
-          }
-        } catch (error) {
-          console.error('[DocumentsPage] Failed to reload after scan:', error);
-        }
-        setIsScanning(false);
-      }, 2000);
-    } catch (error) {
-      console.error('[DocumentsPage] ❌ Scan API error:', error);
-      setIsScanning(false);
-    }
+    postMessage('document/scan');
   };
 
   const handleRetry = () => {

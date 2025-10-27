@@ -9,6 +9,7 @@ import { ContextRetrievalTool } from './domains/chat/tools/native/context-retrie
 import { LangGraphChatEngine } from './nivel2/infrastructure/agents/langgraph-chat-engine';
 import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './nivel1/adapters/vscode/commands/scan-workspace';
+import { registerProcessPendingFilesCommand } from './nivel1/adapters/vscode/commands/process-pending-files';
 import { 
   registerProcessSingleFileCommand,
   registerDebugRetrievalCommand,
@@ -22,7 +23,6 @@ import {
 import { FileMetadataDatabase } from './nivel2/infrastructure/services/file-metadata-database';
 import { FileProcessingQueue } from './nivel2/infrastructure/services/file-processing-queue';
 import { FileProcessingWorker } from './nivel2/infrastructure/services/file-processing-worker';
-import { FileProcessingAPI } from './nivel2/infrastructure/services/file-processing-api';
 import { UnifiedQueueProcessor } from './nivel2/infrastructure/services/unified-queue-processor';
 import { FileChangeWatcher } from './nivel2/infrastructure/services/file-change-watcher';
 import { createVectorStore } from './nivel2/infrastructure/vector/sqlite-vector-adapter';
@@ -33,11 +33,11 @@ import { DevServerBridge } from './nivel1/adapters/vscode/dev-server-bridge';
 // Global instances for file processing system
 let fileDatabase: FileMetadataDatabase | null = null;
 let fileQueue: FileProcessingQueue | null = null;
-let fileAPI: FileProcessingAPI | null = null;
 let queueProcessor: UnifiedQueueProcessor | null = null;
 let fileWatcher: FileChangeWatcher | null = null;
 let graphStore: GraphStorePort | null = null;
 let contextRetrievalToolInstance: ContextRetrievalTool | null = null;
+let documentsViewProviderInstance: DocumentsViewProvider | null = null;
 
 /**
  * Cappy Extension - React + Vite Version
@@ -87,13 +87,8 @@ export function activate(context: vscode.ExtensionContext) {
     // Create graph panel instance
     const graphPanel = new GraphPanel(context, graphOutputChannel);
 
-    // NOTE: Starting the full file processing system initializes several
-    // components that can load native modules (SQLite/Kùzu/sharp). To avoid
-    // native-module crashes during activation, we defer initialization and
-    // expose a command that starts it manually when the user is ready.
-    //
-    // To start processing, run the command: "Cappy: Start File Processing"
-    // (command id: cappy.startProcessing)
+    // NOTE: File processing system initialization is now lightweight
+    // (no HTTP API, just database and queue setup)
     const startProcessingCommand = vscode.commands.registerCommand('cappy.startProcessing', async () => {
         try {
             await initializeFileProcessingSystem(context, graphPanel);
@@ -101,11 +96,29 @@ export function activate(context: vscode.ExtensionContext) {
         } catch (error: unknown) {
             const errMsg = error instanceof Error ? error.message : String(error);
             console.error('Failed to initialize file processing system:', error);
-            vscode.window.showErrorMessage(`Failed to start file processing API: ${errMsg}`);
+            vscode.window.showErrorMessage(`Failed to start file processing: ${errMsg}`);
         }
     });
     context.subscriptions.push(startProcessingCommand);
-    console.log('⏸️ File processing initialization deferred. Use command: cappy.startProcessing');
+    
+    // Auto-start file processing system on activation
+    console.log('🚀 Auto-starting file processing system...');
+    initializeFileProcessingSystem(context, graphPanel)
+        .then(() => {
+            console.log('✅ File processing system auto-started successfully');
+        })
+        .catch((error: unknown) => {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            console.error('❌ Failed to auto-start file processing system:', error);
+            vscode.window.showWarningMessage(
+                `Cappy: File processing system failed to start. Use "Cappy: Start File Processing" command to retry. Error: ${errMsg}`,
+                'Retry'
+            ).then(selection => {
+                if (selection === 'Retry') {
+                    vscode.commands.executeCommand('cappy.startProcessing');
+                }
+            });
+        });
     
     // Register the graph visualization command
     const openGraphCommand = vscode.commands.registerCommand('cappy.openGraph', async () => {
@@ -202,6 +215,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Register workspace scan command
     registerScanWorkspaceCommand(context);
     console.log('✅ Registered command: cappy.scanWorkspace');
+
+    // Register process pending files command (cronjob)
+    registerProcessPendingFilesCommand(context);
+    console.log('✅ Registered command: cappy.processPendingFiles');
 
     // Register process single file command
     registerProcessSingleFileCommand(context);
@@ -347,10 +364,10 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('✅ Registered Chat View Provider: cappy.chatView');
     
     // Register Documents View Provider for sidebar
-    const documentsViewProvider = new DocumentsViewProvider(context.extensionUri);
+    documentsViewProviderInstance = new DocumentsViewProvider(context.extensionUri);
     const documentsViewDisposable = vscode.window.registerWebviewViewProvider(
         DocumentsViewProvider.viewType,
-        documentsViewProvider
+        documentsViewProviderInstance
     );
     context.subscriptions.push(documentsViewDisposable);
     console.log('✅ Registered Documents View Provider: cappy.documentsView');
@@ -389,6 +406,12 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         fileDatabase = new FileMetadataDatabase(dbPath);
         await fileDatabase.initialize();
         console.log('✅ File metadata database initialized at:', dbPath);
+
+        // Connect DocumentsViewProvider to the file database
+        if (documentsViewProviderInstance && fileDatabase) {
+            documentsViewProviderInstance.setFileDatabase(fileDatabase);
+            console.log('✅ DocumentsViewProvider connected to file database');
+        }
 
         // Initialize services for worker
     const { ParserService } = await import('./nivel2/infrastructure/services/parser-service.js');
@@ -517,97 +540,8 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
             console.warn('Could not attach graph refresh listener:', e);
         }
 
-        // Initialize and start API server (pass graphStore for file removal)
-        fileAPI = new FileProcessingAPI(
-            fileQueue,
-            fileDatabase,
-            workspaceRoot,
-            3456,
-            graphStoreInstance,
-            async () => {
-                try {
-                    console.log('[Extension] 🔍 API requested workspace scan');
-                    await vscode.commands.executeCommand('cappy.scanWorkspace');
-                } catch (e) {
-                    console.error('[Extension] ❌ Failed to run cappy.scanWorkspace from API:', e);
-                    throw e;
-                }
-            },
-            async (filePath: string) => {
-                try {
-                    console.log('[Extension] 🔄 API requested file reprocess:', filePath);
-
-                    // Normalize and build absolute path
-                    const absPath = path.join(workspaceRoot, filePath);
-
-                    // Best-effort: remove existing nodes for this file so we re-create cleanly
-                    try {
-                        await graphStoreInstance.deleteFile(filePath);
-                        console.log('[Extension] 🗑️ Deleted existing graph data for:', filePath);
-                    } catch (e) {
-                        console.warn('[Extension] ⚠️ Could not delete existing graph data (may not exist):', e);
-                    }
-
-                    // Ensure there is a DB record and set to pending so the queue processes just this file
-                    if (!fileDatabase) {
-                        throw new Error('File metadata database not initialized');
-                    }
-                    const db = fileDatabase;
-                    const record = db.getFileByPath(filePath);
-                    if (record) {
-                        // Reset existing record to pending
-                        db.updateFile(record.id, {
-                            status: 'pending',
-                            progress: 0,
-                            currentStep: 'Queued for reprocessing',
-                            errorMessage: undefined,
-                            chunksCount: undefined,
-                            nodesCount: undefined,
-                            relationshipsCount: undefined,
-                            processingStartedAt: undefined,
-                            processingCompletedAt: undefined
-                        });
-                        console.log('[Extension] 🔁 Reset existing DB record to pending:', record.id);
-                    } else {
-                        // Create new record
-                        const stats = await vscode.workspace.fs.stat(vscode.Uri.file(absPath));
-                        const contentHash = await hashService.hashFile(absPath);
-                        const id = `file:${hashService.hashString(filePath)}`;
-                        db.insertFile({
-                            id,
-                            filePath,
-                            fileName: path.basename(filePath),
-                            fileSize: Number(stats.size),
-                            fileHash: contentHash,
-                            fileContent: undefined,
-                            status: 'pending',
-                            progress: 0,
-                            currentStep: 'Queued for reprocessing',
-                            errorMessage: undefined,
-                            retryCount: 0,
-                            maxRetries: 3,
-                            processingStartedAt: undefined,
-                            processingCompletedAt: undefined,
-                            chunksCount: undefined,
-                            nodesCount: undefined,
-                            relationshipsCount: undefined
-                        });
-                        console.log('[Extension] 📝 Enqueued new DB record for reprocess:', id);
-                    }
-
-                    // The UnifiedQueueProcessor will pick this up automatically on next poll
-                    // Optionally trigger an immediate tick
-                    // (no public API to tick; rely on 1s pollInterval)
-
-                    console.log('[Extension] ✅ Single-file reprocess scheduled:', filePath);
-                } catch (e) {
-                    console.error('[Extension] ❌ Failed to reprocess file:', e);
-                    throw e;
-                }
-            }
-        );
-        await fileAPI.start();
-        console.log('✅ File processing API started on http://localhost:3456');
+        // No HTTP API - using postMessage communication instead
+        console.log('✅ File processing system initialized (no HTTP API)');
 
         // Register cleanup on deactivation
         context.subscriptions.push({
@@ -620,10 +554,6 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
                     fileWatcher.stop();
                     console.log('🛑 FileChangeWatcher stopped');
                 }
-                if (fileAPI) {
-                    await fileAPI.stop();
-                    console.log('🛑 File processing API stopped');
-                }
                 if (fileQueue) {
                     fileQueue.stop();
                     console.log('🛑 Legacy file processing queue stopped');
@@ -635,7 +565,7 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
             }
         });
 
-        vscode.window.showInformationMessage('✅ File processing system ready with queue processor');
+        vscode.window.showInformationMessage('✅ File processing system ready');
     } catch (error) {
         console.error('Failed to initialize file processing system:', error);
         throw error;

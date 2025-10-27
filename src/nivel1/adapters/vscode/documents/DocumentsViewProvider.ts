@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { FileMetadataDatabase, type FileMetadata } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 
 /**
  * Document status type
@@ -40,9 +41,18 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private readonly documents: Map<string, DocumentItem> = new Map();
   private readonly _extensionUri: vscode.Uri;
+  private _fileDatabase?: FileMetadataDatabase;
 
-  constructor(extensionUri: vscode.Uri) {
+  constructor(extensionUri: vscode.Uri, fileDatabase?: FileMetadataDatabase) {
     this._extensionUri = extensionUri;
+    this._fileDatabase = fileDatabase;
+  }
+
+  /**
+   * Sets the file database (can be called after initialization)
+   */
+  setFileDatabase(fileDatabase: FileMetadataDatabase): void {
+    this._fileDatabase = fileDatabase;
   }
 
   /**
@@ -65,6 +75,13 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     };
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+    
+    // Load initial document list from database
+    console.log('📊 [DocumentsViewProvider] Loading initial document list from database');
+    this.refreshDocumentList().catch(error => {
+      console.error('❌ [DocumentsViewProvider] Failed to load initial documents:', error);
+    });
+    
     // Probe extension -> webview channel
     try {
       webviewView.webview.postMessage({ type: 'document/hello', payload: { from: 'DocumentsViewProvider' } });
@@ -217,52 +234,9 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       
       console.log('✅ [DocumentsViewProvider] cappy.scanWorkspace completed');
       
-      // Query the indexed files from the API
-      console.log('📡 [DocumentsViewProvider] Fetching indexed files from API');
-      try {
-        const response = await fetch('http://localhost:3456/files/indexed');
-        if (response.ok) {
-          interface IndexedFileResponse {
-            fileId: string;
-            fileName?: string;
-            filePath?: string;
-            summary?: string;
-            status: DocumentStatus;
-            chunksCount?: number;
-            fileSize?: number;
-          }
-          const indexedFiles = await response.json() as IndexedFileResponse[];
-          console.log(`📡 [DocumentsViewProvider] Received ${indexedFiles.length} indexed files`);
-          
-          // Convert to DocumentItem format and store
-          this.documents.clear();
-          for (const file of indexedFiles) {
-            const doc: DocumentItem = {
-              id: file.fileId,
-              fileName: file.fileName || 'Unknown',
-              filePath: file.filePath || '',
-              summary: file.summary || '',
-              status: file.status,
-              length: file.fileSize || 0,
-              chunks: file.chunksCount || 0,
-              created: new Date().toISOString(),
-              updated: new Date().toISOString(),
-            };
-            this.documents.set(doc.id, doc);
-          }
-          
-          // Send the updated list to webview
-          console.log('📤 [DocumentsViewProvider] Sending document list to webview');
-          this._view?.webview.postMessage({
-            type: 'document/list',
-            payload: { documents: Array.from(this.documents.values()) }
-          });
-        } else {
-          console.warn('⚠️ [DocumentsViewProvider] Failed to fetch indexed files:', response.statusText);
-        }
-      } catch (fetchError) {
-        console.error('❌ [DocumentsViewProvider] Error fetching indexed files:', fetchError);
-      }
+      // Refresh document list from database
+      await this.refreshDocumentList();
+      
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error during scan:', error);
       vscode.window.showErrorMessage(`Scan failed: ${error}`);
@@ -271,6 +245,77 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       console.log('📤 [DocumentsViewProvider] Sending scan-completed message to webview');
       this._view?.webview.postMessage({
         type: 'document/scan-completed'
+      });
+    }
+  }
+
+  /**
+   * Refreshes document list from database and sends to webview
+   */
+  private async refreshDocumentList() {
+    console.log('🔄 [DocumentsViewProvider] Refreshing document list from database');
+    
+    // Get documents from file metadata database
+    if (!this._fileDatabase) {
+      console.warn('⚠️ [DocumentsViewProvider] No file database available');
+      this._view?.webview.postMessage({
+        type: 'document/list',
+        payload: { documents: [] }
+      });
+      return;
+    }
+
+    try {
+      const allFiles = this._fileDatabase.getAllFileMetadata();
+      console.log(`📊 [DocumentsViewProvider] Found ${allFiles.length} files in database`);
+      
+      // Convert database records to DocumentItem format
+      const documents: DocumentItem[] = allFiles.map((file: FileMetadata) => {
+        // Map database status to DocumentStatus
+        let status: DocumentStatus = 'pending';
+        if (file.status === 'completed' || file.status === 'processed') {
+          status = 'completed';
+        } else if (file.status === 'processing') {
+          status = 'processing';
+        } else if (file.status === 'failed' || file.status === 'error') {
+          status = 'failed';
+        }
+        
+        return {
+          id: file.id,
+          fileName: file.fileName,
+          filePath: file.filePath,
+          summary: file.errorMessage || '',
+          status,
+          length: file.fileSize || 0,
+          chunks: file.chunksCount || 0,
+          created: file.processingStartedAt || new Date().toISOString(),
+          updated: file.processingCompletedAt || new Date().toISOString(),
+          trackId: file.id,
+          processingStartTime: file.processingStartedAt,
+          processingEndTime: file.processingCompletedAt,
+          currentStep: file.currentStep,
+          progress: file.progress
+        };
+      });
+      
+      // Update internal documents map
+      this.documents.clear();
+      for (const doc of documents) {
+        this.documents.set(doc.id, doc);
+      }
+      
+      // Send to webview
+      console.log(`📤 [DocumentsViewProvider] Sending ${documents.length} documents to webview`);
+      this._view?.webview.postMessage({
+        type: 'document/list',
+        payload: { documents }
+      });
+    } catch (error) {
+      console.error('❌ [DocumentsViewProvider] Error loading documents from database:', error);
+      this._view?.webview.postMessage({
+        type: 'document/list',
+        payload: { documents: [] }
       });
     }
   }
@@ -390,13 +435,9 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    * Handles refresh documents
    */
   private async handleRefresh() {
-    // Send all documents to the webview
-    this._view?.webview.postMessage({
-      type: 'document/list',
-      payload: {
-        documents: Array.from(this.documents.values())
-      }
-    });
+    console.log('🔄 [DocumentsViewProvider] handleRefresh called - loading from database');
+    // Refresh from database instead of in-memory Map
+    await this.refreshDocumentList();
   }
 
   /**
@@ -424,7 +465,7 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; connect-src ${webview.cspSource} http://localhost:3456;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; connect-src ${webview.cspSource};">
   <link href="${styleUri}" rel="stylesheet">
   <title>Cappy Documents</title>
 </head>

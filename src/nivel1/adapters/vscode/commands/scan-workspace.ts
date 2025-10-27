@@ -13,6 +13,7 @@ import { EmbeddingService } from '../../../../nivel2/infrastructure/services/emb
 import { IndexingService } from '../../../../nivel2/infrastructure/services/indexing-service';
 import { SQLiteAdapter } from '../../../../nivel2/infrastructure/database/sqlite-adapter';
 import { SQLiteVectorStore } from '../../../../nivel2/infrastructure/vector/sqlite-vector-adapter';
+import { FileMetadataDatabase } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 import * as path from 'node:path';
 import { ConfigService } from '../../../../nivel2/infrastructure/services/config-service';
 
@@ -80,6 +81,13 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
             );
             await indexingService.initialize();
 
+            // Initialize metadata database
+            progress.report({ message: '💾 Initializing metadata database...', increment: 5 });
+            const metadataDbPath = path.join(dataDir, 'file-metadata.db');
+            const metadataDatabase = new FileMetadataDatabase(metadataDbPath);
+            await metadataDatabase.initialize();
+            console.log('✅ Metadata database initialized');
+
             // Step 2: Create scanner
             progress.report({ message: '🔍 Discovering files...', increment: 5 });
             
@@ -89,6 +97,7 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
               parserService,
               indexingService,
               graphStore,
+              metadataDatabase, // Pass metadata database
               batchSize: 10,
               concurrency: 3
             });
