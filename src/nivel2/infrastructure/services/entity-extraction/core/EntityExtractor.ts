@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+import { vscode, hasVSCode } from '../../../utils/vscode-compat';
 import type {
   ExtractedEntity,
   EntityRelationship,
@@ -13,10 +13,15 @@ import { ENTITY_EXTRACTION_PROMPT } from '../prompts';
  * Entity extractor using GitHub Copilot LLM
  */
 export class EntityExtractor {
-  private model: vscode.LanguageModelChat | null = null;
+  private model: InstanceType<typeof vscode.LanguageModelChat> | null = null;
   private modelName: string = 'unknown';
 
   async initialize(): Promise<void> {
+    if (!hasVSCode() || !vscode.lm) {
+      console.warn('⚠️ VS Code Language Model API not available - running without entity extraction');
+      return;
+    }
+    
     try {
       const models = await vscode.lm.selectChatModels({
         vendor: 'copilot',

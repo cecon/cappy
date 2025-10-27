@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { FileMetadataDatabase, type FileMetadata } from '../../../../nivel2/infrastructure/services/file-metadata-database';
+import { FileMetadataDatabase, type FileMetadata, type FileProcessingStatus } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 
 /**
  * Document status type
@@ -115,10 +115,13 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
             console.log('🗑️ Handling clear...');
             await this.handleClear();
             break;
-          case 'document/refresh':
+          case 'document/refresh': {
             console.log('🔄 Handling refresh...');
-            await this.handleRefresh();
+            // Check if message contains pagination params
+            const paginationParams = data.payload;
+            await this.handleRefresh(paginationParams);
             break;
+          }
           case 'webview-ready':
             console.log('✅ [DocumentsViewProvider] Webview reported ready');
             break;
@@ -252,72 +255,111 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   /**
    * Refreshes document list from database and sends to webview
    */
-  private async refreshDocumentList() {
-    console.log('🔄 [DocumentsViewProvider] Refreshing document list from database');
+  private async refreshDocumentList(paginationParams?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    sortBy?: 'id' | 'created_at' | 'updated_at';
+    sortOrder?: 'asc' | 'desc';
+  }) {
+    console.log('🔄 [DocumentsViewProvider] Refreshing document list from database', paginationParams);
     
     // Get documents from file metadata database
     if (!this._fileDatabase) {
       console.warn('⚠️ [DocumentsViewProvider] No file database available');
       this._view?.webview.postMessage({
         type: 'document/list',
-        payload: { documents: [] }
+        payload: { documents: [], total: 0, page: 1, limit: 10, totalPages: 0 }
       });
       return;
     }
 
     try {
-      const allFiles = this._fileDatabase.getAllFileMetadata();
-      console.log(`📊 [DocumentsViewProvider] Found ${allFiles.length} files in database`);
-      
-      // Convert database records to DocumentItem format
-      const documents: DocumentItem[] = allFiles.map((file: FileMetadata) => {
-        // Map database status to DocumentStatus
-        let status: DocumentStatus = 'pending';
-        if (file.status === 'completed' || file.status === 'processed') {
-          status = 'completed';
-        } else if (file.status === 'processing') {
-          status = 'processing';
-        } else if (file.status === 'failed' || file.status === 'error') {
-          status = 'failed';
+      // Use pagination if provided, otherwise get all files
+      if (paginationParams) {
+        const { page = 1, limit = 10, status, sortBy = 'updated_at', sortOrder = 'desc' } = paginationParams;
+        
+        const result = await this._fileDatabase.getFilesPaginated({
+          page,
+          limit,
+          status: status as FileProcessingStatus | undefined,
+          sortBy,
+          sortOrder
+        });
+
+        console.log(`📊 [DocumentsViewProvider] Found ${result.files.length} files (page ${result.page}/${result.totalPages}, total: ${result.total})`);
+        
+        // Convert database records to DocumentItem format
+        const documents: DocumentItem[] = result.files.map((file: FileMetadata) => this.mapFileToDocument(file));
+        
+        // Send paginated result to webview
+        console.log(`📤 [DocumentsViewProvider] Sending ${documents.length} documents to webview (paginated)`);
+        this._view?.webview.postMessage({
+          type: 'document/list',
+          payload: { 
+            documents,
+            total: result.total,
+            page: result.page,
+            limit: result.limit,
+            totalPages: result.totalPages
+          }
+        });
+      } else {
+        // Fallback to getting all files (for backward compatibility)
+        const allFiles = await this._fileDatabase.getAllFiles();
+        console.log(`📊 [DocumentsViewProvider] Found ${allFiles.length} files in database`);
+        
+        const documents: DocumentItem[] = allFiles.map((file: FileMetadata) => this.mapFileToDocument(file));
+        
+        // Update internal documents map
+        this.documents.clear();
+        for (const doc of documents) {
+          this.documents.set(doc.id, doc);
         }
         
-        return {
-          id: file.id,
-          fileName: file.fileName,
-          filePath: file.filePath,
-          summary: file.errorMessage || '',
-          status,
-          length: file.fileSize || 0,
-          chunks: file.chunksCount || 0,
-          created: file.processingStartedAt || new Date().toISOString(),
-          updated: file.processingCompletedAt || new Date().toISOString(),
-          trackId: file.id,
-          processingStartTime: file.processingStartedAt,
-          processingEndTime: file.processingCompletedAt,
-          currentStep: file.currentStep,
-          progress: file.progress
-        };
-      });
-      
-      // Update internal documents map
-      this.documents.clear();
-      for (const doc of documents) {
-        this.documents.set(doc.id, doc);
+        // Send to webview
+        console.log(`📤 [DocumentsViewProvider] Sending ${documents.length} documents to webview`);
+        this._view?.webview.postMessage({
+          type: 'document/list',
+          payload: { documents, total: documents.length, page: 1, limit: documents.length, totalPages: 1 }
+        });
       }
-      
-      // Send to webview
-      console.log(`📤 [DocumentsViewProvider] Sending ${documents.length} documents to webview`);
-      this._view?.webview.postMessage({
-        type: 'document/list',
-        payload: { documents }
-      });
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error loading documents from database:', error);
       this._view?.webview.postMessage({
         type: 'document/list',
-        payload: { documents: [] }
+        payload: { documents: [], total: 0, page: 1, limit: 10, totalPages: 0 }
       });
     }
+  }
+
+  private mapFileToDocument(file: FileMetadata): DocumentItem {
+    // Map database status to DocumentStatus
+    let status: DocumentStatus = 'pending';
+    if (file.status === 'completed' || file.status === 'processed') {
+      status = 'completed';
+    } else if (file.status === 'processing') {
+      status = 'processing';
+    } else if (file.status === 'failed' || file.status === 'error') {
+      status = 'failed';
+    }
+    
+    return {
+      id: file.id,
+      fileName: file.fileName,
+      filePath: file.filePath,
+      summary: file.errorMessage || '',
+      status,
+      length: file.fileSize || 0,
+      chunks: file.chunksCount || 0,
+      created: file.processingStartedAt || new Date().toISOString(),
+      updated: file.processingCompletedAt || new Date().toISOString(),
+      trackId: file.id,
+      processingStartTime: file.processingStartedAt,
+      processingEndTime: file.processingCompletedAt,
+      currentStep: file.currentStep,
+      progress: file.progress
+    };
   }
 
   /**
@@ -434,10 +476,16 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   /**
    * Handles refresh documents
    */
-  private async handleRefresh() {
-    console.log('🔄 [DocumentsViewProvider] handleRefresh called - loading from database');
-    // Refresh from database instead of in-memory Map
-    await this.refreshDocumentList();
+  private async handleRefresh(paginationParams?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    sortBy?: 'id' | 'created_at' | 'updated_at';
+    sortOrder?: 'asc' | 'desc';
+  }) {
+    console.log('🔄 [DocumentsViewProvider] handleRefresh called - loading from database', paginationParams);
+    // Refresh from database with pagination
+    await this.refreshDocumentList(paginationParams);
   }
 
   /**

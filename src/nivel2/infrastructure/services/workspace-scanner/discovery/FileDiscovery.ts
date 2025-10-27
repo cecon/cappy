@@ -3,8 +3,9 @@
  * @module workspace-scanner/discovery
  */
 
-import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
+import { vscode } from '../../../utils/vscode-compat';
 import { FileHashService } from '../../file-hash-service';
 import { IgnorePatternMatcher } from '../../ignore-pattern-matcher';
 import type { FileIndexEntry } from '../../../../../shared/types/chunk';
@@ -45,20 +46,29 @@ export class FileDiscovery {
   async discoverFiles(progressCallback?: ProgressCallback): Promise<FileIndexEntry[]> {
     console.log('🔍 [FileDiscovery] discoverFiles() called');
     console.log('🔍 [FileDiscovery] workspaceRoot:', this.config.workspaceRoot);
-    console.log('🔍 [FileDiscovery] progressCallback:', !!progressCallback);
+    console.log('🔍 [FileDiscovery] vscode available:', !!vscode);
     
     const files: FileIndexEntry[] = [];
     
     console.log('🔍 Searching for files in workspace...');
     
     try {
-      console.log('🔍 [FileDiscovery] Calling vscode.workspace.findFiles...');
-      // Use VS Code file search
-      const uris = await vscode.workspace.findFiles(
-        '**/*',
-        '{**/node_modules/**,**/.git/**,**/dist/**,**/build/**,**/.cappy/**}'
-      );
-      console.log(`📁 [FileDiscovery] vscode.workspace.findFiles returned ${uris.length} URIs`);
+      let uris: Array<{ fsPath: string }>;
+      
+      if (vscode && vscode.workspace) {
+        console.log('🔍 [FileDiscovery] Using vscode.workspace.findFiles...');
+        // Use VS Code file search
+        uris = await vscode.workspace.findFiles(
+          '**/*',
+          '{**/node_modules/**,**/.git/**,**/dist/**,**/build/**,**/.cappy/**}'
+        );
+        console.log(`📁 [FileDiscovery] vscode.workspace.findFiles returned ${uris.length} URIs`);
+      } else {
+        console.log('🔍 [FileDiscovery] VS Code not available - using fs recursive scan...');
+        // Fallback to filesystem scan when not in VS Code
+        uris = await this.scanFilesystem(this.config.workspaceRoot);
+        console.log(`📁 [FileDiscovery] Filesystem scan found ${uris.length} files`);
+      }
 
     console.log(`📁 Found ${uris.length} potential files, filtering...`);
     let processedCount = 0;
@@ -91,10 +101,28 @@ export class FileDiscovery {
       }
 
       try {
-        const stat = await vscode.workspace.fs.stat(uri);
+        let stat: { size: number; mtime: number; isDirectory: () => boolean };
+        
+        // Use VS Code API if available, otherwise use Node.js fs
+        if (vscode && vscode.workspace) {
+          const vsStat = await vscode.workspace.fs.stat(uri);
+          stat = {
+            size: vsStat.size,
+            mtime: vsStat.mtime,
+            isDirectory: () => vsStat.type === vscode.FileType.Directory
+          };
+        } else {
+          // Fallback to Node.js fs.statSync in dev mode
+          const fsStat = fs.statSync(uri.fsPath);
+          stat = {
+            size: fsStat.size,
+            mtime: fsStat.mtimeMs,
+            isDirectory: () => fsStat.isDirectory()
+          };
+        }
 
         // Skip directories
-        if (stat.type === vscode.FileType.Directory) {
+        if (stat.isDirectory()) {
           continue;
         }
 
@@ -204,5 +232,39 @@ export class FileDiscovery {
     };
 
     return languageMap[ext] || 'unknown';
+  }
+
+  /**
+   * Recursively scans filesystem for files (fallback when VS Code is not available)
+   */
+  private async scanFilesystem(dir: string): Promise<Array<{ fsPath: string }>> {
+    const results: Array<{ fsPath: string }> = [];
+    const excludeDirs = ['node_modules', '.git', 'dist', 'build', 'out', '.cappy', '.next', 'coverage'];
+    
+    const scanDir = async (currentDir: string) => {
+      try {
+        const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+        
+        for (const entry of entries) {
+          const fullPath = path.join(currentDir, entry.name);
+          
+          // Skip excluded directories and hidden files/folders
+          if (entry.name.startsWith('.') || excludeDirs.includes(entry.name)) {
+            continue;
+          }
+          
+          if (entry.isDirectory()) {
+            await scanDir(fullPath);
+          } else if (entry.isFile()) {
+            results.push({ fsPath: fullPath });
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️  [FileDiscovery] Could not scan directory ${currentDir}:`, error);
+      }
+    };
+    
+    await scanDir(dir);
+    return results;
   }
 }

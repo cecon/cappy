@@ -67,6 +67,10 @@ const DocumentsPage: React.FC = () => {
   const [sortField, setSortField] = useState<SortField>('updated');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [isScanning, setIsScanning] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalDocuments, setTotalDocuments] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   
   // Dados de exemplo (exatamente como no LightRAG)
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -198,19 +202,26 @@ const DocumentsPage: React.FC = () => {
   // Load documents from extension via postMessage
   const loadDocuments = useCallback(async () => {
     try {
-      console.log('[DocumentsPage] Requesting documents from extension...');
-      // Request documents via postMessage instead of HTTP API
+      console.log('[DocumentsPage] Requesting documents from extension with pagination...');
+      // Request documents via postMessage with pagination params
       if (vscodeApi) {
         vscodeApi.postMessage({
-          type: 'document/refresh'
+          type: 'document/refresh',
+          payload: {
+            page: currentPage,
+            limit: itemsPerPage,
+            status: statusFilter !== 'all' ? statusFilter : undefined,
+            sortBy: sortField === 'id' ? 'id' : sortField === 'created' ? 'created_at' : 'updated_at',
+            sortOrder: sortOrder
+          }
         });
       }
     } catch (error) {
       console.error('[DocumentsPage] Error requesting documents:', error);
     }
-  }, [vscodeApi]);
+  }, [vscodeApi, currentPage, itemsPerPage, statusFilter, sortField, sortOrder]);
 
-  // Load documents on mount
+  // Load documents on mount and when filters/pagination changes
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
@@ -248,8 +259,23 @@ const DocumentsPage: React.FC = () => {
           break;
         }
         case 'document/list': {
-          const docs = message.payload.documents || [];
+          const payload = message.payload;
+          const docs = payload.documents || [];
           setDocuments(docs.map((d: Document) => ({ ...d, selected: false })));
+          
+          // Update pagination info from server
+          const total = payload.total !== undefined ? payload.total : docs.length;
+          const pages = payload.totalPages !== undefined ? payload.totalPages : 1;
+          
+          setTotalDocuments(total);
+          setTotalPages(pages);
+          
+          console.log('[DocumentsPage] Received paginated documents:', {
+            count: docs.length,
+            total: payload.total,
+            page: payload.page,
+            totalPages: payload.totalPages
+          });
           break;
         }
         case 'document/scan-started': {
@@ -272,38 +298,24 @@ const DocumentsPage: React.FC = () => {
 
   // Estatísticas calculadas
   const stats = useMemo(() => {
-    const all = documents.length;
+    const all = totalDocuments;
     const completed = documents.filter((d) => d.status === 'completed').length;
     const preprocessed = documents.filter((d) => d.status === 'preprocessed').length;
     const processing = documents.filter((d) => d.status === 'processing').length;
     const pending = documents.filter((d) => d.status === 'pending').length;
     const failed = documents.filter((d) => d.status === 'failed').length;
     return { all, completed, preprocessed, processing, pending, failed };
-  }, [documents]);
+  }, [documents, totalDocuments]);
 
-  // Documentos filtrados e ordenados
-  const filteredDocuments = useMemo(() => {
-    console.log('[DocumentsPage] Computing filteredDocuments, total documents:', documents.length);
-    console.log('[DocumentsPage] Documents:', documents);
-    
-    let filtered = documents;
-    if (statusFilter !== 'all') {
-      filtered = documents.filter((d) => d.status === statusFilter);
-    }
-    
-    // Ordenação
-    return [...filtered].sort((a, b) => {
-      let compareValue = 0;
-      if (sortField === 'id') {
-        compareValue = a.id.localeCompare(b.id);
-      } else if (sortField === 'created') {
-        compareValue = a.created.localeCompare(b.created);
-      } else if (sortField === 'updated') {
-        compareValue = a.updated.localeCompare(b.updated);
-      }
-      return sortOrder === 'asc' ? compareValue : -compareValue;
-    });
-  }, [documents, statusFilter, sortField, sortOrder]);
+  // Reset page quando mudar filtro
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, sortField, sortOrder]);
+
+  // Reload documents when pagination/filter/sort changes
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
 
   const handleUpload = () => {
     // If running inside VS Code webview, delegate to extension (uses native file picker and internal pipeline)
@@ -747,7 +759,7 @@ const DocumentsPage: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-border">
                       {/* Debug info */}
-                      {documents.length > 0 && filteredDocuments.length === 0 && (
+                      {documents.length === 0 && statusFilter !== 'all' && (
                         <tr>
                           <td colSpan={8} className="h-32 px-4 text-center">
                             <div className="flex flex-col items-center gap-2">
@@ -756,7 +768,7 @@ const DocumentsPage: React.FC = () => {
                               </svg>
                               <p className="font-medium text-yellow-600 dark:text-yellow-400">No documents match filter</p>
                               <p className="text-sm text-muted-foreground">
-                                Found {documents.length} total document(s), but none match the "{statusFilter}" filter
+                                No documents match the "{statusFilter}" filter
                               </p>
                               <Button variant="outline" onClick={() => setStatusFilter('all')} className="mt-2">
                                 Show All Documents
@@ -766,7 +778,7 @@ const DocumentsPage: React.FC = () => {
                         </tr>
                       )}
                       
-                      {documents.length === 0 && filteredDocuments.length === 0 ? (
+                      {documents.length === 0 && statusFilter === 'all' ? (
                           <tr>
                             <td colSpan={8} className="h-32 px-4 text-center text-muted-foreground">
                               <div className="flex flex-col items-center gap-2">
@@ -780,7 +792,7 @@ const DocumentsPage: React.FC = () => {
                           </tr>
                         ) : (
                           <>
-                            {filteredDocuments.map((doc) => {
+                            {documents.map((doc) => {
                               // Extracted from nested ternary for readability
                               let statusClassName = 'bg-muted text-muted-foreground border border-border';
                               if (doc.status === 'completed') {
@@ -817,7 +829,7 @@ const DocumentsPage: React.FC = () => {
                               <td className="h-16 px-4 align-middle">
                                 <div className="flex items-center gap-2">
                                   {/* Status badge */}
-                                  {doc.status === 'processing' || doc.status === 'pending' ? (
+                                  {doc.status === 'processing' ? (
                                     <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/20">
                                       <Spinner size={12} />
                                       <span className="text-xs font-medium text-primary">
@@ -918,6 +930,76 @@ const DocumentsPage: React.FC = () => {
                   </tbody>
                 </table>
                 </div>
+
+                {/* Paginação */}
+                {(documents.length > 0 || totalDocuments > 0) && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalDocuments || documents.length)} of {totalDocuments || documents.length} files
+                      </span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => {
+                          setItemsPerPage(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="px-2 py-1 text-sm border border-border rounded-md bg-background"
+                      >
+                        <option value={10}>10 per page</option>
+                        <option value={25}>25 per page</option>
+                        <option value={50}>50 per page</option>
+                        <option value={100}>100 per page</option>
+                      </select>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                        </svg>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </Button>
+                      <span className="text-sm">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                        </svg>
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -17,7 +17,7 @@ export type {
 
 // Submodules (optional exports for advanced usage)
 export { FileDiscovery } from './discovery/FileDiscovery';
-export { FileProcessor } from './processing/FileProcessor';
+export { FileMetadadoProcessor  } from './processing/FileMetadadoProcessor';
 export { CrossFileRelationships } from './relationships/CrossFileRelationships';
 export { FileIndexManager } from './helpers/FileIndexManager';
 export { FileSorter } from './helpers/FileSorter';
