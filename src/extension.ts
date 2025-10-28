@@ -50,6 +50,7 @@ let fileCronJob: FileProcessingCronJob | null = null;
  */
 
 export function activate(context: vscode.ExtensionContext) {
+    console.log('🚩 [Extension] activate() starting - preparing services and views');
     console.log('🦫 Cappy extension is now active! (React + Vite version)');
 
     // Register Language Model Tools
@@ -371,7 +372,9 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('✅ Registered Chat View Provider: cappy.chatView');
     
     // Register Documents View Provider for sidebar
+    console.log('📄 [Extension] Creating DocumentsViewProvider...');
     documentsViewProviderInstance = new DocumentsViewProvider(context.extensionUri);
+    console.log('📄 [Extension] DocumentsViewProvider created, registering...');
     const documentsViewDisposable = vscode.window.registerWebviewViewProvider(
         DocumentsViewProvider.viewType,
         documentsViewProviderInstance

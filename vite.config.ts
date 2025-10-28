@@ -1,14 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-import { cappyDevServerPlugin } from './vite-plugin-cappy-dev'
+// import { cappyDevServerPlugin } from './vite-plugin-cappy-dev'
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   plugins: [
     react(),
-    // Only load dev plugin in development mode
-    ...(mode === 'development' ? [cappyDevServerPlugin()] : [])
   ],
   
   // Build configuration for VS Code extension
@@ -30,7 +28,7 @@ export default defineConfig(({ mode }) => ({
       }
     },
     target: 'es2020',
-    minify: 'esbuild',
+    minify: 'esbuild' as const,
     // Important: use relative paths for VS Code webview
     assetsInlineLimit: 0,
     cssCodeSplit: true

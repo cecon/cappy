@@ -46,8 +46,10 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   private readonly _refreshIntervalMs = 5000; // Refresh every 5 seconds when view is visible
 
   constructor(extensionUri: vscode.Uri, fileDatabase?: FileMetadataDatabase) {
+    console.log('🏗️ [DocumentsViewProvider] Constructor called');
     this._extensionUri = extensionUri;
     this._fileDatabase = fileDatabase;
+    console.log('🏗️ [DocumentsViewProvider] Initialized with fileDatabase:', !!fileDatabase);
   }
 
   /**
