@@ -4,10 +4,11 @@ import path from 'path'
 import { cappyDevServerPlugin } from './vite-plugin-cappy-dev'
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
-    cappyDevServerPlugin()
+    // Only load dev plugin in development mode
+    ...(mode === 'development' ? [cappyDevServerPlugin()] : [])
   ],
   
   // Build configuration for VS Code extension
@@ -61,4 +62,4 @@ export default defineConfig({
   define: {
     __DEV__: JSON.stringify(process.env.NODE_ENV === 'development')
   }
-})
+}))

@@ -71,6 +71,7 @@ const DocumentsPage: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [vscodeApiReady, setVscodeApiReady] = useState(false);
   
   // Dados de exemplo (exatamente como no LightRAG)
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -78,13 +79,20 @@ const DocumentsPage: React.FC = () => {
   const vscodeApi = useMemo(() => {
     if (typeof globalThis !== 'undefined' && (globalThis as { window?: unknown }).window) {
       const w = (globalThis as { window: unknown }).window as WindowWithVSCode & { acquireVsCodeApi?: () => VSCodeApi };
-      if (w.vscodeApi) return w.vscodeApi;
+      if (w.vscodeApi) {
+        console.log('[DocumentsPage] ✅ vscodeApi found (already initialized)');
+        setVscodeApiReady(true);
+        return w.vscodeApi;
+      }
       if (typeof w.acquireVsCodeApi === 'function') {
+        console.log('[DocumentsPage] ✅ acquireVsCodeApi found, acquiring...');
         const api = w.acquireVsCodeApi();
         w.vscodeApi = api;
+        setVscodeApiReady(true);
         return api;
       }
     }
+    console.log('[DocumentsPage] ⚠️ vscodeApi not available yet');
     return undefined;
   }, []);
 
@@ -202,32 +210,40 @@ const DocumentsPage: React.FC = () => {
   // Load documents from extension via postMessage
   const loadDocuments = useCallback(async () => {
     try {
+      if (!vscodeApi) {
+        console.log('[DocumentsPage] ⚠️ vscodeApi not available, skipping document load');
+        return;
+      }
       console.log('[DocumentsPage] Requesting documents from extension with pagination...');
       // Request documents via postMessage with pagination params
-      if (vscodeApi) {
-        vscodeApi.postMessage({
-          type: 'document/refresh',
-          payload: {
-            page: currentPage,
-            limit: itemsPerPage,
-            status: statusFilter !== 'all' ? statusFilter : undefined,
-            sortBy: sortField === 'id' ? 'id' : sortField === 'created' ? 'created_at' : 'updated_at',
-            sortOrder: sortOrder
-          }
-        });
-      }
+      vscodeApi.postMessage({
+        type: 'document/refresh',
+        payload: {
+          page: currentPage,
+          limit: itemsPerPage,
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+          sortBy: sortField === 'id' ? 'id' : sortField === 'created' ? 'created_at' : 'updated_at',
+          sortOrder: sortOrder
+        }
+      });
     } catch (error) {
       console.error('[DocumentsPage] Error requesting documents:', error);
     }
   }, [vscodeApi, currentPage, itemsPerPage, statusFilter, sortField, sortOrder]);
 
-  // Load documents on mount and when filters/pagination changes
+  // Load documents on mount and when filters/pagination changes (but only if vscodeApi is ready)
   useEffect(() => {
-    loadDocuments();
-  }, [loadDocuments]);
+    if (vscodeApiReady) {
+      console.log('[DocumentsPage] vscodeApi is ready, loading documents...');
+      loadDocuments();
+    } else {
+      console.log('[DocumentsPage] Waiting for vscodeApi to be ready...');
+    }
+  }, [loadDocuments, vscodeApiReady]);
 
   // Listen for messages from extension
   useEffect(() => {
+    console.log('[DocumentsPage] 🎧 Setting up message listener');
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
       console.log('[DocumentsPage] 📨 Received message from extension:', message.type, message);
@@ -292,8 +308,13 @@ const DocumentsPage: React.FC = () => {
       }
     };
 
-    globalThis.addEventListener('message', handleMessage as EventListener);
-    return () => globalThis.removeEventListener('message', handleMessage as EventListener);
+    // Use window.addEventListener for proper VS Code webview message handling
+    window.addEventListener('message', handleMessage);
+    console.log('[DocumentsPage] ✅ Message listener registered');
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      console.log('[DocumentsPage] 🔌 Message listener removed');
+    };
   }, [removeDocumentById, setDocsFromStatusResponses, updateDocument, loadDocuments]);
 
   // Estatísticas calculadas
