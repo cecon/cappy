@@ -236,7 +236,7 @@ const DocumentsPage: React.FC = () => {
         sortBy = 'updated_at';
       }
 
-      vscodeApi.postMessage({
+      const message = {
         type: 'document/refresh',
         payload: {
           page: currentPage,
@@ -245,9 +245,12 @@ const DocumentsPage: React.FC = () => {
           sortBy: sortBy,
           sortOrder: sortOrder
         }
-      });
+      };
+      console.log('[DocumentsPage] 📤 Sending document/refresh message:', message);
+      vscodeApi.postMessage(message);
+      console.log('[DocumentsPage] ✅ document/refresh message sent');
     } catch (error) {
-      console.error('[DocumentsPage] Error requesting documents:', error);
+      console.error('[DocumentsPage] ❌ Error requesting documents:', error);
     }
   }, [vscodeApi, currentPage, itemsPerPage, statusFilter, sortField, sortOrder]);
 

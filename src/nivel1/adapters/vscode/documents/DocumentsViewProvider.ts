@@ -119,6 +119,7 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     // Mark unused parameters as intentionally referenced for linting
     console.debug?.('[DocumentsViewProvider] resolveWebviewView args present:', Boolean(_context), Boolean(_token));
     console.log('🔧 [DocumentsViewProvider] Resolving webview view...');
+    console.log('🔧 [DocumentsViewProvider] File database available:', !!this._fileDatabase);
     this._view = webviewView;
 
     webviewView.webview.options = {
@@ -155,9 +156,11 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     });
 
     // Handle messages from the webview
+    console.log('🎧 [DocumentsViewProvider] Setting up message listener for webview');
     const disposeListener = webviewView.webview.onDidReceiveMessage(async (data) => {
+      console.log(`📨 [DocumentsViewProvider] ⚡ RAW MESSAGE RECEIVED:`, JSON.stringify(data));
       try {
-        console.log(`📨 DocumentsView received message: ${data.type}`, data);
+        console.log(`📨 [DocumentsViewProvider] Received message: ${data.type}`, data);
         switch (data.type) {
           case 'document/upload':
             console.log('🔼 Handling upload...');
