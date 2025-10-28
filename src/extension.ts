@@ -25,6 +25,7 @@ import { FileProcessingQueue } from './nivel2/infrastructure/services/file-proce
 import { FileProcessingWorker } from './nivel2/infrastructure/services/file-processing-worker';
 import { UnifiedQueueProcessor } from './nivel2/infrastructure/services/unified-queue-processor';
 import { FileChangeWatcher } from './nivel2/infrastructure/services/file-change-watcher';
+import { FileProcessingCronJob } from './nivel2/infrastructure/services/file-processing-cronjob';
 import { createVectorStore } from './nivel2/infrastructure/vector/sqlite-vector-adapter';
 import type { GraphStorePort } from './domains/graph/ports/indexing-port';
 import { SQLiteAdapter } from './nivel2/infrastructure/database/index.js';
@@ -38,6 +39,7 @@ let fileWatcher: FileChangeWatcher | null = null;
 let graphStore: GraphStorePort | null = null;
 let contextRetrievalToolInstance: ContextRetrievalTool | null = null;
 let documentsViewProviderInstance: DocumentsViewProvider | null = null;
+let fileCronJob: FileProcessingCronJob | null = null;
 
 /**
  * Cappy Extension - React + Vite Version
@@ -274,7 +276,7 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
         
-        const stats = fileDatabase.getStats();
+        const stats = await fileDatabase.getStats();
         const state = queueProcessor.getState();
         
         const message = [
@@ -543,9 +545,25 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         // No HTTP API - using postMessage communication instead
         console.log('✅ File processing system initialized (no HTTP API)');
 
+        // Initialize cronjob for automated file processing
+        fileCronJob = new FileProcessingCronJob(
+            fileDatabase,
+            worker,
+            {
+                intervalMs: 10000, // 10 seconds
+                autoStart: true,
+                workspaceRoot
+            }
+        );
+        console.log('✅ File processing cronjob started (10s interval)');
+
         // Register cleanup on deactivation
         context.subscriptions.push({
             dispose: async () => {
+                if (fileCronJob) {
+                    fileCronJob.stop();
+                    console.log('🛑 File processing cronjob stopped');
+                }
                 if (queueProcessor) {
                     queueProcessor.stop();
                     console.log('🛑 UnifiedQueueProcessor stopped');
