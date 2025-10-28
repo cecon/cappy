@@ -74,6 +74,7 @@ const DocumentsPage: React.FC = () => {
   
   // Dados de exemplo (exatamente como no LightRAG)
   const [documents, setDocuments] = useState<Document[]>([]);
+  const lastRequestSignature = useRef<string | null>(null);
 
   const vscodeApi = useMemo(() => {
     if (typeof globalThis !== 'undefined' && (globalThis as { window?: unknown }).window) {
@@ -216,10 +217,11 @@ const DocumentsPage: React.FC = () => {
   }, []);
 
   // Load documents from extension via postMessage
-  const loadDocuments = useCallback(async () => {
+  const loadDocuments = useCallback(async (options?: { force?: boolean }) => {
     try {
       if (!vscodeApi) {
         console.log('[DocumentsPage] ⚠️ vscodeApi not available, skipping document load');
+        lastRequestSignature.current = null;
         return;
       }
       console.log('[DocumentsPage] Requesting documents from extension with pagination...');
@@ -244,14 +246,19 @@ const DocumentsPage: React.FC = () => {
         }
       };
       console.log('[DocumentsPage] 📤 Sending document/refresh message:', message);
+      const signature = `${currentPage}|${itemsPerPage}|${statusFilter}|${sortField}|${sortOrder}`;
+      if (!options?.force && lastRequestSignature.current === signature) {
+        console.log('[DocumentsPage] ⚠️ Skipping duplicate document/refresh request for current filters');
+        return;
+      }
       vscodeApi.postMessage(message);
+      lastRequestSignature.current = signature;
       console.log('[DocumentsPage] ✅ document/refresh message sent');
     } catch (error) {
       console.error('[DocumentsPage] ❌ Error requesting documents:', error);
     }
   }, [vscodeApi, currentPage, itemsPerPage, statusFilter, sortField, sortOrder]);
 
-  // Load documents on mount and when filters/pagination changes (but only if vscodeApi is ready)
   // Listen for messages from extension
   useEffect(() => {
     console.log('[DocumentsPage] 🎧 Setting up message listener');
@@ -313,7 +320,7 @@ const DocumentsPage: React.FC = () => {
           console.log('[DocumentsPage] ✅ Scan completed, reloading documents...');
           setIsScanning(false);
           // Reload documents after scan completes via postMessage
-          loadDocuments();
+          loadDocuments({ force: true });
           break;
         }
       }
@@ -536,7 +543,7 @@ const DocumentsPage: React.FC = () => {
       
       // Reload documents after a short delay
       setTimeout(() => {
-        loadDocuments();
+        loadDocuments({ force: true });
       }, 2000);
     } catch (e) {
       console.error('[DocumentsPage] Reprocess error:', e);
