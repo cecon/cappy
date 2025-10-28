@@ -98,7 +98,7 @@ export class UnifiedQueueProcessor extends EventEmitter {
   /**
    * Stops the queue processor
    */
-  stop(): void {
+  async stop(): Promise<void> {
     if (!this.isRunning) return;
 
     console.log('🛑 Stopping UnifiedQueueProcessor...');
@@ -110,9 +110,9 @@ export class UnifiedQueueProcessor extends EventEmitter {
     }
 
     // Mark all processing files as paused
-    const processingFiles = this.database.getFilesByStatus('processing');
+    const processingFiles = await this.database.getFilesByStatus('processing');
     for (const file of processingFiles) {
-      this.transitionState(file.id, 'processing', 'paused');
+      await this.transitionState(file.id, 'processing', 'paused');
     }
 
     this.emit('queue:stopped');
@@ -120,7 +120,36 @@ export class UnifiedQueueProcessor extends EventEmitter {
   }
 
   /**
-   * Pauses the queue (marks processing files as paused)
+   * Resumes queue processing (un-pauses paused files)
+   */
+  async resume(): Promise<void> {
+    console.log('▶️ Resuming queue processor...');
+
+    // Mark all paused files as pending
+    const processingFiles = await this.database.getFilesByStatus('processing');
+    for (const file of processingFiles) {
+      await this.transitionState(file.id, 'processing', 'pending');
+    }
+
+    this.emit('queue:resumed');
+    console.log('✅ Queue resumed');
+  }
+
+  /**
+   * Resets failed files to pending state
+   */
+  async retryFailed(): Promise<void> {
+    console.log('🔄 Retrying failed files...');
+
+    const pausedFiles = await this.database.getFilesByStatus('paused');
+    for (const file of pausedFiles) {
+      await this.transitionState(file.id, 'paused', 'pending');
+    }
+
+    this.emit('queue:retried');
+    console.log(`✅ Retried ${pausedFiles.length} failed files`);
+  }    /**
+   * Pauses queue processing without stopping
    */
   pause(): void {
     if (this.isPaused) return;
@@ -129,37 +158,14 @@ export class UnifiedQueueProcessor extends EventEmitter {
     this.isPaused = true;
 
     // Mark all currently processing files as paused
-    const processingFiles = this.database.getFilesByStatus('processing');
-    for (const file of processingFiles) {
-      this.transitionState(file.id, 'processing', 'paused');
-    }
-
-    this.emit('queue:paused');
-    console.log('✅ Queue processor paused');
-  }
-
-  /**
-   * Resumes the queue (marks paused files as pending)
-   */
-  resume(): void {
-    if (!this.isPaused) return;
-
-    console.log('▶️  Resuming queue processor...');
-    this.isPaused = false;
-
-    // Move all paused files back to pending
-    const pausedFiles = this.database.getFilesByStatus('paused');
-    for (const file of pausedFiles) {
-      this.transitionState(file.id, 'paused', 'pending');
-    }
-
-    this.emit('queue:resumed');
-    console.log('✅ Queue processor resumed');
-
-    // Immediately process next batch
-    this.processNextBatch().catch(error => {
-      console.error('❌ Error in processNextBatch after resume:', error);
-    });
+    this.database.getFilesByStatus('processing').then(processingFiles => {
+      return Promise.all(
+        processingFiles.map(file => this.transitionState(file.id, 'processing', 'paused'))
+      );
+    }).then(() => {
+      this.emit('queue:paused');
+      console.log('✅ Queue processor paused');
+    }).catch(err => console.error('Failed to pause:', err));
   }
 
   /**
@@ -180,22 +186,22 @@ export class UnifiedQueueProcessor extends EventEmitter {
     // Check if we have capacity
     const availableSlots = this.config.concurrency - this.activeProcesses.size;
     if (availableSlots <= 0) {
-      return; // All slots busy
-    }
-
-    // Fetch pending files
-    const pendingFiles = this.database.getPendingFiles(Math.min(availableSlots, this.config.batchSize));
-    
-    if (pendingFiles.length === 0) {
-      // Queue is empty
-      if (this.activeProcesses.size === 0) {
-        this.emit('queue:empty');
-      }
       return;
     }
 
+    // Get pending files
+    const allPending = await this.database.getFilesByStatus('pending');
+    const pendingFiles = allPending.slice(0, Math.min(availableSlots, this.config.batchSize));
+
+    if (pendingFiles.length === 0) {
+      this.emit('queue:empty');
+      return;
+    }
+
+    console.log(`[UnifiedQueueProcessor] 📦 Processing batch of ${pendingFiles.length} files`);
+
     // Process files in parallel
-    const promises = pendingFiles.map(file => this.processFile(file));
+    const promises = pendingFiles.map((file: FileMetadata) => this.processFile(file));
     await Promise.allSettled(promises);
   }
 
@@ -264,7 +270,7 @@ export class UnifiedQueueProcessor extends EventEmitter {
       // Transition: -> processed
       this.transitionState(fileId, metadata.status, 'processed');
       
-      const finalMetadata = this.database.getFile(fileId);
+      const finalMetadata = await this.database.getFile(fileId);
       if (finalMetadata) {
         this.emit('file:complete', finalMetadata);
       }
@@ -284,7 +290,7 @@ export class UnifiedQueueProcessor extends EventEmitter {
     state: FileProcessingStatus,
     action: (metadata: FileMetadata) => Promise<void>
   ): Promise<void> {
-    const metadata = this.database.getFile(fileId);
+    const metadata = await this.database.getFile(fileId);
     if (!metadata) {
       throw new Error(`File not found: ${fileId}`);
     }
@@ -298,16 +304,16 @@ export class UnifiedQueueProcessor extends EventEmitter {
 
     // Update progress
     const progress = this.calculateProgress(state);
-    this.database.updateFile(fileId, { progress });
+    await this.database.updateFile(fileId, { progress });
     
-    const updatedMetadata = this.database.getFile(fileId);
+    const updatedMetadata = await this.database.getFile(fileId);
     if (updatedMetadata) {
       this.emit('file:progress', updatedMetadata);
     }
   }
 
   /**
-   * Transitions file to new state
+   * Transitions file state (without waiting for result)
    */
   private transitionState(
     fileId: string,
@@ -342,19 +348,21 @@ export class UnifiedQueueProcessor extends EventEmitter {
       updates.currentStep = 'Processing failed';
     }
 
-    this.database.updateFile(fileId, updates);
-
-    const metadata = this.database.getFile(fileId);
-    if (metadata) {
-      this.emit('file:state-change', metadata, fromState, toState);
-    }
+    // Fire and forget - don't wait
+    this.database.updateFile(fileId, updates).then(() => {
+      return this.database.getFile(fileId);
+    }).then((metadata) => {
+      if (metadata) {
+        this.emit('file:state-change', metadata, fromState, toState);
+      }
+    }).catch(err => console.error('Failed to transition state:', err));
   }
 
   /**
    * Handles processing errors
    */
-  private handleError(fileId: string, error: unknown): void {
-    const metadata = this.database.getFile(fileId);
+  private async handleError(fileId: string, error: unknown): Promise<void> {
+    const metadata = await this.database.getFile(fileId);
     if (!metadata) return;
 
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -377,7 +385,7 @@ export class UnifiedQueueProcessor extends EventEmitter {
       }, this.config.retryDelay);
     } else {
       // Mark as error
-      this.database.updateFile(fileId, {
+      await this.database.updateFile(fileId, {
         status: 'error',
         retryCount,
         errorMessage,
@@ -386,7 +394,7 @@ export class UnifiedQueueProcessor extends EventEmitter {
         updatedAt: new Date().toISOString()
       });
 
-      const errorMetadata = this.database.getFile(fileId);
+      const errorMetadata = await this.database.getFile(fileId);
       if (errorMetadata) {
         this.emit('file:error', errorMetadata, error as Error);
       }

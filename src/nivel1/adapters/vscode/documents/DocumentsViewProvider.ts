@@ -42,6 +42,8 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   private readonly documents: Map<string, DocumentItem> = new Map();
   private readonly _extensionUri: vscode.Uri;
   private _fileDatabase?: FileMetadataDatabase;
+  private _refreshIntervalId?: NodeJS.Timeout;
+  private readonly _refreshIntervalMs = 5000; // Refresh every 5 seconds when view is visible
 
   constructor(extensionUri: vscode.Uri, fileDatabase?: FileMetadataDatabase) {
     this._extensionUri = extensionUri;
@@ -53,6 +55,57 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    */
   setFileDatabase(fileDatabase: FileMetadataDatabase): void {
     this._fileDatabase = fileDatabase;
+  }
+
+  /**
+   * Notifies the webview of file processing updates
+   * Called by cronjob when files are processed
+   */
+  notifyFileUpdate(event: {
+    type: 'processing' | 'completed' | 'error';
+    fileId: string;
+    filePath: string;
+    progress?: number;
+    currentStep?: string;
+    error?: string;
+    metrics?: {
+      chunksCount: number;
+      nodesCount: number;
+      relationshipsCount: number;
+      duration: number;
+    };
+  }): void {
+    if (!this._view) {
+      return;
+    }
+
+    console.log(`📢 [DocumentsViewProvider] Notifying webview of ${event.type} for ${event.filePath}`);
+
+    // Send update to webview
+    this._view.webview.postMessage({
+      type: 'document/update',
+      payload: {
+        fileId: event.fileId,
+        filePath: event.filePath,
+        status: event.type === 'completed' ? 'processed' : event.type,
+        progress: event.progress,
+        currentStep: event.currentStep,
+        errorMessage: event.error,
+        chunksCount: event.metrics?.chunksCount,
+        nodesCount: event.metrics?.nodesCount,
+        relationshipsCount: event.metrics?.relationshipsCount
+      }
+    });
+
+    // If processing completed or failed, refresh the list to show updated data
+    if (event.type === 'completed' || event.type === 'error') {
+      // Debounce refresh to avoid too many updates
+      setTimeout(() => {
+        this.refreshDocumentList().catch(err => {
+          console.error('Failed to refresh document list after update:', err);
+        });
+      }, 500);
+    }
   }
 
   /**
@@ -81,6 +134,9 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     this.refreshDocumentList().catch(error => {
       console.error('❌ [DocumentsViewProvider] Failed to load initial documents:', error);
     });
+
+    // Start auto-refresh interval when view becomes visible
+    this._startAutoRefresh();
     
     // Probe extension -> webview channel
     try {
@@ -89,6 +145,17 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     } catch (e) {
       console.warn('⚠️ [DocumentsViewProvider] Failed to send hello to webview:', e);
     }
+
+    // Stop auto-refresh when view is hidden
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        console.log('👁️ [DocumentsViewProvider] View became visible - starting auto-refresh');
+        this._startAutoRefresh();
+      } else {
+        console.log('🙈 [DocumentsViewProvider] View became hidden - stopping auto-refresh');
+        this._stopAutoRefresh();
+      }
+    });
 
     // Handle messages from the webview
     const disposeListener = webviewView.webview.onDidReceiveMessage(async (data) => {
@@ -249,6 +316,36 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       this._view?.webview.postMessage({
         type: 'document/scan-completed'
       });
+    }
+  }
+
+  /**
+   * Starts auto-refresh interval
+   */
+  private _startAutoRefresh(): void {
+    // Clear existing interval if any
+    this._stopAutoRefresh();
+
+    console.log(`🔄 [DocumentsViewProvider] Starting auto-refresh (every ${this._refreshIntervalMs}ms)`);
+    
+    this._refreshIntervalId = setInterval(() => {
+      if (this._view?.visible) {
+        console.log('🔄 [DocumentsViewProvider] Auto-refreshing document list');
+        this.refreshDocumentList().catch(err => {
+          console.error('Failed to auto-refresh documents:', err);
+        });
+      }
+    }, this._refreshIntervalMs);
+  }
+
+  /**
+   * Stops auto-refresh interval
+   */
+  private _stopAutoRefresh(): void {
+    if (this._refreshIntervalId) {
+      clearInterval(this._refreshIntervalId);
+      this._refreshIntervalId = undefined;
+      console.log('⏹️ [DocumentsViewProvider] Stopped auto-refresh');
     }
   }
 

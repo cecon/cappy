@@ -95,8 +95,6 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
               workspaceRoot,
               repoId: path.basename(workspaceRoot),
               parserService,
-              indexingService,
-              graphStore,
               metadataDatabase, // Pass metadata database
               batchSize: 10,
               concurrency: 3

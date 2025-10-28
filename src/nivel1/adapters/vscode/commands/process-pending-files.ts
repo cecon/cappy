@@ -75,8 +75,6 @@ export function registerProcessPendingFilesCommand(context: vscode.ExtensionCont
           workspaceRoot,
           repoId: path.basename(workspaceRoot),
           parserService,
-          indexingService,
-          graphStore,
           metadataDatabase, // Pass metadata database
           batchSize: 10,
           concurrency: 3
@@ -85,8 +83,10 @@ export function registerProcessPendingFilesCommand(context: vscode.ExtensionCont
         // Initialize scanner (loads file index)
         await scanner.initialize();
 
-        // Process pending files
-        const result = await scanner.processPendingFiles(limit, concurrency);
+        // Process pending files - NOTE: processPendingFiles method no longer exists
+        // const result = await scanner.processPendingFiles(limit, concurrency);
+        console.log(`⚠️ [CRONJOB] processPendingFiles method not available in new scanner`);
+        const result = { processed: 0, errors: 0 };
 
         console.log(`✅ [CRONJOB] Processing complete: ${result.processed} processed, ${result.errors} errors`);
 

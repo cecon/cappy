@@ -62,7 +62,7 @@ export class DocumentManagement {
     try {
       console.log("📦 [DocumentManagement] Importando FileMetadataDatabase...");
       const { FileMetadataDatabase } = await import(
-        "../../nivel2/infrastructure/services/file-metadata-database"
+        "../../nivel2/infrastructure/services/file-metadata-database.js"
       );
 
       console.log("🔧 [DocumentManagement] Inicializando database...");
@@ -86,7 +86,7 @@ export class DocumentManagement {
 
       if (result.files.length > 0) {
         console.log("📋 [DocumentManagement] Primeiros 5 arquivos da página:");
-        result.files.slice(0, 5).forEach((file, idx) => {
+        result.files.slice(0, 5).forEach((file: FileMetadata, idx: number) => {
           console.log(`   ${idx + 1}. ${file.fileName} (${file.status})`);
         });
       }
@@ -163,7 +163,7 @@ export class DocumentManagement {
       
       console.log("📦 [DocumentManagement] Importando FileMetadataDatabase...");
       const { FileMetadataDatabase } = await import(
-        "../../nivel2/infrastructure/services/file-metadata-database"
+        "../../nivel2/infrastructure/services/file-metadata-database.js"
       );
       
       console.log("🔧 [DocumentManagement] Inicializando database...");

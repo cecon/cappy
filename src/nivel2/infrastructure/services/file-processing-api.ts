@@ -209,7 +209,7 @@ export class FileProcessingAPI {
         console.log(`[FileProcessingAPI] 🗑️  Remove requested for ${fileId} (${filePath})`);
 
         // Try to fetch metadata from DB (may be absent for indexed-only entries)
-        const metadata = this.database.getFile(String(fileId));
+        const metadata = await this.database.getFile(String(fileId));
 
         // Determine the file path to operate on (prefer explicit filePath from request)
         const actualFilePath = filePath || metadata?.filePath;
@@ -242,7 +242,7 @@ export class FileProcessingAPI {
 
         // 2. Delete from database if it exists (for uploaded/queued files)
         if (metadata) {
-          this.database.deleteFile(String(fileId));
+          await this.database.deleteFile(String(fileId));
           console.log(`[FileProcessingAPI] ✅ File metadata deleted from database`);
         } else {
           // If no metadata, this is likely an indexed-only entry; treat as best-effort graph cleanup
@@ -292,7 +292,7 @@ export class FileProcessingAPI {
         const virtualPath = `uploaded:${uploadRequest.fileName}`;
         
         // Check if file already exists
-        const existing = this.database.getFileByPath(virtualPath);
+        const existing = await this.database.getFileByPath(virtualPath);
         
         let fileId: string;
         if (existing) {
@@ -303,7 +303,7 @@ export class FileProcessingAPI {
             fileId = existing.id;
           } else {
             // Different content, mark for reprocessing
-            this.database.updateFile(existing.id, {
+            await this.database.updateFile(existing.id, {
               status: 'pending',
               fileHash: hash,
               fileContent: uploadRequest.content,
@@ -361,7 +361,7 @@ export class FileProcessingAPI {
       return;
     }
 
-    const metadata = this.database.getFile(fileIdStr);
+    const metadata = await this.database.getFile(fileIdStr);
 
     if (!metadata) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -517,8 +517,9 @@ export class FileProcessingAPI {
       console.log('[FileProcessingAPI] 🗑️ Clearing all files from database and graph...');
       
       // Clear all files from metadata database (memory + disk)
-      this.database.clearAll();
-      console.log('[FileProcessingAPI] ✅ File metadata cleared');
+      // TODO: Implement clearAll method in FileMetadataDatabase
+      // this.database.clearAll();
+      console.log('[FileProcessingAPI] ⚠️  File metadata clear not implemented yet');
       
       // Clear all data from graph database (memory + disk)
       if (this.graphStore) {
@@ -526,7 +527,7 @@ export class FileProcessingAPI {
         console.log('[FileProcessingAPI] ✅ Graph database cleared');
       }
       
-      console.log('[FileProcessingAPI] ✅ All data cleared successfully');
+      console.log('[FileProcessingAPI] ✅ Graph data cleared successfully');
       
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ 

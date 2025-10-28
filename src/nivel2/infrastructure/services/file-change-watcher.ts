@@ -125,11 +125,11 @@ export class FileChangeWatcher {
       }
 
       // Check if file already exists in database
-      const existing = this.database.getFileByPath(filePath);
+      const existing = await this.database.getFileByPath(filePath);
       if (existing) {
         // File was recreated, mark for reprocessing
         const hash = await this.hashService.hashFile(filePath);
-        this.database.updateFile(existing.id, {
+        await this.database.updateFile(existing.id, {
           status: 'pending',
           fileHash: hash,
           retryCount: 0,
@@ -185,7 +185,7 @@ export class FileChangeWatcher {
       }
 
       // Get existing metadata
-      const existing = this.database.getFileByPath(filePath);
+      const existing = await this.database.getFileByPath(filePath);
       if (!existing) {
         // File not in database, add it
         await this.handleFileCreate(uri);
@@ -197,7 +197,7 @@ export class FileChangeWatcher {
       
       if (newHash !== existing.fileHash) {
         // File changed, mark for reprocessing
-        this.database.updateFile(existing.id, {
+        await this.database.updateFile(existing.id, {
           status: 'pending',
           fileHash: newHash,
           retryCount: 0,
@@ -228,10 +228,10 @@ export class FileChangeWatcher {
       const relPath = path.relative(this.config.workspaceRoot, filePath);
       
       // Get existing metadata
-      const existing = this.database.getFileByPath(filePath);
+      const existing = await this.database.getFileByPath(filePath);
       if (existing) {
         // Remove from database
-        this.database.deleteFile(existing.id);
+        await this.database.deleteFile(existing.id);
         console.log(`➖ Deleted file removed from queue: ${relPath}`);
       }
     } catch (error) {

@@ -9,12 +9,31 @@ import { FileMetadataDatabase } from './file-metadata-database';
 import type { FileProcessingWorker } from './file-processing-worker';
 
 /**
+ * Event callback for file processing updates
+ */
+export type FileProcessingEventCallback = (event: {
+  type: 'processing' | 'completed' | 'error';
+  fileId: string;
+  filePath: string;
+  progress?: number;
+  currentStep?: string;
+  error?: string;
+  metrics?: {
+    chunksCount: number;
+    nodesCount: number;
+    relationshipsCount: number;
+    duration: number;
+  };
+}) => void;
+
+/**
  * Cronjob configuration
  */
 export interface CronJobConfig {
   intervalMs: number;        // Processing interval (default: 10000ms)
   autoStart: boolean;        // Auto start on creation (default: true)
   workspaceRoot: string;     // Workspace root path
+  onFileProcessed?: FileProcessingEventCallback; // Callback for processing events
 }
 
 /**
@@ -114,6 +133,15 @@ export class FileProcessingCronJob {
       const file = pendingFiles[0];
       console.log(`\n📄 [CronJob] Processing file: ${file.filePath}`);
 
+      // Emit processing started event
+      this.config.onFileProcessed?.({
+        type: 'processing',
+        fileId: file.id,
+        filePath: file.filePath,
+        progress: 5,
+        currentStep: 'Processing file...'
+      });
+
       // Update status to processing
       await this.database.updateFile(file.id, {
         status: 'processing',
@@ -125,6 +153,15 @@ export class FileProcessingCronJob {
       try {
         // Create progress callback to update database
         const onProgress = (step: string, progress: number): void => {
+          // Emit progress event
+          this.config.onFileProcessed?.({
+            type: 'processing',
+            fileId: file.id,
+            filePath: file.filePath,
+            progress,
+            currentStep: step
+          });
+
           // Update database without awaiting to avoid blocking
           this.database.updateFile(file.id, {
             currentStep: step,
@@ -157,6 +194,21 @@ export class FileProcessingCronJob {
         console.log(`   Nodes: ${result.nodesCount}`);
         console.log(`   Relationships: ${result.relationshipsCount}`);
 
+        // Emit completion event
+        this.config.onFileProcessed?.({
+          type: 'completed',
+          fileId: file.id,
+          filePath: file.filePath,
+          progress: 100,
+          currentStep: 'Completed',
+          metrics: {
+            chunksCount: result.chunksCount,
+            nodesCount: result.nodesCount,
+            relationshipsCount: result.relationshipsCount,
+            duration: result.duration
+          }
+        });
+
       } catch (error) {
         // Mark as error
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -167,6 +219,14 @@ export class FileProcessingCronJob {
           errorMessage,
           processingCompletedAt: new Date().toISOString(),
           retryCount: file.retryCount + 1
+        });
+
+        // Emit error event
+        this.config.onFileProcessed?.({
+          type: 'error',
+          fileId: file.id,
+          filePath: file.filePath,
+          error: errorMessage
         });
       }
 

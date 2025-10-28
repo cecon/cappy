@@ -545,14 +545,20 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         // No HTTP API - using postMessage communication instead
         console.log('✅ File processing system initialized (no HTTP API)');
 
-        // Initialize cronjob for automated file processing
+        // Initialize cronjob for automated file processing with event callback
         fileCronJob = new FileProcessingCronJob(
             fileDatabase,
             worker,
             {
                 intervalMs: 10000, // 10 seconds
                 autoStart: true,
-                workspaceRoot
+                workspaceRoot,
+                onFileProcessed: (event) => {
+                    // Notify DocumentsViewProvider of file processing events
+                    if (documentsViewProviderInstance) {
+                        documentsViewProviderInstance.notifyFileUpdate(event);
+                    }
+                }
             }
         );
         console.log('✅ File processing cronjob started (10s interval)');

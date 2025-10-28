@@ -74,7 +74,7 @@ export async function reanalyzeRelationships(
 
             if (isUploadedFile && metadataDb) {
               // Get file content from metadata database
-              const metadata = metadataDb.getFileByPath(filePath);
+              const metadata = await metadataDb.getFileByPath(filePath);
               
               if (metadata?.fileContent) {
                 // Create temporary file for analysis
