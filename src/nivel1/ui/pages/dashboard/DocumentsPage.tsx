@@ -71,7 +71,6 @@ const DocumentsPage: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [vscodeApiReady, setVscodeApiReady] = useState(false);
   
   // Dados de exemplo (exatamente como no LightRAG)
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -81,14 +80,12 @@ const DocumentsPage: React.FC = () => {
       const w = (globalThis as { window: unknown }).window as WindowWithVSCode & { acquireVsCodeApi?: () => VSCodeApi };
       if (w.vscodeApi) {
         console.log('[DocumentsPage] ✅ vscodeApi found (already initialized)');
-        setVscodeApiReady(true);
         return w.vscodeApi;
       }
       if (typeof w.acquireVsCodeApi === 'function') {
         console.log('[DocumentsPage] ✅ acquireVsCodeApi found, acquiring...');
         const api = w.acquireVsCodeApi();
         w.vscodeApi = api;
-        setVscodeApiReady(true);
         return api;
       }
     }
@@ -255,15 +252,6 @@ const DocumentsPage: React.FC = () => {
   }, [vscodeApi, currentPage, itemsPerPage, statusFilter, sortField, sortOrder]);
 
   // Load documents on mount and when filters/pagination changes (but only if vscodeApi is ready)
-  useEffect(() => {
-    if (vscodeApiReady) {
-      console.log('[DocumentsPage] vscodeApi is ready, loading documents...');
-      loadDocuments();
-    } else {
-      console.log('[DocumentsPage] Waiting for vscodeApi to be ready...');
-    }
-  }, [loadDocuments, vscodeApiReady]);
-
   // Listen for messages from extension
   useEffect(() => {
     console.log('[DocumentsPage] 🎧 Setting up message listener');
@@ -862,6 +850,11 @@ const DocumentsPage: React.FC = () => {
                               <td className="h-16 px-4 align-middle">
                                 <div className="group relative">
                                   <div className="truncate max-w-xs text-sm">{truncateText(doc.summary, 80)}</div>
+                                  {doc.status === 'processing' && doc.currentStep && (
+                                    <div className="mt-1 text-xs text-muted-foreground">
+                                      {truncateText(doc.currentStep, 80)}
+                                    </div>
+                                  )}
                                   {doc.summary.length > 80 && (
                                     <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-popover text-popover-foreground text-xs rounded-md px-3 py-2 shadow-lg border border-border max-w-md z-50 whitespace-normal">
                                       {doc.summary}
