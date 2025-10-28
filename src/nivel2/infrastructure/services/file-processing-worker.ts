@@ -67,6 +67,7 @@ export class FileProcessingWorker {
 
     try {
       let fileContent: string;
+      let absolutePath: string;
       
       // Step 1: Get file content
       onProgress?.('Loading file...', 5);
@@ -75,19 +76,24 @@ export class FileProcessingWorker {
         // Uploaded file with embedded content
         console.log(`📄 Processing uploaded file: ${filePath}`);
         fileContent = Buffer.from(base64Content, 'base64').toString('utf-8');
+        absolutePath = filePath; // For uploaded files, path is just a label
         console.log(`✓ Loaded from database (${fileContent.length} bytes)`);
       } else {
-        // Physical file on disk
-        if (!fs.existsSync(filePath)) {
-          throw new Error(`File not found: ${filePath}`);
+        // Physical file on disk - resolve to absolute path if needed
+        absolutePath = path.isAbsolute(filePath) 
+          ? filePath 
+          : path.join(this.workspaceRoot, filePath);
+        
+        if (!fs.existsSync(absolutePath)) {
+          throw new Error(`File not found: ${filePath} (resolved to: ${absolutePath})`);
         }
 
-        const stats = fs.statSync(filePath);
+        const stats = fs.statSync(absolutePath);
         if (stats.size === 0) {
           throw new Error(`File is empty: ${filePath}`);
         }
 
-        fileContent = fs.readFileSync(filePath, 'utf-8');
+        fileContent = fs.readFileSync(absolutePath, 'utf-8');
         console.log(`✓ Loaded from disk (${fileContent.length} bytes)`);
       }
 
@@ -98,7 +104,7 @@ export class FileProcessingWorker {
         const crypto = await import('crypto');
         fileHash = crypto.createHash('sha256').update(Buffer.from(base64Content, 'base64')).digest('hex');
       } else {
-        fileHash = await this.hashService.hashFile(filePath);
+        fileHash = await this.hashService.hashFile(absolutePath);
       }
       console.log(`File hash: ${fileHash}`);
 
@@ -128,7 +134,8 @@ export class FileProcessingWorker {
           console.log(`🗑️  Temporary file cleaned up`);
           tempFilePath = null;
         } else {
-          chunks = await this.parserService.parseFile(filePath, false);
+          // Use absolute path for parsing
+          chunks = await this.parserService.parseFile(absolutePath, false);
         }
       } catch (parseError) {
         // Clean up temp file if it exists

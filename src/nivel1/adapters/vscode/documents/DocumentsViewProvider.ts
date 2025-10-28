@@ -129,11 +129,8 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
     
-    // Load initial document list from database
-    console.log('📊 [DocumentsViewProvider] Loading initial document list from database');
-    this.refreshDocumentList().catch(error => {
-      console.error('❌ [DocumentsViewProvider] Failed to load initial documents:', error);
-    });
+    // DON'T load initial list here - wait for webview-ready message
+    console.log('📊 [DocumentsViewProvider] Waiting for webview-ready before loading documents');
 
     // Start auto-refresh interval when view becomes visible
     this._startAutoRefresh();
@@ -190,7 +187,9 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
             break;
           }
           case 'webview-ready':
-            console.log('✅ [DocumentsViewProvider] Webview reported ready');
+            console.log('✅ [DocumentsViewProvider] Webview reported ready - loading documents');
+            // Load documents when webview is ready
+            await this.refreshDocumentList();
             break;
         }
       } catch (error) {
