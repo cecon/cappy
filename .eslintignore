@@ -1,0 +1,8 @@
+# Ignore compiled output and generated artifacts
+out/
+.cappy/
+node_modules/
+coverage/
+dist/
+**/*.generated.*
+**/chat-dist/

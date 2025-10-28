@@ -1,0 +1,122 @@
+﻿/**
+ * @fileoverview Simplified SQLite adapter for graph storage using sqlite3
+ * @module adapters/secondary/graph/sqlite-simple-adapter
+ * @since 3.0.0
+ */
+
+import sqlite3 from "sqlite3";
+import * as fs from "fs";
+import * as path from "path";
+
+import type { GraphStorePort } from "../../../domains/graph/ports/indexing-port";
+import type { DocumentChunk } from "../../../types/chunk";
+
+/**
+ * Simplified SQLite adapter using sqlite3
+ * Compatible with VS Code Extension Host
+ */
+export class SQLiteAdapter implements GraphStorePort {
+  private readonly dbPath: string;
+  private db: sqlite3.Database | null = null;
+  private dbFilePath = "";
+
+  constructor(dbPath: string) {
+    this.dbPath = dbPath;
+  }
+
+  async initialize(): Promise<void> {
+    console.log( Initializing SQLite database: );
+
+    // Resolve file path
+    let dbFilePath = this.dbPath;
+    if (!path.isAbsolute(dbFilePath)) {
+      dbFilePath = path.resolve(dbFilePath);
+    }
+    // If path is directory or missing extension, ensure graph-store.db
+    if ((fs.existsSync(dbFilePath) && fs.statSync(dbFilePath).isDirectory()) || !path.extname(dbFilePath)) {
+      dbFilePath = path.join(dbFilePath, "graph-store.db");
+    }
+
+    const parentDir = path.dirname(dbFilePath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+
+    this.dbFilePath = dbFilePath;
+    console.log( SQLite: Using database file: );
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        this.db = new sqlite3.Database(dbFilePath, (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      await this.run("PRAGMA foreign_keys = ON");
+      await this.createSchema();
+      console.log(" SQLite: Database initialized");
+    } catch (error) {
+      console.error(" SQLite initialization error:", error);
+      throw new Error(Failed to initialize SQLite: Não é possível localizar um parâmetro que coincida com o nome de parâmetro 'Chord'. Não é possível localizar um parâmetro que coincida com o nome de parâmetro 'Chord'. Não é possível localizar um parâmetro que coincida com o nome de parâmetro 'Chord'. Não é possível localizar um parâmetro que coincida com o nome de parâmetro 'Chord'.);
+    }
+  }
+
+  async reloadFromDisk(): Promise<void> {
+    try {
+      if (this.db) {
+        await new Promise<void>((resolve) => {
+          this.db!.close(() => resolve());
+        });
+      }
+      
+      await new Promise<void>((resolve, reject) => {
+        this.db = new sqlite3.Database(this.dbFilePath, (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      await this.run("PRAGMA foreign_keys = ON");
+      await this.createSchema();
+      console.log(" SQLite: Reloaded database from disk");
+    } catch (error) {
+      console.error(" SQLite reloadFromDisk error:", error);
+    }
+  }
+
+  private async run(sql: string, params: unknown[] = []): Promise<void> {
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      this.db!.run(sql, params, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+
+  private async all<T = unknown>(sql: string, params: unknown[] = []): Promise<T[]> {
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      this.db!.all(sql, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows as T[]);
+      });
+    });
+  }
+
+  private async get<T = unknown>(sql: string, params: unknown[] = []): Promise<T | undefined> {
+    if (!this.db) throw new Error("Database not initialized");
+    return new Promise((resolve, reject) => {
+      this.db!.get(sql, params, (err, row) => {
+        if (err) reject(err);
+        else resolve(row as T | undefined);
+      });
+    });
+  }

@@ -1,60 +1,16 @@
-# Build outputs
-out/test/**
-src/**
-.vscode-test/**
-.vscode/launch.json
-.vscode/tasks.json
-.vscode/settings.json
-
-# Development files
+# Exclude large/unnecessary folders from the VSIX
+# Note: We need node_modules for production dependencies like @lancedb/lancedb
+# The --dependencies flag should handle including only production deps
+old/
+docs/
+.vscode/
+.git/
 .gitignore
-.gitattributes
-tsconfig.json
-**/*.ts
+.vscodeignore
 **/*.map
-.eslintrc.json
-
-# Documentation (keep only essential ones)
-IMPLEMENTATION_LOG.md
-EXTENSION_README.md
-SINGLE_ACTIVITY_IMPLEMENTATION.md
-SOLO_DEVELOPMENT_CHANGES.md
-IMPLEMENTATION_COMPLETE.md
-
-# Dependencies - only include what's really needed at runtime
-node_modules/**
-
-# Tests
-**/test/**
 **/*.test.*
-**/*.spec.*
-
-# Source control
-.git/**
-.github/**
-
-# Logs
-*.log
-npm-debug.log*
-
-# Runtime files
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage
-coverage/
-
-# Temporary files
-tmp/
-temp/
-
-# CappyRAG data files (exclude from package)
-.cappy/cappyrag-data/**
-.cappy/indexes/**
-.cappy/TODO/**
-.cappy/history/**
-
-# OS files
-.DS_Store
-Thumbs.db
+**/__tests__/**
+# Keep built output and extension entry
+!out/**
+!src/assets/**
+# Include package.json, README, LICENSE by default

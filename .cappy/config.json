@@ -1,0 +1,48 @@
+{
+  "indexing": {
+    "enabledFileTypes": [".ts", ".tsx", ".js", ".jsx", ".md"],
+    "chunking": {
+      "typescript": {
+        "strategy": "ast",
+        "extractJSDoc": true,
+        "extractCode": false
+      },
+      "markdown": {
+        "strategy": "hybrid",
+        "maxTokens": 512,
+        "overlapTokens": 100,
+        "respectHeaders": true
+      }
+    },
+    "llm": {
+      "provider": "copilot",
+      "model": "gpt-4o-mini",
+      "enabledFor": {
+        "typescript": false,
+        "javascript": false,
+        "markdown": true
+      },
+      "batchSize": 5,
+      "maxTokensPerRequest": 2000
+    }
+  },
+  "embeddings": {
+    "model": "Xenova/all-MiniLM-L6-v2",
+    "dimensions": 384,
+    "batchSize": 32
+  },
+  "databases": {
+    "lancedb": {
+      "path": ".cappy/data/lancedb",
+      "autoCompact": true
+    },
+    "graph": {
+      "path": ".cappy/data",
+      "bufferPoolSize": "256MB"
+    },
+    "kuzu": {
+      "path": ".cappy/data",
+      "bufferPoolSize": "256MB"
+    }
+  }
+}

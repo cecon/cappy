@@ -1,12 +1,16 @@
 {
   "name": "cappy",
   "displayName": "Cappy",
-  "description": "AI coding companion with Single-Focus Workflow and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
-  "icon": "assets/icon.png",
-  "version": "2.9.100",
+  "description": "AI coding companion with Single-Focus Workflow, Hybrid Retriever, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
+  "version": "3.0.8",
   "publisher": "eduardocecon",
+  "icon": "src/assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cecon/cappy"
+  },
   "engines": {
-    "vscode": "^1.75.0",
+    "vscode": "^1.105.0",
     "cursor": ">=0.1.0"
   },
   "categories": [
@@ -24,187 +28,369 @@
     "automation",
     "prevention",
     "task-management",
-    "cursor-compatible"
+    "cursor-compatible",
+    "hybrid-search",
+    "rag",
+    "vector-search",
+    "graph-database",
+    "semantic-search",
+    "hybrid-retriever",
+    "language-model-tools"
   ],
   "activationEvents": [
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "languageModel": {
+      "enabled": true
+    }
+  },
   "contributes": {
     "commands": [
       {
-        "command": "cappy.init",
-        "title": "🦫 Initialize Cappy",
+        "command": "cappy.openGraph",
+        "title": "📊 Cappy: Open Graph",
         "category": "Cappy"
       },
       {
-        "command": "cappy.knowstack",
-        "title": "🧠 Cappy: KnowStack",
+        "command": "cappy.openChat",
+        "title": "💬 Cappy: Open Chat",
         "category": "Cappy"
       },
       {
-        "command": "cappy.runknowstack",
-        "title": "🧠 Cappy: KnowStack (alias)",
+        "command": "cappy.scanWorkspace",
+        "title": "🔍 Cappy: Scan Workspace",
         "category": "Cappy"
       },
       {
-        "command": "cappy.knowtask",
-        "title": "🧠 Cappy: KnowStack (typo alias)",
+        "command": "cappy.processSingleFile",
+        "title": "🧪 Cappy: Process Single File (Test)",
         "category": "Cappy"
       },
       {
-        "command": "cappy.viewTelemetryTerms",
-        "title": "📄 Cappy: Ver Termos de Telemetria",
+        "command": "cappy.debug",
+        "title": "🐛 Cappy: Debug - List Commands",
+        "category": "Cappy Debug"
+      },
+      {
+        "command": "cappy.debugDatabase",
+        "title": "🔍 Cappy: Debug - Inspect Database",
+        "category": "Cappy Debug"
+      },
+      {
+        "command": "cappy.debugAddTestData",
+        "title": "➕ Cappy: Debug - Add Test Data",
+        "category": "Cappy Debug"
+      },
+      {
+        "command": "cappy.reanalyzeRelationships",
+        "title": "🔄 Cappy: Reanalyze All Relationships",
         "category": "Cappy"
       },
       {
-        "command": "cappy.new",
-        "title": "🧩 Cappy: New Task",
+        "command": "cappy.diagnoseGraph",
+        "title": "🔍 Cappy: Diagnose Graph Structure",
         "category": "Cappy"
       },
       {
-        "command": "cappy.getActiveTask",
-        "title": "📄 Cappy: Get Active Task (XML content)",
+        "command": "cappy.resetDatabase",
+        "title": "🗑️ Cappy: Reset Graph Database",
         "category": "Cappy"
       },
       {
-        "command": "cappy.version",
-        "title": "📦 Cappy: Get Version",
+        "command": "cappy.testRetriever",
+        "title": "🧪 Cappy: Test Context Retriever",
         "category": "Cappy"
       },
       {
-        "command": "cappy.createTaskFile",
-        "title": "📝 Cappy: Create Task File",
+        "command": "cappy.pauseQueue",
+        "title": "⏸️ Cappy: Pause Processing Queue",
         "category": "Cappy"
       },
       {
-        "command": "cappy.changeTaskStatus",
-        "title": "🔄 Cappy: Change Task Status",
+        "command": "cappy.resumeQueue",
+        "title": "▶️ Cappy: Resume Processing Queue",
         "category": "Cappy"
       },
       {
-        "command": "cappy.completeTask",
-        "title": "✅ Cappy: Complete Task",
+        "command": "cappy.queueStatus",
+        "title": "📊 Cappy: Show Queue Status",
         "category": "Cappy"
       },
       {
-        "command": "cappy.addPreventionRule",
-        "title": "➕ Cappy: Add Prevention Rule",
-        "category": "Cappy"
-      },
+        "command": "cappy.debugRetrieval",
+        "title": "🔎 Cappy: Debug - Retrieval Test",
+        "category": "Cappy Debug"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cappy",
+          "title": "Cappy",
+          "icon": "src/assets/cappy-activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "cappy": [
+        {
+          "id": "cappy.chatView",
+          "name": "Chat",
+          "type": "webview",
+          "icon": "src/assets/chat.svg"
+        },
+        {
+          "id": "cappy.documentsView",
+          "name": "Documents",
+          "type": "webview",
+          "icon": "src/assets/documents.svg"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "cappy.openGraph",
+          "when": "true",
+          "group": "cappy"
+        },
+        {
+          "command": "cappy.openChat",
+          "when": "true",
+          "group": "cappy"
+        }
+      ]
+    },
+    "keybindings": [
       {
-        "command": "cappy.removePreventionRule",
-        "title": "➖ Cappy: Remove Prevention Rule",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.workOnCurrentTask",
-        "title": "🎯 Cappy: Work on Current Task",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.reindex",
-        "title": "🔄 Cappy: Reindex Files",
-        "category": "Cappy"
+        "command": "cappy.openGraph",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g",
+        "when": "editorTextFocus"
       }
     ],
     "configuration": {
       "title": "Cappy",
-      "properties": {
-        "cappy.autoUpdateCopilotContext": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically update Copilot context when prevention rules change"
-        },
-        "cappy.maxPreventionRules": {
-          "type": "number",
-          "default": 50,
-          "description": "Maximum number of prevention rules to include in Copilot context"
-        },
-        "cappy.taskTimeEstimation": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable automatic task time estimation and atomicity analysis"
-        },
-        "cappy.showNotifications": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show notifications for Cappy events"
-        }
-      }
+      "properties": {}
     },
-    "snippets": [
+    "languageModelTools": [
       {
-        "language": "markdown",
-        "path": "./snippets/capybara.json"
-      }
-    ],
-    "languages": [
-      {
-        "id": "cappy-task-xml",
-        "aliases": [
-          "Cappy Task XML",
-          "cappy-task"
+        "name": "cappy_create_file",
+        "displayName": "Create File",
+        "modelDescription": "Creates a new file in the workspace with the specified content. Use this when the user asks to create a file.",
+        "userDescription": "Create a new file in the workspace",
+        "toolReferenceName": "createFile",
+        "tags": [
+          "file",
+          "create",
+          "workspace",
+          "cappy"
         ],
-        "extensions": [
-          ".task.xml"
-        ],
-        "configuration": "./language-configuration.json"
-      }
-    ],
-    "grammars": [
-      {
-        "language": "markdown",
-        "scopeName": "text.html.markdown.cappy",
-        "path": "./syntaxes/forge-task.tmLanguage.json"
+        "icon": "$(new-file)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Relative path from workspace root where the file should be created"
+            },
+            "content": {
+              "type": "string",
+              "description": "Content to write to the file"
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
       },
       {
-        "language": "cappy-task-xml",
-        "scopeName": "text.xml.cappy.task",
-        "path": "./syntaxes/cappy-task-xml.tmLanguage.json"
+        "name": "cappy_fetch_web",
+        "displayName": "Fetch Web",
+        "modelDescription": "Fetches content from a web URL (HTML, JSON, or text). Provide the url and optionally a CSS selector.",
+        "userDescription": "Fetch content from a web URL",
+        "toolReferenceName": "fetchWeb",
+        "tags": [
+          "web",
+          "fetch",
+          "http",
+          "url",
+          "cappy"
+        ],
+        "icon": "$(globe)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "HTTP/HTTPS URL to fetch"
+            },
+            "selector": {
+              "type": "string",
+              "description": "Optional CSS selector to extract specific content from HTML"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      },
+      {
+        "name": "cappy_retrieve_context",
+        "displayName": "Retrieve Context",
+        "modelDescription": "Searches for relevant context across code, documentation, prevention rules, and tasks. Use this before answering questions about existing code, best practices, or implementation patterns. Returns comprehensive information with relevance scores.",
+        "userDescription": "Search for relevant context from code, documentation, and prevention rules",
+        "toolReferenceName": "retrieveContext",
+        "tags": [
+          "context",
+          "search",
+          "documentation",
+          "code",
+          "prevention",
+          "cappy"
+        ],
+        "icon": "$(search)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query describing what context you need (e.g., 'JWT authentication', 'database migration patterns', 'error handling rules')"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results to return (default: 10)"
+            },
+            "minScore": {
+              "type": "number",
+              "description": "Minimum relevance score from 0 to 1 (default: 0.5)"
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "code",
+                  "documentation",
+                  "prevention",
+                  "task"
+                ]
+              },
+              "description": "Sources to search in (default: ['code', 'documentation', 'prevention'])"
+            },
+            "category": {
+              "type": "string",
+              "description": "Filter results by category (e.g., 'auth', 'database', 'api', 'ui')"
+            },
+            "includeRelated": {
+              "type": "boolean",
+              "description": "Include related context in results (default: true)"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
       }
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "dev": "vite",
+    "dev:ui": "vite --open /dev.html",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:entity-extraction": "npx tsx test-entity-extraction.ts",
+    "test:word-parsing": "npx tsx test-word-parsing-standalone.ts",
+    "vscode:prepublish": "npm run compile-extension",
+    "compile-extension": "tsc --project tsconfig.extension.json",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts",
-    "test": "npm run compile && node ./out/test/runTest.js",
-    "test-simple": "npm run compile && echo 'Simple tests compiled successfully - check VS Code test output'",
-    "test-watch": "npm run test -- --watch",
-    "test-folder-structure": "npm run compile && echo 'Teste de estrutura de pastas compilado com sucesso'",
-    "package": "vsce package --dependencies",
-    "publish": "vsce publish"
-  },
-  "devDependencies": {
-    "@types/glob": "^8.0.0",
-    "@types/mocha": "^10.0.0",
-    "@types/node": "16.x",
-    "@types/sinon": "^17.0.4",
-    "@types/vscode": "^1.74.0",
-    "@typescript-eslint/eslint-plugin": "^5.45.0",
-    "@typescript-eslint/parser": "^5.45.0",
-    "@vscode/test-electron": "^2.2.0",
-    "@vscode/vsce": "^3.6.0",
-    "eslint": "^8.28.0",
-    "glob": "^8.0.3",
-    "mocha": "^10.1.0",
-    "sinon": "^21.0.0",
-    "typescript": "^4.9.4"
+    "package": "npm version patch && npm run compile-extension && vsce package --dependencies",
+    "package:win32": "node scripts/package-platform.js win32",
+    "package:darwin": "node scripts/package-platform.js darwin-x64 && node scripts/package-platform.js darwin-arm64",
+    "package:linux": "node scripts/package-platform.js linux",
+    "package:all": "npm run package:win32 && npm run package:darwin && npm run package:linux",
+    "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix",
+    "publish:win32": "node scripts/package-platform.js win32 && vsce publish --packagePath cappy-*-win32.vsix",
+    "publish:darwin": "node scripts/package-platform.js darwin-x64 && node scripts/package-platform.js darwin-arm64 && vsce publish --packagePath cappy-*-darwin-x64.vsix && vsce publish --packagePath cappy-*-darwin-arm64.vsix",
+    "publish:linux": "node scripts/package-platform.js linux && vsce publish --packagePath cappy-*-linux.vsix",
+    "publish:all": "npm run publish:win32 && npm run publish:darwin && npm run publish:linux"
   },
   "dependencies": {
-    "date-fns": "^2.29.3"
+    "@assistant-ui/react": "^0.11.28",
+    "@assistant-ui/react-langgraph": "^0.7.2",
+    "@assistant-ui/react-markdown": "^0.11.1",
+    "@assistant-ui/react-ui": "^0.2.0",
+    "@lancedb/lancedb": "^0.22.2",
+    "@langchain/core": "^0.3.78",
+    "@langchain/langgraph": "^0.4.9",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@react-sigma/core": "^5.0.4",
+    "@typescript-eslint/parser": "^8.46.0",
+    "@xenova/transformers": "^2.17.2",
+    "clsx": "^2.1.1",
+    "comment-parser": "^1.4.1",
+    "graphology": "^0.26.0",
+    "graphology-layout": "^0.6.1",
+    "graphology-layout-forceatlas2": "^0.10.1",
+    "gray-matter": "^4.0.3",
+    "hash-wasm": "^4.12.0",
+    "ignore": "^5.3.1",
+    "lucide-react": "^0.545.0",
+    "mammoth": "^1.11.0",
+    "pdf-parse": "^2.4.5",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
+    "sigma": "^3.0.2",
+    "sqlite-vec": "^0.1.7-alpha.2",
+    "sqlite3": "^5.1.7",
+    "tailwind-merge": "^3.3.1",
+    "ws": "^8.18.3",
+    "yaml": "^2.8.1"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/cecon/cappy.git"
+  "optionalDependencies": {
+    "@vscode/sqlite3": "^5.1.8-vscode",
+    "sharp": "^0.34.4"
   },
-  "bugs": {
-    "url": "https://github.com/cecon/cappy/issues"
-  },
-  "homepage": "https://github.com/cecon/cappy#readme",
-  "license": "MIT",
-  "author": "",
-  "type": "commonjs"
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
+    "@eslint/js": "^9.36.0",
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^24.9.1",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@types/vscode": "^1.105.0",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^5.0.4",
+    "@vitest/ui": "^3.2.4",
+    "@vscode/vsce": "^3.6.2",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.36.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.22",
+    "globals": "^16.4.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.45.0",
+    "vite": "^7.1.7",
+    "vitest": "^3.2.4"
+  }
 }

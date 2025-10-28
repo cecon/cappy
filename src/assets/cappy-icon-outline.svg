@@ -1,0 +1,29 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simplified Cappy icon - white outline for UI -->
+  <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Main body/head (capybara) -->
+    <ellipse cx="12" cy="13" rx="8" ry="6.5"/>
+    
+    <!-- Left ear -->
+    <ellipse cx="6.5" cy="7.5" rx="1.5" ry="2.5"/>
+    
+    <!-- Right ear -->
+    <ellipse cx="17.5" cy="7.5" rx="1.5" ry="2.5"/>
+    
+    <!-- Left eye -->
+    <circle cx="9.5" cy="11.5" r="1" fill="currentColor" stroke="none"/>
+    
+    <!-- Right eye -->
+    <circle cx="14.5" cy="11.5" r="1" fill="currentColor" stroke="none"/>
+    
+    <!-- Nose -->
+    <circle cx="12" cy="14" r="0.7" fill="currentColor" stroke="none"/>
+    
+    <!-- Mouth (simple smile) -->
+    <path d="M 10 15 Q 12 16 14 15" stroke-width="1"/>
+    
+    <!-- AI sparkle accent (top right) -->
+    <path d="M 19 4 l 0.7 2 2 0.7 -2 0.7 -0.7 2 -0.7 -2 -2 -0.7 2 -0.7 z" 
+          fill="currentColor" stroke="none" opacity="0.9"/>
+  </g>
+</svg>

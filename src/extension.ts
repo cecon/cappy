@@ -1,462 +1,604 @@
-import * as vscode from "vscode";
-import {
-  ensureTelemetryConsent,
-  showConsentWebview,
-} from "./commands/telemetryConsent";
-import getNewTaskInstruction from "./commands/getNewTaskInstruction";
-import getActiveTask from "./commands/getActiveTask";
-import createTaskFile from "./commands/createTaskFile";
-import { changeTaskStatusCommand } from "./commands/changeTaskStatus";
-import completeTask from "./commands/completeTask";
-import workOnCurrentTask from "./commands/workOnCurrentTask";
-import { AddPreventionRuleCommand } from "./commands/addPreventionRule";
-import { RemovePreventionRuleCommand } from "./commands/removePreventionRule";
-import { ReindexCommand } from "./commands/reindexCommand";
-import { FileManager } from "./utils/fileManager";
-import { EnvironmentDetector } from "./utils/environmentDetector";
-import * as path from 'path';
-import * as fs from 'fs';
+import * as vscode from 'vscode';
+import * as path from 'node:path';
+import { GraphPanel } from './nivel1/adapters/vscode/graph/GraphPanel';
+import { ChatViewProvider } from './nivel1/adapters/vscode/chat/ChatViewProvider';
+import { DocumentsViewProvider } from './nivel1/adapters/vscode/documents/DocumentsViewProvider';
+import { CreateFileTool } from './nivel2/infrastructure/tools/create-file-tool';
+import { FetchWebTool } from './nivel2/infrastructure/tools/fetch-web-tool';
+import { ContextRetrievalTool } from './domains/chat/tools/native/context-retrieval';
+import { LangGraphChatEngine } from './nivel2/infrastructure/agents/langgraph-chat-engine';
+import { createChatService } from './domains/chat/services/chat-service';
+import { registerScanWorkspaceCommand } from './nivel1/adapters/vscode/commands/scan-workspace';
+import { registerProcessPendingFilesCommand } from './nivel1/adapters/vscode/commands/process-pending-files';
+import { 
+  registerProcessSingleFileCommand,
+  registerDebugRetrievalCommand,
+  registerDebugCommand,
+  registerDebugDatabaseCommand,
+  registerDebugAddTestDataCommand,
+  registerReanalyzeRelationshipsCommand,
+  registerResetDatabaseCommand,
+  registerDiagnoseGraphCommand
+} from './nivel1/adapters/vscode/commands';
+import { FileMetadataDatabase } from './nivel2/infrastructure/services/file-metadata-database';
+import { FileProcessingQueue } from './nivel2/infrastructure/services/file-processing-queue';
+import { FileProcessingWorker } from './nivel2/infrastructure/services/file-processing-worker';
+import { UnifiedQueueProcessor } from './nivel2/infrastructure/services/unified-queue-processor';
+import { FileChangeWatcher } from './nivel2/infrastructure/services/file-change-watcher';
+import { FileProcessingCronJob } from './nivel2/infrastructure/services/file-processing-cronjob';
+import { createVectorStore } from './nivel2/infrastructure/vector/sqlite-vector-adapter';
+import type { GraphStorePort } from './domains/graph/ports/indexing-port';
+import { SQLiteAdapter } from './nivel2/infrastructure/database/index.js';
+import { DevServerBridge } from './nivel1/adapters/vscode/dev-server-bridge';
+
+// Global instances for file processing system
+let fileDatabase: FileMetadataDatabase | null = null;
+let fileQueue: FileProcessingQueue | null = null;
+let queueProcessor: UnifiedQueueProcessor | null = null;
+let fileWatcher: FileChangeWatcher | null = null;
+let graphStore: GraphStorePort | null = null;
+let contextRetrievalToolInstance: ContextRetrievalTool | null = null;
+let documentsViewProviderInstance: DocumentsViewProvider | null = null;
+let fileCronJob: FileProcessingCronJob | null = null;
+
+/**
+ * Cappy Extension - React + Vite Version
+ * 
+ * This is the main entry point for the Cappy extension.
+ * Currently migrating functions from old/ folder one by one.
+ */
 
 export function activate(context: vscode.ExtensionContext) {
-  try {
-    // Show immediate activation message with environment detection
-    const welcomeMessage = EnvironmentDetector.getWelcomeMessage();
-    vscode.window.showInformationMessage(welcomeMessage);
-    console.log(`Cappy: Running in ${EnvironmentDetector.getEnvironmentName()}`);
+    console.log('🦫 Cappy extension is now active! (React + Vite version)');
 
-  // Shared output channel for surfaced internal scripts / diagnostics
-  const cappyOutput = vscode.window.createOutputChannel('Cappy');
-  context.subscriptions.push(cappyOutput);
+    // Register Language Model Tools
+    const createFileTool = vscode.lm.registerTool('cappy_create_file', new CreateFileTool());
+    context.subscriptions.push(createFileTool);
+    console.log('✅ Registered Language Model Tool: cappy_create_file');
 
-    // Telemetry consent gating (one-time and on updates)
-    ensureTelemetryConsent(context)
-      .then((accepted) => {
-        if (!accepted) {
-          console.log(
-            "Telemetry consent declined. Telemetry will remain disabled."
-          );
+    const fetchWebTool = vscode.lm.registerTool('cappy_fetch_web', new FetchWebTool());
+    context.subscriptions.push(fetchWebTool);
+    console.log('✅ Registered Language Model Tool: cappy_fetch_web');
+
+    // Create context retrieval tool instance (will be initialized later with graph data)
+    contextRetrievalToolInstance = new ContextRetrievalTool();
+    const contextRetrievalTool = vscode.lm.registerTool('cappy_retrieve_context', contextRetrievalToolInstance);
+    context.subscriptions.push(contextRetrievalTool);
+    console.log('✅ Registered Language Model Tool: cappy_retrieve_context');
+
+    // List all registered tools for debugging (longer wait to ensure LM runtime loads)
+    setTimeout(() => {
+        const allTools = vscode.lm.tools;
+        const cappyTools = allTools.filter(t => t.name.startsWith('cappy_'));
+        console.log('🛠️ All Cappy tools registered:', cappyTools.map(t => t.name).join(', '));
+        console.log('🛠️ Total Language Model tools available:', allTools.length);
+        console.log('🛠️ Tool names:', allTools.map(t => t.name).join(', '));
+        
+        // Log tool registration to console instead of showing a user-facing notification
+        if (cappyTools.length > 0) {
+            console.log(`✅ Cappy tools registered: ${cappyTools.map(t => t.name).join(', ')}`);
+        } else {
+            console.warn('⚠️ Cappy: Nenhuma ferramenta foi registrada!');
         }
-      })
-      .catch((err) => {
-        console.warn("Failed to ensure telemetry consent:", err);
-      });
+    }, 5000); // Wait 5 seconds for all tools to register
+    
+    // Create output channel for graph logs
+    const graphOutputChannel = vscode.window.createOutputChannel('Cappy Graph');
+    context.subscriptions.push(graphOutputChannel);
+    
+    // Create graph panel instance
+    const graphPanel = new GraphPanel(context, graphOutputChannel);
 
-    // Register init command (always run init; KnowStack must not block it)
-    const initCommand = vscode.commands.registerCommand(
-      "cappy.init",
-      async () => {
+    // NOTE: File processing system initialization is now lightweight
+    // (no HTTP API, just database and queue setup)
+    const startProcessingCommand = vscode.commands.registerCommand('cappy.startProcessing', async () => {
         try {
-          try {
-            const initModule = await import("./commands/initCappy");
-            const initCommand = new initModule.InitCappyCommand(context);
-            const success = await initCommand.execute();
-            if (!success) {
-              vscode.window.showWarningMessage(
-                "🦫 Cappy Memory: Initialization was cancelled or failed."
-              );
+            await initializeFileProcessingSystem(context, graphPanel);
+            vscode.window.showInformationMessage('✅ Cappy: File processing system started');
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            console.error('Failed to initialize file processing system:', error);
+            vscode.window.showErrorMessage(`Failed to start file processing: ${errMsg}`);
+        }
+    });
+    context.subscriptions.push(startProcessingCommand);
+    
+    // Auto-start file processing system on activation
+    console.log('🚀 Auto-starting file processing system...');
+    initializeFileProcessingSystem(context, graphPanel)
+        .then(() => {
+            console.log('✅ File processing system auto-started successfully');
+        })
+        .catch((error: unknown) => {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            console.error('❌ Failed to auto-start file processing system:', error);
+            vscode.window.showWarningMessage(
+                `Cappy: File processing system failed to start. Use "Cappy: Start File Processing" command to retry. Error: ${errMsg}`,
+                'Retry'
+            ).then(selection => {
+                if (selection === 'Retry') {
+                    vscode.commands.executeCommand('cappy.startProcessing');
+                }
+            });
+        });
+    
+    // Register the graph visualization command
+    const openGraphCommand = vscode.commands.registerCommand('cappy.openGraph', async () => {
+        await graphPanel.show();
+    });
+    
+    context.subscriptions.push(openGraphCommand);
+
+    // Register interactive hybrid search command
+    const searchCommand = vscode.commands.registerCommand('cappy.search', async () => {
+
+    const vscode = await import('vscode');
+    const { HybridRetriever } = await import('./nivel2/infrastructure/services/hybrid-retriever.js');
+
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            vscode.window.showErrorMessage('No workspace folder open');
+            return;
+        }
+
+        // Prompt for query
+        const query = await vscode.window.showInputBox({
+            title: 'Cappy Hybrid Search',
+            prompt: 'Enter your search query (code, docs, rules, tasks)',
+            ignoreFocusOut: true
+        });
+        if (!query) {
+            return;
+        }
+
+        // Create retriever and run search
+        const retriever = new HybridRetriever();
+        let result;
+        try {
+            result = await retriever.retrieve(query, {
+                maxResults: 10,
+                minScore: 0.3,
+                sources: ['code', 'documentation', 'prevention', 'task'],
+                includeRelated: true,
+                rerank: true
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Hybrid search failed: ${error instanceof Error ? error.message : String(error)}`);
+            return;
+        }
+
+        if (!result?.contexts?.length) {
+            vscode.window.showInformationMessage(`No relevant context found for: "${query}"`);
+            return;
+        }
+
+        // Show results in QuickPick
+        type QuickPickItem = {
+            label: string;
+            description?: string;
+            detail?: string;
+            ctx: typeof result.contexts[0];
+        };
+        const items: QuickPickItem[] = result.contexts.map(ctx => {
+            let icon: string;
+            if (ctx.source === 'code') {
+                icon = '💻';
+            } else if (ctx.source === 'documentation') {
+                icon = '📚';
+            } else if (ctx.source === 'prevention') {
+                icon = '🛡️';
+            } else if (ctx.source === 'task') {
+                icon = '✅';
+            } else {
+                icon = '📄';
             }
-          } catch (importError) {
-            vscode.window.showErrorMessage(
-              `Cappy Memory: Init feature failed to load: ${importError}`
-            );
-          }
-        } catch (error) {
-          vscode.window.showErrorMessage(`Cappy Memory Init failed: ${error}`);
-        }
-      }
-    );
+            return {
+                label: `${icon} ${ctx.metadata.title || ctx.id}`,
+                description: ctx.filePath ? `${ctx.filePath}` : undefined,
+                detail: ctx.snippet ? ctx.snippet.replaceAll('\n', ' ').slice(0, 200) : ctx.content.slice(0, 200),
+                ctx
+            };
+        });
 
-    // Register knowstack command
-    const knowStackCommand = vscode.commands.registerCommand(
-      "cappy.knowstack",
-      async (): Promise<string> => {
+        const picked = await vscode.window.showQuickPick(items, {
+            title: `Hybrid Search Results (${result.contexts.length})` ,
+            matchOnDescription: true,
+            matchOnDetail: true,
+            placeHolder: 'Select a context to copy snippet to clipboard',
+        });
+        if (picked && typeof picked === 'object' && 'ctx' in picked && picked.ctx) {
+            await vscode.env.clipboard.writeText(picked.ctx.content);
+            vscode.window.showInformationMessage('Context copied to clipboard!');
+        }
+    });
+    context.subscriptions.push(searchCommand);
+    console.log('✅ Registered command: cappy.search');
+
+    // Register workspace scan command
+    registerScanWorkspaceCommand(context);
+    console.log('✅ Registered command: cappy.scanWorkspace');
+
+    // Register process pending files command (cronjob)
+    registerProcessPendingFilesCommand(context);
+    console.log('✅ Registered command: cappy.processPendingFiles');
+
+    // Register process single file command
+    registerProcessSingleFileCommand(context);
+    console.log('✅ Registered command: cappy.processSingleFile');
+
+    // Register debug command
+    registerDebugCommand(context);
+    console.log('✅ Registered command: cappy.debug');
+
+    // Register debug database commands
+    registerDebugDatabaseCommand(context);
+    console.log('✅ Registered command: cappy.debugDatabase');
+
+    // Register retrieval debug command
+    registerDebugRetrievalCommand(context);
+    console.log('✅ Registered command: cappy.debugRetrieval');
+    
+    registerDebugAddTestDataCommand(context);
+    console.log('✅ Registered command: cappy.debugAddTestData');
+
+    // Register reanalyze relationships command (needs graphStore and fileDatabase)
+    if (graphStore && fileDatabase) {
+        registerReanalyzeRelationshipsCommand(context, graphStore, fileDatabase);
+        console.log('✅ Registered command: cappy.reanalyzeRelationships');
+    }
+
+    // Register queue control commands
+    const pauseQueueCommand = vscode.commands.registerCommand('cappy.pauseQueue', () => {
+        if (!queueProcessor) {
+            vscode.window.showWarningMessage('Queue processor not initialized');
+            return;
+        }
+        queueProcessor.pause();
+        vscode.window.showInformationMessage('⏸️ Processing queue paused');
+    });
+    context.subscriptions.push(pauseQueueCommand);
+    console.log('✅ Registered command: cappy.pauseQueue');
+
+    const resumeQueueCommand = vscode.commands.registerCommand('cappy.resumeQueue', () => {
+        if (!queueProcessor) {
+            vscode.window.showWarningMessage('Queue processor not initialized');
+            return;
+        }
+        queueProcessor.resume();
+        vscode.window.showInformationMessage('▶️ Processing queue resumed');
+    });
+    context.subscriptions.push(resumeQueueCommand);
+    console.log('✅ Registered command: cappy.resumeQueue');
+
+    const queueStatusCommand = vscode.commands.registerCommand('cappy.queueStatus', async () => {
+        if (!fileDatabase || !queueProcessor) {
+            vscode.window.showWarningMessage('Queue system not initialized');
+            return;
+        }
+        
+        const stats = await fileDatabase.getStats();
+        const state = queueProcessor.getState();
+        
+        const message = [
+            `📊 Queue Status:`,
+            `   Running: ${state.isRunning ? '✅' : '❌'}`,
+            `   Paused: ${state.isPaused ? '⏸️' : '▶️'}`,
+            `   Active: ${state.activeProcesses}`,
+            ``,
+            `📁 Files:`,
+            `   Total: ${stats.total}`,
+            `   Pending: ${stats.pending}`,
+            `   Processing: ${stats.processing}`,
+            `   Extracting Entities: ${stats.extractingEntities}`,
+            `   Creating Relationships: ${stats.creatingRelationships}`,
+            `   Entity Discovery: ${stats.entityDiscovery}`,
+            `   Processed: ${stats.processed}`,
+            `   Error: ${stats.error}`,
+            `   Paused: ${stats.paused}`
+        ].join('\n');
+        
+        vscode.window.showInformationMessage(message, { modal: true });
+    });
+    context.subscriptions.push(queueStatusCommand);
+    console.log('✅ Registered command: cappy.queueStatus');
+
+    // Register diagnose graph command
+    if (graphStore) {
+        registerDiagnoseGraphCommand(context, graphStore);
+        console.log('✅ Registered command: cappy.diagnoseGraph');
+    }
+
+    // Register reset database command
+    registerResetDatabaseCommand(context);
+    console.log('✅ Registered command: cappy.resetDatabase');
+
+    // Register test retriever command
+    const testRetrieverCommand = vscode.commands.registerCommand('cappy.testRetriever', async () => {
         try {
-          const mod = await import("./commands/knowStack");
-          const script: string = await mod.runKnowStack(context);
-          if (script) {
-            cappyOutput.appendLine(`[knowstack] Loaded script (${script.length} chars)`);
-            // Avoid dumping entire XML repeatedly; show first line as confirmation
-            const firstLine = script.split(/\r?\n/, 1)[0];
-            cappyOutput.appendLine(`[knowstack] First line: ${firstLine}`);
-            cappyOutput.show(true);
-            vscode.window.setStatusBarMessage('Cappy KnowStack script ready (verifique Output: Cappy)', 4000);
-          } else {
-            vscode.window.showWarningMessage('Cappy KnowStack: script vazio (não encontrado ou erro de leitura).');
-          }
-          return script; // return instructions for LLM to start the flow
+            const query = await vscode.window.showInputBox({
+                prompt: 'Enter search query to test the retriever',
+                placeHolder: 'e.g., workspace scanner, graph service, authentication',
+                value: 'workspace scanner'
+            });
+            
+            if (!query) {
+                return;
+            }
+            
+            if (!contextRetrievalToolInstance) {
+                vscode.window.showErrorMessage('Context retrieval tool not initialized');
+                return;
+            }
+            
+            const outputChannel = vscode.window.createOutputChannel('Cappy Retriever Test');
+            outputChannel.show();
+            outputChannel.appendLine(`🔍 Testing retriever with query: "${query}"`);
+            outputChannel.appendLine('━'.repeat(60));
+            
+            vscode.window.showInformationMessage(`✅ Test command ready. Use GitHub Copilot Chat:\n@workspace use cappy_retrieve_context to search for "${query}"`);
+            outputChannel.appendLine(`\n� To test the retriever:`);
+            outputChannel.appendLine(`   Open GitHub Copilot Chat and run:`);
+            outputChannel.appendLine(`   @workspace use cappy_retrieve_context to search for "${query}"`);
         } catch (error) {
-          vscode.window.showErrorMessage(`Cappy KnowStack failed: ${error}`);
-          return "";
+            vscode.window.showErrorMessage(`❌ Retriever test failed: ${error}`);
+            console.error('Retriever test error:', error);
         }
-      }
-    );
+    });
+    context.subscriptions.push(testRetrieverCommand);
+    console.log('✅ Registered command: cappy.testRetriever');
 
-    // Register knowstack alias for compatibility with agents that use the alias
-    const knowStackAliasCommand = vscode.commands.registerCommand(
-      "cappy.runknowstack",
-      async () => {
-        try {
-          const mod = await import("./commands/knowStack");
-          const script: string = await mod.runKnowStack(context);
-          if (script) {
-            cappyOutput.appendLine(`[runknowstack] Loaded script (${script.length} chars)`);
-          }
-          return script;
-        } catch (error) {
-          vscode.window.showErrorMessage(`Cappy KnowStack (alias) failed: ${error}`);
-          return "";
-        }
-      }
-    );
+    // Create chat service with LangGraph engine (includes tools)
+    const chatEngine = new LangGraphChatEngine();
+    const chatService = createChatService(chatEngine);
 
-    // Register typo alias: cappy.knowtask (requested by agents)
-    const knowTaskTypoAliasCommand = vscode.commands.registerCommand(
-      "cappy.knowtask",
-      async () => {
-        try {
-          const mod = await import("./commands/knowStack");
-          const script: string = await mod.runKnowStack(context);
-          if (script) {
-            cappyOutput.appendLine(`[knowtask-alias] Loaded script (${script.length} chars)`);
-          }
-          return script;
-        } catch (error) {
-          vscode.window.showErrorMessage(`Cappy KnowStack (typo alias) failed: ${error}`);
-          return "";
-        }
-      }
-    );
+    // Start WebSocket dev server bridge (porta 7002)
+    const devBridge = new DevServerBridge(7002, chatService);
+    context.subscriptions.push({ dispose: () => devBridge.dispose() });
+    console.log('🔌 Dev Server Bridge started on port 7002');
 
-    // Register manual consent view command
-    const consentCommand = vscode.commands.registerCommand(
-      "cappy.viewTelemetryTerms",
-      async () => {
-        try {
-          await showConsentWebview(context);
-        } catch (err) {
-          vscode.window.showErrorMessage(`Falha ao abrir termos: ${err}`);
-        }
-      }
+    // Register Chat View Provider for sidebar
+    const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
+    const chatViewDisposable = vscode.window.registerWebviewViewProvider(
+        ChatViewProvider.viewType, 
+        chatViewProvider
     );
-
-    // Register: new task (returns processed template content)
-    const newTaskCommand = vscode.commands.registerCommand(
-      "cappy.new",
-      async (args?: Record<string, string>) => {
-        try {
-          const content = await getNewTaskInstruction(context, args);
-          return content; // important: return string so LLM can consume it via executeCommand
-        } catch (error) {
-          console.error("Cappy new task error:", error);
-          vscode.window.showErrorMessage(
-            `Cappy new task failed: ${error}`
-          );
-          return "";
-        }
-      }
+    context.subscriptions.push(chatViewDisposable);
+    console.log('✅ Registered Chat View Provider: cappy.chatView');
+    
+    // Register Documents View Provider for sidebar
+    documentsViewProviderInstance = new DocumentsViewProvider(context.extensionUri);
+    const documentsViewDisposable = vscode.window.registerWebviewViewProvider(
+        DocumentsViewProvider.viewType,
+        documentsViewProviderInstance
     );
+    context.subscriptions.push(documentsViewDisposable);
+    console.log('✅ Registered Documents View Provider: cappy.documentsView');
+    
+    // Add a Status Bar shortcut to open the graph
+    const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+    statusBar.text = '$(graph) Cappy Graph';
+    statusBar.tooltip = 'Open Cappy Graph';
+    statusBar.command = 'cappy.openGraph';
+    statusBar.show();
+    context.subscriptions.push(statusBar);
 
-    // Register: get active task (returns XML content or fallback string)
-    const getActiveTaskCommand = vscode.commands.registerCommand(
-      "cappy.getActiveTask",
-      async () => {
-        try {
-          const xml = await getActiveTask();
-          return xml; // return string for programmatic consumption
-        } catch (error) {
-          console.error("Cappy getActiveTask error:", error);
-          vscode.window.showErrorMessage(
-            `Cappy getActiveTask failed: ${error}`
-          );
-          return "No activit task found";
-        }
-      }
-    );
+    // Log available Cappy commands for debugging purposes
+    vscode.commands.getCommands(true).then((commands) => {
+        const cappyCommands = commands.filter((command) => command.startsWith('cappy'));
+        console.log('Cappy Commands Registered:', cappyCommands);
+    });
 
-    // Register: version command (returns extension semantic version)
-    const versionCommand = vscode.commands.registerCommand(
-      "cappy.version",
-      async () => {
-        try {
-          const mod = await import("./commands/getVersion");
-          const version = await mod.getVersion();
-          return version;
-        } catch (error) {
-          vscode.window.showErrorMessage(`Cappy version command failed: ${error}`);
-          return "";
-        }
-      }
-    );
-
-    // Register: create task file command (creates new task XML file)
-    const createTaskFileCommand = vscode.commands.registerCommand(
-      "cappy.createTaskFile",
-      async (args?: Record<string, string>) => {
-        try {
-          const result = await createTaskFile(context, args);
-          return result;
-        } catch (error) {
-          console.error("Cappy createTaskFile error:", error);
-          vscode.window.showErrorMessage(`Cappy createTaskFile failed: ${error}`);
-          return "";
-        }
-      }
-    );
-
-    // Register: change task status command (changes task status between active/paused)
-    const changeTaskStatusCmd = vscode.commands.registerCommand(
-      "cappy.changeTaskStatus",
-      async () => {
-        try {
-          await changeTaskStatusCommand();
-        } catch (error) {
-          console.error("Cappy changeTaskStatus error:", error);
-          vscode.window.showErrorMessage(`Cappy changeTaskStatus failed: ${error}`);
-        }
-      }
-    );
-
-    // Register: complete task command (moves active task to history)
-    const completeTaskCommand = vscode.commands.registerCommand(
-      "cappy.completeTask",
-      async () => {
-        try {
-          const result = await completeTask();
-          return result;
-        } catch (error) {
-          console.error("Cappy completeTask error:", error);
-          vscode.window.showErrorMessage(`Cappy completeTask failed: ${error}`);
-          return "";
-        }
-      }
-    );
-
-    // Register: add prevention rule command
-    const addPreventionRuleCommand = vscode.commands.registerCommand(
-      "cappy.addPreventionRule",
-      async () => {
-        try {
-          const cmd = new AddPreventionRuleCommand();
-          await cmd.execute();
-        } catch (error) {
-          console.error("Cappy addPreventionRule error:", error);
-          vscode.window.showErrorMessage(`Cappy addPreventionRule failed: ${error}`);
-        }
-      }
-    );
-
-    // Register: remove prevention rule command
-    const removePreventionRuleCommand = vscode.commands.registerCommand(
-      "cappy.removePreventionRule",
-      async () => {
-        try {
-          const cmd = new RemovePreventionRuleCommand();
-          await cmd.execute();
-        } catch (error) {
-          console.error("Cappy removePreventionRule error:", error);
-          vscode.window.showErrorMessage(`Cappy removePreventionRule failed: ${error}`);
-        }
-      }
-    );
-
-    // Register: work on current task command (executes active task following its script)
-    const workOnCurrentTaskCommand = vscode.commands.registerCommand(
-      "cappy.workOnCurrentTask",
-      async () => {
-        try {
-          const result = await workOnCurrentTask();
-          return result;
-        } catch (error) {
-          console.error("Cappy workOnCurrentTask error:", error);
-          vscode.window.showErrorMessage(`Cappy workOnCurrentTask failed: ${error}`);
-          return "";
-        }
-      }
-    );
-
-    // Register: reindex command (rebuilds semantic indexes for docs, tasks and rules)
-    const reindexCommand = vscode.commands.registerCommand(
-      "cappy.reindex",
-      async () => {
-        try {
-          const cmd = new ReindexCommand(context);
-          const result = await cmd.execute();
-          return result;
-        } catch (error) {
-          console.error("Cappy reindex error:", error);
-          vscode.window.showErrorMessage(`Cappy reindex failed: ${error}`);
-          return "";
-        }
-      }
-    );
-
-    // Register all commands
-    context.subscriptions.push(
-      initCommand,
-      knowStackCommand,
-      knowStackAliasCommand,
-      knowTaskTypoAliasCommand,
-      consentCommand,
-      newTaskCommand,      
-      getActiveTaskCommand,
-      versionCommand,
-      createTaskFileCommand,
-      changeTaskStatusCmd,
-      completeTaskCommand,
-      addPreventionRuleCommand,
-      removePreventionRuleCommand,
-      workOnCurrentTaskCommand,
-      reindexCommand
-    );
-
-    // Auto-copy XSD schemas when extension loads (if .cappy exists)
-    checkAndCopyXsdSchemasAndCleanup();
-
-  } catch (error) {
-    vscode.window.showErrorMessage(
-      `🦫 Cappy Memory activation failed: ${error}`
-    );
-  }
+    vscode.window.showInformationMessage('Cappy (React + Vite) loaded successfully!');
 }
 
 /**
- * Check if .cappy directory exists, copy XSD files and clean up legacy folders
+ * Initializes the file processing system (database, queue, worker, API)
  */
-async function checkAndCopyXsdSchemasAndCleanup(): Promise<void> {
-  try {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) {
-      return; // No workspace, nothing to do
-    }
-
-    const cappyPath = path.join(workspaceFolder.uri.fsPath, '.cappy');
-    
-    // Check if .cappy directory exists (project is initialized)
-    try {
-      await fs.promises.access(cappyPath, fs.constants.F_OK);
-      
-      // Project is initialized, copy XSD schemas
-      const fileManager = new FileManager();
-      await fileManager.copyXsdSchemas();
-      
-      // Clean up legacy instructions folder
-      await cleanupLegacyInstructionsFolder(cappyPath);
-      
-      // Also update copilot-instructions.md automatically
-      await updateCopilotInstructions(workspaceFolder.uri.fsPath);
-      
-      console.log('Cappy: XSD schemas copied, legacy folders cleaned and copilot-instructions.md updated automatically on startup');
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        // .cappy doesn't exist, project not initialized yet
+async function initializeFileProcessingSystem(context: vscode.ExtensionContext, graphPanel: GraphPanel): Promise<void> {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+        console.warn('No workspace folder found, skipping file processing system initialization');
         return;
-      }
-      // Other errors should be logged but not interrupt extension
-      console.warn('Cappy: Failed to auto-copy XSD schemas, cleanup legacy folders or update copilot instructions:', error);
     }
-  } catch (error) {
-    console.warn('Cappy: Auto-copy XSD schemas check failed:', error);
-  }
-}
-
-/**
- * Clean up legacy instructions folder that is no longer needed
- */
-async function cleanupLegacyInstructionsFolder(cappyPath: string): Promise<void> {
-  try {
-    // Remove .cappy/instructions folder if it exists (no longer needed)
-    const instructionsPath = path.join(cappyPath, 'instructions');
-    try {
-      await fs.promises.access(instructionsPath, fs.constants.F_OK);
-      await fs.promises.rmdir(instructionsPath, { recursive: true });
-      console.log('Cappy: Removed legacy instructions folder');
-    } catch (error: any) {
-      if (error.code !== 'ENOENT') {
-        console.warn('Cappy: Failed to remove instructions folder:', error);
-      }
-    }
-  } catch (error) {
-    console.warn('Cappy: Failed to cleanup legacy instructions folder:', error);
-  }
-}
-
-/**
- * Update .github/copilot-instructions.md with latest template content
- */
-async function updateCopilotInstructions(workspaceRoot: string): Promise<void> {
-  try {
-    const githubDir = path.join(workspaceRoot, '.github');
-    const targetPath = path.join(githubDir, 'copilot-instructions.md');
-    
-    // Find extension root to get template
-    // Try to get extension regardless of environment (Cursor or VS Code)
-    const extension = vscode.extensions.getExtension('eduardocecon.cappy');
-    if (!extension) {
-      console.warn(`Cappy: Extension not found in ${EnvironmentDetector.getEnvironmentName()}, cannot update copilot instructions`);
-      return;
-    }
-    
-    const templatePath = path.join(extension.extensionPath, 'resources', 'templates', 'cappy-copilot-instructions.md');
-
-    await fs.promises.mkdir(githubDir, { recursive: true });
 
     try {
-      const tpl = await fs.promises.readFile(templatePath, 'utf8');
-      const start = '<!-- CAPPY INI -->';
-      const end = '<!-- CAPPY END -->';
+        // Initialize database in workspace .cappy/data folder
+        const cappyDataDir = path.join(workspaceRoot, '.cappy', 'data');
+        const dbPath = path.join(cappyDataDir, 'file-metadata.db');
+        fileDatabase = new FileMetadataDatabase(dbPath);
+        await fileDatabase.initialize();
+        console.log('✅ File metadata database initialized at:', dbPath);
 
-      // If target doesn't exist, create with template
-      let existing = '';
-      try {
-        existing = await fs.promises.readFile(targetPath, 'utf8');
-      } catch (e: any) {
-        if (e?.code === 'ENOENT') {
-          await fs.promises.writeFile(targetPath, tpl, 'utf8');
-          return;
+        // Connect DocumentsViewProvider to the file database
+        if (documentsViewProviderInstance && fileDatabase) {
+            documentsViewProviderInstance.setFileDatabase(fileDatabase);
+            console.log('✅ DocumentsViewProvider connected to file database');
         }
-        throw e;
-      }
 
-      const hasStart = existing.includes(start);
-      const hasEnd = existing.includes(end);
-      
-      if (!hasStart || !hasEnd) {
-        // No markers; overwrite entire file to align with template once
-        await fs.promises.writeFile(targetPath, tpl, 'utf8');
-        return;
-      }
-
-      // Replace only the marked block
-      const pattern = new RegExp(`${start}[\\s\\S]*?${end}`);
-      
-      // Extract content between markers from template
-      const templatePattern = new RegExp(`${start}([\\s\\S]*?)${end}`);
-      const templateMatch = tpl.match(templatePattern);
-      const templateContent = templateMatch ? templateMatch[1].trim() : tpl.trim();
-      
-      // Replace with markers preserved
-      const replacement = `${start}\n${templateContent}\n${end}`;
-      const updated = existing.replace(pattern, replacement);
-      await fs.promises.writeFile(targetPath, updated, 'utf8');
-      
-      console.log('Cappy: copilot-instructions.md updated successfully');
-    } catch (err: any) {
-      if (err?.code === 'ENOENT') {
-        // If template is missing, keep existing file or create a minimal header
+        // Initialize services for worker
+    const { ParserService } = await import('./nivel2/infrastructure/services/parser-service.js');
+        const { FileHashService } = await import('./nivel2/infrastructure/services/file-hash-service.js');
+        const { EmbeddingService } = await import('./nivel2/infrastructure/services/embedding-service.js');
+        const { IndexingService } = await import('./nivel2/infrastructure/services/indexing-service.js');
+        const { ConfigService } = await import('./nivel2/infrastructure/services/config-service.js');
+        
+    const parserService = new ParserService();
+        
+        const hashService = new FileHashService();
+        
+        // Initialize indexing services
+        const configService = new ConfigService(workspaceRoot);
+        const embeddingService = new EmbeddingService();
+        await embeddingService.initialize();
+        console.log('✅ Embedding service initialized');
+        
+        // Initialize graph database
+    const sqlitePath = configService.getGraphDataPath(workspaceRoot);
+        const graphStoreInstance = new SQLiteAdapter(sqlitePath);
+        await graphStoreInstance.initialize();
+        console.log('✅ Graph store initialized');
+        
+        // Store globally for reanalyze command
+        graphStore = graphStoreInstance;
+        
+        // Create vector store (needs to be before context tool initialization)
+        const vectorStore = createVectorStore(graphStoreInstance, embeddingService);
+        
+        // Initialize context retrieval tool with graphStore
+        if (contextRetrievalToolInstance && graphStoreInstance) {
+            try {
+                // Pass graphStore to HybridRetriever so it can search the database
+                const { HybridRetriever } = await import('./nivel2/infrastructure/services/hybrid-retriever.js');
+                const hybridRetriever = new HybridRetriever(undefined, graphStoreInstance);
+                
+                // Update the EXISTING instance (don't create a new one!)
+                contextRetrievalToolInstance.setRetriever(hybridRetriever);
+                console.log('✅ Context retrieval tool initialized with hybrid retriever and graph store');
+            } catch (error) {
+                console.error('❌ Failed to initialize context retrieval tool:', error);
+            }
+        }
+        
+        // Initialize VSCode LLM Provider for entity discovery
+        let llmProvider;
         try {
-          await fs.promises.access(targetPath, fs.constants.F_OK);
-        } catch {
-          await fs.promises.writeFile(targetPath, '# Cappy Copilot Instructions\n', 'utf8');
+            const { VSCodeLLMProvider } = await import('./nivel2/infrastructure/services/entity-discovery/providers/VSCodeLLMProvider.js');
+            llmProvider = new VSCodeLLMProvider();
+            await llmProvider.initialize();
+            console.log('✅ VSCode LLM Provider initialized for entity discovery');
+        } catch (error) {
+            console.warn('⚠️ Failed to initialize LLM provider for entity discovery:', error);
+            llmProvider = undefined;
         }
-      } else {
-        throw err;
-      }
+        
+        // Initialize indexing service
+        const indexingService = new IndexingService(
+            vectorStore, // Vector store usando SQLite plugin (sqlite-vss)
+            graphStoreInstance,
+            embeddingService,
+            workspaceRoot,
+            llmProvider
+        );
+        console.log('✅ Indexing service initialized');
+
+        // Initialize worker WITH indexing service and graph store
+        const worker = new FileProcessingWorker(
+            parserService,
+            hashService,
+            workspaceRoot,
+            indexingService,
+            graphStore
+        );
+        console.log('✅ File processing worker created (with indexing and graph store)');
+
+        // Initialize NEW unified queue processor
+        queueProcessor = new UnifiedQueueProcessor(
+            fileDatabase,
+            worker,
+            {
+                concurrency: 2,
+                pollInterval: 1000,
+                batchSize: 10,
+                maxRetries: 3,
+                retryDelay: 5000
+            }
+        );
+
+        // Start queue processor (runs in background)
+        // TEMPORARILY DISABLED to prevent native module crashes
+        // queueProcessor.start();
+        console.log('⏸️  UnifiedQueueProcessor disabled (native module stability)');
+
+        // Initialize file change watcher
+        fileWatcher = new FileChangeWatcher(
+            fileDatabase,
+            hashService,
+            {
+                workspaceRoot,
+                autoAddNewFiles: true,
+                reprocessModified: true,
+                removeDeleted: true
+            }
+        );
+        
+        // TEMPORARILY DISABLED to prevent file system watcher crashes
+        // await fileWatcher.start();
+        console.log('⏸️  FileChangeWatcher disabled (native module stability)');
+
+        // Initialize queue (LEGACY - kept for compatibility)
+        fileQueue = new FileProcessingQueue(fileDatabase, worker, {
+            concurrency: 2,
+            maxRetries: 3,
+            autoStart: false // Disabled, using UnifiedQueueProcessor instead
+        });
+        console.log('⚠️  Legacy FileProcessingQueue created (disabled)');
+
+        // Auto-refresh Graph panel when a file completes processing
+        try {
+            queueProcessor.on('file:complete', async () => {
+                await graphPanel.refreshSubgraph(2);
+            });
+        } catch (e) {
+            console.warn('Could not attach graph refresh listener:', e);
+        }
+
+        // No HTTP API - using postMessage communication instead
+        console.log('✅ File processing system initialized (no HTTP API)');
+
+        // Initialize cronjob for automated file processing
+        fileCronJob = new FileProcessingCronJob(
+            fileDatabase,
+            worker,
+            {
+                intervalMs: 10000, // 10 seconds
+                autoStart: true,
+                workspaceRoot
+            }
+        );
+        console.log('✅ File processing cronjob started (10s interval)');
+
+        // Register cleanup on deactivation
+        context.subscriptions.push({
+            dispose: async () => {
+                if (fileCronJob) {
+                    fileCronJob.stop();
+                    console.log('🛑 File processing cronjob stopped');
+                }
+                if (queueProcessor) {
+                    queueProcessor.stop();
+                    console.log('🛑 UnifiedQueueProcessor stopped');
+                }
+                if (fileWatcher) {
+                    fileWatcher.stop();
+                    console.log('🛑 FileChangeWatcher stopped');
+                }
+                if (fileQueue) {
+                    fileQueue.stop();
+                    console.log('🛑 Legacy file processing queue stopped');
+                }
+                if (fileDatabase) {
+                    fileDatabase.close();
+                    console.log('🛑 File metadata database closed');
+                }
+            }
+        });
+
+        vscode.window.showInformationMessage('✅ File processing system ready');
+    } catch (error) {
+        console.error('Failed to initialize file processing system:', error);
+        throw error;
     }
-  } catch (error) {
-    console.warn('Cappy: Failed to update copilot-instructions.md:', error);
-  }
 }
+
+/**
+ * Opens the graph visualization webview
+ * 
+ * @param context - Extension context
+ */
+// Old implementation removed - now using GraphPanel class
 
 export function deactivate() {
-  vscode.window.showErrorMessage(`🦫 Cappy Memory: Deactivation`);
+    console.log('🦫 Cappy extension deactivated');
 }
+
+// TreeDataProvider removido - agora usamos WebviewView diretamente na sidebar
