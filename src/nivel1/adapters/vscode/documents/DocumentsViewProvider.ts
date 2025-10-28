@@ -375,6 +375,8 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       // ALWAYS use pagination - use defaults if not provided
       const { page = 1, limit = 10, status, sortBy = 'updated_at', sortOrder = 'desc' } = paginationParams || {};
       
+      console.log('📊 [DocumentsViewProvider] Fetching paginated files:', { page, limit, status, sortBy, sortOrder });
+      
       const result = await this._fileDatabase.getFilesPaginated({
         page,
         limit,
@@ -395,7 +397,15 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       
       // Send paginated result to webview
       console.log(`📤 [DocumentsViewProvider] Sending ${documents.length} documents to webview (paginated)`);
-      this._view?.webview.postMessage({
+      console.log('📤 [DocumentsViewProvider] Webview exists:', !!this._view);
+      console.log('📤 [DocumentsViewProvider] Webview visible:', this._view?.visible);
+      
+      if (!this._view) {
+        console.error('❌ [DocumentsViewProvider] Cannot send message - webview is undefined!');
+        return;
+      }
+      
+      this._view.webview.postMessage({
         type: 'document/list',
         payload: { 
           documents,
@@ -405,6 +415,8 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
           totalPages: result.totalPages
         }
       });
+      
+      console.log('✅ [DocumentsViewProvider] Message sent to webview successfully');
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error loading documents from database:', error);
       this._view?.webview.postMessage({
