@@ -850,11 +850,6 @@ const DocumentsPage: React.FC = () => {
                               <td className="h-16 px-4 align-middle">
                                 <div className="group relative">
                                   <div className="truncate max-w-xs text-sm">{truncateText(doc.summary, 80)}</div>
-                                  {doc.status === 'processing' && doc.currentStep && (
-                                    <div className="mt-1 text-xs text-muted-foreground">
-                                      {truncateText(doc.currentStep, 80)}
-                                    </div>
-                                  )}
                                   {doc.summary.length > 80 && (
                                     <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-popover text-popover-foreground text-xs rounded-md px-3 py-2 shadow-lg border border-border max-w-md z-50 whitespace-normal">
                                       {doc.summary}
