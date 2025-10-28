@@ -56,7 +56,7 @@ Content to analyze:
 `;
 
 export class EntityDiscoveryService {
-  private llmProvider?: LLMProvider;
+  private readonly llmProvider?: LLMProvider;
   
   constructor(llmProvider?: LLMProvider) {
     this.llmProvider = llmProvider;
@@ -80,7 +80,7 @@ export class EntityDiscoveryService {
     try {
       const prompt = ENTITY_DISCOVERY_PROMPT.replace("{content}", content);
       const response = await this.llmProvider.generate(prompt);
-      const parsed = JSON.parse(response);
+      const parsed = this.parseJsonResponse(response);
 
       interface EntityLike {
         name: string;
@@ -95,6 +95,15 @@ export class EntityDiscoveryService {
         type: string;
         confidence: number;
         context?: string;
+      }
+
+      // Type guard to ensure parsed has the expected structure
+      const isValidParsedResponse = (obj: unknown): obj is { entities?: EntityLike[]; relationships?: RelationshipLike[] } => {
+        return obj !== null && typeof obj === 'object';
+      };
+
+      if (!isValidParsedResponse(parsed)) {
+        throw new Error("Invalid response format from LLM");
       }
 
       const entities = (parsed.entities || [])
@@ -134,6 +143,61 @@ export class EntityDiscoveryService {
         summary: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
       };
     }
+  }
+
+  private parseJsonResponse(response: string): unknown {
+    const candidates = this.extractJsonCandidates(response);
+
+    if (candidates.length === 0) {
+      throw new Error("LLM response did not contain any JSON content");
+    }
+
+    let lastError: unknown;
+
+    for (const candidate of candidates) {
+      try {
+        return JSON.parse(candidate);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    const message =
+      lastError instanceof Error ? lastError.message : "Unknown JSON parsing error";
+    throw new Error(`Failed to parse LLM response as JSON: ${message}`);
+  }
+
+  private extractJsonCandidates(response: string): string[] {
+    const trimmed = response.trim();
+    const seen = new Set<string>();
+    const candidates: string[] = [];
+
+    const addCandidate = (candidate: string): void => {
+      const normalized = candidate.trim();
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      candidates.push(normalized);
+    };
+
+    const fencedJson = /```(?:json)?\s*([\s\S]*?)```/gi;
+    let match: RegExpExecArray | null;
+    while ((match = fencedJson.exec(trimmed)) !== null) {
+      addCandidate(match[1]);
+    }
+
+    const firstBrace = trimmed.indexOf("{");
+    const lastBrace = trimmed.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      addCandidate(trimmed.slice(firstBrace, lastBrace + 1));
+    }
+
+    if (trimmed) {
+      addCandidate(trimmed);
+    }
+
+    return candidates;
   }
 
   private mapToStructuredType(discoveredType: string): string | undefined {

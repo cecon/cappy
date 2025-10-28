@@ -484,7 +484,8 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
             workspaceRoot,
             llmProvider
         );
-        console.log('✅ Indexing service initialized');
+        await indexingService.initialize();
+        console.log('✅ Indexing service ready');
 
         // Initialize worker WITH indexing service and graph store
         const worker = new FileProcessingWorker(
