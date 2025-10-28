@@ -597,21 +597,26 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; connect-src ${webview.cspSource};">
   <link href="${styleUri}" rel="stylesheet">
   <title>Cappy Documents</title>
+  <script nonce="${nonce}">
+    // CRITICAL: Initialize vscodeApi BEFORE any other script loads
+    (function() {
+      try {
+        console.log('[Documents Webview] 🚀 Initializing vscodeApi...');
+        const vscode = acquireVsCodeApi();
+        window.vscodeApi = vscode;
+        console.log('[Documents Webview] ✅ vscodeApi ready:', !!window.vscodeApi);
+        
+        // Notify extension that webview is ready
+        window.vscodeApi.postMessage({ type: 'webview-ready' });
+        console.log('[Documents Webview] 📤 Sent webview-ready message');
+      } catch (e) {
+        console.error('[Documents Webview] ❌ Failed to acquire VS Code API:', e);
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="root" data-page="documents"></div>
-  <script nonce="${nonce}">
-    try {
-      console.log('[Documents Webview] Initializing vscodeApi...');
-      // @ts-ignore
-      window.vscodeApi = acquireVsCodeApi();
-      console.log('[Documents Webview] vscodeApi ready:', !!window.vscodeApi);
-      // Notify extension that webview is ready to communicate
-      window.vscodeApi.postMessage({ type: 'webview-ready' });
-    } catch (e) {
-      console.error('[Documents Webview] Failed to acquire VS Code API:', e);
-    }
-  </script>
   <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

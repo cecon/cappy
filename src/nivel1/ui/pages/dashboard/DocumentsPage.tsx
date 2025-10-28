@@ -99,7 +99,18 @@ const DocumentsPage: React.FC = () => {
   const postMessage = (type: string, payload: Record<string, unknown> = {}) => {
     console.log(`[DocumentsPage] 📤 Posting message to extension: ${type}`, { type, payload });
     console.log(`[DocumentsPage] vscodeApi available:`, !!vscodeApi);
-    vscodeApi?.postMessage({ type, payload });
+    
+    if (!vscodeApi) {
+      console.error('[DocumentsPage] ❌ Cannot send message - vscodeApi is undefined!');
+      return;
+    }
+    
+    try {
+      vscodeApi.postMessage({ type, payload });
+      console.log(`[DocumentsPage] ✅ Message sent successfully via postMessage`);
+    } catch (error) {
+      console.error('[DocumentsPage] ❌ Error calling postMessage:', error);
+    }
   };
 
   // Small helpers to avoid deep nested callbacks inside setState
