@@ -18,7 +18,8 @@ import {
   registerDebugAddTestDataCommand,
   registerReanalyzeRelationshipsCommand,
   registerResetDatabaseCommand,
-  registerDiagnoseGraphCommand
+  registerDiagnoseGraphCommand,
+  registerCleanInvalidFilesCommand
 } from './nivel1/adapters/vscode/commands';
 import { FileMetadataDatabase } from './nivel2/infrastructure/services/file-metadata-database';
 import { FileProcessingQueue } from './nivel2/infrastructure/services/file-processing-queue';
@@ -240,6 +241,10 @@ export function activate(context: vscode.ExtensionContext) {
     
     registerDebugAddTestDataCommand(context);
     console.log('✅ Registered command: cappy.debugAddTestData');
+
+    // Register clean invalid files command
+    registerCleanInvalidFilesCommand(context);
+    console.log('✅ Registered command: cappy.cleanInvalidFiles');
 
     // Register reanalyze relationships command (needs graphStore and fileDatabase)
     if (graphStore && fileDatabase) {

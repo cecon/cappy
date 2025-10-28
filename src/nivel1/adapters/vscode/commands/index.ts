@@ -15,3 +15,4 @@ export {
 export { reanalyzeRelationships, registerReanalyzeRelationshipsCommand } from './reanalyze-relationships';
 export { registerResetDatabaseCommand } from './reset-database';
 export { diagnoseGraph, registerDiagnoseGraphCommand } from './diagnose-graph';
+export { registerCleanInvalidFilesCommand } from './clean-invalid-files';
