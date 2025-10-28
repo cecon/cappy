@@ -3,30 +3,11 @@ import type { EntityDiscoveryOptions } from "../entities/EntityDiscoveryOptions"
 import type { LLMProvider } from "../providers/LLMProvider";
 
 const ENTITY_DISCOVERY_PROMPT = `
-Analyze the following content and extract ALL entities and relationships.
-Don't limit yourself to predefined types. Discover:
+You are an information extraction engine. Your response MUST be a single valid JSON object that matches the schema shown below.
+Do not include explanations, apologies, code fences, or any text outside the JSON object.
+If no entities or relationships are found, return {"entities": [], "relationships": []}.
 
-1. **Technical Entities**
-   - Services, APIs, databases, queues, caches
-   - Components, modules, packages
-   - Infrastructure elements
-
-2. **Business Entities**
-   - Domain objects (User, Order, Payment)
-   - Workflows, processes
-   - Business rules
-
-3. **Abstract Entities**
-   - Design patterns
-   - Architectural concepts
-   - Best practices
-
-4. **Relationships**
-   - Uses, depends on, calls, configures
-   - Implements, extends, composes
-   - Triggers, processes, transforms
-
-Return JSON format:
+Schema:
 {
   "entities": [
     {
@@ -50,6 +31,13 @@ Return JSON format:
     }
   ]
 }
+
+Instructions:
+1. Extract technical entities (services, APIs, databases, queues, caches, components, modules, packages, infrastructure elements).
+2. Extract business entities (domain objects, workflows, processes, business rules).
+3. Extract abstract entities (design patterns, architectural concepts, best practices).
+4. Extract relationships (uses, depends on, calls, configures, implements, extends, composes, triggers, processes, transforms).
+5. Confidence scores must be numeric between 0 and 1.
 
 Content to analyze:
 {content}

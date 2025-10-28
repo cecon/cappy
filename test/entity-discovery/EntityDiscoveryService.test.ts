@@ -107,4 +107,15 @@ describe("EntityDiscoveryService JSON parsing", () => {
     expect(result.summary).toContain("Error:");
     expect(result.summary).toContain("Failed to parse LLM response as JSON");
   });
+
+  it("returns error summary when response contains no JSON at all", async () => {
+    const service = createService("   ");
+
+    const result = await service.discoverEntities("Content", baseOptions);
+
+    expect(result.entities).toHaveLength(0);
+    expect(result.relationships).toHaveLength(0);
+    expect(result.summary).toContain("Error:");
+    expect(result.summary).toContain("LLM response did not contain any JSON content");
+  });
 });

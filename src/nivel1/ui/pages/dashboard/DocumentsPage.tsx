@@ -227,13 +227,22 @@ const DocumentsPage: React.FC = () => {
       }
       console.log('[DocumentsPage] Requesting documents from extension with pagination...');
       // Request documents via postMessage with pagination params
+      let sortBy: string;
+      if (sortField === 'id') {
+        sortBy = 'id';
+      } else if (sortField === 'created') {
+        sortBy = 'created_at';
+      } else {
+        sortBy = 'updated_at';
+      }
+
       vscodeApi.postMessage({
         type: 'document/refresh',
         payload: {
           page: currentPage,
           limit: itemsPerPage,
-          status: statusFilter !== 'all' ? statusFilter : undefined,
-          sortBy: sortField === 'id' ? 'id' : sortField === 'created' ? 'created_at' : 'updated_at',
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          sortBy: sortBy,
           sortOrder: sortOrder
         }
       });
@@ -291,8 +300,8 @@ const DocumentsPage: React.FC = () => {
           setDocuments(docs.map((d: Document) => ({ ...d, selected: false })));
           
           // Update pagination info from server
-          const total = payload.total !== undefined ? payload.total : docs.length;
-          const pages = payload.totalPages !== undefined ? payload.totalPages : 1;
+          const total = payload.total === undefined ? docs.length : payload.total;
+          const pages = payload.totalPages === undefined ? 1 : payload.totalPages;
           
           setTotalDocuments(total);
           setTotalPages(pages);

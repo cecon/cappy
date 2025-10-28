@@ -362,7 +362,8 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     
     // Get documents from file metadata database
     if (!this._fileDatabase) {
-      console.warn('⚠️ [DocumentsViewProvider] No file database available');
+      console.error('❌ [DocumentsViewProvider] No file database available - file processing system may not be initialized yet');
+      console.error('❌ [DocumentsViewProvider] Please wait for the file processing system to initialize or run "Cappy: Start File Processing" command');
       this._view?.webview.postMessage({
         type: 'document/list',
         payload: { documents: [], total: 0, page: 1, limit: 10, totalPages: 0 }
