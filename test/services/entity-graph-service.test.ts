@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { GraphStorePort } from '@/domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '@/domains/dashboard/ports/indexing-port';
 import type { ExtractedEntity } from '@/types/entity';
 import { createEntityGraphService } from '@/nivel2/infrastructure/services/entity-graph-service';
 

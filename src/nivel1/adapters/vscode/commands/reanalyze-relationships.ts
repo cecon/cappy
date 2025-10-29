@@ -6,7 +6,7 @@
  */
 
 import * as vscode from 'vscode';
-import type { GraphStorePort } from '../../../../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../../domains/dashboard/ports/indexing-port';
 import { ASTRelationshipExtractor } from '../../../../nivel2/infrastructure/services/ast-relationship-extractor';
 import type { FileMetadataDatabase } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 import * as path from 'node:path';

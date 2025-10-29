@@ -14,14 +14,12 @@ export default defineConfig(() => ({
     outDir: 'out',
     rollupOptions: {
       input: {
-        // Main React app entry point (Chat View)
-        main: path.resolve(import.meta.dirname, 'index.html'),
-        // Graph WebView entry point
-        graph: path.resolve(import.meta.dirname, 'graph.html'),
-        // Development dashboard
-        dev: path.resolve(import.meta.dirname, 'dev.html'),
+        // Chat React app entry point (Chat View)
+        chat: path.resolve(import.meta.dirname, 'chat.html'),
+        // Dashboard WebView entry point
+        dashboard: path.resolve(import.meta.dirname, 'dashboard.html'),
       },
-      output: {
+      output: { 
         entryFileNames: '[name].js',
         chunkFileNames: '[name].js',
         assetFileNames: '[name].[ext]'

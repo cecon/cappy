@@ -5,7 +5,7 @@
  * @since 3.0.0
  */
 
-import type { VectorStorePort, GraphStorePort } from '../../../domains/graph/ports/indexing-port';
+import type { VectorStorePort, GraphStorePort } from '../../../domains/dashboard/ports/indexing-port';
 import type { DocumentChunk } from '../../../shared/types/chunk';
 import type { EmbeddingService } from './embedding-service';
 import type { LLMProvider } from './entity-discovery/providers/LLMProvider';

@@ -6,7 +6,7 @@
  */
 
 import type { DocumentChunk } from "../../../shared/types/chunk";
-import type { VectorStorePort } from "../../../domains/graph/ports/indexing-port";
+import type { VectorStorePort } from "../../../domains/dashboard/ports/indexing-port";
 import type { EmbeddingService } from "../services/embedding-service";
 import { SQLiteAdapter } from "../database/sqlite-adapter";
 

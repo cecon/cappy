@@ -47,7 +47,7 @@ Sistema de re-ranking multi-sinal:
 
 ```typescript
 import { HybridRetriever } from './services/hybrid-retriever';
-import type { GraphData } from './domains/graph/types';
+import type { GraphData } from './domains/dashboard/types';
 
 // Inicializar com graph data (opcional)
 const retriever = new HybridRetriever(graphData);

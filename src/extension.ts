@@ -24,18 +24,16 @@ import {
 import { FileMetadataDatabase } from './nivel2/infrastructure/services/file-metadata-database';
 import { FileProcessingQueue } from './nivel2/infrastructure/services/file-processing-queue';
 import { FileProcessingWorker } from './nivel2/infrastructure/services/file-processing-worker';
-import { UnifiedQueueProcessor } from './nivel2/infrastructure/services/unified-queue-processor';
 import { FileChangeWatcher } from './nivel2/infrastructure/services/file-change-watcher';
 import { FileProcessingCronJob } from './nivel2/infrastructure/services/file-processing-cronjob';
 import { createVectorStore } from './nivel2/infrastructure/vector/sqlite-vector-adapter';
-import type { GraphStorePort } from './domains/graph/ports/indexing-port';
+import type { GraphStorePort } from './domains/dashboard/ports/indexing-port';
 import { SQLiteAdapter } from './nivel2/infrastructure/database/index.js';
-import { DevServerBridge } from './nivel1/adapters/vscode/dev-server-bridge';
+// import { DevServerBridge } from './nivel1/adapters/vscode/dev-server-bridge';
 
 // Global instances for file processing system
 let fileDatabase: FileMetadataDatabase | null = null;
 let fileQueue: FileProcessingQueue | null = null;
-let queueProcessor: UnifiedQueueProcessor | null = null;
 let fileWatcher: FileChangeWatcher | null = null;
 let graphStore: GraphStorePort | null = null;
 let contextRetrievalToolInstance: ContextRetrievalTool | null = null;
@@ -255,41 +253,39 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register queue control commands
     const pauseQueueCommand = vscode.commands.registerCommand('cappy.pauseQueue', () => {
-        if (!queueProcessor) {
+        if (!fileQueue) {
             vscode.window.showWarningMessage('Queue processor not initialized');
             return;
         }
-        queueProcessor.pause();
+        fileQueue.pause();
         vscode.window.showInformationMessage('⏸️ Processing queue paused');
     });
     context.subscriptions.push(pauseQueueCommand);
     console.log('✅ Registered command: cappy.pauseQueue');
 
     const resumeQueueCommand = vscode.commands.registerCommand('cappy.resumeQueue', () => {
-        if (!queueProcessor) {
+        if (!fileQueue) {
             vscode.window.showWarningMessage('Queue processor not initialized');
             return;
         }
-        queueProcessor.resume();
+        fileQueue.resume();
         vscode.window.showInformationMessage('▶️ Processing queue resumed');
     });
     context.subscriptions.push(resumeQueueCommand);
     console.log('✅ Registered command: cappy.resumeQueue');
 
     const queueStatusCommand = vscode.commands.registerCommand('cappy.queueStatus', async () => {
-        if (!fileDatabase || !queueProcessor) {
+        if (!fileDatabase || !fileQueue) {
             vscode.window.showWarningMessage('Queue system not initialized');
             return;
         }
         
         const stats = await fileDatabase.getStats();
-        const state = queueProcessor.getState();
         
         const message = [
             `📊 Queue Status:`,
-            `   Running: ${state.isRunning ? '✅' : '❌'}`,
-            `   Paused: ${state.isPaused ? '⏸️' : '▶️'}`,
-            `   Active: ${state.activeProcesses}`,
+            `   Running: ${fileQueue['isRunning'] ? '✅' : '❌'}`,
+            `   Paused: ${fileQueue['isPaused'] ? '⏸️' : '▶️'}`,
             ``,
             `📁 Files:`,
             `   Total: ${stats.total}`,
@@ -357,10 +353,10 @@ export function activate(context: vscode.ExtensionContext) {
     const chatEngine = new LangGraphChatEngine();
     const chatService = createChatService(chatEngine);
 
-    // Start WebSocket dev server bridge (porta 7002)
-    const devBridge = new DevServerBridge(7002, chatService);
-    context.subscriptions.push({ dispose: () => devBridge.dispose() });
-    console.log('🔌 Dev Server Bridge started on port 7002');
+    // TEMPORARILY DISABLED: WebSocket dev server bridge causing crashes
+    // const devBridge = new DevServerBridge(7002, chatService);
+    // context.subscriptions.push({ dispose: () => devBridge.dispose() });
+    console.log('⏸️  Dev Server Bridge disabled (port conflict issues)');
 
     // Register Chat View Provider for sidebar
     const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
@@ -415,12 +411,10 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         const dbPath = path.join(cappyDataDir, 'file-metadata.db');
         fileDatabase = new FileMetadataDatabase(dbPath);
         await fileDatabase.initialize();
-        console.log('✅ File metadata database initialized at:', dbPath);
 
         // Connect DocumentsViewProvider to the file database
         if (documentsViewProviderInstance && fileDatabase) {
             documentsViewProviderInstance.setFileDatabase(fileDatabase);
-            console.log('✅ DocumentsViewProvider connected to file database');
         }
 
         // Initialize services for worker
@@ -498,25 +492,6 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
             indexingService,
             graphStore
         );
-        console.log('✅ File processing worker created (with indexing and graph store)');
-
-        // Initialize NEW unified queue processor
-        queueProcessor = new UnifiedQueueProcessor(
-            fileDatabase,
-            worker,
-            {
-                concurrency: 2,
-                pollInterval: 1000,
-                batchSize: 10,
-                maxRetries: 3,
-                retryDelay: 5000
-            }
-        );
-
-        // Start queue processor (runs in background)
-        // TEMPORARILY DISABLED to prevent native module crashes
-        // queueProcessor.start();
-        console.log('⏸️  UnifiedQueueProcessor disabled (native module stability)');
 
         // Initialize file change watcher
         fileWatcher = new FileChangeWatcher(
@@ -534,17 +509,17 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         // await fileWatcher.start();
         console.log('⏸️  FileChangeWatcher disabled (native module stability)');
 
-        // Initialize queue (LEGACY - kept for compatibility)
+        // Initialize queue for background processing
         fileQueue = new FileProcessingQueue(fileDatabase, worker, {
             concurrency: 2,
             maxRetries: 3,
-            autoStart: false // Disabled, using UnifiedQueueProcessor instead
+            autoStart: true // Auto-start processing queue
         });
-        console.log('⚠️  Legacy FileProcessingQueue created (disabled)');
+        console.log('✅ FileProcessingQueue initialized and started');
 
         // Auto-refresh Graph panel when a file completes processing
         try {
-            queueProcessor.on('file:complete', async () => {
+            fileQueue.on('file:complete', async () => {
                 await graphPanel.refreshSubgraph(2);
             });
         } catch (e) {
@@ -579,17 +554,13 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
                     fileCronJob.stop();
                     console.log('🛑 File processing cronjob stopped');
                 }
-                if (queueProcessor) {
-                    queueProcessor.stop();
-                    console.log('🛑 UnifiedQueueProcessor stopped');
-                }
                 if (fileWatcher) {
                     fileWatcher.stop();
                     console.log('🛑 FileChangeWatcher stopped');
                 }
                 if (fileQueue) {
                     fileQueue.stop();
-                    console.log('🛑 Legacy file processing queue stopped');
+                    console.log('🛑 File processing queue stopped');
                 }
                 if (fileDatabase) {
                     fileDatabase.close();
@@ -597,8 +568,6 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
                 }
             }
         });
-
-        vscode.window.showInformationMessage('✅ File processing system ready');
     } catch (error) {
         console.error('Failed to initialize file processing system:', error);
         throw error;

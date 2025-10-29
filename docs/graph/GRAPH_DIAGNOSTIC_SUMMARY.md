@@ -154,7 +154,7 @@ Cmd+Shift+P → "Cappy: Diagnose Graph Structure"
 ## 📁 Arquivos Modificados
 
 - ✅ `src/commands/diagnose-graph.ts` - Novo comando completo
-- ✅ `src/domains/graph/ports/indexing-port.ts` - Interface atualizada
+- ✅ `src/domains/dashboard/ports/indexing-port.ts` - Interface atualizada
 - ✅ `src/extension.ts` - Comando registrado
 - ✅ `package.json` - Comando no VS Code
 - ✅ `docs/GRAPH_DEPTH_ANALYSIS.md` - Documentação técnica

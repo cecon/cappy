@@ -9,7 +9,7 @@
    - Methods: `retrieve()`, `search()`, `queryGraph()`
    - Why it matters: Main entry point for retrieval operations
 
-2. **GraphDatabase** (`src/domains/graph/repositories/graph-repository.ts`, lines 78-156)
+2. **GraphDatabase** (`src/domains/dashboard/repositories/graph-repository.ts`, lines 78-156)
    - Database query methods that need caching
    - Why it matters: Expensive operations that benefit from caching
 

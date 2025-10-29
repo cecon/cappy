@@ -1,7 +1,8 @@
 import * as http from 'http';
 import type { FileProcessingQueue } from './file-processing-queue';
 import type { FileMetadataDatabase, FileMetadata } from './file-metadata-database';
-import type { GraphStorePort } from '../../../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../domains/dashboard/ports/indexing-port';
+import { FileHashService } from './file-hash-service';
 
 export interface FileUploadRequest {
   filePath: string;
@@ -30,6 +31,7 @@ export class FileProcessingAPI {
   private readonly port: number;
   private readonly onScanWorkspace?: () => Promise<void>;
   private readonly onReprocessFile?: (filePath: string) => Promise<void>;
+  private readonly hashService: FileHashService;
 
   constructor(
     _queue: FileProcessingQueue,
@@ -45,6 +47,7 @@ export class FileProcessingAPI {
     this.graphStore = graphStore;
     this.onScanWorkspace = onScanWorkspace;
     this.onReprocessFile = onReprocessFile;
+    this.hashService = new FileHashService();
   }
 
   start(): Promise<void> {
@@ -280,13 +283,12 @@ export class FileProcessingAPI {
         const uploadRequest: FileUploadRequest = JSON.parse(body);
         console.log('[FileProcessingAPI] File:', uploadRequest.fileName);
         
-        // Calculate hash directly from base64 content
+        // Calculate hash using FileHashService with BLAKE3
         const fileContent = Buffer.from(uploadRequest.content, 'base64');
         console.log('[FileProcessingAPI] File size:', fileContent.length, 'bytes');
         
-        const crypto = await import('crypto');
-        const hash = crypto.createHash('sha256').update(fileContent).digest('hex');
-        console.log('[FileProcessingAPI] File hash:', hash);
+        const hash = await this.hashService.hashString(fileContent.toString());
+        console.log('[FileProcessingAPI] File hash (BLAKE3):', hash);
 
         // Use virtual path for uploaded files
         const virtualPath = `uploaded:${uploadRequest.fileName}`;
@@ -327,7 +329,7 @@ export class FileProcessingAPI {
             fileSize: fileContent.length,
             fileHash: hash,
             fileContent: uploadRequest.content, // Store base64 content
-            status: 'pending', // UnifiedQueueProcessor will pick it up
+            status: 'pending', // FileProcessingQueue will pick it up
             progress: 0,
             retryCount: 0,
             maxRetries: 3

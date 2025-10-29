@@ -5,7 +5,7 @@
 
 import { FileHashService } from '../../file-hash-service';
 import type { FileIndexEntry } from '../../../../../shared/types/chunk';
-import type { GraphStorePort } from '../../../../../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../../../domains/dashboard/ports/indexing-port';
 
 /**
  * File index manager configuration

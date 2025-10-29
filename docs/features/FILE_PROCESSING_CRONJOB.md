@@ -250,4 +250,4 @@ TODO: Adicionar testes unitários para o cronjob
 - [Document Parser](../parsers/document-parser.ts)
 - [AST Entity Extractor](./entity-extraction/core/ASTEntityExtractor.ts)
 - [AST Relationship Extractor](./ast-relationship-extractor.ts)
-- [Graph Store Port](../../../domains/graph/ports/indexing-port.ts)
+- [Graph Store Port](../../../domains/dashboard/ports/indexing-port.ts)

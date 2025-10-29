@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { LoadGraphDataUseCase, type LoadGraphDataOptions } from '@/domains/graph/use-cases/LoadGraphDataUseCase';
-import type { GraphRepository } from '@/domains/graph/use-cases/../ports/GraphRepository';
-import { GraphData } from '@/domains/graph/use-cases/../entities/GraphData';
-import { GraphNode } from '@/domains/graph/use-cases/../entities/GraphNode';
-import { GraphEdge } from '@/domains/graph/use-cases/../entities/GraphEdge';
-import type { NodeType, GraphStatistics } from '@/domains/graph/use-cases/../types';
+import { LoadGraphDataUseCase, type LoadGraphDataOptions } from '@/domains/dashboard/use-cases/LoadGraphDataUseCase';
+import type { GraphRepository } from '@/domains/dashboard/use-cases/../ports/GraphRepository';
+import { GraphData } from '@/domains/dashboard/use-cases/../entities/GraphData';
+import { GraphNode } from '@/domains/dashboard/use-cases/../entities/GraphNode';
+import { GraphEdge } from '@/domains/dashboard/use-cases/../entities/GraphEdge';
+import type { NodeType, GraphStatistics } from '@/domains/dashboard/use-cases/../types';
 
 // Helper function to create test nodes
 function createTestNode(

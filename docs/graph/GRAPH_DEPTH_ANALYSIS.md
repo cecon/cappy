@@ -350,7 +350,7 @@ Deepest path: 8+ hops
 ## Arquivos Modificados
 
 - ✅ `src/commands/diagnose-graph.ts` - Novo comando de diagnóstico
-- ✅ `src/domains/graph/ports/indexing-port.ts` - Adicionados métodos getStats e getSubgraph
+- ✅ `src/domains/dashboard/ports/indexing-port.ts` - Adicionados métodos getStats e getSubgraph
 - ✅ `src/extension.ts` - Registrado comando
 - ✅ `package.json` - Adicionado comando ao VS Code
 

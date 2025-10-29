@@ -6,7 +6,7 @@
  */
 
 import type { DocumentChunk } from '../../../../../shared/types/chunk';
-import type { GraphStorePort } from '../../../../../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../../../domains/dashboard/ports/indexing-port';
 import type {
   RawEntity,
   FilterPipelineConfig,

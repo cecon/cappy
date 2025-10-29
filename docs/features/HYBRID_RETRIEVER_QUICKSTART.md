@@ -4,7 +4,7 @@
 
 ```typescript
 import { HybridRetriever } from './services/hybrid-retriever';
-import type { GraphData } from './domains/graph/types';
+import type { GraphData } from './domains/dashboard/types';
 
 // 1. Inicializar
 const retriever = new HybridRetriever(graphData);

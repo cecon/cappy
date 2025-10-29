@@ -9,7 +9,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as sqliteVec from "sqlite-vec";
 
-import type { GraphStorePort } from "../../../domains/graph/ports/indexing-port";
+import type { GraphStorePort } from "../../../domains/dashboard/ports/indexing-port";
 import type { DocumentChunk } from "../../../shared/types/chunk";
 
 /**

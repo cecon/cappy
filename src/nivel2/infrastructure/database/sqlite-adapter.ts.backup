@@ -9,7 +9,7 @@ import sqlite3 from "sqlite3";
 import * as fs from "fs";
 import * as path from "path";
 
-import type { GraphStorePort } from "../../../domains/graph/ports/indexing-port";
+import type { GraphStorePort } from "../../../domains/dashboard/ports/indexing-port";
 import type { DocumentChunk } from "../../../types/chunk";
 
 /**

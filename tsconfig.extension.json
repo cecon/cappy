@@ -25,7 +25,7 @@
     "src/nivel1/main.tsx",
     "src/nivel1/graph-main.tsx",
     "src/nivel1/ui/**",
-    "src/domains/graph/use-cases/__tests__",
+    "src/domains/dashboard/use-cases/__tests__",
     "src/lib"
   ]
 }

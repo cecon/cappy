@@ -5,7 +5,7 @@
  * @since 3.1.0
  */
 
-import type { GraphStorePort } from '../../../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../domains/dashboard/ports/indexing-port';
 import type { ExtractedEntity, EntityRelationship, EntityExtractionResult } from '../../../shared/types/entity';
 import type { DocumentChunk } from '../../../shared/types/chunk';
 

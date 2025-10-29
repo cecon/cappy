@@ -1,5 +1,5 @@
 import type { NormalizedEntity } from '../types/FilterTypes';
-import type { GraphStorePort } from '../../../../../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../../../domains/dashboard/ports/indexing-port';
 
 /**
  * Serviço de descoberta de entidades existentes no grafo
