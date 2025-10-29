@@ -72,7 +72,6 @@ export function activate(context: vscode.ExtensionContext) {
         const cappyTools = allTools.filter(t => t.name.startsWith('cappy_'));
         console.log('🛠️ All Cappy tools registered:', cappyTools.map(t => t.name).join(', '));
         console.log('🛠️ Total Language Model tools available:', allTools.length);
-        console.log('🛠️ Tool names:', allTools.map(t => t.name).join(', '));
         
         // Log tool registration to console instead of showing a user-facing notification
         if (cappyTools.length > 0) {

@@ -23,44 +23,11 @@ export class DocumentsConfirmRemoveUseCase implements UseCase {
     );
 
     if (confirmed === 'Remove') {
-      ctx.log(`🗑️ Removing document: ${fileId}`);
-      
-      try {
-        // Call backend to remove file
-        const res = await fetch('http://localhost:3456/files/remove', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileId, filePath })
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error((err as { error?: string }).error || 'Failed to remove file');
-        }
-
-        const result = await res.json() as { nodesDeleted?: number; chunksDeleted?: number; relationshipsDeleted?: number };
-        
-        ctx.log(`✅ File removed successfully: ${fileId}`);
-        
-        // Notify webview to update UI
-        ctx.sendMessage({
-          type: 'document/removed',
-          fileId,
-          result
-        });
-
-        // Show success message
-        await ctx.vscode.window.showInformationMessage(
-          `✅ File removed successfully!\n\nRemoved:\n- File metadata\n- ${result.nodesDeleted || 0} graph nodes\n- ${result.chunksDeleted || 0} chunks\n- ${result.relationshipsDeleted || 0} relationships`
-        );
-
-        // Refresh graph
-        await ctx.refreshSubgraph();
-
-      } catch (e) {
-        ctx.log(`❌ Remove error: ${e}`);
-        await ctx.vscode.window.showErrorMessage(`Failed to remove file: ${String(e)}`);
-      }
+      ctx.log(`🗑️ Remove operation requested for: ${fileId}`);
+      // Legacy HTTP removal service has been removed.
+      await ctx.vscode.window.showInformationMessage(
+        'File removal through external service is no longer supported. Please use built-in maintenance commands (e.g., "Cappy: Clean Invalid Files" or reset database) while native removal is being implemented.'
+      );
     }
   }
 }

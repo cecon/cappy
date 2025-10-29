@@ -590,11 +590,13 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    * Gets the HTML content for the webview
    */
   private _getHtmlForWebview(webview: vscode.Webview) {
+    // IMPORTANT: Vite outputs 'chat.js' and 'chat.css' for the unified Chat/Documents entry
+    // (see vite.config.ts rollupOptions.input). There is no 'main.js' in out/.
     const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'out', 'main.js')
+      vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.js')
     );
     const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'out', 'main.css')
+      vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.css')
     );
 
     const nonce = (() => {

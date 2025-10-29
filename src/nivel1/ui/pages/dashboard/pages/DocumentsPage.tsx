@@ -112,56 +112,7 @@ const DocumentsPage: React.FC = () => {
   };
 
   // Small helpers to avoid deep nested callbacks inside setState
-  const makeUploadFailedUpdater = useCallback((tempId: string, error: unknown) => {
-    return (prev: Document[]) =>
-      prev.map((doc) =>
-        doc.id === tempId ? { ...doc, status: 'failed' as const, summary: `❌ Upload failed: ${String(error)}` } : doc,
-      );
-  }, []);
-
-  const makeEnqueuedUpdater = useCallback((tempId: string, fileId: string) => {
-    return (prev: Document[]) =>
-      prev.map((doc) =>
-        doc.id === tempId ? { ...doc, id: String(fileId), status: 'processing' as const, progress: 0, summary: 'In queue...' } : doc,
-      );
-  }, []);
-
-  type StatusShape = {
-    status: DocumentStatus;
-    progress?: number;
-    summary?: string;
-    error?: string;
-    chunksCount?: number;
-  };
-
-  const makeStatusUpdater = useCallback((fileId: string, status: StatusShape) => {
-    const today = new Date().toISOString().split('T')[0];
-    return (prev: Document[]) =>
-      prev.map((doc) =>
-        doc.id === fileId
-          ? {
-              ...doc,
-              status: status.status,
-              progress: status.progress,
-              summary: status.error ? `❌ ${status.error}` : status.summary ?? doc.summary,
-              chunks: status.chunksCount ?? doc.chunks,
-              updated: today,
-            }
-          : doc,
-      );
-  }, []);
-
-  const makeFailureUpdater = useCallback((fileId: string, error: unknown) => {
-    return (prev: Document[]) =>
-      prev.map((doc) => (doc.id === fileId ? { ...doc, status: 'failed' as const, summary: `❌ Error: ${String(error)}` } : doc));
-  }, []);
-
-  const makeTimeoutUpdater = useCallback((fileId: string) => {
-    return (prev: Document[]) =>
-      prev.map((doc) =>
-        doc.id === fileId ? { ...doc, status: 'failed' as const, summary: '❌ Timeout: processing took too long' } : doc,
-      );
-  }, []);
+  // Legacy upload helpers removed with HTTP service deprecation
 
   // Helpers extracted to reduce nesting
   const setDocsFromStatusResponses = useCallback((statusResponses: Array<Record<string, unknown>>) => {
@@ -393,116 +344,13 @@ const DocumentsPage: React.FC = () => {
     setDocuments(prev => [...prev, ...newDocuments]);
 
     // Process each file via API
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const tempId = newDocuments[i].id;
-      
-      try {
-        // Upload file to API
-        await uploadFileToAPI(file, tempId);
-      } catch (error) {
-        console.error('[DocumentsPage] Upload error:', error);
-        setDocuments(makeUploadFailedUpdater(tempId, error));
-      }
-    }
-
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    // Legacy browser upload via HTTP API was removed.
+    console.warn('[DocumentsPage] Browser-based upload is disabled. Use the Upload button inside VS Code (delegates to extension).');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const uploadFileToAPI = async (file: File, tempId: string): Promise<void> => {
-    // Read file as base64
-    const reader = new FileReader();
-    
-    const fileContent = await new Promise<string>((resolve, reject) => {
-      reader.onload = () => {
-        const result = reader.result as string;
-        // Remove data:*/*;base64, prefix
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = () => {
-        const err = reader.error instanceof Error ? reader.error : new Error(String(reader.error ?? 'File read error'));
-        reject(err);
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // Upload to API
-    const response = await fetch('http://localhost:3456/files/enqueue', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fileName: file.name,
-        filePath: file.name, // Will be saved to temp folder by API
-        content: fileContent
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Upload failed');
-    }
-
-    const result = await response.json();
-    const fileId = result.fileId;
-
-    console.log('[DocumentsPage] File enqueued:', fileId);
-
-    // Update document with real fileId and start polling
-    setDocuments(makeEnqueuedUpdater(tempId, String(fileId)));
-
-    // Start polling for status
-    pollFileStatus(String(fileId));
-  };
-
-  const pollFileStatus = async (fileId: string): Promise<void> => {
-    const pollInterval = 1000; // 1 second
-    const maxPolls = 120; // 2 minutes max
-    let polls = 0;
-
-    const poll = async () => {
-      if (polls >= maxPolls) {
-        console.warn('[DocumentsPage] Max polls reached for file:', fileId);
-        setDocuments(makeTimeoutUpdater(fileId));
-        return;
-      }
-
-      try {
-        const response = await fetch(`http://localhost:3456/files/status?fileId=${fileId}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch status');
-        }
-
-        const status = await response.json();
-        
-        console.log('[DocumentsPage] Status update for', fileId, ':', status);
-        
-        // Update document status
-        setDocuments(makeStatusUpdater(fileId, status));
-
-        // Continue polling if still processing
-        if (status.status === 'processing' || status.status === 'pending') {
-          polls++;
-          setTimeout(poll, pollInterval);
-        } else {
-          console.log('[DocumentsPage] File processing finished:', fileId, status.status);
-          if (status.error) {
-            console.error('[DocumentsPage] Error details:', status.error);
-          } else if (status.chunksCount) {
-            console.log('[DocumentsPage] ✅ Processed with', status.chunksCount, 'chunks');
-          }
-        }
-      } catch (error) {
-        console.error('[DocumentsPage] Status poll error:', error);
-        setDocuments(makeFailureUpdater(fileId, error));
-      }
-    };
-
-    poll();
-  };
+  // NOTE: Legacy HTTP service removed — no direct uploads via HTTP.
+  // Fallback browser upload path is disabled.
 
   const handleScan = async () => {
     // Use extension-driven scan via postMessage
@@ -520,31 +368,10 @@ const DocumentsPage: React.FC = () => {
 
   const reprocessDocument = async (fileId: string) => {
     try {
-      // Find the document to get its filePath
       const doc = documents.find(d => d.id === fileId);
-      if (!doc?.filePath) {
-        throw new Error('File path not found');
-      }
-
-      const res = await fetch('http://localhost:3456/files/reprocess', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: doc.filePath })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to reprocess');
-      }
-
-      // Optimistically update UI
-      setDocuments((prev) =>
-        prev.map((d) => (d.id === fileId ? { ...d, status: 'processing', progress: 50, summary: '🔄 Reprocessing...' } : d)),
-      );
-      
-      // Reload documents after a short delay
-      setTimeout(() => {
-        loadDocuments({ force: true });
-      }, 2000);
+      if (!doc?.filePath) throw new Error('File path not found');
+      // Delegate to extension: it handles processing pipeline internally
+      postMessage('document/process', { fileUri: doc.filePath });
     } catch (e) {
       console.error('[DocumentsPage] Reprocess error:', e);
       setDocuments((prev) => prev.map((d) => (d.id === fileId ? { ...d, status: 'failed', summary: `❌ ${String(e)}` } : d)));
