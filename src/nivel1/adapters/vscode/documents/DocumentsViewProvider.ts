@@ -406,16 +406,22 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       }
       
       // Send paginated result to webview
-      console.log(`📤 [DocumentsViewProvider] Sending ${documents.length} documents to webview (paginated)`);
+      console.log(`📤 [DocumentsViewProvider] ============================================`);
+      console.log(`📤 [DocumentsViewProvider] SENDING DOCUMENTS TO WEBVIEW`);
+      console.log(`📤 [DocumentsViewProvider] Documents count: ${documents.length}`);
+      console.log(`📤 [DocumentsViewProvider] Total: ${result.total}`);
+      console.log(`📤 [DocumentsViewProvider] Page: ${result.page}/${result.totalPages}`);
       console.log('📤 [DocumentsViewProvider] Webview exists:', !!this._view);
       console.log('📤 [DocumentsViewProvider] Webview visible:', this._view?.visible);
+      console.log(`📤 [DocumentsViewProvider] Sample documents:`, documents.slice(0, 2));
+      console.log(`📤 [DocumentsViewProvider] ============================================`);
       
       if (!this._view) {
         console.error('❌ [DocumentsViewProvider] Cannot send message - webview is undefined!');
         return;
       }
       
-      this._view.webview.postMessage({
+      const messagePayload = {
         type: 'document/list',
         payload: { 
           documents,
@@ -424,9 +430,15 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
           limit: result.limit,
           totalPages: result.totalPages
         }
-      });
+      };
       
-      console.log('✅ [DocumentsViewProvider] Message sent to webview successfully');
+      console.log('📤 [DocumentsViewProvider] About to call postMessage with:', JSON.stringify(messagePayload).substring(0, 500));
+      
+      this._view.webview.postMessage(messagePayload);
+      
+      console.log('✅ [DocumentsViewProvider] ============================================');
+      console.log('✅ [DocumentsViewProvider] POST MESSAGE CALLED SUCCESSFULLY');
+      console.log('✅ [DocumentsViewProvider] ============================================');
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error loading documents from database:', error);
       this._view?.webview.postMessage({
