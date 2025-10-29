@@ -35,9 +35,9 @@ export class GraphPanel {
     private graphWatcher: vscode.FileSystemWatcher | undefined;
     private refreshTimer: NodeJS.Timeout | null = null;
     private useCases: UseCase[] = [];
-    private webviewBuilder: WebviewContentBuilder;
-    private indexingInitializer = new IndexingInitializer();
-    private workspaceIndexer = new WorkspaceIndexer();
+    private readonly webviewBuilder: WebviewContentBuilder;
+    private readonly indexingInitializer = new IndexingInitializer();
+    private readonly workspaceIndexer = new WorkspaceIndexer();
 
     constructor(
         context: vscode.ExtensionContext,
@@ -316,7 +316,10 @@ export class GraphPanel {
      */
     private async ensureGraphDataDir(dbPath: string) {
         try {
-            if (!fs.existsSync(dbPath)) {
+            if (fs.existsSync(dbPath)) {
+                this.graphDbCreated = false;
+                this.log(`📁 Graph data folder exists: ${dbPath}`);
+            } else {
                 fs.mkdirSync(dbPath, { recursive: true });
                 this.graphDbCreated = true;
                 this.log(`🆕 Created graph data folder: ${dbPath}`);
@@ -325,9 +328,6 @@ export class GraphPanel {
                 if (!fs.existsSync(marker)) {
                     fs.writeFileSync(marker, 'Cappy Graph data — created automatically.');
                 }
-            } else {
-                this.graphDbCreated = false;
-                this.log(`📁 Graph data folder exists: ${dbPath}`);
             }
         } catch (error) {
             this.log(`❌ Failed to prepare graph data folder: ${error}`);

@@ -11,8 +11,12 @@ export class WebviewContentBuilder {
     const nonce = this.getNonce();
     const cspSource = panel.webview.cspSource;
 
-    const graphHtmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'out', 'dashboartd.html');
-    let htmlContent = fs.readFileSync(graphHtmlPath.fsPath, 'utf8');
+    // Strict: require Vite-built HTML under out/
+    const htmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'out', 'dashboard.html');
+    if (!fs.existsSync(htmlPath.fsPath)) {
+      throw new Error(`Dashboard HTML not found: ${htmlPath.fsPath}. Run 'npm run build' to generate it.`);
+    }
+    let htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
 
     const graphJsUri = panel.webview.asWebviewUri(
       vscode.Uri.joinPath(this.context.extensionUri, 'out', 'dashboard.js')

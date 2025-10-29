@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import typescriptIcon from '../../../../assets/typescript.svg';
-import reactIcon from '../../../../assets/react.svg';
-import fileIcon from '../../../../assets/file.svg';
-import chunkIcon from '../../../../assets/chunk.svg';
-import workspaceIcon from '../../../../assets/workspace.svg';
+import typescriptIcon from '../../../../../../assets/typescript.svg';
+import reactIcon from '../../../../../../assets/react.svg';
+import fileIcon from '../../../../../../assets/file.svg';
+import chunkIcon from '../../../../../../assets/chunk.svg';
+import workspaceIcon from '../../../../../../assets/workspace.svg';
 import { SigmaContainer, useLoadGraph, useRegisterEvents, useSigma } from '@react-sigma/core';
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';

@@ -111,12 +111,12 @@ src/nivel1/
 
 - **Chat**: `src/main.tsx` → `src/App.tsx` (selects page via data-page="chat") → `nivel1/ui/pages/chat/ChatView.tsx`
 - **Documents**: `src/main.tsx` → `src/App.tsx` (selects page via data-page="documents") → `nivel1/ui/pages/dashboard/DocumentsPage.tsx`
-- **Graph**: `src/graph-main.tsx` → `nivel1/ui/graph/App.tsx` (Tabs wrapper for GraphPage/RetrievalPage/ApiPage)
+- **Graph**: `src/dashboard-main.tsx` → `nivel1/ui/dashboard/App.tsx` (Tabs wrapper for GraphPage/RetrievalPage/ApiPage)
 
 ### Vite Bundle Outputs
 
-- **Main UI**: `out/main.js`, `out/main.css` (serves Chat & Documents)
-- **Graph UI**: `out/graph.js`, `out/graph.css`, `out/graph.html`
+- **Main UI**: `out/chat.js`, `out/chat.css` (serves Chat & Documents)
+- **Graph UI**: `out/dashboard.js`, `out/dashboard.css`, `out/dashboard.html`
 
 ### Providers
 

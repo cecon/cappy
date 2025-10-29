@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { GraphPanel } from './nivel1/adapters/vscode/graph/GraphPanel';
+import { GraphPanel } from './nivel1/adapters/vscode/dashboard/GraphPanel';
 import { ChatViewProvider } from './nivel1/adapters/vscode/chat/ChatViewProvider';
 import { DocumentsViewProvider } from './nivel1/adapters/vscode/documents/DocumentsViewProvider';
 import { CreateFileTool } from './nivel2/infrastructure/tools/create-file-tool';

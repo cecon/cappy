@@ -4,7 +4,7 @@ import Header from "./layout/Header";
 import GraphPage from "./pages/GraphPage";
 import RetrievalPage from "./pages/RetrievalPage";
 import ApiPage from "./pages/ApiPage";
-import DocumentsPage from "./DocumentsPage";
+import DocumentsPage from "./pages/DocumentsPage";
 
 function App() {
   const [currentTab, setCurrentTab] = useState("documents");
