@@ -1,6 +1,15 @@
 # Script de instalação da extensão Cappy para Windows
 # Este script compila, empacota e instala a extensão no VS Code
 
+# Força saída UTF-8 para evitar caracteres "estranhos" no PowerShell 5.1
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+    cmd /c chcp 65001 > $null 2>&1
+} catch {
+    # Ignora se não for possível alterar a codificação; apenas estética
+}
+
 Write-Host '==================================' -ForegroundColor Cyan
 Write-Host 'Cappy Framework - Instalação' -ForegroundColor Cyan
 Write-Host '==================================' -ForegroundColor Cyan
