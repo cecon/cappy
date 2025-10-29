@@ -35,9 +35,15 @@ fi
 echo -e "${GREEN}✓ Dependências OK${NC}"
 echo ""
 
-# Build
-echo -e "${YELLOW}Compilando extensão...${NC}"
+# Clean previous build artifacts
+echo -e "${YELLOW}Limpando artefatos anteriores (out/, dist/)...${NC}"
+rm -rf out dist || true
+
+# Build UI and extension
+echo -e "${YELLOW}Compilando (tsc + vite)...${NC}"
 npm run build
+echo -e "${YELLOW}Compilando entrada da extensão...${NC}"
+npm run compile-extension
 echo -e "${GREEN}✓ Compilação concluída${NC}"
 echo ""
 
