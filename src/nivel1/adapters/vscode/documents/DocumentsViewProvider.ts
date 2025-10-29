@@ -363,7 +363,12 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     sortBy?: 'id' | 'created_at' | 'updated_at';
     sortOrder?: 'asc' | 'desc';
   }) {
-    console.log('🔄 [DocumentsViewProvider] Refreshing document list from database', paginationParams);
+    console.log('🔄 [DocumentsViewProvider] ============================================');
+    console.log('🔄 [DocumentsViewProvider] REFRESH DOCUMENT LIST CALLED');
+    console.log('🔄 [DocumentsViewProvider] Pagination params:', paginationParams);
+    console.log('🔄 [DocumentsViewProvider] File database available:', !!this._fileDatabase);
+    console.log('🔄 [DocumentsViewProvider] Webview available:', !!this._view);
+    console.log('🔄 [DocumentsViewProvider] ============================================');
     
     // Get documents from file metadata database
     if (!this._fileDatabase) {
