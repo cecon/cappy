@@ -178,7 +178,7 @@ export class FileProcessingCronJob {
 
         // Mark as completed
         await this.database.updateFile(file.id, {
-          status: 'processed',
+          status: 'completed',
           processingCompletedAt: new Date().toISOString(),
           currentStep: 'Completed',
           progress: 100,

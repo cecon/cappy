@@ -91,8 +91,8 @@ export class FileProcessingQueue extends EventEmitter {
         });
         return existing.id;
       }
-      // If it's completed, return existing ID
-      if (existing.status === 'completed') {
+      // If it's completed or processed, return existing ID (do NOT reprocess)
+      if (existing.status === 'completed' || existing.status === 'processed') {
         return existing.id;
       }
       // If it's pending or processing, return existing ID
@@ -159,8 +159,8 @@ export class FileProcessingQueue extends EventEmitter {
         });
         return existing.id;
       }
-      // If it's completed, return existing ID
-      if (existing.status === 'completed') {
+      // If it's completed or processed, return existing ID (do NOT reprocess)
+      if (existing.status === 'completed' || existing.status === 'processed') {
         return existing.id;
       }
       // If it's pending or processing, return existing ID

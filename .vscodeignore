@@ -10,6 +10,8 @@ docs/
 **/*.map
 **/*.test.*
 **/__tests__/**
+# Exclude problematic symlinks in node_modules/.bin
+node_modules/.bin/**
 # Keep built output and extension entry
 !out/**
 !src/assets/**
