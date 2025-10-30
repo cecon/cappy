@@ -17,9 +17,11 @@ import { DocumentsConfigureSourcesUseCase } from './usecases/DocumentsConfigureS
 import { DocumentsConfirmRemoveUseCase } from './usecases/DocumentsConfirmRemoveUseCase';
 import { DocumentsConfirmClearUseCase } from './usecases/DocumentsConfirmClearUseCase';
 import { DebugAnalyzeUseCase } from './usecases/DebugAnalyzeUseCase';
+import { HybridRetriever } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 import { WebviewContentBuilder } from './WebviewContentBuilder';
 import { IndexingInitializer } from './IndexingInitializer';
 import { WorkspaceIndexer } from './WorkspaceIndexer';
+import { RetrievalSearchUseCase } from './usecases/RetrievalSearchUseCase';
 
 /**
  * WebView Panel for Graph Visualization
@@ -36,6 +38,7 @@ export class GraphPanel {
     private graphWatcher: vscode.FileSystemWatcher | undefined;
     private refreshTimer: NodeJS.Timeout | null = null;
     private useCases: UseCase[] = [];
+    private hybridRetriever: HybridRetriever | undefined = undefined;
     private readonly webviewBuilder: WebviewContentBuilder;
     private readonly indexingInitializer = new IndexingInitializer();
     private readonly workspaceIndexer = new WorkspaceIndexer();
@@ -124,6 +127,24 @@ export class GraphPanel {
         ];
     }
 
+    /**
+     * Updates the use cases with HybridRetriever after it's initialized
+     */
+    private updateRetrievalUseCase() {
+        if (!this.hybridRetriever) return;
+
+        // Remove old retrieval use case if exists
+        this.useCases = this.useCases.filter(uc => !uc.canHandle({ type: 'retrieval/search' }));
+
+        // Add new retrieval use case with initialized retriever
+        this.useCases.push(
+            new RetrievalSearchUseCase(this.hybridRetriever)
+        );
+
+        console.log('[GraphPanel] RetrievalSearchUseCase registered with HybridRetriever');
+    }
+
+
     private getUseCaseContext(): UseCaseContext {
         return {
             vscode,
@@ -194,6 +215,16 @@ export class GraphPanel {
             this.indexingService = result.indexingService;
             this.graphDataPath = result.graphDataPath;
             this.graphDbCreated = result.graphDbCreated;
+
+            // Initialize HybridRetriever with graphStore
+            type GraphStoreLike = { getSubgraph?: (seeds: string[] | undefined, depth: number) => Promise<{ nodes: unknown[]; edges: unknown[] }> };
+            const svc = this.indexingService as unknown as { graphStore?: GraphStoreLike };
+            const graphStore = svc.graphStore;
+            if (graphStore) {
+                this.hybridRetriever = new HybridRetriever(undefined, graphStore as never);
+                this.updateRetrievalUseCase();
+                console.log('[GraphPanel] HybridRetriever initialized with graphStore');
+            }
 
         } catch (error) {
             this.log(`❌ Failed to initialize: ${error}`);

@@ -306,59 +306,126 @@ export class SQLiteAdapter implements GraphStorePort {
     const edges: Array<{ id: string; source: string; target: string; label?: string; type: string }> = [];
     const visited = new Set<string>();
 
-    // Implementação simplificada - adicione a lógica completa aqui
-    // Usando os métodos assíncronos corretos
-    
-    if (seeds && seeds.length > 0) {
-      for (let currentDepth = 0; currentDepth <= depth && nodes.length < maxNodes; currentDepth++) {
-        const currentSeeds = currentDepth === 0 ? seeds : nodes.slice(-100).map(n => n.id);
+    // Se não há seeds, buscar todos os nós até o limite
+    if (!seeds || seeds.length === 0) {
+      console.log(`[SQLiteAdapter] getSubgraph: No seeds provided, fetching up to ${maxNodes} nodes`);
+      
+      // Buscar nós limitados (priorizando arquivos e workspace)
+      const allNodes = await this.all<{ 
+        id: string; 
+        label: string; 
+        type: string;
+      }>(
+        `SELECT id, label, type FROM nodes 
+         ORDER BY 
+           CASE type 
+             WHEN 'workspace' THEN 1 
+             WHEN 'file' THEN 2 
+             WHEN 'entity' THEN 3
+             ELSE 4 
+           END,
+           id 
+         LIMIT ?`,
+        [maxNodes]
+      );
+      
+      console.log(`[SQLiteAdapter] getSubgraph: Found ${allNodes.length} nodes`);
+      
+      for (const node of allNodes) {
+        nodes.push({
+          id: node.id,
+          label: node.label,
+          type: (node.type === 'file' || node.type === 'chunk' || node.type === 'workspace') 
+            ? node.type 
+            : 'chunk'
+        });
+        visited.add(node.id);
+      }
+      
+      // Buscar todas as arestas conectando esses nós
+      if (nodes.length > 0) {
+        const nodeIds = nodes.map(n => n.id);
+        const placeholders = nodeIds.map(() => '?').join(',');
         
-        for (const seed of currentSeeds) {
-          if (visited.has(seed)) continue;
-          visited.add(seed);
+        const allEdges = await this.all<{ 
+          id: number; 
+          from_id: string; 
+          to_id: string; 
+          type: string;
+        }>(
+          `SELECT id, from_id, to_id, type FROM edges 
+           WHERE from_id IN (${placeholders}) OR to_id IN (${placeholders})`,
+          [...nodeIds, ...nodeIds]
+        );
+        
+        console.log(`[SQLiteAdapter] getSubgraph: Found ${allEdges.length} edges`);
+        
+        for (const edge of allEdges) {
+          edges.push({
+            id: edge.id.toString(),
+            source: edge.from_id,
+            target: edge.to_id,
+            label: edge.type,
+            type: edge.type
+          });
+        }
+      }
+      
+      return { nodes, edges };
+    }
+    
+    // Se há seeds, buscar a partir deles com profundidade
+    console.log(`[SQLiteAdapter] getSubgraph: Starting from ${seeds.length} seeds with depth ${depth}`);
+    
+    for (let currentDepth = 0; currentDepth <= depth && nodes.length < maxNodes; currentDepth++) {
+      const currentSeeds = currentDepth === 0 ? seeds : nodes.slice(-100).map(n => n.id);
+      
+      for (const seed of currentSeeds) {
+        if (visited.has(seed)) continue;
+        visited.add(seed);
+        
+        // Buscar nó
+        const node = await this.get<{ 
+          id: string; 
+          label: string; 
+          type: "file" | "chunk" | "workspace";
+        }>(
+          `SELECT * FROM nodes WHERE id = ?`,
+          [seed]
+        );
+        
+        if (node) {
+          nodes.push({
+            id: node.id,
+            label: node.label,
+            type: node.type as "file" | "chunk" | "workspace"
+          });
           
-          // Buscar nó
-          const node = await this.get<{ 
-            id: string; 
-            label: string; 
-            type: "file" | "chunk" | "workspace";
+          // Buscar arestas
+          const nodeEdges = await this.all<{ 
+            id: number; 
+            from_id: string; 
+            to_id: string; 
+            type: string;
           }>(
-            `SELECT * FROM nodes WHERE id = ?`,
-            [seed]
+            `SELECT * FROM edges WHERE from_id = ? OR to_id = ?`,
+            [seed, seed]
           );
           
-          if (node) {
-            nodes.push({
-              id: node.id,
-              label: node.label,
-              type: node.type as "file" | "chunk" | "workspace"
+          for (const edge of nodeEdges) {
+            edges.push({
+              id: edge.id.toString(),
+              source: edge.from_id,
+              target: edge.to_id,
+              label: edge.type,
+              type: edge.type
             });
-            
-            // Buscar arestas
-            const nodeEdges = await this.all<{ 
-              id: number; 
-              from_id: string; 
-              to_id: string; 
-              type: string;
-            }>(
-              `SELECT * FROM edges WHERE from_id = ? OR to_id = ?`,
-              [seed, seed]
-            );
-            
-            for (const edge of nodeEdges) {
-              edges.push({
-                id: edge.id.toString(),
-                source: edge.from_id,
-                target: edge.to_id,
-                label: edge.type,
-                type: edge.type
-              });
-            }
           }
         }
       }
     }
     
+    console.log(`[SQLiteAdapter] getSubgraph: Returning ${nodes.length} nodes and ${edges.length} edges`);
     return { nodes, edges };
   }
 
