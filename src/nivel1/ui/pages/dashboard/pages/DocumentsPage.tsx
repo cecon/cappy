@@ -216,6 +216,7 @@ const DocumentsPage: React.FC = () => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
       console.log('[DocumentsPage] 📨 Received message from extension:', message.type, message);
+      console.log('[DocumentsPage] 📊 Current isScanning state BEFORE processing:', isScanning);
       
       switch (message.type) {
         case 'document/hello': {
@@ -264,11 +265,13 @@ const DocumentsPage: React.FC = () => {
           break;
         }
         case 'document/scan-started': {
+          console.log('[DocumentsPage] 🚀 Scan STARTED - setting isScanning to TRUE');
           setIsScanning(true);
           break;
         }
         case 'document/scan-completed': {
-          console.log('[DocumentsPage] ✅ Scan completed, reloading documents...');
+          console.log('[DocumentsPage] ✅ Scan COMPLETED - setting isScanning to FALSE');
+          console.log('[DocumentsPage] 🔄 Reloading documents after scan...');
           setIsScanning(false);
           // Reload documents after scan completes via postMessage
           loadDocuments({ force: true });

@@ -396,30 +396,20 @@ export class FileProcessingQueue extends EventEmitter {
 
       console.log(`[Queue] ✅ Worker completed, updating database...`);
 
+      // Update as completed (even with 0 chunks - file may not have JSDoc/documentation)
+      this.database.updateFile(metadata.id, {
+        status: 'completed',
+        progress: 100,
+        currentStep: 'Completed',
+        errorMessage: undefined, // Clear any previous error messages
+        processingCompletedAt: new Date().toISOString(),
+        chunksCount: result.chunksCount,
+        nodesCount: result.nodesCount,
+        relationshipsCount: result.relationshipsCount
+      });
+
       if (result.chunksCount === 0) {
-        // Mark as failed if no content was generated
-        this.database.updateFile(metadata.id, {
-          status: 'failed',
-          progress: 0,
-          currentStep: 'Failed',
-          errorMessage: 'No chunks generated from file',
-          processingCompletedAt: new Date().toISOString(),
-          chunksCount: result.chunksCount,
-          nodesCount: result.nodesCount,
-          relationshipsCount: result.relationshipsCount
-        });
-      } else {
-        // Update as completed
-        this.database.updateFile(metadata.id, {
-          status: 'completed',
-          progress: 100,
-          currentStep: 'Completed',
-          errorMessage: undefined, // Clear any previous error messages
-          processingCompletedAt: new Date().toISOString(),
-          chunksCount: result.chunksCount,
-          nodesCount: result.nodesCount,
-          relationshipsCount: result.relationshipsCount
-        });
+        console.log(`[Queue] ℹ️  Note: File processed with 0 chunks (no JSDoc/documentation found)`);
       }
 
       const completedMetadata = await this.database.getFile(metadata.id);

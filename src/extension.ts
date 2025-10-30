@@ -541,10 +541,20 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         });
         console.log('✅ FileProcessingQueue initialized and started');
 
-        // Auto-refresh Graph panel when a file completes processing
+        // Auto-refresh Graph panel when a file completes processing (with debounce)
         try {
-            fileQueue.on('file:complete', async () => {
-                await graphPanel.refreshSubgraph(2);
+            let refreshTimeout: NodeJS.Timeout | null = null;
+            fileQueue.on('file:complete', () => {
+                // Debounce refresh to avoid multiple rapid calls
+                if (refreshTimeout) {
+                    clearTimeout(refreshTimeout);
+                }
+                refreshTimeout = setTimeout(() => {
+                    graphPanel.refreshSubgraph(2).catch((err: unknown) => {
+                        console.error('Failed to refresh graph after file processing:', err);
+                    });
+                    refreshTimeout = null;
+                }, 2000); // Wait 2s after last file completes before refreshing
             });
         } catch (e) {
             console.warn('Could not attach graph refresh listener:', e);

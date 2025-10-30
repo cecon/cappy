@@ -260,9 +260,9 @@ export interface HybridRetrieverResult {
  */
 export class HybridRetriever {
   private graphData: GraphData | null = null;
-  private searchUseCase: SearchGraphUseCase;
-  private workspaceRoot: string | null = null;
-  private graphStore: import('../../../domains/dashboard/ports/indexing-port').GraphStorePort | null = null;
+  private readonly searchUseCase: SearchGraphUseCase;
+  private readonly workspaceRoot: string | null = null;
+  private readonly graphStore: import('../../../domains/dashboard/ports/indexing-port').GraphStorePort | null = null;
   
   constructor(graphData?: GraphData, graphStore?: import('../../../domains/dashboard/ports/indexing-port').GraphStorePort) {
     this.graphData = graphData || null;
@@ -405,6 +405,45 @@ export class HybridRetriever {
   }
   
   /**
+   * Get node contents from vectors table
+   */
+  private async getNodeContents(): Promise<Record<string, string>> {
+    if (!this.graphStore) {
+      console.log('[HybridRetriever] getNodeContents: graphStore is null');
+      return {};
+    }
+    
+    try {
+      // Use the public method from SQLiteAdapter
+      const store = this.graphStore as { getChunkContents?: (limit: number) => Promise<Array<{ chunk_id: string; content: string }>> };
+      
+      if (!store.getChunkContents) {
+        console.log('[HybridRetriever] getNodeContents: getChunkContents method not available on graphStore');
+        return {};
+      }
+      
+      console.log('[HybridRetriever] getNodeContents: Querying vectors table...');
+      const rows = await store.getChunkContents(5000);
+      
+      console.log(`[HybridRetriever] getNodeContents: Got ${rows?.length || 0} rows from vectors`);
+      
+      if (!rows || rows.length === 0) {
+        console.log('[HybridRetriever] getNodeContents: No rows returned');
+        return {};
+      }
+      
+      const contentMap: Record<string, string> = {};
+      for (const row of rows) {
+        contentMap[row.chunk_id] = row.content;
+      }
+      
+      console.log(`[HybridRetriever] getNodeContents: Built contentMap with ${Object.keys(contentMap).length} entries`);
+      return contentMap;
+    } catch (error) {
+      console.error('[HybridRetriever] Failed to load node contents:', error);
+      return {};
+    }
+  }  /**
    * Retrieves context from code graph
    */
   private async retrieveFromCode(
@@ -417,6 +456,12 @@ export class HybridRetriever {
         console.log(`[HybridRetriever] Retrieving from code with query: "${query}"`);
         const queryLower = query.toLowerCase();
         const queryTokens = queryLower.split(/\s+/).filter(t => t.length > 2); // Ignore very short tokens
+        
+        // Get content map from vectors table for richer context
+        console.log('[HybridRetriever] About to call getNodeContents()...');
+        const contentMap = await this.getNodeContents();
+        console.log(`[HybridRetriever] getNodeContents() returned, size: ${Object.keys(contentMap).length}`);
+        console.log(`[HybridRetriever] Loaded content for ${Object.keys(contentMap).length} nodes`);
         
         // Get larger subgraph to search across more nodes (undefined seeds = all nodes up to maxNodes)
         const maxNodesToFetch = Math.min(2000, Math.max(1000, (options.maxResults ?? 10) * 100));
@@ -431,6 +476,10 @@ export class HybridRetriever {
         for (const node of subgraph.nodes) {
           const labelLower = node.label.toLowerCase();
           const idLower = node.id.toLowerCase();
+          
+          // Get content for matching (if available)
+          const nodeContent = contentMap[node.id];
+          const contentLower = nodeContent ? nodeContent.toLowerCase() : '';
           
           // Calculate score based on matches with better weighting
           let score = 0;
@@ -454,11 +503,46 @@ export class HybridRetriever {
             } else if (idLower.includes(token)) {
               score += 0.15;
             }
+            
+            // IMPORTANT: Also match against content for chunks
+            if (contentLower && contentLower.includes(token)) {
+              score += 0.3; // Good score for content match
+              const contentWords = contentLower.split(/\s+/);
+              if (contentWords.includes(token)) {
+                score += 0.2; // Extra for exact word match in content
+                exactMatches++;
+              }
+            }
           }
           
           // Boost score for multiple matches
           if (exactMatches > 1) {
             score *= (1 + exactMatches * 0.2);
+          }
+          
+          // IMPORTANT: Boost chunks with actual content significantly
+          // File nodes and entities don't have content in vectors table, so we prioritize real chunks
+          const hasContent = contentMap[node.id] !== undefined;
+          
+          // Skip entity nodes (they're just metadata labels without real content)
+          // Entity nodes have IDs starting with 'entity:' (type check removed since entity is not in the type union)
+          const isEntityNode = node.id.startsWith('entity:');
+          if (isEntityNode) {
+            continue; // Skip entity nodes entirely
+          }
+          
+          // Skip file nodes (they're just file metadata without real content)
+          // File nodes have type 'file' and typically don't have chunk_type metadata
+          const isFileNode = node.type === 'file' && !node.metadata?.chunk_type;
+          if (isFileNode) {
+            continue; // Skip file nodes entirely - we only want chunks with actual content
+          }
+          
+          if (hasContent) {
+            score *= 10; // 10x boost for nodes with actual content (chunks)
+          } else {
+            // This shouldn't happen if we filter file nodes, but keep as safety net
+            score *= 0.1;
           }
           
           // Penalty for very long labels (less relevant)
@@ -470,12 +554,14 @@ export class HybridRetriever {
             matchedCount++;
           }
           
-          // Higher minimum threshold for better quality
-          const minThreshold = options.minScore ?? 0.5;
-          if (score < minThreshold) continue;
+          // Apply a reasonable minimum threshold BEFORE weighting
+          // This is a pre-filter to avoid processing obviously irrelevant results
+          // The actual minScore filter will be applied AFTER weighted scoring
+          const preFilterThreshold = 0.1;
+          if (score < preFilterThreshold) continue;
           
           filteredCount++;
-          score = Math.min(score, 1.0);
+          score = Math.min(score, 1);
           
           // Get file path from metadata (preferred) or fallback to parsing ID
           const filePath = node.metadata?.file_path || (node.id.includes(':') ? node.id.split(':')[0] : undefined);
@@ -493,9 +579,13 @@ export class HybridRetriever {
             }
           }
           
+          // Get full content from vectors table if available, otherwise use label
+          const fullContent = contentMap[node.id] || node.label;
+          const snippet = fullContent.length > 200 ? fullContent.substring(0, 200) + '...' : fullContent;
+          
           results.push({
             id: node.id,
-            content: node.label,
+            content: fullContent,
             source,
             score,
             filePath,
@@ -509,7 +599,7 @@ export class HybridRetriever {
               chunkType: node.metadata?.chunk_type,
               language: node.metadata?.language
             },
-            snippet: node.label
+            snippet
           });
         }
         
@@ -783,24 +873,60 @@ export class HybridRetriever {
     contexts: RetrievedContext[],
     options: HybridRetrieverOptions
   ): RetrievedContext[] {
-    // Count available sources
+    // Count available sources WITH results and their counts
     const availableSources = new Set(contexts.map(ctx => ctx.source));
     const sourceCount = availableSources.size;
     
-    // If only one source, don't apply penalties (use weight = 1.0)
-    // This prevents filtering out results when searching only code, for example
-    const weights = {
-      code: sourceCount === 1 ? 1.0 : (options.codeWeight ?? 0.4),
-      documentation: sourceCount === 1 ? 1.0 : (options.docWeight ?? 0.3),
-      prevention: sourceCount === 1 ? 1.0 : (options.preventionWeight ?? 0.2),
-      task: sourceCount === 1 ? 1.0 : (options.taskWeight ?? 0.1),
-      metadata: 0.0
+    // Count contexts per source
+    const sourceCounts: Record<string, number> = {};
+    contexts.forEach(ctx => {
+      sourceCounts[ctx.source] = (sourceCounts[ctx.source] || 0) + 1;
+    });
+    
+    console.log(`[HybridRetriever] applyWeightedScoring: ${sourceCount} unique source(s) with results:`, Array.from(availableSources));
+    console.log(`[HybridRetriever] Source counts:`, sourceCounts);
+    
+    // If only one source has results, don't apply penalties (use weight = 1.0)
+    // This prevents filtering out results when only one source returns data
+    if (sourceCount === 1) {
+      console.log(`[HybridRetriever] Only one source, using weight 1.0 for all`);
+      return contexts; // No weighting needed
+    }
+    
+    // Get base weights
+    const baseWeights = {
+      code: options.codeWeight ?? 0.4,
+      documentation: options.docWeight ?? 0.3,
+      prevention: options.preventionWeight ?? 0.2,
+      task: options.taskWeight ?? 0.1,
+      metadata: 0
     };
     
-    return contexts.map(ctx => ({
+    // Calculate sum of weights for sources that actually have results
+    // Calculate sum of weights for sources that actually have results
+    let totalWeight = 0;
+    for (const source of availableSources) {
+      totalWeight += baseWeights[source] || 0;
+    }
+    
+    // Normalize weights so they sum to 1.0 for available sources
+    const weights: Record<ContextSource, number> = {} as Record<ContextSource, number>;
+    for (const source of availableSources) {
+      const baseWeight = baseWeights[source] || 0;
+      weights[source] = totalWeight > 0 ? baseWeight / totalWeight : 1;
+    }
+    console.log(`[HybridRetriever] Base weights:`, baseWeights);
+    console.log(`[HybridRetriever] Normalized weights (sum to 1.0):`, weights);
+    console.log(`[HybridRetriever] Sample scores BEFORE weighting:`, contexts.slice(0, 3).map(c => `${c.source}:${c.score.toFixed(3)}`).join(', '));
+    
+    const weighted = contexts.map(ctx => ({
       ...ctx,
-      score: ctx.score * weights[ctx.source]
+      score: ctx.score * (weights[ctx.source] || 1)
     }));
+    
+    console.log(`[HybridRetriever] Sample scores AFTER weighting:`, weighted.slice(0, 3).map(c => `${c.source}:${c.score.toFixed(3)}`).join(', '));
+    
+    return weighted;
   }
   
   /**

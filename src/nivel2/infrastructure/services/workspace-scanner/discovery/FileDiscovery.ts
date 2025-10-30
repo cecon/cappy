@@ -55,12 +55,12 @@ export class FileDiscovery {
     try {
       let uris: Array<{ fsPath: string }>;
       
-      if (vscode && vscode.workspace) {
+      if (vscode?.workspace) {
         console.log('🔍 [FileDiscovery] Using vscode.workspace.findFiles...');
         // Use VS Code file search
         uris = await vscode.workspace.findFiles(
           '**/*',
-          '{**/node_modules/**,**/.git/**,**/dist/**,**/build/**,**/.cappy/**}'
+          '{**/node_modules/**,**/.git/**,**/dist/**,**/build/**,**/.cappy/**,**/assets/**}'
         );
         console.log(`📁 [FileDiscovery] vscode.workspace.findFiles returned ${uris.length} URIs`);
       } else {
@@ -92,6 +92,11 @@ export class FileDiscovery {
       // Ignore any folder or file starting with dot
       const parts = relPath.split(path.sep);
       if (parts.some(p => p.startsWith('.'))) {
+        continue;
+      }
+
+      // Ignore assets folders
+      if (parts.includes('assets')) {
         continue;
       }
 
@@ -239,7 +244,7 @@ export class FileDiscovery {
    */
   private async scanFilesystem(dir: string): Promise<Array<{ fsPath: string }>> {
     const results: Array<{ fsPath: string }> = [];
-    const excludeDirs = ['node_modules', '.git', 'dist', 'build', 'out', '.cappy', '.next', 'coverage'];
+    const excludeDirs = ['node_modules', '.git', 'dist', 'build', 'out', '.cappy', '.next', 'coverage', 'assets'];
     
     const scanDir = async (currentDir: string) => {
       try {

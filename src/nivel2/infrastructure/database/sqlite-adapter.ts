@@ -1081,6 +1081,18 @@ export class SQLiteAdapter implements GraphStorePort {
   }
 
   /**
+   * Get chunk contents from vectors table
+   */
+  async getChunkContents(limit = 5000): Promise<Array<{ chunk_id: string; content: string }>> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    return await this.all<{ chunk_id: string; content: string }>(
+      `SELECT chunk_id, content FROM vectors LIMIT ?`,
+      [limit]
+    );
+  }
+
+  /**
    * Ensures workspace node exists
    */
   async ensureWorkspaceNode(name: string): Promise<void> {

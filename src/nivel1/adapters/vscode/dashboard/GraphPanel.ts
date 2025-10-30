@@ -177,7 +177,14 @@ export class GraphPanel {
      */
     public async refreshSubgraph(depth: number = 2) {
         try {
-            if (!this.indexingService || !this.panel) return;
+            // Skip if panel is not visible to avoid unnecessary queries
+            if (!this.panel?.visible) {
+                this.log('⏭️ Skipping subgraph refresh - panel not visible');
+                return;
+            }
+            
+            if (!this.indexingService) return;
+            
             type GraphStoreLike = { getSubgraph?: (seeds: string[] | undefined, depth: number) => Promise<{ nodes: unknown[]; edges: unknown[] }> };
             const svc = this.indexingService as unknown as { graphStore?: GraphStoreLike };
             const graphStore = svc.graphStore;

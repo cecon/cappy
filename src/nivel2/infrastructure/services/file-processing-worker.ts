@@ -66,13 +66,17 @@ export class FileProcessingWorker {
       onProgress?.('Loading file...', 0);
       let fileContent: string;
       let fileHash: string;
+      let absolutePath: string;
 
       if (base64Content) {
         fileContent = Buffer.from(base64Content, 'base64').toString('utf-8');
         console.log(`✓ Loaded from base64 (${fileContent.length} bytes)`);
         fileHash = await this.hashService.hashString(fileContent);
+        // For uploaded files, use the original path (virtual path)
+        absolutePath = filePath;
       } else {
-        const absolutePath = path.isAbsolute(filePath) 
+        // Resolve to absolute path for file system operations
+        absolutePath = path.isAbsolute(filePath) 
           ? filePath 
           : path.join(this.workspaceRoot, filePath);
 
@@ -95,8 +99,12 @@ export class FileProcessingWorker {
       // Step 2: Parse file and extract chunks
       onProgress?.('Parsing file...', 30);
       const language = this.detectLanguage(filePath);
-      const chunks = await this.parserService.parseFile(filePath, false);
-      console.log(`✓ Parsed ${chunks.length} chunks`);
+      
+      // Use overlap for documentation files (md, pdf, doc, docx)
+      const isDocFile = /\.(md|mdx|pdf|doc|docx)$/i.test(filePath);
+      // IMPORTANT: Pass absolutePath to parser so it can read the file
+      const chunks = await this.parserService.parseFile(absolutePath, isDocFile);
+      console.log(`✓ Parsed ${chunks.length} chunks${isDocFile ? ' (with overlap)' : ''}`);
 
       const chunksCount = chunks.length;
       let nodesCount = 0;
