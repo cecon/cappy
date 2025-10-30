@@ -124,7 +124,18 @@ export interface GraphStorePort {
     depth: number,
     maxNodes?: number
   ): Promise<{
-    nodes: Array<{ id: string; label: string; type: "file" | "chunk" | "workspace" }>;
+    nodes: Array<{ 
+      id: string; 
+      label: string; 
+      type: "file" | "chunk" | "workspace";
+      metadata?: {
+        file_path?: string;
+        line_start?: number;
+        line_end?: number;
+        chunk_type?: string;
+        language?: string;
+      };
+    }>;
     edges: Array<{ id: string; source: string; target: string; label?: string; type: string }>;
   }>;
 

@@ -297,12 +297,34 @@ export class SQLiteAdapter implements GraphStorePort {
     depth: number,
     maxNodes = 1000
   ): Promise<{
-    nodes: Array<{ id: string; label: string; type: "file" | "chunk" | "workspace" }>;
+    nodes: Array<{ 
+      id: string; 
+      label: string; 
+      type: "file" | "chunk" | "workspace";
+      metadata?: {
+        file_path?: string;
+        line_start?: number;
+        line_end?: number;
+        chunk_type?: string;
+        language?: string;
+      };
+    }>;
     edges: Array<{ id: string; source: string; target: string; label?: string; type: string }>;
   }> {
     if (!this.db) throw new Error("SQLite not initialized");
 
-    const nodes: Array<{ id: string; label: string; type: "file" | "chunk" | "workspace" }> = [];
+    const nodes: Array<{ 
+      id: string; 
+      label: string; 
+      type: "file" | "chunk" | "workspace";
+      metadata?: {
+        file_path?: string;
+        line_start?: number;
+        line_end?: number;
+        chunk_type?: string;
+        language?: string;
+      };
+    }> = [];
     const edges: Array<{ id: string; source: string; target: string; label?: string; type: string }> = [];
     const visited = new Set<string>();
 
@@ -315,8 +337,13 @@ export class SQLiteAdapter implements GraphStorePort {
         id: string; 
         label: string; 
         type: string;
+        file_path?: string;
+        line_start?: number;
+        line_end?: number;
+        chunk_type?: string;
+        language?: string;
       }>(
-        `SELECT id, label, type FROM nodes 
+        `SELECT id, label, type, file_path, line_start, line_end, chunk_type, language FROM nodes 
          ORDER BY 
            CASE type 
              WHEN 'workspace' THEN 1 
@@ -337,7 +364,14 @@ export class SQLiteAdapter implements GraphStorePort {
           label: node.label,
           type: (node.type === 'file' || node.type === 'chunk' || node.type === 'workspace') 
             ? node.type 
-            : 'chunk'
+            : 'chunk',
+          metadata: {
+            file_path: node.file_path,
+            line_start: node.line_start,
+            line_end: node.line_end,
+            chunk_type: node.chunk_type,
+            language: node.language
+          }
         });
         visited.add(node.id);
       }
@@ -384,13 +418,18 @@ export class SQLiteAdapter implements GraphStorePort {
         if (visited.has(seed)) continue;
         visited.add(seed);
         
-        // Buscar nó
+        // Buscar nó com metadata relevante
         const node = await this.get<{ 
           id: string; 
           label: string; 
           type: "file" | "chunk" | "workspace";
+          file_path?: string;
+          line_start?: number;
+          line_end?: number;
+          chunk_type?: string;
+          language?: string;
         }>(
-          `SELECT * FROM nodes WHERE id = ?`,
+          `SELECT id, label, type, file_path, line_start, line_end, chunk_type, language FROM nodes WHERE id = ?`,
           [seed]
         );
         
@@ -398,7 +437,14 @@ export class SQLiteAdapter implements GraphStorePort {
           nodes.push({
             id: node.id,
             label: node.label,
-            type: node.type as "file" | "chunk" | "workspace"
+            type: node.type,
+            metadata: {
+              file_path: node.file_path,
+              line_start: node.line_start,
+              line_end: node.line_end,
+              chunk_type: node.chunk_type,
+              language: node.language
+            }
           });
           
           // Buscar arestas

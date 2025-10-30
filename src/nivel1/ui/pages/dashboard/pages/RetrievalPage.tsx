@@ -15,6 +15,10 @@ interface RetrievedContext {
     category?: string;
     keywords?: string[];
     type?: string;
+    lineStart?: number;
+    lineEnd?: number;
+    chunkType?: string;
+    language?: string;
   };
   snippet?: string;
 }
@@ -312,8 +316,23 @@ const RetrievalPage: React.FC = () => {
                       )}
 
                       {context.filePath && (
-                        <div className="text-xs text-muted-foreground">
-                          📁 {context.filePath}
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <div>📁 {context.filePath}</div>
+                          {context.metadata.lineStart && context.metadata.lineEnd && (
+                            <div className="flex items-center gap-2">
+                              <span>📍 Lines {context.metadata.lineStart}-{context.metadata.lineEnd}</span>
+                              {context.metadata.chunkType && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                                  {context.metadata.chunkType}
+                                </span>
+                              )}
+                              {context.metadata.language && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-purple-500/10 text-purple-600 border border-purple-500/20">
+                                  {context.metadata.language}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
 

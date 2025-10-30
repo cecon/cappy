@@ -73,6 +73,10 @@ export interface RetrievedContext {
     keywords?: string[];
     type?: string;
     lastModified?: string;
+    lineStart?: number;
+    lineEnd?: number;
+    chunkType?: string;
+    language?: string;
   };
   
   /**
@@ -400,10 +404,10 @@ export class HybridRetriever {
       try {
         console.log(`[HybridRetriever] Retrieving from code with query: "${query}"`);
         const queryLower = query.toLowerCase();
-        const queryTokens = queryLower.split(/\s+/);
+        const queryTokens = queryLower.split(/\s+/).filter(t => t.length > 2); // Ignore very short tokens
         
         // Get larger subgraph to search across more nodes (undefined seeds = all nodes up to maxNodes)
-        const maxNodesToFetch = Math.max(500, (options.maxResults ?? 10) * 50);
+        const maxNodesToFetch = Math.min(2000, Math.max(1000, (options.maxResults ?? 10) * 100));
         const subgraph = await this.graphStore.getSubgraph(undefined, 2, maxNodesToFetch);
         console.log(`[HybridRetriever] Got subgraph with ${subgraph.nodes.length} nodes, ${subgraph.edges.length} edges`);
         
@@ -416,47 +420,95 @@ export class HybridRetriever {
           const labelLower = node.label.toLowerCase();
           const idLower = node.id.toLowerCase();
           
-          // Calculate score based on matches
+          // Calculate score based on matches with better weighting
           let score = 0;
+          let exactMatches = 0;
+          
           for (const token of queryTokens) {
-            if (labelLower.includes(token)) score += 0.4;
-            if (idLower.includes(token)) score += 0.3;
+            // Exact word match (higher score)
+            const labelWords = labelLower.split(/\s+/);
+            const idWords = idLower.split(/[\s/:._-]+/);
+            
+            if (labelWords.includes(token)) {
+              score += 0.5;
+              exactMatches++;
+            } else if (labelLower.includes(token)) {
+              score += 0.2;
+            }
+            
+            if (idWords.includes(token)) {
+              score += 0.4;
+              exactMatches++;
+            } else if (idLower.includes(token)) {
+              score += 0.15;
+            }
+          }
+          
+          // Boost score for multiple matches
+          if (exactMatches > 1) {
+            score *= (1 + exactMatches * 0.2);
+          }
+          
+          // Penalty for very long labels (less relevant)
+          if (labelLower.length > 200) {
+            score *= 0.8;
           }
           
           if (score > 0) {
             matchedCount++;
-            if (score >= 0.3) {
-              filteredCount++;
-            }
           }
           
-          // Minimum threshold
-          if (score < 0.3) continue;
+          // Higher minimum threshold for better quality
+          const minThreshold = options.minScore ?? 0.5;
+          if (score < minThreshold) continue;
           
+          filteredCount++;
           score = Math.min(score, 1.0);
           
-          // Extract file path from node ID (format: "file.ts:startLine-endLine")
-          const filePath = node.id.includes(':') ? node.id.split(':')[0] : undefined;
+          // Get file path from metadata (preferred) or fallback to parsing ID
+          const filePath = node.metadata?.file_path || (node.id.includes(':') ? node.id.split(':')[0] : undefined);
+          
+          // Determine source type based on language/chunk_type from metadata or file extension
+          let source: ContextSource = 'code';
+          if (node.metadata?.chunk_type === 'markdown_section' || node.metadata?.chunk_type === 'document_section') {
+            source = 'documentation';
+          } else if (node.metadata?.language === 'markdown') {
+            source = 'documentation';
+          } else if (filePath) {
+            const ext = filePath.split('.').pop()?.toLowerCase();
+            if (ext === 'md' || ext === 'mdx' || ext === 'pdf' || ext === 'doc' || ext === 'docx') {
+              source = 'documentation';
+            }
+          }
           
           results.push({
             id: node.id,
             content: node.label,
-            source: 'code' as ContextSource,
+            source,
             score,
             filePath,
             metadata: {
               title: node.label,
               category: node.type,
               keywords: [],
-              lastModified: new Date().toISOString()
+              lastModified: new Date().toISOString(),
+              lineStart: node.metadata?.line_start,
+              lineEnd: node.metadata?.line_end,
+              chunkType: node.metadata?.chunk_type,
+              language: node.metadata?.language
             },
             snippet: node.label
           });
         }
         
-        console.log(`[HybridRetriever] Matched ${matchedCount} nodes, ${filteredCount} passed threshold, returning ${results.length} results`);
+        // Sort by score (best first) and limit to maxResults
+        results.sort((a, b) => b.score - a.score);
+        const maxResults = options.maxResults ?? 10;
+        const limitedResults = results.slice(0, maxResults);
         
-        return results.sort((a, b) => b.score - a.score);
+        console.log(`[HybridRetriever] Matched ${matchedCount} nodes, ${filteredCount} passed threshold, returning top ${limitedResults.length} of ${results.length} results`);
+        
+        return limitedResults;
       } catch (error) {
         console.warn('Failed to retrieve from graph store:', error);
         return [];
@@ -490,12 +542,23 @@ export class HybridRetriever {
         .filter(item => item.type === 'node')
         .map(item => {
           const node = item.item as GraphNode;
+          const filePath = node.metadata?.filePath as string | undefined;
+          
+          // Determine source type based on file extension
+          let source: ContextSource = 'code';
+          if (filePath) {
+            const ext = filePath.split('.').pop()?.toLowerCase();
+            if (ext === 'md' || ext === 'mdx' || ext === 'pdf' || ext === 'doc' || ext === 'docx') {
+              source = 'documentation';
+            }
+          }
+          
           return {
             id: node.id,
             content: this.extractNodeContent(node),
-            source: 'code' as ContextSource,
+            source,
             score: item.score,
-            filePath: node.metadata?.filePath as string | undefined,
+            filePath,
             metadata: {
               title: node.label,
               type: node.type,
