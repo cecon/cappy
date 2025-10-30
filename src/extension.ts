@@ -22,6 +22,7 @@ import {
   registerCleanInvalidFilesCommand
 } from './nivel1/adapters/vscode/commands';
 import { FileMetadataDatabase } from './nivel2/infrastructure/services/file-metadata-database';
+import type { FileProcessingStatus } from './nivel2/infrastructure/services/file-metadata-database';
 import { FileProcessingQueue } from './nivel2/infrastructure/services/file-processing-queue';
 import { FileProcessingWorker } from './nivel2/infrastructure/services/file-processing-worker';
 import { FileChangeWatcher } from './nivel2/infrastructure/services/file-change-watcher';
@@ -127,6 +128,30 @@ export function activate(context: vscode.ExtensionContext) {
     });
     
     context.subscriptions.push(openGraphCommand);
+    
+    // Expose a command to fetch paginated files for the dashboard webview
+    // This allows the GraphPanel to retrieve document lists without tight coupling
+    const getFilesPaginatedCmd = vscode.commands.registerCommand(
+        'cappy.getFilesPaginated',
+        async (options: {
+            page?: number;
+            limit?: number;
+            status?: FileProcessingStatus;
+            sortBy?: 'id' | 'created_at' | 'updated_at';
+            sortOrder?: 'asc' | 'desc';
+        } = {}) => {
+            if (!fileDatabase) {
+                throw new Error('File database is not initialized yet');
+            }
+            const page = options.page ?? 1;
+            const limit = options.limit ?? 10;
+            const sortBy = options.sortBy ?? 'updated_at';
+            const sortOrder = options.sortOrder ?? 'desc';
+            // Pass-through status when provided
+            return await fileDatabase.getFilesPaginated({ page, limit, status: options.status, sortBy, sortOrder });
+        }
+    );
+    context.subscriptions.push(getFilesPaginatedCmd);
 
     // Register interactive hybrid search command
     const searchCommand = vscode.commands.registerCommand('cappy.search', async () => {

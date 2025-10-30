@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, Button } from '../../../primitives';
 import GraphVisualizer from './components/GraphVisualizer';
 
@@ -22,6 +22,13 @@ const GraphPage: React.FC = () => {
   const [dbStatus, setDbStatus] = useState<{ exists: boolean; created?: boolean; path?: string } | null>(null);
   const [graph, setGraph] = useState<{ nodes: Array<{ id: string; label: string }>; edges: Array<{ id: string; source: string; target: string; label?: string }> } | null>(null);
 
+  const loadGraph = useCallback((depth: number) => {
+    console.log('[GraphPage] loadGraph called with depth:', depth);
+    const finalDepth = Math.min(10, Math.max(0, depth));
+    console.log('[GraphPage] Sending load-subgraph with depth:', finalDepth);
+    vscodeApi?.postMessage({ type: 'load-subgraph', depth: finalDepth });
+  }, [vscodeApi]);
+
   useEffect(() => {
     function handleError(message: { type?: string; error?: string }) {
       if (typeof message === 'object' && message !== null && 'type' in message && (message as { type?: string }).type === 'error') {
@@ -39,6 +46,11 @@ const GraphPage: React.FC = () => {
       if (message?.type === 'db-status') {
         console.log('[GraphPage] Setting DB status:', message);
         setDbStatus({ exists: !!message.exists, created: !!message.created, path: message.path });
+        // Auto-load graph with depth 2 when DB is ready
+        if (message.exists && !graph) {
+          console.log('[GraphPage] DB exists and no graph loaded yet - auto-loading with depth 2');
+          setTimeout(() => loadGraph(2), 500);
+        }
         return true;
       }
       return false;
@@ -100,7 +112,7 @@ const GraphPage: React.FC = () => {
 
     function handler(event: MessageEvent) {
       // Only accept messages from the same origin or trusted sources
-      if (event.origin !== window.origin) {
+      if (event.origin !== globalThis.window.origin) {
         console.warn('[GraphPage] Ignoring message from untrusted origin:', event.origin);
         return;
       }
@@ -127,17 +139,10 @@ const GraphPage: React.FC = () => {
     console.log('[GraphPage] Requesting initial DB status');
     vscodeApi?.postMessage({ type: 'get-db-status' });
     return () => globalThis.window.removeEventListener('message', handler);
-  }, [vscodeApi]);
+  }, [vscodeApi, graph, loadGraph]);
 
   const handleResetDb = () => {
   vscodeApi?.postMessage({ type: 'graph-reset' });
-  };
-
-  const loadGraph = (depth: number) => {
-    console.log('[GraphPage] loadGraph called with depth:', depth);
-    const finalDepth = Math.min(10, Math.max(0, depth));
-    console.log('[GraphPage] Sending load-subgraph with depth:', finalDepth);
-    vscodeApi?.postMessage({ type: 'load-subgraph', depth: finalDepth });
   };
 
   const handleAutoRefresh = () => {

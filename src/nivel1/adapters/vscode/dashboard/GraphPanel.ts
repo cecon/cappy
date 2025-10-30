@@ -10,6 +10,7 @@ import { RefreshUseCase } from './usecases/RefreshUseCase';
 import { ResetGraphUseCase } from './usecases/ResetGraphUseCase';
 import { OpenFileUseCase } from './usecases/OpenFileUseCase';
 import { DocumentsUploadRequestedUseCase } from './usecases/DocumentsUploadRequestedUseCase';
+import { DocumentsRefreshUseCase } from './usecases/DocumentsRefreshUseCase';
 import { DocumentsUploadSelectedUseCase } from './usecases/DocumentsUploadSelectedUseCase';
 import { DocumentsScanWorkspaceUseCase } from './usecases/DocumentsScanWorkspaceUseCase';
 import { DocumentsConfigureSourcesUseCase } from './usecases/DocumentsConfigureSourcesUseCase';
@@ -113,6 +114,7 @@ export class GraphPanel {
             new ResetGraphUseCase(),
             new OpenFileUseCase(),
             new DocumentsUploadRequestedUseCase(),
+            new DocumentsRefreshUseCase(),
             new DocumentsUploadSelectedUseCase(),
             new DocumentsScanWorkspaceUseCase(),
             new DocumentsConfigureSourcesUseCase(),
