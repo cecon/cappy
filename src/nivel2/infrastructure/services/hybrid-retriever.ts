@@ -353,10 +353,13 @@ export class HybridRetriever {
       }
       
       // Apply weighted scoring
+      console.log(`[HybridRetriever] Before weighted scoring: ${allContexts.length} contexts`);
       allContexts = this.applyWeightedScoring(allContexts, options);
+      console.log(`[HybridRetriever] After weighted scoring: ${allContexts.length} contexts, scores: ${allContexts.slice(0, 3).map(c => c.score.toFixed(2)).join(', ')}`);
       
       // Filter by minimum score
       allContexts = allContexts.filter(ctx => ctx.score >= minScore);
+      console.log(`[HybridRetriever] After minScore filter (${minScore}): ${allContexts.length} contexts`);
       
       // Re-rank if enabled
       if (rerank && allContexts.length > 0) {
@@ -375,7 +378,9 @@ export class HybridRetriever {
       
       const retrievalTimeMs = Date.now() - startTime;
       
-      return {
+      console.log(`[HybridRetriever] Returning ${contexts.length} contexts out of ${totalFound} found`);
+      
+      const result = {
         contexts,
         metadata: {
           query,
@@ -387,6 +392,13 @@ export class HybridRetriever {
           reranked: rerank
         }
       };
+      
+      console.log(`[HybridRetriever] Result structure:`, {
+        contextsLength: result.contexts.length,
+        metadata: result.metadata
+      });
+      
+      return result;
     } catch (error) {
       throw new Error(`Hybrid retrieval failed: ${error instanceof Error ? error.message : String(error)}`);
     }
