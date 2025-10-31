@@ -520,7 +520,9 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Handles reprocessing a file by setting its status to pending
+   * Handles reprocessing a file by:
+   * 1. Removing all graph data (nodes, chunks, relationships)
+   * 2. Setting status to pending for reprocessing
    */
   private async handleReprocess(fileId: string, filePath: string) {
     console.log(`🔄 [DocumentsViewProvider] handleReprocess: ${fileId} (${filePath})`);
@@ -531,8 +533,29 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    if (!this._graphStore) {
+      console.error('❌ [DocumentsViewProvider] No graph store available');
+      vscode.window.showErrorMessage('Graph store not initialized');
+      return;
+    }
+
     try {
-      // Update file status to 'pending' so it will be picked up by the queue
+      // Step 1: Remove all graph data for this file
+      console.log(`🗑️ [DocumentsViewProvider] Removing graph data for: ${filePath}`);
+      
+      // Cast to access deleteFileNodes method (exists in SQLiteAdapter)
+      const store = this._graphStore as typeof this._graphStore & {
+        deleteFileNodes: (filePath: string) => Promise<void>;
+      };
+      
+      if (typeof store.deleteFileNodes === 'function') {
+        await store.deleteFileNodes(filePath);
+        console.log(`✅ [DocumentsViewProvider] Graph data removed for: ${filePath}`);
+      } else {
+        console.warn('⚠️ [DocumentsViewProvider] deleteFileNodes not available, skipping graph cleanup');
+      }
+
+      // Step 2: Update file status to 'pending' so it will be picked up by the queue
       await this._fileDatabase.updateFile(fileId, {
         status: 'pending',
         currentStep: 'Queued for reprocessing',
@@ -543,7 +566,7 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       console.log(`✅ [DocumentsViewProvider] File ${fileId} marked as pending for reprocessing`);
       vscode.window.showInformationMessage(`File queued for reprocessing: ${path.basename(filePath)}`);
       
-      // Refresh the document list to show updated status
+      // Step 3: Refresh the document list to show updated status (will show as pending/processing)
       await this.refreshDocumentList();
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error reprocessing file:', error);
