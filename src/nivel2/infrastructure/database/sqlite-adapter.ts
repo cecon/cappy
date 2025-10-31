@@ -358,6 +358,30 @@ export class SQLiteAdapter implements GraphStorePort {
       
       console.log(`[SQLiteAdapter] getSubgraph: Found ${allNodes.length} nodes`);
       
+      // Check for inconsistency if no nodes found
+      if (allNodes.length === 0) {
+        try {
+          const diagnosis = await this.diagnoseConsistency();
+          
+          if (!diagnosis.isConsistent) {
+            console.error('⚠️ Database consistency issues detected:');
+            diagnosis.issues.forEach(issue => console.error(`  - ${issue}`));
+            
+            if (diagnosis.chunksWithoutNodes > 0) {
+              throw new Error(
+                `Graph is empty but ${diagnosis.vectorsCount} vectors exist (${diagnosis.chunksWithoutNodes} without nodes). ` +
+                `Database inconsistency detected. Please run workspace scan to rebuild the graph.`
+              );
+            }
+          } else {
+            console.log('[SQLiteAdapter] Database is empty but consistent (no vectors either)');
+          }
+        } catch (diagError) {
+          // If diagnosis fails, log but continue (might be initial state)
+          console.warn('[SQLiteAdapter] Could not diagnose consistency:', diagError);
+        }
+      }
+      
       for (const node of allNodes) {
         nodes.push({
           id: node.id,
@@ -1364,6 +1388,106 @@ export class SQLiteAdapter implements GraphStorePort {
     } catch (error) {
       console.error("❌ SQLite getChunksByIds error:", error);
       return [];
+    }
+  }
+
+  /**
+   * Diagnoses graph consistency issues
+   * Returns info about database state and detects inconsistencies
+   */
+  async diagnoseConsistency(): Promise<{
+    nodesCount: number;
+    edgesCount: number;
+    vectorsCount: number;
+    chunksWithoutNodes: number;
+    nodesWithoutVectors: number;
+    isConsistent: boolean;
+    issues: string[];
+  }> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    try {
+      // Count nodes
+      const nodesResult = await this.get<{ count: number }>(
+        'SELECT COUNT(*) as count FROM nodes',
+        []
+      );
+      const nodesCount = nodesResult?.count || 0;
+      
+      // Count edges
+      const edgesResult = await this.get<{ count: number }>(
+        'SELECT COUNT(*) as count FROM edges',
+        []
+      );
+      const edgesCount = edgesResult?.count || 0;
+      
+      // Count vectors
+      const vectorsResult = await this.get<{ count: number }>(
+        'SELECT COUNT(*) as count FROM vectors',
+        []
+      );
+      const vectorsCount = vectorsResult?.count || 0;
+      
+      // Find vectors without corresponding nodes
+      // Vector rowids should match node IDs or be chunk IDs
+      const orphanVectorsResult = await this.get<{ count: number }>(
+        `SELECT COUNT(*) as count FROM vectors v
+         WHERE NOT EXISTS (
+           SELECT 1 FROM nodes n WHERE n.id = v.chunk_id
+         )`,
+        []
+      );
+      const chunksWithoutNodes = orphanVectorsResult?.count || 0;
+      
+      // Find nodes without corresponding vectors (chunk nodes should have vectors)
+      const orphanNodesResult = await this.get<{ count: number }>(
+        `SELECT COUNT(*) as count FROM nodes n
+         WHERE n.type = 'chunk' AND NOT EXISTS (
+           SELECT 1 FROM vectors v WHERE v.chunk_id = n.id
+         )`,
+        []
+      );
+      const nodesWithoutVectors = orphanNodesResult?.count || 0;
+      
+      // Determine issues
+      const issues: string[] = [];
+      
+      if (nodesCount === 0 && vectorsCount > 0) {
+        issues.push(
+          `CRITICAL: No nodes but ${vectorsCount} vectors exist. Graph is empty but vectors are indexed.`
+        );
+      }
+      
+      if (chunksWithoutNodes > 0) {
+        issues.push(
+          `${chunksWithoutNodes} vectors without corresponding nodes. These chunks are indexed but not in the graph.`
+        );
+      }
+      
+      if (nodesWithoutVectors > 0) {
+        issues.push(
+          `${nodesWithoutVectors} chunk nodes without vectors. These nodes exist but have no embeddings.`
+        );
+      }
+      
+      if (nodesCount > 0 && edgesCount === 0) {
+        issues.push(
+          `WARNING: ${nodesCount} nodes but no edges. Graph has nodes but no relationships.`
+        );
+      }
+      
+      return {
+        nodesCount,
+        edgesCount,
+        vectorsCount,
+        chunksWithoutNodes,
+        nodesWithoutVectors,
+        isConsistent: issues.length === 0,
+        issues
+      };
+    } catch (error) {
+      console.error("❌ SQLite diagnoseConsistency error:", error);
+      throw new Error(`Failed to diagnose consistency: ${error}`);
     }
   }
 }

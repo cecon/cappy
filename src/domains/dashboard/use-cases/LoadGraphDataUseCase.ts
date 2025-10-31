@@ -206,6 +206,14 @@ export class LoadGraphDataUseCase {
     if (!data.nodes || !data.edges) {
       throw new Error('Loaded data is missing nodes or edges collections');
     }
+    
+    // Validate that graph is not empty
+    if (data.nodes.length === 0) {
+      throw new Error(
+        'Loaded graph has no nodes. Database may be empty or corrupted. ' +
+        'Please run workspace scan to rebuild the graph.'
+      );
+    }
   }
 
 }

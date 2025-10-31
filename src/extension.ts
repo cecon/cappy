@@ -176,11 +176,12 @@ export function activate(context: vscode.ExtensionContext) {
             const chunks = await graphStore.getFileChunks(file.filePath);
             
             // Get graph node (cast to include new methods)
+            // IMPORTANT: Graph nodes use filePath as ID, not the file database UUID
             const store = graphStore as typeof graphStore & {
                 getNode: (nodeId: string) => Promise<{ id: string; type: string; properties: Record<string, unknown> } | null>;
                 getRelationships: (nodeId: string) => Promise<Array<{ from: string; to: string; type: string }>>;
             };
-            const graphNode = await store.getNode(fileId);
+            const graphNode = await store.getNode(file.filePath);
             
             // Get relationships
             const relationships = graphNode 

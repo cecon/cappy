@@ -605,6 +605,13 @@ export class ExportGraphUseCase {
       throw new Error('Graph data must contain nodes and edges arrays');
     }
     
+    // Validate that graph is not empty
+    if (data.nodes.length === 0) {
+      throw new Error(
+        'Graph has no nodes. Please run workspace scan to index files first.'
+      );
+    }
+    
     if (options.indent !== undefined) {
       if (!Number.isInteger(options.indent) || options.indent < 0) {
         throw new Error('Indent must be a non-negative integer');
