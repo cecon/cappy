@@ -61,7 +61,7 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
 
   /**
    * Notifies the webview of file processing updates
-   * Called by cronjob when files are processed
+   * Called by FileProcessingQueue when files are processed
    */
   notifyFileUpdate(event: {
     type: 'processing' | 'completed' | 'error';

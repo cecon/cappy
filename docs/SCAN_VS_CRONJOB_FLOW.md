@@ -1,7 +1,8 @@
-# Scan vs CronJob Flow
+# Scan vs Queue Flow
 ## Como funciona o fluxo de processamento de arquivos no Cappy
 
-**Data:** 30 de outubro de 2025
+**Data:** 30 de outubro de 2025  
+**Atualização:** CronJob foi removido, agora usamos apenas FileProcessingQueue
 
 ---
 
@@ -12,13 +13,14 @@
 O Cappy usa uma **arquitetura em 2 etapas** para processar arquivos:
 
 1. **Scan (Rápido)**: Descobre arquivos e salva metadados
-2. **CronJob (Background)**: Processa arquivos e gera embeddings/vectors
+2. **FileProcessingQueue (Background)**: Processa arquivos e gera embeddings/vectors
 
 Esta separação permite:
 - ✅ Scan rápido sem bloquear a UI
-- ✅ Processamento pesado em background
+- ✅ Processamento pesado em background com controle de concorrência
 - ✅ Feedback progressivo ao usuário
 - ✅ Resiliência a falhas (retry automático)
+- ✅ Controle de pausa/resume
 
 ---
 
@@ -63,16 +65,17 @@ Esta separação permite:
 
 ---
 
-### Etapa 2: CronJob (Background Processing)
+### Etapa 2: FileProcessingQueue (Background Processing)
 
-**Serviço:** `FileProcessingCronJob`  
-**Arquivo:** `src/nivel2/infrastructure/services/file-processing-cronjob.ts`  
+**Serviço:** `FileProcessingQueue`  
+**Arquivo:** `src/nivel2/infrastructure/services/file-processing-queue.ts`  
 **Worker:** `FileProcessingWorker` → `IndexingService`
 
 #### Quando inicia:
 - ✅ Automaticamente ao abrir workspace (se `autoStart: true`)
-- ✅ Intervalo configurável (default: 10 segundos)
-- ✅ Processa um arquivo por vez (semaphore)
+- ✅ Polling contínuo (1 segundo)
+- ✅ Processa múltiplos arquivos em paralelo (concurrency: 2)
+- ✅ Suporta pause/resume
 
 #### O que faz:
 
@@ -146,14 +149,14 @@ async indexFile(filePath: string, language: string, chunks: DocumentChunk[]) {
 
 ### Causa Raiz
 
-**Hipótese:** Arquivos foram processados parcialmente ou o CronJob falhou
+**Hipótese:** Arquivos foram processados parcialmente ou a Queue falhou
 
 Possíveis causas:
-1. **CronJob não estava rodando** quando scan foi feito
+1. **FileProcessingQueue não estava rodando** quando scan foi feito
 2. **Processo interrompido** antes de completar
 3. **Erro no IndexingService** ao gerar embeddings
 4. **VectorStore estava null** durante processamento
-5. **Race condition** entre scan e cronjob
+5. **Queue estava pausada** durante o scan
 
 ### Como Confirmar
 
@@ -179,11 +182,12 @@ LIMIT 10;
 **NÃO** rodar "Cappy: Scan Workspace" novamente!  
 O scan só marca arquivos como `pending`, não gera vectors.
 
-**Opção 1: Deixar CronJob processar** (recomendado)
+**Opção 1: Deixar FileProcessingQueue processar** (recomendado)
 ```
-1. Verificar se CronJob está rodando
-2. Aguardar processamento automático
-3. Monitorar progresso no painel
+1. Verificar se Queue está rodando: Ctrl+Shift+P → "Cappy: Show Queue Status"
+2. Se pausada, retomar: Ctrl+Shift+P → "Cappy: Resume Processing Queue"
+3. Aguardar processamento automático
+4. Monitorar progresso no painel Documents
 ```
 
 **Opção 2: Forçar reprocessamento**

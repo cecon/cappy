@@ -9,7 +9,6 @@ import { ContextRetrievalTool } from './domains/chat/tools/native/context-retrie
 import { LangGraphChatEngine } from './nivel2/infrastructure/agents/langgraph-chat-engine';
 import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './nivel1/adapters/vscode/commands/scan-workspace';
-import { registerProcessPendingFilesCommand } from './nivel1/adapters/vscode/commands/process-pending-files';
 import { 
   registerProcessSingleFileCommand,
   registerDebugRetrievalCommand,
@@ -26,11 +25,9 @@ import type { FileProcessingStatus } from './nivel2/infrastructure/services/file
 import { FileProcessingQueue } from './nivel2/infrastructure/services/file-processing-queue';
 import { FileProcessingWorker } from './nivel2/infrastructure/services/file-processing-worker';
 import { FileChangeWatcher } from './nivel2/infrastructure/services/file-change-watcher';
-import { FileProcessingCronJob } from './nivel2/infrastructure/services/file-processing-cronjob';
 import { createVectorStore } from './nivel2/infrastructure/vector/sqlite-vector-adapter';
 import type { GraphStorePort } from './domains/dashboard/ports/indexing-port';
 import { SQLiteAdapter } from './nivel2/infrastructure/database/index.js';
-// import { DevServerBridge } from './nivel1/adapters/vscode/dev-server-bridge';
 
 // Global instances for file processing system
 let fileDatabase: FileMetadataDatabase | null = null;
@@ -39,7 +36,6 @@ let fileWatcher: FileChangeWatcher | null = null;
 let graphStore: GraphStorePort | null = null;
 let contextRetrievalToolInstance: ContextRetrievalTool | null = null;
 let documentsViewProviderInstance: DocumentsViewProvider | null = null;
-let fileCronJob: FileProcessingCronJob | null = null;
 
 /**
  * Cappy Extension - React + Vite Version
@@ -241,10 +237,6 @@ export function activate(context: vscode.ExtensionContext) {
     // Register workspace scan command
     registerScanWorkspaceCommand(context);
     console.log('✅ Registered command: cappy.scanWorkspace');
-
-    // Register process pending files command (cronjob)
-    registerProcessPendingFilesCommand(context);
-    console.log('✅ Registered command: cappy.processPendingFiles');
 
     // Register process single file command
     registerProcessSingleFileCommand(context);
@@ -544,7 +536,24 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         // Auto-refresh Graph panel when a file completes processing (with debounce)
         try {
             let refreshTimeout: NodeJS.Timeout | null = null;
-            fileQueue.on('file:complete', () => {
+            fileQueue.on('file:complete', (metadata, result) => {
+                // Notify DocumentsViewProvider
+                if (documentsViewProviderInstance) {
+                    documentsViewProviderInstance.notifyFileUpdate({
+                        type: 'completed',
+                        fileId: metadata.id,
+                        filePath: metadata.filePath,
+                        progress: 100,
+                        currentStep: 'Completed',
+                        metrics: {
+                            chunksCount: result.chunksCount,
+                            nodesCount: result.nodesCount,
+                            relationshipsCount: result.relationshipsCount,
+                            duration: result.duration
+                        }
+                    });
+                }
+                
                 // Debounce refresh to avoid multiple rapid calls
                 if (refreshTimeout) {
                     clearTimeout(refreshTimeout);
@@ -556,38 +565,41 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
                     refreshTimeout = null;
                 }, 2000); // Wait 2s after last file completes before refreshing
             });
+            
+            // Notify on processing start
+            fileQueue.on('file:start', (metadata) => {
+                if (documentsViewProviderInstance) {
+                    documentsViewProviderInstance.notifyFileUpdate({
+                        type: 'processing',
+                        fileId: metadata.id,
+                        filePath: metadata.filePath,
+                        progress: 0,
+                        currentStep: 'Starting...'
+                    });
+                }
+            });
+            
+            // Notify on error
+            fileQueue.on('file:failed', (metadata, error) => {
+                if (documentsViewProviderInstance) {
+                    documentsViewProviderInstance.notifyFileUpdate({
+                        type: 'error',
+                        fileId: metadata.id,
+                        filePath: metadata.filePath,
+                        error: error.message
+                    });
+                }
+            });
         } catch (e) {
-            console.warn('Could not attach graph refresh listener:', e);
+            console.warn('Could not attach queue event listeners:', e);
         }
 
         // No HTTP API - using postMessage communication instead
         console.log('✅ File processing system initialized (no HTTP API)');
 
-        // Initialize cronjob for automated file processing with event callback
-        fileCronJob = new FileProcessingCronJob(
-            fileDatabase,
-            worker,
-            {
-                intervalMs: 10000, // 10 seconds
-                autoStart: true,
-                workspaceRoot,
-                onFileProcessed: (event) => {
-                    // Notify DocumentsViewProvider of file processing events
-                    if (documentsViewProviderInstance) {
-                        documentsViewProviderInstance.notifyFileUpdate(event);
-                    }
-                }
-            }
-        );
-        console.log('✅ File processing cronjob started (10s interval)');
-
         // Register cleanup on deactivation
         context.subscriptions.push({
             dispose: async () => {
-                if (fileCronJob) {
-                    fileCronJob.stop();
-                    console.log('🛑 File processing cronjob stopped');
-                }
                 if (fileWatcher) {
                     fileWatcher.stop();
                     console.log('🛑 FileChangeWatcher stopped');
