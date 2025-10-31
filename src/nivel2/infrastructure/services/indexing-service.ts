@@ -61,17 +61,22 @@ export class IndexingService {
     try {
       console.log(`📑 Indexing ${filePath} with ${chunks.length} chunks...`);
 
-      // 1. Generate embeddings for all chunks
-      console.log(`🤖 Generating embeddings for ${chunks.length} chunks...`);
-      const embeddings = await this.embeddingService.embedBatch(
-        chunks.map(c => c.content),
-        32
-      );
+      // 1. Generate embeddings for all chunks (if available)
+      try {
+        console.log(`🤖 Generating embeddings for ${chunks.length} chunks...`);
+        const embeddings = await this.embeddingService.embedBatch(
+          chunks.map(c => c.content),
+          32
+        );
 
-      // Attach embeddings to chunks
-      chunks.forEach((chunk, i) => {
-        chunk.vector = embeddings[i];
-      });
+        // Attach embeddings to chunks
+        chunks.forEach((chunk, i) => {
+          chunk.vector = embeddings[i];
+        });
+      } catch (error) {
+        console.warn(`⚠️ Failed to generate embeddings for ${filePath}, continuing without vector search:`, error);
+        // Continue without embeddings - chunks won't have vectors but graph will still work
+      }
 
       // 2. Create file node in graph FIRST (before chunks, before vector store)
       // This ensures the file exists in the graph immediately, allowing other files
