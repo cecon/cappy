@@ -447,8 +447,13 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         // Initialize indexing services
         const configService = new ConfigService(workspaceRoot);
         const embeddingService = new EmbeddingService();
-        await embeddingService.initialize();
-        console.log('✅ Embedding service initialized');
+        try {
+            await embeddingService.initialize();
+            console.log('✅ Embedding service initialized');
+        } catch (error) {
+            console.warn('⚠️ Embedding service failed to initialize. Vector search will be unavailable:', error);
+            console.warn('⚠️ File processing will continue without embeddings');
+        }
         
         // Initialize graph database
     const sqlitePath = configService.getGraphDataPath(workspaceRoot);
