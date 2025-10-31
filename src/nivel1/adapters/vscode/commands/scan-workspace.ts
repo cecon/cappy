@@ -125,22 +125,26 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
             });
 
             // Step 4: Initialize and scan
-            console.log('🔍 Starting scanner initialization...');
+            console.log('🔍 [SCAN] Starting scanner initialization...');
             await scanner.initialize();
+            console.log('✅ [SCAN] Scanner initialized');
             
-            console.log('🚀 Starting workspace scan...');
+            console.log('🚀 [SCAN] Starting workspace scan (metadata only)...');
             await scanner.scanWorkspace();
+            console.log('✅ [SCAN] Workspace scan completed (metadata saved)');
 
             progress.report({ message: '✅ Completed!', increment: 100 });
             
             // Show detailed completion message
             const stats = scanner.getStats();
-            console.log('📊 Scan Statistics:', stats);
+            console.log('📊 [SCAN] Scan Statistics:', stats);
             
             const errorMsg = stats.errors.length > 0 ? ` (${stats.errors.length} errors)` : '';
             vscode.window.showInformationMessage(
-              `✅ Workspace scan completed! Processed ${stats.processedFiles}/${stats.totalFiles} files${errorMsg}`
+              `✅ Workspace scan completed! Indexed ${stats.processedFiles}/${stats.totalFiles} files (processing in background)${errorMsg}`
             );
+            
+            console.log('✅ [SCAN] Command cappy.scanWorkspace completed successfully');
           }
         );
       } catch (error) {

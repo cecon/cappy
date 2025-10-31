@@ -63,7 +63,7 @@ const DocumentsPage: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [showFileName, setShowFileName] = useState(false);
+  const [showFileName, setShowFileName] = useState(true); // Show filename by default
   const [sortField, setSortField] = useState<SortField>('updated');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [isScanning, setIsScanning] = useState(false);
@@ -97,6 +97,7 @@ const DocumentsPage: React.FC = () => {
   const postMessage = (type: string, payload: Record<string, unknown> = {}) => {
     console.log(`[DocumentsPage] 📤 Posting message to extension: ${type}`, { type, payload });
     console.log(`[DocumentsPage] vscodeApi available:`, !!vscodeApi);
+    console.log(`[DocumentsPage] vscodeApi object:`, vscodeApi);
     
     if (!vscodeApi) {
       console.error('[DocumentsPage] ❌ Cannot send message - vscodeApi is undefined!');
@@ -104,7 +105,9 @@ const DocumentsPage: React.FC = () => {
     }
     
     try {
-      vscodeApi.postMessage({ type, payload });
+      const message = { type, payload };
+      console.log(`[DocumentsPage] 📤 Calling vscodeApi.postMessage with:`, JSON.stringify(message));
+      vscodeApi.postMessage(message);
       console.log(`[DocumentsPage] ✅ Message sent successfully via postMessage`);
     } catch (error) {
       console.error('[DocumentsPage] ❌ Error calling postMessage:', error);
@@ -216,7 +219,7 @@ const DocumentsPage: React.FC = () => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
       console.log('[DocumentsPage] 📨 Received message from extension:', message.type, message);
-      console.log('[DocumentsPage] 📊 Current isScanning state BEFORE processing:', isScanning);
+      console.log('[DocumentsPage] 🔍 Current isScanning state:', isScanning);
       
       switch (message.type) {
         case 'document/hello': {
@@ -358,8 +361,10 @@ const DocumentsPage: React.FC = () => {
   const handleScan = async () => {
     // Use extension-driven scan via postMessage
     console.log('[DocumentsPage] 🔍 handleScan: Delegating to VS Code extension');
-    setIsScanning(true);
+    console.log('[DocumentsPage] 🔍 vscodeApi available:', !!vscodeApi);
+    console.log('[DocumentsPage] 🔍 Sending document/scan message...');
     postMessage('document/scan');
+    console.log('[DocumentsPage] ✅ document/scan message sent');
   };
 
   const handleRetry = () => {
@@ -400,12 +405,6 @@ const DocumentsPage: React.FC = () => {
     postMessage('document/refresh');
   };
 
-  const toggleDocumentSelection = (docId: string) => {
-    setDocuments((prev) =>
-      prev.map((d) => (d.id === docId ? { ...d, selected: !d.selected } : d))
-    );
-  };
-
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -413,11 +412,6 @@ const DocumentsPage: React.FC = () => {
       setSortField(field);
       setSortOrder('desc');
     }
-  };
-
-  const truncateText = (text: string, maxLength: number) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
   };
 
   return (
@@ -431,7 +425,13 @@ const DocumentsPage: React.FC = () => {
           {/* Barra de ações */}
           <div className="flex justify-between items-center gap-2 mb-2 mt-4">
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleScan} disabled={isScanning} className="h-9">
+              <Button 
+                variant="outline" 
+                onClick={handleScan} 
+                disabled={isScanning} 
+                className="h-9"
+                title={isScanning ? "Scanning workspace and indexing metadata..." : "Scan workspace files and add to metadata table"}
+              >
                 {isScanning ? (
                   <>
                     <Spinner size={16} />
@@ -575,16 +575,13 @@ const DocumentsPage: React.FC = () => {
                           onClick={() => handleSort('id')}
                         >
                           <div className="flex items-center gap-2">
-                            ID
+                            {showFileName ? 'File Name' : 'ID'}
                             {sortField === 'id' && (
                               <span className="text-primary">
                                 {sortOrder === 'asc' ? '↑' : '↓'}
                               </span>
                             )}
                           </div>
-                        </th>
-                        <th className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground">
-                          Summary
                         </th>
                         <th className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground">
                           Status
@@ -594,19 +591,6 @@ const DocumentsPage: React.FC = () => {
                         </th>
                         <th className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground">
                           Chunks
-                        </th>
-                        <th
-                          className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground cursor-pointer hover:bg-muted/80 transition-colors select-none"
-                          onClick={() => handleSort('created')}
-                        >
-                          <div className="flex items-center gap-2">
-                            Created
-                            {sortField === 'created' && (
-                              <span className="text-primary">
-                                {sortOrder === 'asc' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
                         </th>
                         <th
                           className="h-12 px-4 text-left align-middle font-semibold text-sm text-foreground cursor-pointer hover:bg-muted/80 transition-colors select-none"
@@ -621,7 +605,7 @@ const DocumentsPage: React.FC = () => {
                             )}
                           </div>
                         </th>
-                        <th className="h-12 px-4 w-40 text-center align-middle font-semibold text-sm text-foreground">
+                        <th className="h-12 px-4 w-32 text-center align-middle font-semibold text-sm text-foreground">
                           Actions
                         </th>
                       </tr>
@@ -630,7 +614,7 @@ const DocumentsPage: React.FC = () => {
                       {/* Debug info */}
                       {documents.length === 0 && statusFilter !== 'all' && (
                         <tr>
-                          <td colSpan={8} className="h-32 px-4 text-center">
+                          <td colSpan={6} className="h-32 px-4 text-center">
                             <div className="flex flex-col items-center gap-2">
                               <svg className="w-12 h-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -649,7 +633,7 @@ const DocumentsPage: React.FC = () => {
                       
                       {documents.length === 0 && statusFilter === 'all' ? (
                           <tr>
-                            <td colSpan={8} className="h-32 px-4 text-center text-muted-foreground">
+                            <td colSpan={6} className="h-32 px-4 text-center text-muted-foreground">
                               <div className="flex flex-col items-center gap-2">
                                 <svg className="w-12 h-12 text-muted-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -673,9 +657,18 @@ const DocumentsPage: React.FC = () => {
                                 <tr key={doc.id} className="hover:bg-muted/30 transition-colors">
                               <td className="h-16 px-4 align-middle">
                                 <div className="group relative">
-                                  <div className="truncate max-w-[200px] font-mono text-sm">
+                                  <div className="truncate max-w-[250px] text-sm font-medium">
                                     {showFileName ? doc.fileName : doc.id}
                                   </div>
+                                  {/* Tooltip showing full path */}
+                                  {showFileName && doc.filePath && (
+                                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-popover text-popover-foreground text-xs rounded-md px-3 py-2 shadow-lg border border-border max-w-md z-50 whitespace-normal">
+                                      <div className="font-semibold mb-1">Full Path:</div>
+                                      <div className="font-mono text-muted-foreground break-all">{doc.filePath}</div>
+                                      <div className="absolute left-4 top-full w-0 h-0 border-4 border-transparent border-t-popover"></div>
+                                    </div>
+                                  )}
+                                  {/* Tooltip showing filename when showing ID */}
                                   {!showFileName && (
                                     <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-popover text-popover-foreground text-xs rounded-md px-3 py-2 shadow-lg border border-border whitespace-nowrap z-50">
                                       {doc.fileName}
@@ -685,36 +678,37 @@ const DocumentsPage: React.FC = () => {
                                 </div>
                               </td>
                               <td className="h-16 px-4 align-middle">
-                                <div className="group relative">
-                                  <div className="truncate max-w-xs text-sm">{truncateText(doc.summary, 80)}</div>
-                                  {doc.status === 'processing' && doc.currentStep && (
-                                    <div className="mt-1 text-xs text-muted-foreground">
-                                      {truncateText(doc.currentStep, 80)}
-                                    </div>
-                                  )}
-                                  {doc.summary.length > 80 && (
-                                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-popover text-popover-foreground text-xs rounded-md px-3 py-2 shadow-lg border border-border max-w-md z-50 whitespace-normal">
-                                      {doc.summary}
-                                      <div className="absolute left-4 top-full w-0 h-0 border-4 border-transparent border-t-popover"></div>
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="h-16 px-4 align-middle">
                                 <div className="flex items-center gap-2">
-                                  {/* Status badge */}
-                                  {doc.status === 'processing' ? (
-                                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/20">
-                                      <Spinner size={12} />
-                                      <span className="text-xs font-medium text-primary">
+                                  {/* Status badge with spinner for processing */}
+                                  {(() => {
+                                    if (doc.status === 'processing') {
+                                      return (
+                                        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/20">
+                                          <Spinner size={14} />
+                                          <span className="text-xs font-medium text-primary">
+                                            Processing
+                                          </span>
+                                        </div>
+                                      );
+                                    }
+                                    if (doc.status === 'pending') {
+                                      return (
+                                        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-muted text-muted-foreground border border-border">
+                                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                          </svg>
+                                          <span className="text-xs font-medium">
+                                            Pending
+                                          </span>
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${statusClassName}`}>
                                         {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
                                       </span>
-                                    </div>
-                                  ) : (
-                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${statusClassName}`}>
-                                      {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
-                                    </span>
-                                  )}
+                                    );
+                                  })()}
                                   {doc.status === 'failed' && doc.error && (
                                     <div className="group/info relative">
                                       <svg className="h-4 w-4 text-red-500 ml-1 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -761,17 +755,9 @@ const DocumentsPage: React.FC = () => {
                                   {doc.chunks}
                                 </span>
                               </td>
-                              <td className="h-16 px-4 align-middle text-sm text-muted-foreground">{doc.created}</td>
                               <td className="h-16 px-4 align-middle text-sm text-muted-foreground">{doc.updated}</td>
                               <td className="h-16 px-4 align-middle">
                                 <div className="flex items-center justify-center gap-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={doc.selected}
-                                    onChange={() => toggleDocumentSelection(doc.id)}
-                                    className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-0"
-                                    title={doc.selected ? 'Unselect' : 'Select'}
-                                  />
                                   <Button
                                     variant="outline"
                                     className="h-8 w-8 p-0"

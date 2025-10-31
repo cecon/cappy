@@ -294,12 +294,16 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    */
   private async handleScan() {
     console.log('🔍 [DocumentsViewProvider] handleScan started');
+    console.log('🔍 [DocumentsViewProvider] Webview available:', !!this._view);
+    console.log('🔍 [DocumentsViewProvider] Webview visible:', this._view?.visible);
+    
     try {
       // Notifica o webview que o scan começou
       console.log('📤 [DocumentsViewProvider] Sending scan-started message to webview');
-      this._view?.webview.postMessage({
-        type: 'document/scan-started'
-      });
+      const scanStartedMessage = { type: 'document/scan-started' };
+      console.log('📤 [DocumentsViewProvider] Message payload:', JSON.stringify(scanStartedMessage));
+      this._view?.webview.postMessage(scanStartedMessage);
+      console.log('📤 [DocumentsViewProvider] scan-started message sent');
 
       console.log('⚡ [DocumentsViewProvider] Executing cappy.scanWorkspace command');
       
@@ -309,17 +313,21 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       console.log('✅ [DocumentsViewProvider] cappy.scanWorkspace completed');
       
       // Refresh document list from database
+      console.log('🔄 [DocumentsViewProvider] Refreshing document list...');
       await this.refreshDocumentList();
+      console.log('✅ [DocumentsViewProvider] Document list refreshed');
       
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error during scan:', error);
       vscode.window.showErrorMessage(`Scan failed: ${error}`);
     } finally {
       // Sempre notifica que o scan terminou
-      console.log('📤 [DocumentsViewProvider] Sending scan-completed message to webview');
-      this._view?.webview.postMessage({
-        type: 'document/scan-completed'
-      });
+      console.log('📤 [DocumentsViewProvider] Sending scan-completed message to webview (finally block)');
+      console.log('📤 [DocumentsViewProvider] Webview still available:', !!this._view);
+      const scanCompletedMessage = { type: 'document/scan-completed' };
+      console.log('📤 [DocumentsViewProvider] Message payload:', JSON.stringify(scanCompletedMessage));
+      this._view?.webview.postMessage(scanCompletedMessage);
+      console.log('✅ [DocumentsViewProvider] scan-completed message sent successfully');
     }
   }
 

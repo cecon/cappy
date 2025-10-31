@@ -100,6 +100,18 @@ export class FileDiscovery {
         continue;
       }
 
+      // Ignore lock files and large generated files
+      const fileName = path.basename(uri.fsPath);
+      if (
+        fileName === 'package-lock.json' ||
+        fileName === 'yarn.lock' ||
+        fileName === 'pnpm-lock.yaml' ||
+        fileName.endsWith('.min.js') ||
+        fileName.endsWith('.bundle.js')
+      ) {
+        continue;
+      }
+
       // Apply ignore patterns
       if (this.ignorePatterns.shouldIgnore(relPath)) {
         continue;

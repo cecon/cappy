@@ -10,7 +10,7 @@
 2. **Arquivos inválidos sendo processados:** `src/assets/documents.svg`, `src/assets/sql-wasm.wasm` e outros assets da extensão estavam sendo:
    - Escaneados pelo workspace scanner
    - Adicionados ao banco de dados
-   - Tentados processar pelo cronjob
+   - Tentados processar pela FileProcessingQueue
    - Gerando erros `File not found`
 
 ## Causa Raiz
@@ -116,4 +116,4 @@ src/extension.ts
 
 - Os padrões de ignore são aplicados durante o **file discovery**, antes de adicionar ao banco
 - Arquivos já no banco precisam ser removidos manualmente com `cappy.cleanInvalidFiles`
-- O cronjob já trata erros corretamente, marcando arquivos como `error` quando não podem ser processados
+- A FileProcessingQueue já trata erros corretamente, marcando arquivos como `error` quando não podem ser processados

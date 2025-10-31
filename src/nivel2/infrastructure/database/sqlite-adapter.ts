@@ -1134,8 +1134,13 @@ export class SQLiteAdapter implements GraphStorePort {
       if (this.vecExtensionLoaded && chunk.embedding && chunk.embedding.length > 0) {
         try {
           const vecString = JSON.stringify(chunk.embedding);
+          // Virtual tables não suportam INSERT OR REPLACE - precisamos deletar primeiro
           await this.run(
-            `INSERT OR REPLACE INTO vec_vectors (chunk_id, embedding) VALUES (?, ?)`,
+            `DELETE FROM vec_vectors WHERE chunk_id = ?`,
+            [chunk.id]
+          );
+          await this.run(
+            `INSERT INTO vec_vectors (chunk_id, embedding) VALUES (?, ?)`,
             [chunk.id, vecString]
           );
         } catch (error) {
