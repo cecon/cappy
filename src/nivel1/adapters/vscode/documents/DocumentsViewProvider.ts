@@ -169,8 +169,11 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     console.log('🎧 [DocumentsViewProvider] Setting up message listener for webview');
     const disposeListener = webviewView.webview.onDidReceiveMessage(async (data) => {
       console.log(`📨 [DocumentsViewProvider] ⚡ RAW MESSAGE RECEIVED:`, JSON.stringify(data));
+      console.log(`📨 [DocumentsViewProvider] Message type: "${data.type}"`);
+      console.log(`📨 [DocumentsViewProvider] Message payload:`, data.payload);
       try {
         console.log(`📨 [DocumentsViewProvider] Received message: ${data.type}`, data);
+        console.log(`📨 [DocumentsViewProvider] About to enter switch statement...`);
         switch (data.type) {
           case 'document/upload':
             console.log('🔼 Handling upload...');
@@ -189,8 +192,11 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
             await this.handleReprocess(data.payload.fileId, data.payload.filePath);
             break;
           case 'document/view-details':
-            console.log('👁️ Handling view details...');
+            console.log('👁️ [DocumentsViewProvider] CASE MATCHED: document/view-details');
+            console.log('👁️ [DocumentsViewProvider] Payload:', data.payload);
+            console.log('👁️ [DocumentsViewProvider] Calling handleViewDetails...');
             await this.handleViewDetails(data.payload.fileId);
+            console.log('👁️ [DocumentsViewProvider] handleViewDetails completed');
             break;
           case 'document/retry':
             console.log('🔄 Handling retry...');
@@ -212,9 +218,14 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
             // Load documents when webview is ready
             await this.refreshDocumentList();
             break;
+          default:
+            console.warn(`⚠️ [DocumentsViewProvider] Unknown message type: "${data.type}"`);
+            break;
         }
+        console.log(`✅ [DocumentsViewProvider] Message handling completed for: ${data.type}`);
       } catch (error) {
-        console.error('❌ Error handling webview message:', error);
+        console.error('❌ [DocumentsViewProvider] Error handling webview message:', error);
+        console.error('❌ [DocumentsViewProvider] Error stack:', (error as Error).stack);
         vscode.window.showErrorMessage(`Error: ${error}`);
       }
     });
@@ -544,7 +555,12 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    * Handles viewing document details (embeddings, graph node, relationships)
    */
   private async handleViewDetails(fileId: string) {
-    console.log(`👁️ [DocumentsViewProvider] handleViewDetails: ${fileId}`);
+    console.log(`👁️ [DocumentsViewProvider] ========================================`);
+    console.log(`👁️ [DocumentsViewProvider] handleViewDetails CALLED`);
+    console.log(`👁️ [DocumentsViewProvider] fileId: ${fileId}`);
+    console.log(`👁️ [DocumentsViewProvider] _graphStore available: ${!!this._graphStore}`);
+    console.log(`👁️ [DocumentsViewProvider] _fileDatabase available: ${!!this._fileDatabase}`);
+    console.log(`👁️ [DocumentsViewProvider] ========================================`);
     
     if (!this._graphStore) {
       console.error('❌ [DocumentsViewProvider] No graph store available');
@@ -561,9 +577,19 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
 
     try {
       // Get file metadata to find file path
+      console.log(`🔍 [DocumentsViewProvider] Fetching file metadata for: ${fileId}`);
       const file = await this._fileDatabase?.getFile(fileId);
+      console.log(`🔍 [DocumentsViewProvider] File metadata:`, file);
       if (!file) {
         console.error('❌ [DocumentsViewProvider] File not found:', fileId);
+        this._view?.webview.postMessage({
+          type: 'document/details',
+          payload: {
+            embeddings: [],
+            graphNode: null,
+            relationships: []
+          }
+        });
         return;
       }
 
@@ -587,37 +613,51 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       };
 
       // Get chunks/embeddings for this file
+      console.log(`🔍 [DocumentsViewProvider] Getting file chunks for: ${file.filePath}`);
+      console.log(`🔍 [DocumentsViewProvider] graphStore.getFileChunks exists: ${!!graphStore.getFileChunks}`);
       const chunks = graphStore.getFileChunks 
         ? await graphStore.getFileChunks(file.filePath)
         : [];
+      console.log(`✅ [DocumentsViewProvider] Found ${chunks.length} chunks`);
 
       // Get graph node for this file (use file ID as node ID)
+      console.log(`🔍 [DocumentsViewProvider] Getting graph node for: ${fileId}`);
+      console.log(`🔍 [DocumentsViewProvider] graphStore.getNode exists: ${!!graphStore.getNode}`);
       const graphNode = graphStore.getNode 
         ? await graphStore.getNode(fileId)
         : null;
+      console.log(`✅ [DocumentsViewProvider] Graph node found: ${!!graphNode}`);
 
       // Get relationships if we have a node
+      console.log(`🔍 [DocumentsViewProvider] Getting relationships...`);
       const relationships = graphNode && graphStore.getRelationships
         ? await graphStore.getRelationships(graphNode.id)
         : [];
+      console.log(`✅ [DocumentsViewProvider] Found ${relationships.length} relationships`);
 
-      console.log(`✅ [DocumentsViewProvider] Found ${chunks.length} chunks, node: ${!!graphNode}, ${relationships.length} relationships`);
+      console.log(`✅ [DocumentsViewProvider] SUMMARY: ${chunks.length} chunks, node: ${!!graphNode}, ${relationships.length} relationships`);
 
       // Send details to webview
+      console.log(`📤 [DocumentsViewProvider] Sending details to webview...`);
+      console.log(`📤 [DocumentsViewProvider] Webview available: ${!!this._view}`);
+      const payload = {
+        embeddings: chunks.map(c => ({
+          chunkId: c.id,
+          content: c.content,
+          embedding: c.embedding || []
+        })),
+        graphNode,
+        relationships
+      };
+      console.log(`📤 [DocumentsViewProvider] Payload:`, JSON.stringify(payload, null, 2).substring(0, 500));
       this._view?.webview.postMessage({
         type: 'document/details',
-        payload: {
-          embeddings: chunks.map(c => ({
-            chunkId: c.id,
-            content: c.content,
-            embedding: c.embedding || []
-          })),
-          graphNode,
-          relationships
-        }
+        payload
       });
+      console.log(`✅ [DocumentsViewProvider] Message sent to webview!`);
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error fetching document details:', error);
+      console.error('❌ [DocumentsViewProvider] Error stack:', (error as Error).stack);
       this._view?.webview.postMessage({
         type: 'document/details',
         payload: {

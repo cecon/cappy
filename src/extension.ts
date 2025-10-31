@@ -149,6 +149,58 @@ export function activate(context: vscode.ExtensionContext) {
     );
     context.subscriptions.push(getFilesPaginatedCmd);
 
+    // Expose a command to fetch document details (embeddings, graph node, relationships)
+    const getDocumentDetailsCmd = vscode.commands.registerCommand(
+        'cappy.getDocumentDetails',
+        async (options: { fileId: string }) => {
+            if (!fileDatabase) {
+                throw new Error('File database is not initialized yet');
+            }
+            if (!graphStore) {
+                throw new Error('Graph store is not initialized yet');
+            }
+
+            const { fileId } = options;
+            const file = await fileDatabase.getFile(fileId);
+            
+            if (!file) {
+                return {
+                    file: null,
+                    chunks: [],
+                    graphNode: null,
+                    relationships: []
+                };
+            }
+
+            // Get chunks/embeddings
+            const chunks = await graphStore.getFileChunks(file.filePath);
+            
+            // Get graph node (cast to include new methods)
+            const store = graphStore as typeof graphStore & {
+                getNode: (nodeId: string) => Promise<{ id: string; type: string; properties: Record<string, unknown> } | null>;
+                getRelationships: (nodeId: string) => Promise<Array<{ from: string; to: string; type: string }>>;
+            };
+            const graphNode = await store.getNode(fileId);
+            
+            // Get relationships
+            const relationships = graphNode 
+                ? await store.getRelationships(graphNode.id)
+                : [];
+
+            return {
+                file: {
+                    id: file.id,
+                    filePath: file.filePath,
+                    fileName: file.fileName
+                },
+                chunks,
+                graphNode,
+                relationships
+            };
+        }
+    );
+    context.subscriptions.push(getDocumentDetailsCmd);
+
     // Register interactive hybrid search command
     const searchCommand = vscode.commands.registerCommand('cappy.search', async () => {
 
