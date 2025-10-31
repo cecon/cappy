@@ -904,10 +904,20 @@ export class SQLiteAdapter implements GraphStorePort {
     }));
   }
 
-  async getFileChunks(filePath: string): Promise<Array<{ id: string; type: string; label: string }>> {
+  async getFileChunks(filePath: string): Promise<Array<{ 
+    id: string; 
+    type: string; 
+    label: string;
+    content: string;
+    embedding?: number[];
+  }>> {
     if (!this.db) return [];
     
-    const chunks = await this.all<{ id: string; type: string; label: string }>(
+    const chunks = await this.all<{ 
+      id: string; 
+      type: string; 
+      label: string;
+    }>(
       `SELECT DISTINCT n.id, n.type, n.label 
        FROM nodes n 
        INNER JOIN edges e ON e.to_id = n.id 
@@ -915,7 +925,24 @@ export class SQLiteAdapter implements GraphStorePort {
       [filePath]
     );
     
-    return chunks;
+    // Get content and embeddings from vectors table
+    const result = [];
+    for (const chunk of chunks) {
+      const vectorData = await this.get<{ content: string; embedding_json: string | null }>(
+        `SELECT content, embedding_json FROM vectors WHERE chunk_id = ?`,
+        [chunk.id]
+      );
+      
+      result.push({
+        id: chunk.id,
+        type: chunk.type,
+        label: chunk.label,
+        content: vectorData?.content || '',
+        embedding: vectorData?.embedding_json ? JSON.parse(vectorData.embedding_json) : undefined
+      });
+    }
+    
+    return result;
   }
 
   getStats(): { fileNodes: number; chunkNodes: number; relationships: number; duplicates?: number } {
@@ -994,6 +1021,67 @@ export class SQLiteAdapter implements GraphStorePort {
       }));
     } catch (error) {
       console.error("Error fetching sample relationships:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Gets a node by its ID
+   */
+  async getNode(nodeId: string): Promise<{
+    id: string;
+    type: string;
+    properties: Record<string, unknown>;
+  } | null> {
+    if (!this.db) return null;
+    
+    try {
+      const node = await this.get<Record<string, unknown>>(
+        `SELECT * FROM nodes WHERE id = ?`,
+        [nodeId]
+      );
+      
+      if (!node) return null;
+      
+      return {
+        id: node.id as string,
+        type: node.type as string,
+        properties: node
+      };
+    } catch (error) {
+      console.error("Error fetching node:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Gets all relationships for a node (both incoming and outgoing)
+   */
+  async getRelationships(nodeId: string): Promise<Array<{
+    from: string;
+    to: string;
+    type: string;
+  }>> {
+    if (!this.db) return [];
+    
+    try {
+      const edges = await this.all<{
+        from_id: string;
+        to_id: string;
+        type: string;
+      }>(
+        `SELECT from_id, to_id, type FROM edges 
+         WHERE from_id = ? OR to_id = ?`,
+        [nodeId, nodeId]
+      );
+      
+      return edges.map(edge => ({
+        from: edge.from_id,
+        to: edge.to_id,
+        type: edge.type
+      }));
+    } catch (error) {
+      console.error("Error fetching relationships:", error);
       return [];
     }
   }

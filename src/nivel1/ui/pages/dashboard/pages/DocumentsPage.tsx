@@ -75,6 +75,15 @@ const DocumentsPage: React.FC = () => {
   // Dados de exemplo (exatamente como no LightRAG)
   const [documents, setDocuments] = useState<Document[]>([]);
   const lastRequestSignature = useRef<string | null>(null);
+  
+  // Modal state for viewing document details
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [documentDetails, setDocumentDetails] = useState<{
+    embeddings: Array<{ chunkId: string; content: string; embedding: number[] }>;
+    graphNode: { id: string; type: string; properties: Record<string, unknown> } | null;
+    relationships: Array<{ from: string; to: string; type: string }>;
+  } | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   const vscodeApi = useMemo(() => {
     if (typeof globalThis !== 'undefined' && (globalThis as { window?: unknown }).window) {
@@ -280,6 +289,12 @@ const DocumentsPage: React.FC = () => {
           loadDocuments({ force: true });
           break;
         }
+        case 'document/details': {
+          console.log('[DocumentsPage] 📊 Received document details:', message.payload);
+          setDocumentDetails(message.payload);
+          setIsLoadingDetails(false);
+          break;
+        }
       }
     };
 
@@ -378,8 +393,8 @@ const DocumentsPage: React.FC = () => {
     try {
       const doc = documents.find(d => d.id === fileId);
       if (!doc?.filePath) throw new Error('File path not found');
-      // Delegate to extension: it handles processing pipeline internally
-      postMessage('document/process', { fileUri: doc.filePath });
+      // Send reprocess request to extension - it will set status to pending and add to queue
+      postMessage('document/reprocess', { fileId, filePath: doc.filePath });
     } catch (e) {
       console.error('[DocumentsPage] Reprocess error:', e);
       setDocuments((prev) => prev.map((d) => (d.id === fileId ? { ...d, status: 'failed', summary: `❌ ${String(e)}` } : d)));
@@ -412,6 +427,18 @@ const DocumentsPage: React.FC = () => {
       setSortField(field);
       setSortOrder('desc');
     }
+  };
+
+  const viewDocumentDetails = (fileId: string) => {
+    console.log('[DocumentsPage] Requesting document details for:', fileId);
+    setSelectedDocumentId(fileId);
+    setIsLoadingDetails(true);
+    postMessage('document/view-details', { fileId });
+  };
+
+  const closeDetailsModal = () => {
+    setSelectedDocumentId(null);
+    setDocumentDetails(null);
   };
 
   return (
@@ -757,7 +784,7 @@ const DocumentsPage: React.FC = () => {
                               </td>
                               <td className="h-16 px-4 align-middle text-sm text-muted-foreground">{doc.updated}</td>
                               <td className="h-16 px-4 align-middle">
-                                <div className="flex items-center justify-center gap-2">
+                                <div className="flex items-center justify-center gap-1">
                                   <Button
                                     variant="outline"
                                     className="h-8 w-8 p-0"
@@ -767,6 +794,18 @@ const DocumentsPage: React.FC = () => {
                                   >
                                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => viewDocumentDetails(doc.id)}
+                                    disabled={doc.status === 'pending' || doc.status === 'processing'}
+                                    title="View embeddings, graph node and relationships"
+                                  >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                     </svg>
                                   </Button>
                                   <Button
@@ -865,6 +904,147 @@ const DocumentsPage: React.FC = () => {
           </Card>
         </CardContent>
       </Card>
+
+      {/* Document Details Modal */}
+      {selectedDocumentId && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" 
+          onClick={closeDetailsModal}
+          onKeyDown={(e) => e.key === 'Escape' && closeDetailsModal()}
+          role="dialog"
+          aria-modal="true"
+        >
+          <Card className="w-[90%] max-w-4xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="py-4 px-6 border-b border-border/40 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Document Details</CardTitle>
+              <Button variant="ghost" className="h-8 w-8 p-0" onClick={closeDetailsModal}>
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </Button>
+            </CardHeader>
+            <CardContent className="p-6 overflow-auto max-h-[calc(90vh-80px)]">
+              {isLoadingDetails ? (
+                <div className="flex items-center justify-center py-12">
+                  <Spinner size={32} />
+                  <span className="ml-3 text-muted-foreground">Loading details...</span>
+                </div>
+              ) : documentDetails ? (
+                <div className="space-y-6">
+                  {/* Graph Node Section */}
+                  <div>
+                    <h3 className="text-base font-semibold mb-3 flex items-center">
+                      <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Graph Node
+                    </h3>
+                    {documentDetails.graphNode ? (
+                      <div className="bg-muted/30 rounded-md p-4 border border-border">
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="font-medium text-muted-foreground">ID:</span>
+                            <span className="ml-2 font-mono">{documentDetails.graphNode.id}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-muted-foreground">Type:</span>
+                            <span className="ml-2">{documentDetails.graphNode.type}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <span className="font-medium text-muted-foreground text-sm">Properties:</span>
+                          <pre className="mt-2 bg-background rounded p-3 text-xs overflow-auto max-h-40 border border-border">
+                            {JSON.stringify(documentDetails.graphNode.properties, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-muted/30 rounded-md p-4 border border-border text-center text-muted-foreground">
+                        No graph node found
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Relationships Section */}
+                  <div>
+                    <h3 className="text-base font-semibold mb-3 flex items-center">
+                      <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                      Relationships ({documentDetails.relationships.length})
+                    </h3>
+                    {documentDetails.relationships.length > 0 ? (
+                      <div className="space-y-2 max-h-64 overflow-auto">
+                        {documentDetails.relationships.map((rel) => (
+                          <div key={`${rel.from}-${rel.type}-${rel.to}`} className="bg-muted/30 rounded-md p-3 border border-border text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs bg-primary/10 px-2 py-1 rounded">{rel.from}</span>
+                              <svg className="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                              </svg>
+                              <span className="font-medium text-primary">{rel.type}</span>
+                              <svg className="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                              </svg>
+                              <span className="font-mono text-xs bg-primary/10 px-2 py-1 rounded">{rel.to}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-muted/30 rounded-md p-4 border border-border text-center text-muted-foreground">
+                        No relationships found
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Embeddings Section */}
+                  <div>
+                    <h3 className="text-base font-semibold mb-3 flex items-center">
+                      <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Embeddings ({documentDetails.embeddings.length})
+                    </h3>
+                    {documentDetails.embeddings.length > 0 ? (
+                      <div className="space-y-3 max-h-96 overflow-auto">
+                        {documentDetails.embeddings.map((emb) => (
+                          <div key={emb.chunkId} className="bg-muted/30 rounded-md p-3 border border-border">
+                            <div className="mb-2">
+                              <span className="font-medium text-muted-foreground text-sm">Chunk ID:</span>
+                              <span className="ml-2 font-mono text-xs">{emb.chunkId}</span>
+                            </div>
+                            <div className="mb-2">
+                              <span className="font-medium text-muted-foreground text-sm">Content:</span>
+                              <div className="mt-1 bg-background rounded p-2 text-xs max-h-24 overflow-auto border border-border">
+                                {emb.content}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="font-medium text-muted-foreground text-sm">Vector:</span>
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                [{emb.embedding.length} dimensions: {emb.embedding.slice(0, 3).map(v => v.toFixed(4)).join(', ')}...]
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-muted/30 rounded-md p-4 border border-border text-center text-muted-foreground">
+                        No embeddings found
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  Failed to load document details
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

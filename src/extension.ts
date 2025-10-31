@@ -432,6 +432,9 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         if (documentsViewProviderInstance && fileDatabase) {
             documentsViewProviderInstance.setFileDatabase(fileDatabase);
         }
+        
+        // Connect DocumentsViewProvider to graph store (will be set after graph initialization)
+        // This will be called again after graphStore is initialized below
 
         // Initialize services for worker
     const { ParserService } = await import('./nivel2/infrastructure/services/parser-service.js');
@@ -463,6 +466,12 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
         
         // Store globally for reanalyze command
         graphStore = graphStoreInstance;
+        
+        // Connect DocumentsViewProvider to graph store
+        if (documentsViewProviderInstance && graphStoreInstance) {
+            documentsViewProviderInstance.setGraphStore(graphStoreInstance);
+            console.log('✅ DocumentsViewProvider connected to graph store');
+        }
         
         // Create vector store (needs to be before context tool initialization)
         const vectorStore = createVectorStore(graphStoreInstance, embeddingService);

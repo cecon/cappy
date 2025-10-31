@@ -42,6 +42,7 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   private readonly documents: Map<string, DocumentItem> = new Map();
   private readonly _extensionUri: vscode.Uri;
   private _fileDatabase?: FileMetadataDatabase;
+  private _graphStore?: unknown; // Will be typed as GraphStorePort when passed
   private _refreshIntervalId?: NodeJS.Timeout;
   private readonly _refreshIntervalMs = 5000; // Refresh every 5 seconds when view is visible
 
@@ -57,6 +58,13 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    */
   setFileDatabase(fileDatabase: FileMetadataDatabase): void {
     this._fileDatabase = fileDatabase;
+  }
+
+  /**
+   * Sets the graph store (can be called after initialization)
+   */
+  setGraphStore(graphStore: unknown): void {
+    this._graphStore = graphStore;
   }
 
   /**
@@ -175,6 +183,14 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
           case 'document/process':
             console.log('⚙️ Handling process...');
             await this.handleProcess(data.payload.fileUri);
+            break;
+          case 'document/reprocess':
+            console.log('🔄 Handling reprocess...');
+            await this.handleReprocess(data.payload.fileId, data.payload.filePath);
+            break;
+          case 'document/view-details':
+            console.log('👁️ Handling view details...');
+            await this.handleViewDetails(data.payload.fileId);
             break;
           case 'document/retry':
             console.log('🔄 Handling retry...');
@@ -490,6 +506,127 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    */
   private async handleProcess(fileUri: string) {
     await this.processFile(fileUri);
+  }
+
+  /**
+   * Handles reprocessing a file by setting its status to pending
+   */
+  private async handleReprocess(fileId: string, filePath: string) {
+    console.log(`🔄 [DocumentsViewProvider] handleReprocess: ${fileId} (${filePath})`);
+    
+    if (!this._fileDatabase) {
+      console.error('❌ [DocumentsViewProvider] No file database available');
+      vscode.window.showErrorMessage('File processing system not initialized');
+      return;
+    }
+
+    try {
+      // Update file status to 'pending' so it will be picked up by the queue
+      await this._fileDatabase.updateFile(fileId, {
+        status: 'pending',
+        currentStep: 'Queued for reprocessing',
+        progress: 0,
+        errorMessage: undefined
+      });
+
+      console.log(`✅ [DocumentsViewProvider] File ${fileId} marked as pending for reprocessing`);
+      vscode.window.showInformationMessage(`File queued for reprocessing: ${path.basename(filePath)}`);
+      
+      // Refresh the document list to show updated status
+      await this.refreshDocumentList();
+    } catch (error) {
+      console.error('❌ [DocumentsViewProvider] Error reprocessing file:', error);
+      vscode.window.showErrorMessage(`Failed to reprocess file: ${error}`);
+    }
+  }
+
+  /**
+   * Handles viewing document details (embeddings, graph node, relationships)
+   */
+  private async handleViewDetails(fileId: string) {
+    console.log(`👁️ [DocumentsViewProvider] handleViewDetails: ${fileId}`);
+    
+    if (!this._graphStore) {
+      console.error('❌ [DocumentsViewProvider] No graph store available');
+      this._view?.webview.postMessage({
+        type: 'document/details',
+        payload: {
+          embeddings: [],
+          graphNode: null,
+          relationships: []
+        }
+      });
+      return;
+    }
+
+    try {
+      // Get file metadata to find file path
+      const file = await this._fileDatabase?.getFile(fileId);
+      if (!file) {
+        console.error('❌ [DocumentsViewProvider] File not found:', fileId);
+        return;
+      }
+
+      const graphStore = this._graphStore as {
+        getFileChunks?: (filePath: string) => Promise<Array<{
+          id: string;
+          content: string;
+          embedding?: number[];
+          metadata?: Record<string, unknown>;
+        }>>;
+        getNode?: (nodeId: string) => Promise<{
+          id: string;
+          type: string;
+          properties: Record<string, unknown>;
+        } | null>;
+        getRelationships?: (nodeId: string) => Promise<Array<{
+          from: string;
+          to: string;
+          type: string;
+        }>>;
+      };
+
+      // Get chunks/embeddings for this file
+      const chunks = graphStore.getFileChunks 
+        ? await graphStore.getFileChunks(file.filePath)
+        : [];
+
+      // Get graph node for this file (use file ID as node ID)
+      const graphNode = graphStore.getNode 
+        ? await graphStore.getNode(fileId)
+        : null;
+
+      // Get relationships if we have a node
+      const relationships = graphNode && graphStore.getRelationships
+        ? await graphStore.getRelationships(graphNode.id)
+        : [];
+
+      console.log(`✅ [DocumentsViewProvider] Found ${chunks.length} chunks, node: ${!!graphNode}, ${relationships.length} relationships`);
+
+      // Send details to webview
+      this._view?.webview.postMessage({
+        type: 'document/details',
+        payload: {
+          embeddings: chunks.map(c => ({
+            chunkId: c.id,
+            content: c.content,
+            embedding: c.embedding || []
+          })),
+          graphNode,
+          relationships
+        }
+      });
+    } catch (error) {
+      console.error('❌ [DocumentsViewProvider] Error fetching document details:', error);
+      this._view?.webview.postMessage({
+        type: 'document/details',
+        payload: {
+          embeddings: [],
+          graphNode: null,
+          relationships: []
+        }
+      });
+    }
   }
 
   /**
