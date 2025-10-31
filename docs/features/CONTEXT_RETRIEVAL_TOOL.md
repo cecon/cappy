@@ -13,6 +13,10 @@ O **Context Retrieval Tool** (`cappy_retrieve_context`) é uma Language Model To
 - ✅ Formatação otimizada para LLM
 - ✅ Registrada no package.json
 - ✅ Auto-inicialização com graph data
+- ✅ **Context Enrichment** - Enriquece contextos com pouca informação
+  - Detecta automaticamente snippets minimais (< 150 chars ou < 5 linhas)
+  - Lê +5 linhas antes e depois do código
+  - Fornece contexto completo ao LLM
 
 ## 🎯 Como Funciona
 
@@ -317,7 +321,75 @@ contextRetrievalTool.setGraphData(newGraphData.data);
 4. ⏳ **TODO**: Metrics e analytics
 5. ⏳ **TODO**: Feedback loop para melhorar relevância
 
-## 📝 Changelog
+## � Context Enrichment
+
+### O que é?
+
+Quando o retrieval encontra **contextos com pouca informação** (arquivos simples, linhas únicas, snippets pequenos), o sistema automaticamente **enriquece** o contexto lendo mais linhas do código ao redor.
+
+### Como funciona?
+
+1. **Detecção Automática**
+   - Conteúdo < 150 caracteres, OU
+   - Conteúdo < 5 linhas
+
+2. **Expansão de Contexto**
+   - Lê +5 linhas antes do snippet
+   - Lê +5 linhas depois do snippet
+   - Total: até 10 linhas adicionais de contexto
+
+3. **Resultado**
+   - LLM recebe contexto completo
+   - Melhor compreensão do código
+   - Informações sobre imports, variáveis, estrutura
+
+### Exemplo
+
+**Antes (Contexto Original):**
+```typescript
+const result = graphService.loadGraph();
+```
+
+**Depois (Contexto Enriquecido):**
+```typescript
+async initialize(): Promise<void> {
+  try {
+    // Load graph data if available
+    if (this.graphService) {
+      const result = await this.graphService.loadGraph();
+      if (result.data) {
+        this.retriever = new HybridRetriever(result.data);
+      }
+    }
+```
+
+### Quando é usado?
+
+- ✅ Referências simples de código
+- ✅ Imports de módulos
+- ✅ Declarações de variáveis
+- ✅ Linhas únicas de código
+- ❌ Documentação completa (não precisa)
+- ❌ Classes/funções completas (já tem contexto)
+
+### Logs
+
+Quando um contexto é enriquecido:
+```
+[ContextRetrievalTool] Enriched context for src/file.ts:42 from 28 to 345 chars
+```
+
+**📚 Mais detalhes**: Ver [CONTEXT_ENRICHMENT.md](./CONTEXT_ENRICHMENT.md)
+
+---
+
+## �📝 Changelog
+
+### v1.1.0 (2025-10-30)
+- ✅ **Context Enrichment** - Enriquece automaticamente contextos com pouca informação
+  - Detecta snippets minimais (< 150 chars ou < 5 linhas)
+  - Expande contexto com +5 linhas antes e depois
+  - Melhora significativa na qualidade do contexto para o LLM
 
 ### v1.0.0 (2025-10-20)
 - ✅ Implementação inicial

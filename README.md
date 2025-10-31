@@ -103,7 +103,7 @@ Used internally to power autonomous development agents:
 ### 1. Install Extension
 ```bash
 # From VSCode Marketplace
-code --install-extension cecon.cappy
+code --install-extension eduardocecon.cappy
 ```
 
 Or search "Cappy" in VSCode Extensions
@@ -337,4 +337,4 @@ If Cappy saves you time, consider:
 
 **Stop explaining your codebase. Let Cappy do it.**
 
-[Install Now](https://marketplace.visualstudio.com/items?itemName=cecon.cappy) | [Documentation](link) | [Discord](link) | [Twitter](link)
+[Install Now](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy) | [Documentation](link) | [Discord](link) | [Twitter](link)
