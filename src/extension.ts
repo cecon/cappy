@@ -282,7 +282,7 @@ export function activate(context: vscode.ExtensionContext) {
             result = await retriever.retrieve(query, {
                 maxResults: 10,
                 minScore: 0.3,
-                sources: ['code', 'documentation', 'prevention', 'task'],
+                sources: ['code', 'documentation'],
                 includeRelated: true,
                 rerank: true
             });
@@ -309,10 +309,6 @@ export function activate(context: vscode.ExtensionContext) {
                 icon = '💻';
             } else if (ctx.source === 'documentation') {
                 icon = '📚';
-            } else if (ctx.source === 'prevention') {
-                icon = '🛡️';
-            } else if (ctx.source === 'task') {
-                icon = '✅';
             } else {
                 icon = '📄';
             }

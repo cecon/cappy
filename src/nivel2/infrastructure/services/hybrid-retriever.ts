@@ -6,34 +6,16 @@
  */
 
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
 import type { GraphData, GraphNode } from '../../../domains/dashboard/types';
 import { SearchGraphUseCase, type SearchGraphOptions } from '../../../domains/dashboard/use-cases';
-
-/**
- * Index entry from docs/rules/tasks indexes
- */
-interface IndexEntry {
-  id: string;
-  title: string;
-  path: string;
-  content: string;
-  category: string;
-  keywords: string[];
-  lastModified: string;
-  type?: string;
-}
 
 /**
  * Source of retrieved context
  */
 export type ContextSource = 
-  | 'code'           // From code graph
-  | 'documentation'  // From docs index
-  | 'task'          // From tasks
-  | 'prevention'    // From prevention rules
-  | 'metadata';     // From file metadata
+  | 'code'           // From code graph (database)
+  | 'documentation'  // From documentation chunks (database)
+  | 'metadata';      // From file metadata
 
 /**
  * Retrieved context item
@@ -337,13 +319,7 @@ export class HybridRetriever {
           retrievalPromises.push(this.retrieveFromDocs(query, options));
         }
         
-        if (sources.includes('prevention')) {
-          retrievalPromises.push(this.retrieveFromPrevention(query, options));
-        }
-        
-        if (sources.includes('task')) {
-          retrievalPromises.push(this.retrieveFromTasks(query, options));
-        }
+        // Note: 'prevention' and 'task' sources removed - use graph database instead
         
         // Execute all retrievals in parallel
         const results = await Promise.all(retrievalPromises);
@@ -607,24 +583,22 @@ export class HybridRetriever {
             matchedCount++;
             
             // Log first few matches for debugging
-            if (matchedCount <= 5) {
+            if (matchedCount <= 10) {
               console.log(`[HybridRetriever] Match #${matchedCount}: node="${node.id}" score=${score.toFixed(3)} (exactMatches=${exactMatches}, hasContent=${hasContent})`);
             }
           }
           
-          // Apply a reasonable minimum threshold BEFORE weighting
-          // This is a pre-filter to avoid processing obviously irrelevant results
-          // The actual minScore filter will be applied AFTER weighted scoring
-          const preFilterThreshold = 0.1;
-          if (score < preFilterThreshold) {
-            if (matchedCount <= 5) {
-              console.log(`[HybridRetriever] ❌ Match #${matchedCount} rejected: score ${score.toFixed(3)} < threshold ${preFilterThreshold}`);
-            }
+          // Skip if no match at all
+          if (score <= 0) {
             continue;
           }
           
           filteredCount++;
-          console.log(`[HybridRetriever] ✅ Match #${filteredCount} accepted: node="${node.id}" score=${score.toFixed(3)}`);
+          if (filteredCount <= 10) {
+            console.log(`[HybridRetriever] ✅ Match #${filteredCount} accepted: node="${node.id}" score=${score.toFixed(3)}`);
+          }
+          
+          // Normalize score
           score = Math.min(score, 1);
           
           // Get file path from metadata (preferred) or fallback to parsing ID
@@ -744,166 +718,25 @@ export class HybridRetriever {
   /**
    * Retrieves context from documentation index
    */
+  /**
+   * Retrieves context from documentation
+   * Uses the same graph database as code, filtering for documentation chunks
+   */
   private async retrieveFromDocs(
     query: string,
     options: HybridRetrieverOptions
   ): Promise<RetrievedContext[]> {
-    if (!this.workspaceRoot) {
-      return [];
-    }
+    console.log(`[HybridRetriever] retrieveFromDocs: using graphStore database`);
     
-    try {
-      const docsIndexPath = path.join(this.workspaceRoot, '.cappy', 'indexes', 'docs.json');
-      
-      if (!fs.existsSync(docsIndexPath)) {
-        return [];
-      }
-      
-      const docsIndex = JSON.parse(await fs.promises.readFile(docsIndexPath, 'utf8'));
-      const docs = docsIndex.docs || [];
-      
-      // Search docs using fuzzy matching
-      const queryLower = query.toLowerCase();
-      const queryTokens = queryLower.split(/\s+/);
-      
-      return docs
-        .map((doc: IndexEntry) => {
-          const score = this.calculateDocScore(doc, queryTokens, options);
-          
-          if (score < 0.3) {
-            return null;
-          }
-          
-          return {
-            id: doc.id,
-            content: doc.content || '',
-            source: 'documentation' as ContextSource,
-            score,
-            filePath: doc.path,
-            metadata: {
-              title: doc.title,
-              category: doc.category,
-              keywords: doc.keywords || [],
-              lastModified: doc.lastModified
-            },
-            snippet: this.extractSnippet(doc.content || '', queryTokens)
-          };
-        })
-        .filter((ctx: RetrievedContext | null): ctx is RetrievedContext => ctx !== null);
-    } catch (error) {
-      console.warn('Failed to retrieve from docs:', error);
-      return [];
-    }
-  }
-  
-  /**
-   * Retrieves context from prevention rules
-   */
-  private async retrieveFromPrevention(
-    query: string,
-    options: HybridRetrieverOptions
-  ): Promise<RetrievedContext[]> {
-    if (!this.workspaceRoot) {
-      return [];
-    }
+    // Use graphStore to search documentation chunks (markdown_section, document_section)
+    // This reuses the retrieveFromCode logic which already classifies chunks by type
+    const allResults = await this.retrieveFromCode(query, options);
     
-    try {
-      const rulesIndexPath = path.join(this.workspaceRoot, '.cappy', 'indexes', 'rules.json');
-      
-      if (!fs.existsSync(rulesIndexPath)) {
-        return [];
-      }
-      
-      const rulesIndex = JSON.parse(await fs.promises.readFile(rulesIndexPath, 'utf8'));
-      const rules = rulesIndex.rules || [];
-      
-      // Search rules
-      const queryLower = query.toLowerCase();
-      const queryTokens = queryLower.split(/\s+/);
-      
-      return rules
-        .map((rule: IndexEntry) => {
-          const score = this.calculateDocScore(rule, queryTokens, options);
-          
-          if (score < 0.3) {
-            return null;
-          }
-          
-          return {
-            id: rule.id,
-            content: rule.content || '',
-            source: 'prevention' as ContextSource,
-            score,
-            filePath: rule.path,
-            metadata: {
-              title: rule.title,
-              category: rule.category,
-              keywords: rule.keywords || [],
-              lastModified: rule.lastModified
-            },
-            snippet: this.extractSnippet(rule.content || '', queryTokens)
-          };
-        })
-        .filter((ctx: RetrievedContext | null): ctx is RetrievedContext => ctx !== null);
-    } catch (error) {
-      console.warn('Failed to retrieve from prevention rules:', error);
-      return [];
-    }
-  }
-  
-  /**
-   * Retrieves context from tasks
-   */
-  private async retrieveFromTasks(
-    query: string,
-    options: HybridRetrieverOptions
-  ): Promise<RetrievedContext[]> {
-    if (!this.workspaceRoot) {
-      return [];
-    }
+    // Filter to only documentation sources
+    const docResults = allResults.filter(ctx => ctx.source === 'documentation');
+    console.log(`[HybridRetriever] retrieveFromDocs: found ${docResults.length} documentation contexts`);
     
-    try {
-      const tasksIndexPath = path.join(this.workspaceRoot, '.cappy', 'indexes', 'tasks.json');
-      
-      if (!fs.existsSync(tasksIndexPath)) {
-        return [];
-      }
-      
-      const tasksIndex = JSON.parse(await fs.promises.readFile(tasksIndexPath, 'utf8'));
-      const tasks = tasksIndex.tasks || [];
-      
-      // Search tasks
-      const queryLower = query.toLowerCase();
-      const queryTokens = queryLower.split(/\s+/);
-      
-      return tasks
-        .map((task: IndexEntry) => {
-          const score = this.calculateDocScore(task, queryTokens, options);
-          
-          if (score < 0.3) {
-            return null;
-          }
-          
-          return {
-            id: task.id,
-            content: task.content || '',
-            source: 'task' as ContextSource,
-            score,
-            filePath: task.path,
-            metadata: {
-              title: task.title,
-              category: task.category,
-              keywords: task.keywords || [],
-              lastModified: task.lastModified
-            },
-            snippet: this.extractSnippet(task.content || '', queryTokens)
-          };
-        })
-        .filter((ctx: RetrievedContext | null): ctx is RetrievedContext => ctx !== null);
-    } catch (error) {
-      console.warn('Failed to retrieve from tasks:', error);
-      return [];
-    }
+    return docResults;
   }
   
   /**
@@ -913,19 +746,15 @@ export class HybridRetriever {
     query: string,
     options: HybridRetrieverOptions
   ): Promise<RetrievedContext[]> {
-    const sources = options.sources ?? ['code', 'documentation', 'prevention'];
+    const sources = options.sources ?? ['code', 'documentation'];
     const results: Promise<RetrievedContext[]>[] = [];
+    
+    if (sources.includes('code')) {
+      results.push(this.retrieveFromCode(query, options));
+    }
     
     if (sources.includes('documentation')) {
       results.push(this.retrieveFromDocs(query, options));
-    }
-    
-    if (sources.includes('prevention')) {
-      results.push(this.retrieveFromPrevention(query, options));
-    }
-    
-    if (sources.includes('task')) {
-      results.push(this.retrieveFromTasks(query, options));
     }
     
     const allResults = await Promise.all(results);
@@ -1049,79 +878,6 @@ export class HybridRetriever {
   }
   
   /**
-   * Calculates relevance score for a document
-   */
-  private calculateDocScore(
-    doc: IndexEntry,
-    queryTokens: string[],
-    options: HybridRetrieverOptions
-  ): number {
-    let score = 0;
-    const content = (doc.content || '').toLowerCase();
-    const title = (doc.title || '').toLowerCase();
-    const keywords = (doc.keywords || []).map((k: string) => k.toLowerCase());
-    
-    // Title matches (highest weight)
-    for (const token of queryTokens) {
-      if (title.includes(token)) {
-        score += 0.4;
-      }
-    }
-    
-    // Keyword matches
-    for (const token of queryTokens) {
-      if (keywords.some((kw: string) => kw.includes(token))) {
-        score += 0.3;
-      }
-    }
-    
-    // Content matches
-    for (const token of queryTokens) {
-      if (content.includes(token)) {
-        score += 0.2;
-      }
-    }
-    
-    // Category match bonus
-    if (options.category && doc.category === options.category) {
-      score += 0.2;
-    }
-    
-    return Math.min(score, 1.0);
-  }
-  
-  /**
-   * Extracts content snippet highlighting query matches
-   */
-  private extractSnippet(content: string, queryTokens: string[]): string {
-    const maxSnippetLength = 200;
-    const contentLower = content.toLowerCase();
-    
-    // Find first match position
-    let matchPos = -1;
-    for (const token of queryTokens) {
-      const pos = contentLower.indexOf(token);
-      if (pos !== -1 && (matchPos === -1 || pos < matchPos)) {
-        matchPos = pos;
-      }
-    }
-    
-    if (matchPos === -1) {
-      return content.substring(0, maxSnippetLength) + '...';
-    }
-    
-    // Extract snippet around match
-    const start = Math.max(0, matchPos - 50);
-    const end = Math.min(content.length, matchPos + maxSnippetLength - 50);
-    
-    let snippet = content.substring(start, end);
-    if (start > 0) snippet = '...' + snippet;
-    if (end < content.length) snippet = snippet + '...';
-    
-    return snippet;
-  }
-  
-  /**
    * Extracts content from graph node
    */
   private extractNodeContent(node: GraphNode): string {
@@ -1158,8 +914,6 @@ export class HybridRetriever {
     const breakdown: Record<ContextSource, number> = {
       code: 0,
       documentation: 0,
-      task: 0,
-      prevention: 0,
       metadata: 0
     };
     

@@ -4,8 +4,8 @@
 
 O **HybridRetriever** é um sistema de recuperação de contexto poderoso e flexível que combina múltiplas estratégias de busca para encontrar informações relevantes em diferentes fontes:
 
-- 🔍 **Code Graph**: Busca semântica no grafo de código
-- 📚 **Documentation**: Busca em documentação indexada
+- 🔍 **Code Graph**: Busca semântica no grafo de código (database SQLite)
+- 📚 **Documentation**: Busca em chunks de documentação (markdown_section, document_section) no banco de dados
 - 🛡️ **Prevention Rules**: Busca em regras de prevenção categorizadas
 - ✅ **Tasks**: Busca em tasks ativas e completadas
 

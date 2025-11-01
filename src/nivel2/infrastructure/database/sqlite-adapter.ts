@@ -332,7 +332,7 @@ export class SQLiteAdapter implements GraphStorePort {
     if (!seeds || seeds.length === 0) {
       console.log(`[SQLiteAdapter] getSubgraph: No seeds provided, fetching up to ${maxNodes} nodes`);
       
-      // Buscar nós limitados (priorizando arquivos e workspace)
+      // Buscar nós limitados (priorizando chunks com conteúdo real)
       const allNodes = await this.all<{ 
         id: string; 
         label: string; 
@@ -346,10 +346,11 @@ export class SQLiteAdapter implements GraphStorePort {
         `SELECT id, label, type, file_path, line_start, line_end, chunk_type, language FROM nodes 
          ORDER BY 
            CASE type 
-             WHEN 'workspace' THEN 1 
+             WHEN 'chunk' THEN 1 
              WHEN 'file' THEN 2 
-             WHEN 'entity' THEN 3
-             ELSE 4 
+             WHEN 'workspace' THEN 3
+             WHEN 'entity' THEN 4
+             ELSE 5 
            END,
            id 
          LIMIT ?`,

@@ -154,7 +154,7 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
       const retrievalOptions: HybridRetrieverOptions = {
         maxResults: maxResults ?? 10,
         minScore: minScore ?? 0.5,
-        sources: (sources || ['code', 'documentation', 'prevention']) as ('code' | 'documentation' | 'prevention' | 'task' | 'metadata')[],
+        sources: (sources || ['code', 'documentation']) as ('code' | 'documentation' | 'metadata')[],
         category,
         includeRelated: includeRelated ?? true,
         rerank: true
