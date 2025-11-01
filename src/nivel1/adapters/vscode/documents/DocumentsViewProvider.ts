@@ -320,20 +320,56 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     console.log('🔍 [DocumentsViewProvider] Webview available:', !!this._view);
     console.log('🔍 [DocumentsViewProvider] Webview visible:', this._view?.visible);
     
+    let progressDisposable: vscode.Disposable | undefined;
+    
     try {
+      // Get file metadata database to get initial file count
+      if (!this._fileDatabase) {
+        vscode.window.showErrorMessage('File database not available');
+        return;
+      }
+
+      // Quick scan to get estimated file count
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        vscode.window.showErrorMessage('No workspace folder open');
+        return;
+      }
+
       // Notifica o webview que o scan começou
       console.log('📤 [DocumentsViewProvider] Sending scan-started message to webview');
-      const scanStartedMessage = { type: 'document/scan-started' };
-      console.log('📤 [DocumentsViewProvider] Message payload:', JSON.stringify(scanStartedMessage));
-      this._view?.webview.postMessage(scanStartedMessage);
-      console.log('📤 [DocumentsViewProvider] scan-started message sent');
+      this._view?.webview.postMessage({ 
+        type: 'document/scan-started',
+        payload: { totalFiles: 0 } // Will be updated during scan
+      });
 
-      console.log('⚡ [DocumentsViewProvider] Executing cappy.scanWorkspace command');
-      
-      // Execute the command directly - it has its own progress notification
-      await vscode.commands.executeCommand('cappy.scanWorkspace');
-      
-      console.log('✅ [DocumentsViewProvider] cappy.scanWorkspace completed');
+      // Setup progress tracking with VS Code progress API
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Scanning Workspace',
+          cancellable: false
+        },
+        async (progress) => {
+          // Refresh the document list periodically during scan to show new files
+          // This provides real-time feedback as files are being processed
+          const progressInterval = setInterval(() => {
+            this.refreshDocumentList().catch(console.error);
+            progress.report({ increment: 1 });
+          }, 1500);
+
+          try {
+            console.log('⚡ [DocumentsViewProvider] Executing cappy.scanWorkspace command');
+            
+            // Execute the command directly
+            await vscode.commands.executeCommand('cappy.scanWorkspace');
+            
+            console.log('✅ [DocumentsViewProvider] cappy.scanWorkspace completed');
+          } finally {
+            clearInterval(progressInterval);
+          }
+        }
+      );
       
       // Refresh document list from database
       console.log('🔄 [DocumentsViewProvider] Refreshing document list...');
@@ -344,12 +380,13 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       console.error('❌ [DocumentsViewProvider] Error during scan:', error);
       vscode.window.showErrorMessage(`Scan failed: ${error}`);
     } finally {
+      if (progressDisposable) {
+        progressDisposable.dispose();
+      }
+      
       // Sempre notifica que o scan terminou
       console.log('📤 [DocumentsViewProvider] Sending scan-completed message to webview (finally block)');
-      console.log('📤 [DocumentsViewProvider] Webview still available:', !!this._view);
-      const scanCompletedMessage = { type: 'document/scan-completed' };
-      console.log('📤 [DocumentsViewProvider] Message payload:', JSON.stringify(scanCompletedMessage));
-      this._view?.webview.postMessage(scanCompletedMessage);
+      this._view?.webview.postMessage({ type: 'document/scan-completed' });
       console.log('✅ [DocumentsViewProvider] scan-completed message sent successfully');
     }
   }
