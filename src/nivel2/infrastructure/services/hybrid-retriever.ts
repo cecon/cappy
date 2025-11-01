@@ -325,8 +325,12 @@ export class HybridRetriever {
         // Search all enabled sources
         const retrievalPromises: Promise<RetrievedContext[]>[] = [];
         
+        console.log(`[HybridRetriever] Checking if 'code' is in sources: ${sources.includes('code')}`);
         if (sources.includes('code')) {
+          console.log(`[HybridRetriever] 🔥 CALLING retrieveFromCode!`);
           retrievalPromises.push(this.retrieveFromCode(query, options));
+        } else {
+          console.log(`[HybridRetriever] ⚠️ SKIPPING retrieveFromCode - not in sources`);
         }
         
         if (sources.includes('documentation')) {
@@ -408,39 +412,52 @@ export class HybridRetriever {
    * Get node contents from vectors table
    */
   private async getNodeContents(): Promise<Record<string, string>> {
+    console.log('[HybridRetriever] ▶︎▶︎▶︎ getNodeContents() called');
+    
     if (!this.graphStore) {
-      console.log('[HybridRetriever] getNodeContents: graphStore is null');
+      console.error('[HybridRetriever] ❌ getNodeContents: graphStore is null');
       return {};
     }
+    
+    console.log('[HybridRetriever] ✓ graphStore exists');
     
     try {
       // Use the public method from SQLiteAdapter
       const store = this.graphStore as { getChunkContents?: (limit: number) => Promise<Array<{ chunk_id: string; content: string }>> };
       
       if (!store.getChunkContents) {
-        console.log('[HybridRetriever] getNodeContents: getChunkContents method not available on graphStore');
+        console.error('[HybridRetriever] ❌ getNodeContents: getChunkContents method not available on graphStore');
+        console.error('[HybridRetriever] Available methods:', Object.keys(store).filter(k => typeof (store as any)[k] === 'function'));
         return {};
       }
       
-      console.log('[HybridRetriever] getNodeContents: Querying vectors table...');
+      console.log('[HybridRetriever] ✓ getChunkContents method exists');
+      console.log('[HybridRetriever] Querying vectors table (limit: 5000)...');
+      
       const rows = await store.getChunkContents(5000);
       
-      console.log(`[HybridRetriever] getNodeContents: Got ${rows?.length || 0} rows from vectors`);
+      console.log(`[HybridRetriever] Query completed. Rows returned: ${rows?.length || 0}`);
       
       if (!rows || rows.length === 0) {
-        console.log('[HybridRetriever] getNodeContents: No rows returned');
+        console.error('[HybridRetriever] ❌ No rows returned from vectors table!');
         return {};
       }
+      
+      console.log(`[HybridRetriever] ✅ Got ${rows.length} rows from vectors`);
+      console.log(`[HybridRetriever] Sample row:`, { chunk_id: rows[0].chunk_id, content_length: rows[0].content?.length || 0 });
       
       const contentMap: Record<string, string> = {};
       for (const row of rows) {
         contentMap[row.chunk_id] = row.content;
       }
       
-      console.log(`[HybridRetriever] getNodeContents: Built contentMap with ${Object.keys(contentMap).length} entries`);
+      console.log(`[HybridRetriever] ✅ Built contentMap with ${Object.keys(contentMap).length} entries`);
       return contentMap;
     } catch (error) {
-      console.error('[HybridRetriever] Failed to load node contents:', error);
+      console.error('[HybridRetriever] ❌ Failed to load node contents:', error);
+      if (error instanceof Error) {
+        console.error('[HybridRetriever] Error stack:', error.stack);
+      }
       return {};
     }
   }  /**
@@ -450,18 +467,31 @@ export class HybridRetriever {
     query: string,
     options: HybridRetrieverOptions
   ): Promise<RetrievedContext[]> {
+    console.log(`[HybridRetriever] ━━━ retrieveFromCode START ━━━`);
+    console.log(`[HybridRetriever] graphStore available: ${!!this.graphStore}`);
+    
     // Use graphStore if available
     if (this.graphStore) {
       try {
         console.log(`[HybridRetriever] Retrieving from code with query: "${query}"`);
         const queryLower = query.toLowerCase();
         const queryTokens = queryLower.split(/\s+/).filter(t => t.length > 2); // Ignore very short tokens
+        console.log(`[HybridRetriever] Query tokens: [${queryTokens.join(', ')}]`);
         
         // Get content map from vectors table for richer context
         console.log('[HybridRetriever] About to call getNodeContents()...');
         const contentMap = await this.getNodeContents();
         console.log(`[HybridRetriever] getNodeContents() returned, size: ${Object.keys(contentMap).length}`);
         console.log(`[HybridRetriever] Loaded content for ${Object.keys(contentMap).length} nodes`);
+        
+        if (Object.keys(contentMap).length === 0) {
+          console.error('[HybridRetriever] ❌ ContentMap is EMPTY! No vectors loaded from database!');
+        } else {
+          console.log('[HybridRetriever] ✅ ContentMap populated with vectors');
+          // Log a sample
+          const sampleKeys = Object.keys(contentMap).slice(0, 3);
+          console.log(`[HybridRetriever] Sample chunk_ids: ${sampleKeys.join(', ')}`);
+        }
         
         // Get larger subgraph to search across more nodes (undefined seeds = all nodes up to maxNodes)
         const maxNodesToFetch = Math.min(2000, Math.max(1000, (options.maxResults ?? 10) * 100));
@@ -472,14 +502,29 @@ export class HybridRetriever {
         const results: RetrievedContext[] = [];
         let matchedCount = 0;
         let filteredCount = 0;
+        let skippedEntity = 0;
+        let skippedFile = 0;
+        let processedCount = 0;
+        
+        console.log(`[HybridRetriever] Starting to process ${subgraph.nodes.length} nodes...`);
         
         for (const node of subgraph.nodes) {
+          processedCount++;
+          
+          if (processedCount <= 3) {
+            console.log(`[HybridRetriever] Processing node #${processedCount}: id="${node.id}" type="${node.type}" label="${node.label.substring(0, 50)}"`);
+          }
+          
           const labelLower = node.label.toLowerCase();
           const idLower = node.id.toLowerCase();
           
           // Get content for matching (if available)
           const nodeContent = contentMap[node.id];
           const contentLower = nodeContent ? nodeContent.toLowerCase() : '';
+          
+          if (processedCount <= 3) {
+            console.log(`[HybridRetriever]   - hasContent: ${!!nodeContent}, contentLength: ${nodeContent?.length || 0}`);
+          }
           
           // Calculate score based on matches with better weighting
           let score = 0;
@@ -528,6 +573,10 @@ export class HybridRetriever {
           // Entity nodes have IDs starting with 'entity:' (type check removed since entity is not in the type union)
           const isEntityNode = node.id.startsWith('entity:');
           if (isEntityNode) {
+            skippedEntity++;
+            if (skippedEntity <= 2) {
+              console.log(`[HybridRetriever] Skipping entity node: ${node.id}`);
+            }
             continue; // Skip entity nodes entirely
           }
           
@@ -535,6 +584,10 @@ export class HybridRetriever {
           // File nodes have type 'file' and typically don't have chunk_type metadata
           const isFileNode = node.type === 'file' && !node.metadata?.chunk_type;
           if (isFileNode) {
+            skippedFile++;
+            if (skippedFile <= 2) {
+              console.log(`[HybridRetriever] Skipping file node: ${node.id}`);
+            }
             continue; // Skip file nodes entirely - we only want chunks with actual content
           }
           
@@ -552,15 +605,26 @@ export class HybridRetriever {
           
           if (score > 0) {
             matchedCount++;
+            
+            // Log first few matches for debugging
+            if (matchedCount <= 5) {
+              console.log(`[HybridRetriever] Match #${matchedCount}: node="${node.id}" score=${score.toFixed(3)} (exactMatches=${exactMatches}, hasContent=${hasContent})`);
+            }
           }
           
           // Apply a reasonable minimum threshold BEFORE weighting
           // This is a pre-filter to avoid processing obviously irrelevant results
           // The actual minScore filter will be applied AFTER weighted scoring
           const preFilterThreshold = 0.1;
-          if (score < preFilterThreshold) continue;
+          if (score < preFilterThreshold) {
+            if (matchedCount <= 5) {
+              console.log(`[HybridRetriever] ❌ Match #${matchedCount} rejected: score ${score.toFixed(3)} < threshold ${preFilterThreshold}`);
+            }
+            continue;
+          }
           
           filteredCount++;
+          console.log(`[HybridRetriever] ✅ Match #${filteredCount} accepted: node="${node.id}" score=${score.toFixed(3)}`);
           score = Math.min(score, 1);
           
           // Get file path from metadata (preferred) or fallback to parsing ID
@@ -602,6 +666,8 @@ export class HybridRetriever {
             snippet
           });
         }
+        
+        console.log(`[HybridRetriever] Loop completed: processed=${processedCount}, skippedEntity=${skippedEntity}, skippedFile=${skippedFile}, matchedCount=${matchedCount}, filteredCount=${filteredCount}`);
         
         // Sort by score (best first) and limit to maxResults
         results.sort((a, b) => b.score - a.score);

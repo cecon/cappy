@@ -127,8 +127,12 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
   ): Promise<vscode.LanguageModelToolResult> {
     const { query, maxResults, minScore, sources, category, includeRelated } = options.input;
 
-    console.log(`[ContextRetrievalTool] invoke called with query: "${query}"`);
-    console.log(`[ContextRetrievalTool] retriever initialized: ${!!this.retriever}`);
+    console.log(`[ContextRetrievalTool] ═══════════════════════════════════════════════`);
+    console.log(`[ContextRetrievalTool] INVOKE CALLED`);
+    console.log(`[ContextRetrievalTool] Query: "${query}"`);
+    console.log(`[ContextRetrievalTool] Options:`, { maxResults, minScore, sources, category, includeRelated });
+    console.log(`[ContextRetrievalTool] Retriever initialized: ${!!this.retriever}`);
+    console.log(`[ContextRetrievalTool] GraphService initialized: ${!!this.graphService}`);
 
     try {
       // Ensure retriever is initialized

@@ -390,13 +390,30 @@ const DocumentsPage: React.FC = () => {
   };
 
   const reprocessDocument = async (fileId: string) => {
+    console.log('[DocumentsPage] 🔄 ========================================');
+    console.log('[DocumentsPage] 🔄 reprocessDocument CALLED');
+    console.log('[DocumentsPage] 🔄 fileId:', fileId);
+    console.log('[DocumentsPage] 🔄 ========================================');
+    
     try {
       const doc = documents.find(d => d.id === fileId);
-      if (!doc?.filePath) throw new Error('File path not found');
+      console.log('[DocumentsPage] 🔄 Found document:', doc);
+      
+      if (!doc?.filePath) {
+        console.error('[DocumentsPage] ❌ File path not found for:', fileId);
+        throw new Error('File path not found');
+      }
+      
+      console.log('[DocumentsPage] 🔄 Sending reprocess message...');
+      console.log('[DocumentsPage] 🔄 fileId:', fileId);
+      console.log('[DocumentsPage] 🔄 filePath:', doc.filePath);
+      
       // Send reprocess request to extension - it will set status to pending and add to queue
       postMessage('document/reprocess', { fileId, filePath: doc.filePath });
+      
+      console.log('[DocumentsPage] ✅ Reprocess message sent');
     } catch (e) {
-      console.error('[DocumentsPage] Reprocess error:', e);
+      console.error('[DocumentsPage] ❌ Reprocess error:', e);
       setDocuments((prev) => prev.map((d) => (d.id === fileId ? { ...d, status: 'failed', summary: `❌ ${String(e)}` } : d)));
     }
   };
@@ -785,17 +802,25 @@ const DocumentsPage: React.FC = () => {
                               <td className="h-16 px-4 align-middle text-sm text-muted-foreground">{doc.updated}</td>
                               <td className="h-16 px-4 align-middle">
                                 <div className="flex items-center justify-center gap-1">
-                                  <Button
-                                    variant="outline"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => reprocessDocument(doc.id)}
+                                  <button
+                                    type="button"
+                                    className="h-8 w-8 p-0 inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      console.log('[DocumentsPage] 🔘 BUTTON CLICKED!');
+                                      console.log('[DocumentsPage] 🔘 doc.id:', doc.id);
+                                      console.log('[DocumentsPage] 🔘 doc.status:', doc.status);
+                                      console.log('[DocumentsPage] 🔘 doc.filePath:', doc.filePath);
+                                      reprocessDocument(doc.id);
+                                    }}
                                     disabled={doc.status === 'processing' || doc.status === 'pending'}
                                     title="Reprocess"
                                   >
                                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                     </svg>
-                                  </Button>
+                                  </button>
                                   <Button
                                     variant="outline"
                                     className="h-8 w-8 p-0"

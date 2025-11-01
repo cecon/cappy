@@ -17,6 +17,7 @@ import { DocumentsConfigureSourcesUseCase } from './usecases/DocumentsConfigureS
 import { DocumentsConfirmRemoveUseCase } from './usecases/DocumentsConfirmRemoveUseCase';
 import { DocumentsConfirmClearUseCase } from './usecases/DocumentsConfirmClearUseCase';
 import { DocumentsViewDetailsUseCase } from './usecases/DocumentsViewDetailsUseCase';
+import { DocumentsReprocessUseCase } from './usecases/DocumentsReprocessUseCase';
 import { DebugAnalyzeUseCase } from './usecases/DebugAnalyzeUseCase';
 import { HybridRetriever } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 import { WebviewContentBuilder } from './WebviewContentBuilder';
@@ -125,6 +126,7 @@ export class GraphPanel {
             new DocumentsConfirmRemoveUseCase(),
             new DocumentsConfirmClearUseCase(),
             new DocumentsViewDetailsUseCase(),
+            new DocumentsReprocessUseCase(),
             new DebugAnalyzeUseCase(),
         ];
     }

@@ -187,10 +187,6 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
             console.log('⚙️ Handling process...');
             await this.handleProcess(data.payload.fileUri);
             break;
-          case 'document/reprocess':
-            console.log('🔄 Handling reprocess...');
-            await this.handleReprocess(data.payload.fileId, data.payload.filePath);
-            break;
           case 'document/view-details':
             console.log('👁️ [DocumentsViewProvider] CASE MATCHED: document/view-details');
             console.log('👁️ [DocumentsViewProvider] Payload:', data.payload);
@@ -524,56 +520,6 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    * 1. Removing all graph data (nodes, chunks, relationships)
    * 2. Setting status to pending for reprocessing
    */
-  private async handleReprocess(fileId: string, filePath: string) {
-    console.log(`🔄 [DocumentsViewProvider] handleReprocess: ${fileId} (${filePath})`);
-    
-    if (!this._fileDatabase) {
-      console.error('❌ [DocumentsViewProvider] No file database available');
-      vscode.window.showErrorMessage('File processing system not initialized');
-      return;
-    }
-
-    if (!this._graphStore) {
-      console.error('❌ [DocumentsViewProvider] No graph store available');
-      vscode.window.showErrorMessage('Graph store not initialized');
-      return;
-    }
-
-    try {
-      // Step 1: Remove all graph data for this file
-      console.log(`🗑️ [DocumentsViewProvider] Removing graph data for: ${filePath}`);
-      
-      // Cast to access deleteFileNodes method (exists in SQLiteAdapter)
-      const store = this._graphStore as typeof this._graphStore & {
-        deleteFileNodes: (filePath: string) => Promise<void>;
-      };
-      
-      if (typeof store.deleteFileNodes === 'function') {
-        await store.deleteFileNodes(filePath);
-        console.log(`✅ [DocumentsViewProvider] Graph data removed for: ${filePath}`);
-      } else {
-        console.warn('⚠️ [DocumentsViewProvider] deleteFileNodes not available, skipping graph cleanup');
-      }
-
-      // Step 2: Update file status to 'pending' so it will be picked up by the queue
-      await this._fileDatabase.updateFile(fileId, {
-        status: 'pending',
-        currentStep: 'Queued for reprocessing',
-        progress: 0,
-        errorMessage: undefined
-      });
-
-      console.log(`✅ [DocumentsViewProvider] File ${fileId} marked as pending for reprocessing`);
-      vscode.window.showInformationMessage(`File queued for reprocessing: ${path.basename(filePath)}`);
-      
-      // Step 3: Refresh the document list to show updated status (will show as pending/processing)
-      await this.refreshDocumentList();
-    } catch (error) {
-      console.error('❌ [DocumentsViewProvider] Error reprocessing file:', error);
-      vscode.window.showErrorMessage(`Failed to reprocess file: ${error}`);
-    }
-  }
-
   /**
    * Handles viewing document details (embeddings, graph node, relationships)
    */

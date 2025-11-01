@@ -28,12 +28,14 @@ import { FileChangeWatcher } from './nivel2/infrastructure/services/file-change-
 import { createVectorStore } from './nivel2/infrastructure/vector/sqlite-vector-adapter';
 import type { GraphStorePort } from './domains/dashboard/ports/indexing-port';
 import { SQLiteAdapter } from './nivel2/infrastructure/database/index.js';
+import { GraphCleanupService } from './nivel2/infrastructure/services/graph-cleanup-service';
 
 // Global instances for file processing system
 let fileDatabase: FileMetadataDatabase | null = null;
 let fileQueue: FileProcessingQueue | null = null;
 let fileWatcher: FileChangeWatcher | null = null;
 let graphStore: GraphStorePort | null = null;
+let cleanupService: GraphCleanupService | null = null;
 let contextRetrievalToolInstance: ContextRetrievalTool | null = null;
 let documentsViewProviderInstance: DocumentsViewProvider | null = null;
 
@@ -201,6 +203,55 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
     context.subscriptions.push(getDocumentDetailsCmd);
+
+    // Expose a command to reprocess a document (delete graph data and re-queue)
+    const reprocessDocumentCmd = vscode.commands.registerCommand(
+        'cappy.reprocessDocument',
+        async (options: { fileId: string; filePath: string }) => {
+            console.log('🔄 [Extension] cappy.reprocessDocument command called');
+            console.log('🔄 [Extension] fileId:', options.fileId);
+            console.log('🔄 [Extension] filePath:', options.filePath);
+
+            if (!fileDatabase) {
+                throw new Error('File database is not initialized yet');
+            }
+            if (!graphStore) {
+                throw new Error('Graph store is not initialized yet');
+            }
+
+            const { fileId, filePath } = options;
+
+            try {
+                // 1. Delete all graph nodes/chunks/edges for this file
+                console.log('🔄 [Extension] Deleting file nodes from graph...');
+                const store = graphStore as typeof graphStore & {
+                    deleteFileNodes: (filePath: string) => Promise<void>;
+                };
+                if (typeof store.deleteFileNodes === 'function') {
+                    await store.deleteFileNodes(filePath);
+                    console.log('✅ [Extension] File nodes deleted');
+                } else {
+                    console.warn('⚠️ [Extension] deleteFileNodes method not available on graphStore');
+                }
+
+                // 2. Mark file as pending in file database (will be picked up by queue)
+                console.log('🔄 [Extension] Marking file as pending...');
+                await fileDatabase.updateFile(fileId, {
+                    status: 'pending',
+                    currentStep: 'Queued for reprocessing',
+                    progress: 0,
+                    errorMessage: undefined
+                });
+                console.log('✅ [Extension] File marked as pending');
+
+                console.log('✅ [Extension] Reprocess completed successfully');
+            } catch (error) {
+                console.error('❌ [Extension] Reprocess failed:', error);
+                throw error;
+            }
+        }
+    );
+    context.subscriptions.push(reprocessDocumentCmd);
 
     // Register interactive hybrid search command
     const searchCommand = vscode.commands.registerCommand('cappy.search', async () => {
@@ -386,9 +437,52 @@ export function activate(context: vscode.ExtensionContext) {
     // Register test retriever command
     const testRetrieverCommand = vscode.commands.registerCommand('cappy.testRetriever', async () => {
         try {
+            const outputChannel = vscode.window.createOutputChannel('Cappy Retriever Test');
+            outputChannel.show();
+            outputChannel.appendLine('🔍 CAPPY RETRIEVER DIAGNOSTIC');
+            outputChannel.appendLine('═'.repeat(60));
+            
+            // Check tool instance
+            outputChannel.appendLine(`\n📦 Tool Instance: ${!!contextRetrievalToolInstance ? '✅ EXISTS' : '❌ NULL'}`);
+            
+            if (contextRetrievalToolInstance) {
+                // Check internal state
+                const tool = contextRetrievalToolInstance as any;
+                outputChannel.appendLine(`📦 Retriever: ${!!tool.retriever ? '✅ EXISTS' : '❌ NULL'}`);
+                outputChannel.appendLine(`📦 GraphService: ${!!tool.graphService ? '✅ EXISTS' : '❌ NULL'}`);
+                
+                if (tool.retriever) {
+                    const retriever = tool.retriever as any;
+                    outputChannel.appendLine(`📦 Retriever.graphStore: ${!!retriever.graphStore ? '✅ EXISTS' : '❌ NULL'}`);
+                    outputChannel.appendLine(`📦 Retriever.graphData: ${!!retriever.graphData ? '✅ EXISTS' : '❌ NULL'}`);
+                    outputChannel.appendLine(`📦 Retriever.workspaceRoot: ${retriever.workspaceRoot || 'NULL'}`);
+                }
+            }
+            
+            outputChannel.appendLine(`\n📦 Global graphStore: ${!!graphStore ? '✅ EXISTS' : '❌ NULL'}`);
+            
+            if (graphStore) {
+                try {
+                    const store = graphStore as any;
+                    if (store.getChunkContents) {
+                        outputChannel.appendLine(`📦 graphStore.getChunkContents: ✅ EXISTS`);
+                        outputChannel.appendLine(`\n🔍 Testing vector query...`);
+                        const chunks = await store.getChunkContents(5);
+                        outputChannel.appendLine(`✅ Retrieved ${chunks?.length || 0} chunks`);
+                        if (chunks && chunks.length > 0) {
+                            outputChannel.appendLine(`📄 Sample: ${chunks[0].chunk_id}`);
+                        }
+                    } else {
+                        outputChannel.appendLine(`❌ graphStore.getChunkContents: NOT FOUND`);
+                    }
+                } catch (error) {
+                    outputChannel.appendLine(`❌ Error: ${error}`);
+                }
+            }
+            
+            outputChannel.appendLine('\n' + '═'.repeat(60));
             const query = await vscode.window.showInputBox({
-                prompt: 'Enter search query to test the retriever',
-                placeHolder: 'e.g., workspace scanner, graph service, authentication',
+                prompt: 'Enter search query',
                 value: 'workspace scanner'
             });
             
@@ -396,23 +490,11 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
             
-            if (!contextRetrievalToolInstance) {
-                vscode.window.showErrorMessage('Context retrieval tool not initialized');
-                return;
-            }
-            
-            const outputChannel = vscode.window.createOutputChannel('Cappy Retriever Test');
-            outputChannel.show();
-            outputChannel.appendLine(`🔍 Testing retriever with query: "${query}"`);
-            outputChannel.appendLine('━'.repeat(60));
-            
-            vscode.window.showInformationMessage(`✅ Test command ready. Use GitHub Copilot Chat:\n@workspace use cappy_retrieve_context to search for "${query}"`);
-            outputChannel.appendLine(`\n� To test the retriever:`);
-            outputChannel.appendLine(`   Open GitHub Copilot Chat and run:`);
-            outputChannel.appendLine(`   @workspace use cappy_retrieve_context to search for "${query}"`);
+            outputChannel.appendLine(`\n🔍 Query: "${query}"`);
+            outputChannel.appendLine(`📋 Use: @workspace use cappy_retrieve_context to search for "${query}"`);
+            vscode.window.showInformationMessage(`✅ Check output for diagnostics`);
         } catch (error) {
-            vscode.window.showErrorMessage(`❌ Retriever test failed: ${error}`);
-            console.error('Retriever test error:', error);
+            vscode.window.showErrorMessage(`❌ Failed: ${error}`);
         }
     });
     context.subscriptions.push(testRetrieverCommand);
@@ -525,6 +607,14 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
             documentsViewProviderInstance.setGraphStore(graphStoreInstance);
             console.log('✅ DocumentsViewProvider connected to graph store');
         }
+        
+        // Initialize and start graph cleanup service (runs every hour)
+        cleanupService = new GraphCleanupService(graphStoreInstance, {
+            intervalMs: 60 * 60 * 1000, // 1 hour
+            enabled: true
+        });
+        cleanupService.start();
+        console.log('✅ Graph cleanup service started (hourly)');
         
         // Create vector store (needs to be before context tool initialization)
         const vectorStore = createVectorStore(graphStoreInstance, embeddingService);
@@ -695,6 +785,26 @@ async function initializeFileProcessingSystem(context: vscode.ExtensionContext, 
 // Old implementation removed - now using GraphPanel class
 
 export function deactivate() {
+    console.log('🦫 Cappy extension deactivating...');
+    
+    // Stop cleanup service
+    if (cleanupService) {
+        cleanupService.stop();
+        console.log('✅ Graph cleanup service stopped');
+    }
+    
+    // Stop file processing queue
+    if (fileQueue) {
+        fileQueue.stop();
+        console.log('✅ File processing queue stopped');
+    }
+    
+    // Stop file watcher
+    if (fileWatcher) {
+        fileWatcher.dispose();
+        console.log('✅ File watcher stopped');
+    }
+    
     console.log('🦫 Cappy extension deactivated');
 }
 
