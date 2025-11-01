@@ -190,16 +190,21 @@ export class IndexingService {
 
         // Check if target file EXISTS in graph (already indexed)
         if (existingFilePaths.has(targetPath)) {
-          console.log(`   ✅ Found existing file in graph: ${targetPath}`);
+          const importLabel = im.isDynamic ? 'dynamic import' : 'import';
+          console.log(`   ✅ Found existing file in graph (${importLabel}): ${targetPath}`);
           
           // Create File -> File IMPORTS relationship
+          // Use IMPORTS_DYNAMIC type for dynamic imports
+          const relationshipType = im.isDynamic ? 'IMPORTS_DYNAMIC' : 'IMPORTS';
           rels.push({
             from: filePath,
             to: targetPath,
-            type: 'IMPORTS',
+            type: relationshipType,
             properties: {
               source: im.source,
-              specifiers: im.specifiers
+              specifiers: im.specifiers,
+              ...(im.isDynamic && { isDynamic: true }),
+              ...(im.method && { method: im.method })
             }
           });
 
@@ -210,13 +215,15 @@ export class IndexingService {
               to: targetPath,
               type: 'REFERENCES',
               properties: {
-                referenceType: 'import',
-                source: im.source
+                referenceType: im.isDynamic ? 'dynamic-import' : 'import',
+                source: im.source,
+                ...(im.isDynamic && { isDynamic: true })
               }
             });
           }
         } else {
-          console.log(`   ⏭️  Target not yet indexed: ${targetPath} (will connect when processed)`);
+          const importLabel = im.isDynamic ? 'dynamic import' : 'import';
+          console.log(`   ⏭️  Target not yet indexed (${importLabel}): ${targetPath} (will connect when processed)`);
         }
       }
 

@@ -111,11 +111,21 @@ export class FileProcessingWorker {
       const relationshipsCount = 0;
 
       // Step 3: Index file with chunks (if indexing service available)
-      if (this.indexingService && chunks.length > 0) {
-        onProgress?.('Indexing chunks...', 60);
-        await this.indexingService.indexFile(filePath, language, chunks);
-        console.log(`✓ Indexed ${chunks.length} chunks`);
-        nodesCount = chunks.length + 1; // chunks + file node
+      // Always index the file, even if it has no chunks, so it can be a target for IMPORTS
+      if (this.indexingService) {
+        if (chunks.length > 0) {
+          onProgress?.('Indexing chunks...', 60);
+          await this.indexingService.indexFile(filePath, language, chunks);
+          console.log(`✓ Indexed ${chunks.length} chunks`);
+          nodesCount = chunks.length + 1; // chunks + file node
+        } else {
+          // No chunks, but still create the file node for relationship targets
+          onProgress?.('Creating file node...', 60);
+          const linesOfCode = fileContent.split('\n').length;
+          await this.graphStore?.createFileNode(filePath, language, linesOfCode);
+          console.log(`✓ Created file node (no chunks)`);
+          nodesCount = 1; // just file node
+        }
       }
 
       // Step 4: Build cross-file relationships (if graph store available)

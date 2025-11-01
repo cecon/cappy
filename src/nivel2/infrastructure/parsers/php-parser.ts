@@ -9,11 +9,22 @@ import type { DocumentChunk } from '../../../shared/types/chunk';
 import * as fs from 'fs';
 
 /**
+ * PHP dynamic include/require
+ */
+export interface PHPDynamicImport {
+  type: 'require' | 'require_once' | 'include' | 'include_once';
+  path: string;
+  isDynamic: boolean;
+  lineNumber: number;
+}
+
+/**
  * Complete PHP AST-like structure
  */
 export interface PHPAnalysis {
   namespace?: string;
   uses: Array<{ alias: string; fullName: string; lineNumber: number }>;
+  dynamicImports: PHPDynamicImport[];
   classes: PHPClass[];
   interfaces: PHPInterface[];
   traits: PHPTrait[];
@@ -122,6 +133,7 @@ export class PHPParser {
 
       const analysis: PHPAnalysis = {
         uses: [],
+        dynamicImports: [],
         classes: [],
         interfaces: [],
         traits: [],
@@ -168,6 +180,13 @@ export class PHPParser {
           const fullName = useMatch[1];
           const alias = useMatch[2] || fullName.split('\\').pop() || fullName;
           analysis.uses.push({ alias, fullName, lineNumber: i + 1 });
+          continue;
+        }
+
+        // Dynamic imports: require, require_once, include, include_once
+        const dynamicImport = this.extractDynamicImport(trimmed, i + 1);
+        if (dynamicImport) {
+          analysis.dynamicImports.push(dynamicImport);
           continue;
         }
 
@@ -231,6 +250,7 @@ export class PHPParser {
       console.error(`❌ PHP parser error for ${filePath}:`, error);
       return {
         uses: [],
+        dynamicImports: [],
         classes: [],
         interfaces: [],
         traits: [],
@@ -692,6 +712,54 @@ export class PHPParser {
   private generateChunkId(filePath: string, lineStart: number, lineEnd: number): string {
     const fileName = filePath.split(/[/\\]/).pop() || filePath;
     return `chunk:${fileName}:${lineStart}-${lineEnd}`;
+  }
+
+  /**
+   * Extract dynamic imports from PHP code
+   * Detects: require('path'), require_once('path'), include('path'), include_once('path')
+   */
+  private extractDynamicImport(line: string, lineNumber: number): PHPDynamicImport | null {
+    // Match require/include with string literals or simple concatenations
+    const patterns = [
+      // require('path') or require("path")
+      /\b(require|require_once|include|include_once)\s*\(\s*['"]([^'"]+)['"]\s*\)/,
+      // require __DIR__ . '/path'
+      /\b(require|require_once|include|include_once)\s+__DIR__\s*\.\s*['"]([^'"]+)['"]/,
+      // require dirname(__FILE__) . '/path'
+      /\b(require|require_once|include|include_once)\s+dirname\(__FILE__\)\s*\.\s*['"]([^'"]+)['"]/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (match) {
+        const type = match[1].toLowerCase() as 'require' | 'require_once' | 'include' | 'include_once';
+        const path = match[2];
+        
+        // Check if path contains variables (dynamic)
+        const isDynamic = path.includes('$') || line.includes('$');
+
+        return {
+          type,
+          path,
+          isDynamic,
+          lineNumber
+        };
+      }
+    }
+
+    // Detect dynamic requires with variables
+    const dynamicPattern = /\b(require|require_once|include|include_once)\s*\([^)]*\$[^)]*\)/;
+    const dynamicMatch = line.match(dynamicPattern);
+    if (dynamicMatch) {
+      return {
+        type: dynamicMatch[1].toLowerCase() as 'require' | 'require_once' | 'include' | 'include_once',
+        path: '*', // Unknown path
+        isDynamic: true,
+        lineNumber
+      };
+    }
+
+    return null;
   }
 }
 

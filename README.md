@@ -116,12 +116,15 @@ Or search "Cappy" in VSCode Extensions
 }
 ```
 
-### 3. Initialize Project
+### 3. Initialize Workspace
 
 1. Open your project in VSCode
 2. Press `Cmd+Shift+P` (Mac) or `Ctrl+Shift+P` (Windows/Linux)
-3. Type "Cappy: Initialize"
-4. Wait for initial scan (1-5 min depending on project size)
+3. Type **"Cappy: Initialize Workspace"**
+4. Cappy creates `.cappy/` folder and adds `.cappy/data/` to `.gitignore`
+5. Choose to start file processing or run **"Cappy: Scan Workspace"** later
+
+> 💡 **Note:** Cappy only activates in workspaces where you explicitly initialize it. This prevents automatic folder creation in all your projects.
 
 ---
 

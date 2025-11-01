@@ -49,6 +49,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "cappy.init",
+        "title": "🚀 Cappy: Initialize Workspace",
+        "category": "Cappy"
+      },
+      {
         "command": "cappy.openGraph",
         "title": "📊 Cappy: Open Graph",
         "category": "Cappy"

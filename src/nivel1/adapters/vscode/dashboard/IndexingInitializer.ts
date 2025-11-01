@@ -28,18 +28,16 @@ export class IndexingInitializer {
     }
     const workspaceRoot = workspaceFolder.uri.fsPath;
 
+    // Check if .cappy folder exists (must be initialized first)
+    const baseDataDir = path.join(workspaceRoot, '.cappy', 'data');
+    if (!fs.existsSync(baseDataDir)) {
+      throw new Error('Cappy is not initialized. Please run "Cappy: Initialize Workspace" first.');
+    }
+    host.log(`📁 Base data folder exists: ${baseDataDir}`);
+
     // Create embedding service
     const embeddingService = new EmbeddingService();
     await embeddingService.initialize();
-
-    // Ensure base data dir exists
-    const baseDataDir = path.join(workspaceRoot, '.cappy', 'data');
-    if (fs.existsSync(baseDataDir)) {
-      host.log(`📁 Base data folder exists: ${baseDataDir}`);
-    } else {
-      fs.mkdirSync(baseDataDir, { recursive: true });
-      host.log(`🆕 Created base data folder: ${baseDataDir}`);
-    }
 
     // Use .cappy/data directly for graph database (no subdirectory)
     const sqlitePath = baseDataDir;

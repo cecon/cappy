@@ -16,6 +16,7 @@ import { SQLiteVectorStore } from '../../../../nivel2/infrastructure/vector/sqli
 import { FileMetadataDatabase } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 import * as path from 'node:path';
 import { ConfigService } from '../../../../nivel2/infrastructure/services/config-service';
+import { ensureCappyInitialized } from '../../../../shared/utils/workspace-check';
 
 /**
  * Registers the scan workspace command
@@ -25,6 +26,13 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
     'cappy.scanWorkspace',
     async () => {
       console.log('🚀 [SCAN] Command cappy.scanWorkspace started');
+      
+      // Check if Cappy is initialized
+      if (!await ensureCappyInitialized()) {
+        console.log('❌ [SCAN] Cappy not initialized, command aborted');
+        return;
+      }
+      
       try {
         // Immediate feedback
         vscode.window.showInformationMessage('🚀 Starting workspace scan...');

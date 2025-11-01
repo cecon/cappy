@@ -10,6 +10,7 @@ import { LangGraphChatEngine } from './nivel2/infrastructure/agents/langgraph-ch
 import { createChatService } from './domains/chat/services/chat-service';
 import { registerScanWorkspaceCommand } from './nivel1/adapters/vscode/commands/scan-workspace';
 import { 
+  registerInitWorkspaceCommand,
   registerProcessSingleFileCommand,
   registerDebugRetrievalCommand,
   registerDebugCommand,
@@ -20,6 +21,7 @@ import {
   registerDiagnoseGraphCommand,
   registerCleanInvalidFilesCommand
 } from './nivel1/adapters/vscode/commands';
+import { isCappyInitialized } from './shared/utils/workspace-check';
 import { FileMetadataDatabase } from './nivel2/infrastructure/services/file-metadata-database';
 import type { FileProcessingStatus } from './nivel2/infrastructure/services/file-metadata-database';
 import { FileProcessingQueue } from './nivel2/infrastructure/services/file-processing-queue';
@@ -87,9 +89,36 @@ export function activate(context: vscode.ExtensionContext) {
     // Create graph panel instance
     const graphPanel = new GraphPanel(context, graphOutputChannel);
 
+    // Register init command (must be run before other commands)
+    registerInitWorkspaceCommand(context);
+    console.log('✅ Registered command: cappy.init');
+
     // NOTE: File processing system initialization is now lightweight
     // (no HTTP API, just database and queue setup)
     const startProcessingCommand = vscode.commands.registerCommand('cappy.startProcessing', async () => {
+        // Check if Cappy is initialized
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+            vscode.window.showErrorMessage('❌ No workspace folder open.');
+            return;
+        }
+
+        if (!isCappyInitialized(workspaceRoot)) {
+            const response = await vscode.window.showWarningMessage(
+                '⚠️ Cappy is not initialized. Please run "Cappy: Initialize Workspace" first.',
+                'Initialize Now',
+                'Cancel'
+            );
+            if (response === 'Initialize Now') {
+                await vscode.commands.executeCommand('cappy.init');
+                // After init, try to start processing again
+                if (isCappyInitialized(workspaceRoot)) {
+                    await vscode.commands.executeCommand('cappy.startProcessing');
+                }
+            }
+            return;
+        }
+
         try {
             await initializeFileProcessingSystem(context, graphPanel);
             vscode.window.showInformationMessage('✅ Cappy: File processing system started');
@@ -101,24 +130,29 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(startProcessingCommand);
     
-    // Auto-start file processing system on activation
-    console.log('🚀 Auto-starting file processing system...');
-    initializeFileProcessingSystem(context, graphPanel)
-        .then(() => {
-            console.log('✅ File processing system auto-started successfully');
-        })
-        .catch((error: unknown) => {
-            const errMsg = error instanceof Error ? error.message : String(error);
-            console.error('❌ Failed to auto-start file processing system:', error);
-            vscode.window.showWarningMessage(
-                `Cappy: File processing system failed to start. Use "Cappy: Start File Processing" command to retry. Error: ${errMsg}`,
-                'Retry'
-            ).then(selection => {
-                if (selection === 'Retry') {
-                    vscode.commands.executeCommand('cappy.startProcessing');
-                }
+    // Check if Cappy is initialized and auto-start if it is
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (workspaceRoot && isCappyInitialized(workspaceRoot)) {
+        console.log('🚀 Cappy is initialized, auto-starting file processing system...');
+        initializeFileProcessingSystem(context, graphPanel)
+            .then(() => {
+                console.log('✅ File processing system auto-started successfully');
+            })
+            .catch((error: unknown) => {
+                const errMsg = error instanceof Error ? error.message : String(error);
+                console.error('❌ Failed to auto-start file processing system:', error);
+                vscode.window.showWarningMessage(
+                    `Cappy: File processing system failed to start. Use "Cappy: Start File Processing" command to retry. Error: ${errMsg}`,
+                    'Retry'
+                ).then(selection => {
+                    if (selection === 'Retry') {
+                        vscode.commands.executeCommand('cappy.startProcessing');
+                    }
+                });
             });
-        });
+    } else {
+        console.log('ℹ️  Cappy not initialized. Run "Cappy: Initialize Workspace" to get started.');
+    }
     
     // Register the graph visualization command
     const openGraphCommand = vscode.commands.registerCommand('cappy.openGraph', async () => {
