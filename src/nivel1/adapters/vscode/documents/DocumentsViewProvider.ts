@@ -405,17 +405,6 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
         this.documents.set(doc.id, doc);
       }
       
-      // Send paginated result to webview
-      console.log(`📤 [DocumentsViewProvider] ============================================`);
-      console.log(`📤 [DocumentsViewProvider] SENDING DOCUMENTS TO WEBVIEW`);
-      console.log(`📤 [DocumentsViewProvider] Documents count: ${documents.length}`);
-      console.log(`📤 [DocumentsViewProvider] Total: ${result.total}`);
-      console.log(`📤 [DocumentsViewProvider] Page: ${result.page}/${result.totalPages}`);
-      console.log('📤 [DocumentsViewProvider] Webview exists:', !!this._view);
-      console.log('📤 [DocumentsViewProvider] Webview visible:', this._view?.visible);
-      console.log(`📤 [DocumentsViewProvider] Sample documents:`, documents.slice(0, 2));
-      console.log(`📤 [DocumentsViewProvider] ============================================`);
-      
       if (!this._view) {
         console.error('❌ [DocumentsViewProvider] Cannot send message - webview is undefined!');
         return;
