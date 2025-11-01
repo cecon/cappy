@@ -70,12 +70,29 @@ npm run package:${PLATFORM}
 echo -e "${GREEN}✓ Empacotamento concluído${NC}"
 echo ""
 
-# Encontra o arquivo .vsix gerado
-VSIX_FILE=$(ls cappy-*-${PLATFORM}.vsix 2>/dev/null | head -n 1)
+# Encontra o arquivo .vsix gerado (considera arquitetura no macOS)
+ARCH="$(uname -m)"
+VSIX_GLOB=""
+if [ "$PLATFORM" = "darwin" ]; then
+    # Mapear arquitetura para sufixo do pacote
+    if [ "$ARCH" = "arm64" ]; then
+        VSIX_GLOB="cappy-*-darwin-arm64.vsix"
+    else
+        VSIX_GLOB="cappy-*-darwin-x64.vsix"
+    fi
+elif [ "$PLATFORM" = "linux" ]; then
+    VSIX_GLOB="cappy-*-linux.vsix"
+else
+    VSIX_GLOB="cappy-*.vsix"
+fi
+
+# Pegar o arquivo mais recente pelo timestamp
+VSIX_FILE=$(ls -t ${VSIX_GLOB} 2>/dev/null | head -n 1)
 
 if [ -z "$VSIX_FILE" ]; then
-    echo -e "${RED}ERRO: Arquivo .vsix não encontrado!${NC}"
-    exit 1
+        echo -e "${RED}ERRO: Arquivo .vsix não encontrado!${NC}"
+        echo -e "${YELLOW}Dica:${NC} Verifique os arquivos gerados com: ls -l cappy-*.vsix"
+        exit 1
 fi
 
 # Instala a extensão

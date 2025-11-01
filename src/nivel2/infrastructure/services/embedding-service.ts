@@ -24,24 +24,47 @@ export class EmbeddingService {
       return;
     }
 
-    try {
-      console.log(`🤖 Loading embedding model: ${this.model}...`);
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 seconds
 
-      const { pipeline, env } = await import("@xenova/transformers");
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🤖 Loading embedding model: ${this.model} (attempt ${attempt}/${maxRetries})...`);
 
-      // Disable image processing features
-      env.allowLocalModels = false;
-      env.allowRemoteModels = true;
+        const { pipeline, env } = await import("@xenova/transformers");
 
-      this.pipeline = await pipeline("feature-extraction", this.model, {
-        quantized: true,
-      });
+        // Configure environment
+        env.allowLocalModels = true; // Allow local cached models
+        env.allowRemoteModels = true;
+        env.cacheDir = './.cappy/models'; // Cache models locally
 
-      this.initialized = true;
-      console.log(`✅ Embedding model loaded (${this.dimensions} dimensions)`);
-    } catch (error) {
-      console.error("❌ Failed to load embedding model:", error);
-      throw new Error(`Failed to initialize embedding service: ${error}`);
+        // Load with timeout
+        const pipelinePromise = pipeline("feature-extraction", this.model, {
+          quantized: true,
+        });
+
+        // Add 60 second timeout
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Model loading timeout (60s)')), 60000);
+        });
+
+        this.pipeline = await Promise.race([pipelinePromise, timeoutPromise]) as FeatureExtractionPipeline;
+
+        this.initialized = true;
+        console.log(`✅ Embedding model loaded (${this.dimensions} dimensions)`);
+        return; // Success, exit retry loop
+      } catch (error) {
+        console.error(`❌ Failed to load embedding model (attempt ${attempt}/${maxRetries}):`, error);
+        
+        if (attempt < maxRetries) {
+          console.log(`⏳ Retrying in ${retryDelay / 1000}s...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        } else {
+          // Last attempt failed
+          console.error("❌ All retry attempts failed. Embedding service will be disabled.");
+          throw new Error(`Failed to initialize embedding service after ${maxRetries} attempts: ${error}`);
+        }
+      }
     }
   }
 

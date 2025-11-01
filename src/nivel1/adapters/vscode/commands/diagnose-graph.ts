@@ -49,6 +49,54 @@ function createEmptyReport(): DiagnosticReport {
 }
 
 /**
+ * Check database consistency
+ * Verifies that vectors and nodes are in sync
+ */
+async function checkDatabaseConsistency(
+  graphStore: GraphStorePort,
+  outputChannel: vscode.OutputChannel
+): Promise<void> {
+  outputChannel.appendLine('🏥 Checking Database Consistency...');
+  
+  try {
+    // Check if graphStore has diagnoseConsistency method
+    if (typeof (graphStore as any).diagnoseConsistency === 'function') {
+      const diagnosis = await (graphStore as any).diagnoseConsistency();
+      
+      outputChannel.appendLine(`   📊 Nodes: ${diagnosis.nodesCount}`);
+      outputChannel.appendLine(`   🔗 Edges: ${diagnosis.edgesCount}`);
+      outputChannel.appendLine(`   🧮 Vectors: ${diagnosis.vectorsCount}`);
+      
+      if (diagnosis.isConsistent) {
+        outputChannel.appendLine('   ✅ Database is CONSISTENT\n');
+      } else {
+        outputChannel.appendLine('   ⚠️  INCONSISTENCIES DETECTED:\n');
+        
+        for (const issue of diagnosis.issues) {
+          outputChannel.appendLine(`   ❌ ${issue}`);
+        }
+        
+        outputChannel.appendLine('');
+        
+        if (diagnosis.chunksWithoutNodes > 0) {
+          outputChannel.appendLine(`   💡 ${diagnosis.chunksWithoutNodes} vectors are indexed but have no graph nodes.`);
+          outputChannel.appendLine('      Run workspace scan to rebuild the graph.\n');
+        }
+        
+        if (diagnosis.nodesWithoutVectors > 0) {
+          outputChannel.appendLine(`   💡 ${diagnosis.nodesWithoutVectors} nodes exist but have no vector embeddings.`);
+          outputChannel.appendLine('      These nodes cannot be found via semantic search.\n');
+        }
+      }
+    } else {
+      outputChannel.appendLine('   ⚠️  Consistency check not available (old adapter version)\n');
+    }
+  } catch (error) {
+    outputChannel.appendLine(`   ❌ Consistency check failed: ${error}\n`);
+  }
+}
+
+/**
  * Load and count all files
  */
 async function loadFiles(
@@ -387,6 +435,9 @@ export async function diagnoseGraph(
   const report = createEmptyReport();
 
   try {
+    // 0. Check database consistency (NEW)
+    await checkDatabaseConsistency(graphStore, outputChannel);
+
     // 1. Load all files
     const files = await loadFiles(graphStore, outputChannel);
     report.totalFiles = files.length;

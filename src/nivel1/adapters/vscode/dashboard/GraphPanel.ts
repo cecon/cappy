@@ -10,15 +10,20 @@ import { RefreshUseCase } from './usecases/RefreshUseCase';
 import { ResetGraphUseCase } from './usecases/ResetGraphUseCase';
 import { OpenFileUseCase } from './usecases/OpenFileUseCase';
 import { DocumentsUploadRequestedUseCase } from './usecases/DocumentsUploadRequestedUseCase';
+import { DocumentsRefreshUseCase } from './usecases/DocumentsRefreshUseCase';
 import { DocumentsUploadSelectedUseCase } from './usecases/DocumentsUploadSelectedUseCase';
 import { DocumentsScanWorkspaceUseCase } from './usecases/DocumentsScanWorkspaceUseCase';
 import { DocumentsConfigureSourcesUseCase } from './usecases/DocumentsConfigureSourcesUseCase';
 import { DocumentsConfirmRemoveUseCase } from './usecases/DocumentsConfirmRemoveUseCase';
 import { DocumentsConfirmClearUseCase } from './usecases/DocumentsConfirmClearUseCase';
+import { DocumentsViewDetailsUseCase } from './usecases/DocumentsViewDetailsUseCase';
+import { DocumentsReprocessUseCase } from './usecases/DocumentsReprocessUseCase';
 import { DebugAnalyzeUseCase } from './usecases/DebugAnalyzeUseCase';
+import { HybridRetriever } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 import { WebviewContentBuilder } from './WebviewContentBuilder';
 import { IndexingInitializer } from './IndexingInitializer';
 import { WorkspaceIndexer } from './WorkspaceIndexer';
+import { RetrievalSearchUseCase } from './usecases/RetrievalSearchUseCase';
 
 /**
  * WebView Panel for Graph Visualization
@@ -35,6 +40,7 @@ export class GraphPanel {
     private graphWatcher: vscode.FileSystemWatcher | undefined;
     private refreshTimer: NodeJS.Timeout | null = null;
     private useCases: UseCase[] = [];
+    private hybridRetriever: HybridRetriever | undefined = undefined;
     private readonly webviewBuilder: WebviewContentBuilder;
     private readonly indexingInitializer = new IndexingInitializer();
     private readonly workspaceIndexer = new WorkspaceIndexer();
@@ -113,14 +119,35 @@ export class GraphPanel {
             new ResetGraphUseCase(),
             new OpenFileUseCase(),
             new DocumentsUploadRequestedUseCase(),
+            new DocumentsRefreshUseCase(),
             new DocumentsUploadSelectedUseCase(),
             new DocumentsScanWorkspaceUseCase(),
             new DocumentsConfigureSourcesUseCase(),
             new DocumentsConfirmRemoveUseCase(),
             new DocumentsConfirmClearUseCase(),
+            new DocumentsViewDetailsUseCase(),
+            new DocumentsReprocessUseCase(),
             new DebugAnalyzeUseCase(),
         ];
     }
+
+    /**
+     * Updates the use cases with HybridRetriever after it's initialized
+     */
+    private updateRetrievalUseCase() {
+        if (!this.hybridRetriever) return;
+
+        // Remove old retrieval use case if exists
+        this.useCases = this.useCases.filter(uc => !uc.canHandle({ type: 'retrieval/search' }));
+
+        // Add new retrieval use case with initialized retriever
+        this.useCases.push(
+            new RetrievalSearchUseCase(this.hybridRetriever)
+        );
+
+        console.log('[GraphPanel] RetrievalSearchUseCase registered with HybridRetriever');
+    }
+
 
     private getUseCaseContext(): UseCaseContext {
         return {
@@ -154,7 +181,14 @@ export class GraphPanel {
      */
     public async refreshSubgraph(depth: number = 2) {
         try {
-            if (!this.indexingService || !this.panel) return;
+            // Skip if panel is not visible to avoid unnecessary queries
+            if (!this.panel?.visible) {
+                this.log('⏭️ Skipping subgraph refresh - panel not visible');
+                return;
+            }
+            
+            if (!this.indexingService) return;
+            
             type GraphStoreLike = { getSubgraph?: (seeds: string[] | undefined, depth: number) => Promise<{ nodes: unknown[]; edges: unknown[] }> };
             const svc = this.indexingService as unknown as { graphStore?: GraphStoreLike };
             const graphStore = svc.graphStore;
@@ -192,6 +226,16 @@ export class GraphPanel {
             this.indexingService = result.indexingService;
             this.graphDataPath = result.graphDataPath;
             this.graphDbCreated = result.graphDbCreated;
+
+            // Initialize HybridRetriever with graphStore
+            type GraphStoreLike = { getSubgraph?: (seeds: string[] | undefined, depth: number) => Promise<{ nodes: unknown[]; edges: unknown[] }> };
+            const svc = this.indexingService as unknown as { graphStore?: GraphStoreLike };
+            const graphStore = svc.graphStore;
+            if (graphStore) {
+                this.hybridRetriever = new HybridRetriever(undefined, graphStore as never);
+                this.updateRetrievalUseCase();
+                console.log('[GraphPanel] HybridRetriever initialized with graphStore');
+            }
 
         } catch (error) {
             this.log(`❌ Failed to initialize: ${error}`);
