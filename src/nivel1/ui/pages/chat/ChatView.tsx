@@ -383,28 +383,41 @@ const AssistantMessage: React.FC = () => (
 );
 
 export function ChatView({ sessionId }: Readonly<ChatViewProps>) {
+  console.log('[ChatView] 🚀 ChatView component rendering...', { sessionId })
+  
   // Resolve VS Code API lazily to allow the dev mock script to attach later
   const vscodeApi = useMemo<VsCodeApi>(() => {
+    console.log('[ChatView] 🔧 Initializing VS Code API...')
     try {
       if (typeof globalThis !== 'undefined' && (globalThis as unknown as { window?: unknown }).window) {
         const w = (globalThis as unknown as { window: unknown }).window as Window & { vscodeApi?: VsCodeApi; acquireVsCodeApi?: () => VsCodeApi };
-        if (w.vscodeApi) return w.vscodeApi;
+        if (w.vscodeApi) {
+          console.log('[ChatView] ✅ Using existing vscodeApi')
+          return w.vscodeApi;
+        }
         if (typeof w.acquireVsCodeApi === 'function') {
+          console.log('[ChatView] ✅ Acquiring vscodeApi...')
           const api = w.acquireVsCodeApi();
           w.vscodeApi = api;
           return api;
         }
       }
-    } catch {
-      // ignore
+      console.warn('[ChatView] ⚠️ No vscodeApi available, using mock')
+    } catch (error) {
+      console.error('[ChatView] ❌ Error acquiring vscodeApi:', error)
     }
     return { postMessage: () => {} };
   }, []);
 
+  console.log('[ChatView] 🤖 Creating chat adapter...')
   const adapter = useRef(
     new VSCodeChatAdapter(vscodeApi, sessionId)
   ).current;
+  
+  console.log('[ChatView] 🔄 Creating local runtime...')
   const runtime = useLocalRuntime(adapter);
+  
+  console.log('[ChatView] ✅ Rendering chat UI...')
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>

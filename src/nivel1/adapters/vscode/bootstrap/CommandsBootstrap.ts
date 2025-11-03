@@ -48,6 +48,19 @@ export class CommandsBootstrap {
   }
 
   /**
+   * Updates dependencies (called after file processing system is initialized)
+   */
+  updateDependencies(deps: Partial<CommandsBootstrapDependencies>): void {
+    console.log('🔄 [CommandsBootstrap] Updating dependencies');
+    this.deps = { ...this.deps, ...deps };
+    console.log('🔄 [CommandsBootstrap] Dependencies updated:', {
+      fileDatabase: !!this.deps.fileDatabase,
+      fileQueue: !!this.deps.fileQueue,
+      graphStore: !!this.deps.graphStore
+    });
+  }
+
+  /**
    * Registers all commands
    */
   register(context: vscode.ExtensionContext): void {

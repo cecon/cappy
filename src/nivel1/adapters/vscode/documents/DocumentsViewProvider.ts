@@ -57,7 +57,9 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    * Sets the file database (can be called after initialization)
    */
   setFileDatabase(fileDatabase: FileMetadataDatabase): void {
+    console.log('🔧 [DocumentsViewProvider] setFileDatabase called with:', !!fileDatabase);
     this._fileDatabase = fileDatabase;
+    console.log('🔧 [DocumentsViewProvider] File database set successfully');
   }
 
   /**
@@ -140,8 +142,31 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
     
-    // DON'T load initial list here - wait for webview-ready message
-    console.log('📊 [DocumentsViewProvider] Waiting for webview-ready before loading documents');
+    // Load initial document list with a small delay to ensure webview is ready
+    // BUT ALSO retry every second until database is available
+    console.log('📊 [DocumentsViewProvider] Scheduling initial document load...');
+    let retryCount = 0;
+    const maxRetries = 10; // 10 seconds
+    
+    const tryLoadDocuments = async () => {
+      retryCount++;
+      if (!this._fileDatabase) {
+        console.warn(`⏳ [DocumentsViewProvider] Database not available yet (attempt ${retryCount}/${maxRetries}), retrying...`);
+        if (retryCount < maxRetries) {
+          setTimeout(tryLoadDocuments, 1000);
+        } else {
+          console.error('❌ [DocumentsViewProvider] Database never became available after 10 seconds');
+        }
+        return;
+      }
+      
+      console.log('📊 [DocumentsViewProvider] Loading initial document list...');
+      console.log('📊 [DocumentsViewProvider] BEFORE refreshDocumentList - DB available:', !!this._fileDatabase);
+      await this.refreshDocumentList();
+      console.log('📊 [DocumentsViewProvider] AFTER refreshDocumentList');
+    };
+    
+    setTimeout(tryLoadDocuments, 500);
 
     // Start auto-refresh interval when view becomes visible
     this._startAutoRefresh();
@@ -431,16 +456,20 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     sortBy?: 'id' | 'created_at' | 'updated_at';
     sortOrder?: 'asc' | 'desc';
   }) {
-    console.log('🔄 [DocumentsViewProvider] ============================================');
+    console.log('�🚨🚨 [DocumentsViewProvider] refreshDocumentList CALLED! 🚨🚨🚨');
+    console.log('�🔄 [DocumentsViewProvider] ============================================');
     console.log('🔄 [DocumentsViewProvider] REFRESH DOCUMENT LIST CALLED');
     console.log('🔄 [DocumentsViewProvider] Pagination params:', paginationParams);
     console.log('🔄 [DocumentsViewProvider] File database available:', !!this._fileDatabase);
+    console.log('🔄 [DocumentsViewProvider] File database instance:', this._fileDatabase);
     console.log('🔄 [DocumentsViewProvider] Webview available:', !!this._view);
     console.log('🔄 [DocumentsViewProvider] ============================================');
     
     // Get documents from file metadata database
     if (!this._fileDatabase) {
       console.error('❌ [DocumentsViewProvider] No file database available - file processing system may not be initialized yet');
+      console.error('❌ [DocumentsViewProvider] _fileDatabase is:', this._fileDatabase);
+      console.error('❌ [DocumentsViewProvider] this:', this);
       console.error('❌ [DocumentsViewProvider] Please wait for the file processing system to initialize or run "Cappy: Start File Processing" command');
       this._view?.webview.postMessage({
         type: 'document/list',
@@ -490,11 +519,19 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       };
       
       console.log('📤 [DocumentsViewProvider] About to call postMessage with:', JSON.stringify(messagePayload).substring(0, 500));
+      console.log('📤 [DocumentsViewProvider] Sending to webview:', {
+        documentsCount: documents.length,
+        total: result.total,
+        page: result.page,
+        totalPages: result.totalPages,
+        firstDoc: documents[0] ? { id: documents[0].id, fileName: documents[0].fileName } : null
+      });
       
       this._view.webview.postMessage(messagePayload);
       
       console.log('✅ [DocumentsViewProvider] ============================================');
       console.log('✅ [DocumentsViewProvider] POST MESSAGE CALLED SUCCESSFULLY');
+      console.log('✅ [DocumentsViewProvider] Sent', documents.length, 'documents to webview');
       console.log('✅ [DocumentsViewProvider] ============================================');
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error loading documents from database:', error);
@@ -787,15 +824,6 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    * Gets the HTML content for the webview
    */
   private _getHtmlForWebview(webview: vscode.Webview) {
-    // IMPORTANT: Vite outputs 'chat.js' and 'chat.css' for the unified Chat/Documents entry
-    // (see vite.config.ts rollupOptions.input). There is no 'main.js' in out/.
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.js')
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.css')
-    );
-
     const nonce = (() => {
       let text = '';
       const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -804,37 +832,54 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       }
       return text;
     })();
+    const cspSource = webview.cspSource;
 
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; connect-src ${webview.cspSource};">
-  <link href="${styleUri}" rel="stylesheet">
-  <title>Cappy Documents</title>
-  <script nonce="${nonce}">
-    // CRITICAL: Initialize vscodeApi BEFORE any other script loads
-    (function() {
-      try {
-        console.log('[Documents Webview] 🚀 Initializing vscodeApi...');
-        const vscode = acquireVsCodeApi();
-        window.vscodeApi = vscode;
-        console.log('[Documents Webview] ✅ vscodeApi ready:', !!window.vscodeApi);
-        
-        // Notify extension that webview is ready
-        window.vscodeApi.postMessage({ type: 'webview-ready' });
-        console.log('[Documents Webview] 📤 Sent webview-ready message');
-      } catch (e) {
-        console.error('[Documents Webview] ❌ Failed to acquire VS Code API:', e);
-      }
-    })();
-  </script>
-</head>
-<body>
-  <div id="root" data-page="documents"></div>
-  <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
-</body>
-</html>`;
+    // Load Vite-built HTML from out/chat.html (unified Chat/Documents entry)
+    const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.html');
+    
+    if (!fs.existsSync(htmlPath.fsPath)) {
+      const errorMsg = `Chat HTML not found: ${htmlPath.fsPath}. Run 'npm run build' to generate it.`;
+      console.error('❌ [DocumentsViewProvider]', errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    let htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
+    console.log('✅ [DocumentsViewProvider] Loaded HTML from:', htmlPath.fsPath);
+
+    // Get webview URIs for assets
+    const chatJsUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.js')
+    );
+    const chatCssUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.css')
+    );
+
+    // Replace relative paths with webview URIs
+    htmlContent = htmlContent
+      .replace('./chat.js', chatJsUri.toString())
+      .replace('./chat.css', chatCssUri.toString());
+
+    // Change data-page to "documents"
+    htmlContent = htmlContent.replace('data-page="chat"', 'data-page="documents"');
+
+    // Update title
+    htmlContent = htmlContent.replace('<title>Cappy Chat</title>', '<title>Cappy Documents</title>');
+
+    // Remove modulepreload links (not needed in webview)
+    htmlContent = htmlContent.replaceAll(/<link rel="modulepreload"[^>]*>/g, '');
+
+    // Add CSP if not present
+    if (!htmlContent.includes('Content-Security-Policy')) {
+      htmlContent = htmlContent.replace(
+        '<meta name="viewport"',
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${cspSource}; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource};">\n    <meta name="viewport"`
+      );
+    }
+
+    // Add nonce to all script tags
+    htmlContent = htmlContent.replaceAll('<script type="module"', `<script type="module" nonce="${nonce}"`);
+
+    console.log('📄 [DocumentsViewProvider] HTML prepared, length:', htmlContent.length);
+    return htmlContent;
   }
 }

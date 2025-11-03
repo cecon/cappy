@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as fs from 'node:fs';
 import type { ChatService } from '../../../../domains/chat/services/chat-service';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
@@ -37,6 +38,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   
   private async handleMessage(message: { type: string; [key: string]: unknown }, webview: vscode.Webview) {
     switch (message.type) {
+      case 'webview-ready':
+        console.log('✅ [ChatViewProvider] Webview reported ready');
+        // Webview is ready, can send initial state if needed
+        break;
       case 'sendMessage':
         console.log('💬 [ChatViewProvider] Processing chat message...');
         // Use VS Code's language model to handle the chat
@@ -152,41 +157,50 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {
-    // Use Vite-built assets: the chat entry bundles the unified App (chat/documents)
-    const scriptUri = webview.asWebviewUri(
+    const nonce = this.getNonce();
+    const cspSource = webview.cspSource;
+
+    // Load Vite-built HTML from out/chat.html (like GraphPanel does with dashboard.html)
+    const htmlPath = vscode.Uri.joinPath(this.extensionUri, 'out', 'chat.html');
+    
+    if (!fs.existsSync(htmlPath.fsPath)) {
+      const errorMsg = `Chat HTML not found: ${htmlPath.fsPath}. Run 'npm run build' to generate it.`;
+      console.error('❌ [ChatViewProvider]', errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    let htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
+    console.log('✅ [ChatViewProvider] Loaded HTML from:', htmlPath.fsPath);
+
+    // Get webview URIs for assets
+    const chatJsUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'out', 'chat.js')
     );
-    const styleUri = webview.asWebviewUri(
+    const chatCssUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'out', 'chat.css')
     );
 
-    console.log('📁 [ChatViewProvider] Script URI:', scriptUri.toString());
-    console.log('🎨 [ChatViewProvider] Style URI:', styleUri.toString());
+    // Replace relative paths with webview URIs
+    htmlContent = htmlContent
+      .replace('./chat.js', chatJsUri.toString())
+      .replace('./chat.css', chatCssUri.toString());
 
-    const nonce = this.getNonce();
+    // Remove modulepreload links (not needed in webview)
+    htmlContent = htmlContent.replaceAll(/<link rel="modulepreload"[^>]*>/g, '');
 
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource};">
-  <link href="${styleUri}" rel="stylesheet">
-  <title>Cappy Chat</title>
-</head>
-<body>
-  <div id="root"></div>
-  <script nonce="${nonce}">
-    console.log('[Webview] Initializing vscodeApi...');
-    window.vscodeApi = acquireVsCodeApi();
-    console.log('[Webview] vscodeApi ready:', !!window.vscodeApi);
-  </script>
-  <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
-</body>
-</html>`;
-    
-    console.log('📄 [ChatViewProvider] HTML generated, length:', html.length);
-    return html;
+    // Add CSP if not present
+    if (!htmlContent.includes('Content-Security-Policy')) {
+      htmlContent = htmlContent.replace(
+        '<meta name="viewport"',
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${cspSource}; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource};">\n    <meta name="viewport"`
+      );
+    }
+
+    // Add nonce to all script tags
+    htmlContent = htmlContent.replaceAll('<script type="module"', `<script type="module" nonce="${nonce}"`);
+
+    console.log('📄 [ChatViewProvider] HTML prepared, length:', htmlContent.length);
+    return htmlContent;
   }
 
   private getNonce(): string {

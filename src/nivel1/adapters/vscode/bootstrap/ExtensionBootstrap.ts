@@ -30,6 +30,7 @@ export interface ExtensionState {
   contextRetrievalTool: ContextRetrievalTool | null;
   graphPanel: GraphPanel | null;
   documentsViewProvider: DocumentsViewProvider | null;
+  commandsBootstrap?: InstanceType<typeof CommandsBootstrap>;
 }
 
 /**
@@ -80,6 +81,7 @@ export class ExtensionBootstrap {
       initializeFileProcessingSystem: this.initializeFileProcessingSystem.bind(this)
     });
     commandsBootstrap.register(context);
+    this.state.commandsBootstrap = commandsBootstrap;
 
     // Phase 4: Auto-start file processing if Cappy is initialized
     await this.autoStartFileProcessing(context);
@@ -117,6 +119,16 @@ export class ExtensionBootstrap {
     this.state.fileWatcher = result.watcher;
     this.state.graphStore = result.graphStore;
     this.state.cleanupService = result.cleanupService;
+
+    // Update CommandsBootstrap with the new dependencies
+    if (this.state.commandsBootstrap) {
+      console.log('📡 [ExtensionBootstrap] Updating CommandsBootstrap dependencies');
+      this.state.commandsBootstrap.updateDependencies({
+        fileDatabase: result.fileDatabase,
+        fileQueue: result.queue,
+        graphStore: result.graphStore
+      });
+    }
   }
 
   /**

@@ -63,7 +63,8 @@ export function registerScanWorkspaceCommand(context: vscode.ExtensionContext): 
             progress.report({ message: '🔧 Initializing services...', increment: 0 });
             console.log('🔧 Initializing services...');
             
-            const embeddingService = new EmbeddingService();
+            const modelsCacheDir = path.join(context.globalStorageUri.fsPath, 'models');
+            const embeddingService = new EmbeddingService(modelsCacheDir);
             await embeddingService.initialize();
             
             progress.report({ message: '💾 Initializing database...', increment: 5 });

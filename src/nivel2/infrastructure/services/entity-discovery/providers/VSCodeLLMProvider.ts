@@ -9,10 +9,28 @@ export class VSCodeLLMProvider implements LLMProvider {
 
   async initialize(): Promise<void> {
     try {
-      const models = await vscode.lm.selectChatModels({
+      // Try to get any available Copilot model, preferring gpt-4o but falling back to others
+      let models = await vscode.lm.selectChatModels({
         vendor: 'copilot',
         family: 'gpt-4o'
       });
+
+      // Fallback to gpt-4 if gpt-4o is not available
+      if (models.length === 0) {
+        console.log('⚠️ gpt-4o not available, trying gpt-4...');
+        models = await vscode.lm.selectChatModels({
+          vendor: 'copilot',
+          family: 'gpt-4'
+        });
+      }
+
+      // Fallback to any Copilot model
+      if (models.length === 0) {
+        console.log('⚠️ gpt-4 not available, trying any Copilot model...');
+        models = await vscode.lm.selectChatModels({
+          vendor: 'copilot'
+        });
+      }
 
       if (models.length > 0) {
         this.model = models[0];
@@ -44,7 +62,22 @@ export class VSCodeLLMProvider implements LLMProvider {
       }
 
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
+      // Handle rate limiting gracefully
+      if (error instanceof Error) {
+        const errorMsg = error.message.toLowerCase();
+        if (errorMsg.includes('rate') || errorMsg.includes('limit') || errorMsg.includes('quota')) {
+          console.warn('⚠️ Rate limit reached, skipping entity discovery for this chunk');
+          return '{"entities": [], "relationships": []}'; // Return empty but valid response
+        }
+        
+        // Handle unsupported model error
+        if (errorMsg.includes('model is not supported')) {
+          console.warn('⚠️ Model not supported, entity discovery will be disabled');
+          return '{"entities": [], "relationships": []}';
+        }
+      }
+      
       console.error('❌ LLM generation failed:', error);
       throw error;
     }

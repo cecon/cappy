@@ -153,6 +153,7 @@ export class GraphPanel {
         return {
             vscode,
             panel: this.panel,
+            extensionContext: this.context,
             log: (msg: string) => this.log(msg),
             sendMessage: (m: Record<string, unknown>) => this.sendMessage(m),
             getIndexingService: () => this.indexingService,

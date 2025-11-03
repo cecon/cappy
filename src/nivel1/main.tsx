@@ -30,18 +30,40 @@ import App from './ui/App.tsx'
  * 
  * @throws {Error} When root element is not found in the DOM
  */
+console.log('[React Main] 🚀 Starting initialization...')
+console.log('[React Main] Document ready state:', document.readyState)
+console.log('[React Main] Body exists:', !!document.body)
+
 try {
   const rootElement = document.getElementById('root')
+  console.log('[React Main] Root element:', rootElement)
+  
   if (!rootElement) {
+    console.error('[React Main] ❌ Root element not found in DOM!')
     throw new Error('Root element not found!')
   }
   
+  console.log('[React Main] ✅ Root element found, creating React root...')
   const root = createRoot(rootElement)
+  
+  console.log('[React Main] 🎨 Rendering App component...')
   root.render(
     <StrictMode>
       <App />
     </StrictMode>,
   )
+  console.log('[React Main] ✅ App component rendered successfully!')
 } catch (error) {
-  console.error('[React Main] Error:', error)
+  console.error('[React Main] ❌ Error during initialization:', error)
+  // Show error in UI if possible
+  const rootElement = document.getElementById('root')
+  if (rootElement) {
+    rootElement.innerHTML = `
+      <div style="padding: 20px; color: red; font-family: monospace;">
+        <h2>❌ Cappy Chat - Initialization Error</h2>
+        <pre>${error instanceof Error ? error.message : String(error)}</pre>
+        <p>Check the developer console for more details.</p>
+      </div>
+    `
+  }
 }

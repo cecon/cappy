@@ -108,7 +108,8 @@ export class DebugAnalyzeUseCase implements UseCase {
         ctx.log(`🔄 [Debug] Starting pipeline processing...`);
         
         // Inicializar EmbeddingService para gerar embeddings de JSDoc
-        const embeddingService = new EmbeddingService();
+        const modelsCacheDir = path.join(ctx.extensionContext.globalStorageUri.fsPath, 'models');
+        const embeddingService = new EmbeddingService(modelsCacheDir);
         
         const pipeline = new EntityFilterPipeline({
           skipLocalVariables: true,

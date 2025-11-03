@@ -52,7 +52,7 @@ export class FileProcessingSystemBootstrap {
         hashService,
         embeddingService,
         configService
-      } = await this.initializeServices(workspaceRoot);
+      } = await this.initializeServices(workspaceRoot, context);
 
       // 3. Initialize graph store
       const graphStore = await this.initializeGraphStore(
@@ -133,10 +133,13 @@ export class FileProcessingSystemBootstrap {
     const cappyDataDir = path.join(workspaceRoot, '.cappy', 'data');
     const dbPath = path.join(cappyDataDir, 'file-metadata.db');
     
+    console.log('📦 [FileProcessingSystemBootstrap] Initializing FileMetadataDatabase...');
     const fileDatabase = new FileMetadataDatabase(dbPath);
     await fileDatabase.initialize();
     
+    console.log('📦 [FileProcessingSystemBootstrap] Setting FileDatabase on DocumentsViewProvider');
     documentsViewProvider.setFileDatabase(fileDatabase);
+    console.log('📦 [FileProcessingSystemBootstrap] FileDatabase set successfully');
     console.log('  ✅ File metadata database initialized');
     
     return fileDatabase;
@@ -145,7 +148,7 @@ export class FileProcessingSystemBootstrap {
   /**
    * Initializes core services
    */
-  private async initializeServices(workspaceRoot: string): Promise<CoreServices> {
+  private async initializeServices(workspaceRoot: string, context: vscode.ExtensionContext): Promise<CoreServices> {
     const { ParserService } = await import('../../../../nivel2/infrastructure/services/parser-service.js');
     const { FileHashService } = await import('../../../../nivel2/infrastructure/services/file-hash-service.js');
     const { EmbeddingService } = await import('../../../../nivel2/infrastructure/services/embedding-service.js');
@@ -155,7 +158,9 @@ export class FileProcessingSystemBootstrap {
     const hashService = new FileHashService();
     const configService = new ConfigService(workspaceRoot);
     
-    const embeddingService = new EmbeddingService();
+    // Use global storage path for embedding model cache
+    const modelsCacheDir = path.join(context.globalStorageUri.fsPath, 'models');
+    const embeddingService = new EmbeddingService(modelsCacheDir);
     try {
       await embeddingService.initialize();
       console.log('  ✅ Embedding service initialized');

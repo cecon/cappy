@@ -35,7 +35,8 @@ export function registerDebugRetrievalCommand(context: vscode.ExtensionContext) 
       }
 
       // Initialize services (same wiring as the rest of the extension)
-      const embeddingService = new EmbeddingService();
+      const modelsCacheDir = path.join(context.globalStorageUri.fsPath, 'models');
+      const embeddingService = new EmbeddingService(modelsCacheDir);
       await embeddingService.initialize();
 
       const graphStore = new SQLiteAdapter(sqlitePath);
