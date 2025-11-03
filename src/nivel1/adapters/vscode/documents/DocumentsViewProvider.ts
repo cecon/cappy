@@ -834,11 +834,11 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     })();
     const cspSource = webview.cspSource;
 
-    // Load Vite-built HTML from out/chat.html (unified Chat/Documents entry)
-    const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.html');
+    // Load Vite-built HTML from out/dashboard.html (Documents/Dashboard entry)
+    const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'out', 'dashboard.html');
     
     if (!fs.existsSync(htmlPath.fsPath)) {
-      const errorMsg = `Chat HTML not found: ${htmlPath.fsPath}. Run 'npm run build' to generate it.`;
+      const errorMsg = `Dashboard HTML not found: ${htmlPath.fsPath}. Run 'npm run build' to generate it.`;
       console.error('❌ [DocumentsViewProvider]', errorMsg);
       throw new Error(errorMsg);
     }
@@ -847,20 +847,17 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     console.log('✅ [DocumentsViewProvider] Loaded HTML from:', htmlPath.fsPath);
 
     // Get webview URIs for assets
-    const chatJsUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.js')
+    const dashboardJsUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'out', 'dashboard.js')
     );
-    const chatCssUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.css')
+    const dashboardCssUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'out', 'dashboard.css')
     );
 
     // Replace relative paths with webview URIs
     htmlContent = htmlContent
-      .replace('./chat.js', chatJsUri.toString())
-      .replace('./chat.css', chatCssUri.toString());
-
-    // Change data-page to "documents"
-    htmlContent = htmlContent.replace('data-page="chat"', 'data-page="documents"');
+      .replace('./dashboard.js', dashboardJsUri.toString())
+      .replace('./dashboard.css', dashboardCssUri.toString());
 
     // Update title
     htmlContent = htmlContent.replace('<title>Cappy Chat</title>', '<title>Cappy Documents</title>');
