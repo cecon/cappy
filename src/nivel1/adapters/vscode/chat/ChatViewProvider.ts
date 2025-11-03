@@ -160,30 +160,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const nonce = this.getNonce();
     const cspSource = webview.cspSource;
 
-    // Load Vite-built HTML from out/chat.html (like GraphPanel does with dashboard.html)
-    const htmlPath = vscode.Uri.joinPath(this.extensionUri, 'out', 'chat.html');
+    // Load HTML from chat.html in workspace root (Vite build output)
+    const htmlPath = vscode.Uri.joinPath(this.extensionUri, 'chat.html');
     
     if (!fs.existsSync(htmlPath.fsPath)) {
-      const errorMsg = `Chat HTML not found: ${htmlPath.fsPath}. Run 'npm run build' to generate it.`;
+      const errorMsg = `Chat HTML not found at: ${htmlPath.fsPath}\n\nMake sure you've run 'npm run build' to generate the chat.html file.`;
       console.error('❌ [ChatViewProvider]', errorMsg);
-      throw new Error(errorMsg);
+      // Return a fallback error page instead of throwing
+      return this.getErrorHtml(errorMsg, nonce);
     }
     
     let htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
     console.log('✅ [ChatViewProvider] Loaded HTML from:', htmlPath.fsPath);
 
-    // Get webview URIs for assets
-    const chatJsUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'out', 'chat.js')
-    );
+    // Get webview URIs for assets (for CSS if embedded in HTML)
     const chatCssUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'out', 'chat.css')
     );
 
-    // Replace relative paths with webview URIs
-    htmlContent = htmlContent
-      .replace('./chat.js', chatJsUri.toString())
-      .replace('./chat.css', chatCssUri.toString());
+    // Replace CSS path if present in HTML (but leave script src untouched for Vite)
+    if (htmlContent.includes('./chat.css')) {
+      htmlContent = htmlContent.replace('./chat.css', chatCssUri.toString());
+    }
 
     // Remove modulepreload links (not needed in webview)
     htmlContent = htmlContent.replaceAll(/<link rel="modulepreload"[^>]*>/g, '');
@@ -192,15 +190,80 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (!htmlContent.includes('Content-Security-Policy')) {
       htmlContent = htmlContent.replace(
         '<meta name="viewport"',
-        `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${cspSource}; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource};">\n    <meta name="viewport"`
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${cspSource}; img-src ${cspSource} data: https:; font-src ${cspSource}; connect-src ${cspSource}; worker-src ${cspSource}; object-src 'none';">\n    <meta name="viewport"`
       );
     }
 
     // Add nonce to all script tags
     htmlContent = htmlContent.replaceAll('<script type="module"', `<script type="module" nonce="${nonce}"`);
 
+    // Inject VS Code API into the window object
+    const vscodeApiScript = `
+      <script nonce="${nonce}">
+        window.vscodeApi = acquireVsCodeApi();
+      </script>
+    `;
+    htmlContent = htmlContent.replace('</head>', `${vscodeApiScript}\n  </head>`);
+
     console.log('📄 [ChatViewProvider] HTML prepared, length:', htmlContent.length);
     return htmlContent;
+  }
+
+  private getErrorHtml(message: string, nonce: string): string {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cappy Chat - Error</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      margin: 0;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .error-container {
+      max-width: 600px;
+      background: #252526;
+      border: 1px solid #3e3e42;
+      border-radius: 4px;
+      padding: 20px;
+      margin: 20px auto;
+    }
+    h2 {
+      color: #f48771;
+      margin-top: 0;
+    }
+    pre {
+      background: #1e1e1e;
+      padding: 10px;
+      border-radius: 3px;
+      overflow-x: auto;
+      font-size: 12px;
+      color: #ce9178;
+    }
+    .hint {
+      background: #1e3a1f;
+      border-left: 3px solid #4ec9b0;
+      padding: 10px;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="error-container">
+    <h2>⚠️ Cappy Chat - Build Required</h2>
+    <pre>${message}</pre>
+    <div class="hint">
+      <strong>💡 Fix:</strong> Open terminal and run: <code>npm run build</code>
+    </div>
+  </div>
+</body>
+</html>`;
   }
 
   private getNonce(): string {
