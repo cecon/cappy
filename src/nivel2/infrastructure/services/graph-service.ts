@@ -5,8 +5,8 @@
  * @since 3.0.0
  */
 
-import type { GraphRepository } from '../../../domains/graph/ports/GraphRepository';
-import type { GraphData, GraphFilter } from '../../../domains/graph/types';
+import type { GraphRepository } from '../../../domains/dashboard/ports/GraphRepository';
+import type { GraphData, GraphFilter } from '../../../domains/dashboard/types';
 import {
   LoadGraphDataUseCase,
   type LoadGraphDataOptions,
@@ -25,7 +25,7 @@ import {
   ExportGraphUseCase,
   type ExportGraphOptions,
   type ExportGraphResult
-} from '../../../domains/graph/use-cases';
+} from '../../../domains/dashboard/use-cases';
 
 /**
  * Graph Service configuration

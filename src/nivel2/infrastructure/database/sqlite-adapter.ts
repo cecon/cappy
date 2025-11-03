@@ -4,13 +4,16 @@
  * @since 3.0.0
  */
 
-import sqlite3 from "sqlite3";
+import sqlite3Loader from "./sqlite3-loader";
+import type * as SQLite3 from "sqlite3";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as sqliteVec from "sqlite-vec";
 
-import type { GraphStorePort } from "../../../domains/graph/ports/indexing-port";
+import type { GraphStorePort } from "../../../domains/dashboard/ports/indexing-port";
 import type { DocumentChunk } from "../../../shared/types/chunk";
+
+const sqlite3 = sqlite3Loader;
 
 /**
  * Simplified SQLite adapter using sqlite3
@@ -18,7 +21,7 @@ import type { DocumentChunk } from "../../../shared/types/chunk";
  */
 export class SQLiteAdapter implements GraphStorePort {
   private readonly dbPath: string;
-  private db: sqlite3.Database | null = null;
+  private db: SQLite3.Database | null = null;
   private dbFilePath = "";
   private vecExtensionLoaded = false;
 
@@ -297,68 +300,206 @@ export class SQLiteAdapter implements GraphStorePort {
     depth: number,
     maxNodes = 1000
   ): Promise<{
-    nodes: Array<{ id: string; label: string; type: "file" | "chunk" | "workspace" }>;
+    nodes: Array<{ 
+      id: string; 
+      label: string; 
+      type: "file" | "chunk" | "workspace";
+      metadata?: {
+        file_path?: string;
+        line_start?: number;
+        line_end?: number;
+        chunk_type?: string;
+        language?: string;
+      };
+    }>;
     edges: Array<{ id: string; source: string; target: string; label?: string; type: string }>;
   }> {
     if (!this.db) throw new Error("SQLite not initialized");
 
-    const nodes: Array<{ id: string; label: string; type: "file" | "chunk" | "workspace" }> = [];
+    const nodes: Array<{ 
+      id: string; 
+      label: string; 
+      type: "file" | "chunk" | "workspace";
+      metadata?: {
+        file_path?: string;
+        line_start?: number;
+        line_end?: number;
+        chunk_type?: string;
+        language?: string;
+      };
+    }> = [];
     const edges: Array<{ id: string; source: string; target: string; label?: string; type: string }> = [];
     const visited = new Set<string>();
 
-    // Implementação simplificada - adicione a lógica completa aqui
-    // Usando os métodos assíncronos corretos
-    
-    if (seeds && seeds.length > 0) {
-      for (let currentDepth = 0; currentDepth <= depth && nodes.length < maxNodes; currentDepth++) {
-        const currentSeeds = currentDepth === 0 ? seeds : nodes.slice(-100).map(n => n.id);
-        
-        for (const seed of currentSeeds) {
-          if (visited.has(seed)) continue;
-          visited.add(seed);
+    // Se não há seeds, buscar todos os nós até o limite
+    if (!seeds || seeds.length === 0) {
+      console.log(`[SQLiteAdapter] getSubgraph: No seeds provided, fetching up to ${maxNodes} nodes`);
+      
+      // Buscar nós limitados (priorizando chunks com conteúdo real)
+      const allNodes = await this.all<{ 
+        id: string; 
+        label: string; 
+        type: string;
+        file_path?: string;
+        line_start?: number;
+        line_end?: number;
+        chunk_type?: string;
+        language?: string;
+      }>(
+        `SELECT id, label, type, file_path, line_start, line_end, chunk_type, language FROM nodes 
+         ORDER BY 
+           CASE type 
+             WHEN 'chunk' THEN 1 
+             WHEN 'file' THEN 2 
+             WHEN 'workspace' THEN 3
+             WHEN 'entity' THEN 4
+             ELSE 5 
+           END,
+           id 
+         LIMIT ?`,
+        [maxNodes]
+      );
+      
+      console.log(`[SQLiteAdapter] getSubgraph: Found ${allNodes.length} nodes`);
+      
+      // Check for inconsistency if no nodes found
+      if (allNodes.length === 0) {
+        try {
+          const diagnosis = await this.diagnoseConsistency();
           
-          // Buscar nó
-          const node = await this.get<{ 
-            id: string; 
-            label: string; 
-            type: "file" | "chunk" | "workspace";
+          if (!diagnosis.isConsistent) {
+            console.error('⚠️ Database consistency issues detected:');
+            diagnosis.issues.forEach(issue => console.error(`  - ${issue}`));
+            
+            if (diagnosis.chunksWithoutNodes > 0) {
+              throw new Error(
+                `Graph is empty but ${diagnosis.vectorsCount} vectors exist (${diagnosis.chunksWithoutNodes} without nodes). ` +
+                `Database inconsistency detected. Please run workspace scan to rebuild the graph.`
+              );
+            }
+          } else {
+            console.log('[SQLiteAdapter] Database is empty but consistent (no vectors either)');
+          }
+        } catch (diagError) {
+          // If diagnosis fails, log but continue (might be initial state)
+          console.warn('[SQLiteAdapter] Could not diagnose consistency:', diagError);
+        }
+      }
+      
+      for (const node of allNodes) {
+        nodes.push({
+          id: node.id,
+          label: node.label,
+          type: (node.type === 'file' || node.type === 'chunk' || node.type === 'workspace') 
+            ? node.type 
+            : 'chunk',
+          metadata: {
+            file_path: node.file_path,
+            line_start: node.line_start,
+            line_end: node.line_end,
+            chunk_type: node.chunk_type,
+            language: node.language
+          }
+        });
+        visited.add(node.id);
+      }
+      
+      // Buscar todas as arestas conectando esses nós
+      if (nodes.length > 0) {
+        const nodeIds = nodes.map(n => n.id);
+        const placeholders = nodeIds.map(() => '?').join(',');
+        
+        const allEdges = await this.all<{ 
+          id: number; 
+          from_id: string; 
+          to_id: string; 
+          type: string;
+        }>(
+          `SELECT id, from_id, to_id, type FROM edges 
+           WHERE from_id IN (${placeholders}) OR to_id IN (${placeholders})`,
+          [...nodeIds, ...nodeIds]
+        );
+        
+        console.log(`[SQLiteAdapter] getSubgraph: Found ${allEdges.length} edges`);
+        
+        for (const edge of allEdges) {
+          edges.push({
+            id: edge.id.toString(),
+            source: edge.from_id,
+            target: edge.to_id,
+            label: edge.type,
+            type: edge.type
+          });
+        }
+      }
+      
+      return { nodes, edges };
+    }
+    
+    // Se há seeds, buscar a partir deles com profundidade
+    console.log(`[SQLiteAdapter] getSubgraph: Starting from ${seeds.length} seeds with depth ${depth}`);
+    
+    for (let currentDepth = 0; currentDepth <= depth && nodes.length < maxNodes; currentDepth++) {
+      const currentSeeds = currentDepth === 0 ? seeds : nodes.slice(-100).map(n => n.id);
+      
+      for (const seed of currentSeeds) {
+        if (visited.has(seed)) continue;
+        visited.add(seed);
+        
+        // Buscar nó com metadata relevante
+        const node = await this.get<{ 
+          id: string; 
+          label: string; 
+          type: "file" | "chunk" | "workspace";
+          file_path?: string;
+          line_start?: number;
+          line_end?: number;
+          chunk_type?: string;
+          language?: string;
+        }>(
+          `SELECT id, label, type, file_path, line_start, line_end, chunk_type, language FROM nodes WHERE id = ?`,
+          [seed]
+        );
+        
+        if (node) {
+          nodes.push({
+            id: node.id,
+            label: node.label,
+            type: node.type,
+            metadata: {
+              file_path: node.file_path,
+              line_start: node.line_start,
+              line_end: node.line_end,
+              chunk_type: node.chunk_type,
+              language: node.language
+            }
+          });
+          
+          // Buscar arestas
+          const nodeEdges = await this.all<{ 
+            id: number; 
+            from_id: string; 
+            to_id: string; 
+            type: string;
           }>(
-            `SELECT * FROM nodes WHERE id = ?`,
-            [seed]
+            `SELECT * FROM edges WHERE from_id = ? OR to_id = ?`,
+            [seed, seed]
           );
           
-          if (node) {
-            nodes.push({
-              id: node.id,
-              label: node.label,
-              type: node.type as "file" | "chunk" | "workspace"
+          for (const edge of nodeEdges) {
+            edges.push({
+              id: edge.id.toString(),
+              source: edge.from_id,
+              target: edge.to_id,
+              label: edge.type,
+              type: edge.type
             });
-            
-            // Buscar arestas
-            const nodeEdges = await this.all<{ 
-              id: number; 
-              from_id: string; 
-              to_id: string; 
-              type: string;
-            }>(
-              `SELECT * FROM edges WHERE from_id = ? OR to_id = ?`,
-              [seed, seed]
-            );
-            
-            for (const edge of nodeEdges) {
-              edges.push({
-                id: edge.id.toString(),
-                source: edge.from_id,
-                target: edge.to_id,
-                label: edge.type,
-                type: edge.type
-              });
-            }
           }
         }
       }
     }
     
+    console.log(`[SQLiteAdapter] getSubgraph: Returning ${nodes.length} nodes and ${edges.length} edges`);
     return { nodes, edges };
   }
 
@@ -791,10 +932,20 @@ export class SQLiteAdapter implements GraphStorePort {
     }));
   }
 
-  async getFileChunks(filePath: string): Promise<Array<{ id: string; type: string; label: string }>> {
+  async getFileChunks(filePath: string): Promise<Array<{ 
+    id: string; 
+    type: string; 
+    label: string;
+    content: string;
+    embedding?: number[];
+  }>> {
     if (!this.db) return [];
     
-    const chunks = await this.all<{ id: string; type: string; label: string }>(
+    const chunks = await this.all<{ 
+      id: string; 
+      type: string; 
+      label: string;
+    }>(
       `SELECT DISTINCT n.id, n.type, n.label 
        FROM nodes n 
        INNER JOIN edges e ON e.to_id = n.id 
@@ -802,7 +953,24 @@ export class SQLiteAdapter implements GraphStorePort {
       [filePath]
     );
     
-    return chunks;
+    // Get content and embeddings from vectors table
+    const result = [];
+    for (const chunk of chunks) {
+      const vectorData = await this.get<{ content: string; embedding_json: string | null }>(
+        `SELECT content, embedding_json FROM vectors WHERE chunk_id = ?`,
+        [chunk.id]
+      );
+      
+      result.push({
+        id: chunk.id,
+        type: chunk.type,
+        label: chunk.label,
+        content: vectorData?.content || '',
+        embedding: vectorData?.embedding_json ? JSON.parse(vectorData.embedding_json) : undefined
+      });
+    }
+    
+    return result;
   }
 
   getStats(): { fileNodes: number; chunkNodes: number; relationships: number; duplicates?: number } {
@@ -881,6 +1049,67 @@ export class SQLiteAdapter implements GraphStorePort {
       }));
     } catch (error) {
       console.error("Error fetching sample relationships:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Gets a node by its ID
+   */
+  async getNode(nodeId: string): Promise<{
+    id: string;
+    type: string;
+    properties: Record<string, unknown>;
+  } | null> {
+    if (!this.db) return null;
+    
+    try {
+      const node = await this.get<Record<string, unknown>>(
+        `SELECT * FROM nodes WHERE id = ?`,
+        [nodeId]
+      );
+      
+      if (!node) return null;
+      
+      return {
+        id: node.id as string,
+        type: node.type as string,
+        properties: node
+      };
+    } catch (error) {
+      console.error("Error fetching node:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Gets all relationships for a node (both incoming and outgoing)
+   */
+  async getRelationships(nodeId: string): Promise<Array<{
+    from: string;
+    to: string;
+    type: string;
+  }>> {
+    if (!this.db) return [];
+    
+    try {
+      const edges = await this.all<{
+        from_id: string;
+        to_id: string;
+        type: string;
+      }>(
+        `SELECT from_id, to_id, type FROM edges 
+         WHERE from_id = ? OR to_id = ?`,
+        [nodeId, nodeId]
+      );
+      
+      return edges.map(edge => ({
+        from: edge.from_id,
+        to: edge.to_id,
+        type: edge.type
+      }));
+    } catch (error) {
+      console.error("Error fetching relationships:", error);
       return [];
     }
   }
@@ -968,6 +1197,18 @@ export class SQLiteAdapter implements GraphStorePort {
   }
 
   /**
+   * Get chunk contents from vectors table
+   */
+  async getChunkContents(limit = 5000): Promise<Array<{ chunk_id: string; content: string }>> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    return await this.all<{ chunk_id: string; content: string }>(
+      `SELECT chunk_id, content FROM vectors LIMIT ?`,
+      [limit]
+    );
+  }
+
+  /**
    * Ensures workspace node exists
    */
   async ensureWorkspaceNode(name: string): Promise<void> {
@@ -1009,8 +1250,13 @@ export class SQLiteAdapter implements GraphStorePort {
       if (this.vecExtensionLoaded && chunk.embedding && chunk.embedding.length > 0) {
         try {
           const vecString = JSON.stringify(chunk.embedding);
+          // Virtual tables não suportam INSERT OR REPLACE - precisamos deletar primeiro
           await this.run(
-            `INSERT OR REPLACE INTO vec_vectors (chunk_id, embedding) VALUES (?, ?)`,
+            `DELETE FROM vec_vectors WHERE chunk_id = ?`,
+            [chunk.id]
+          );
+          await this.run(
+            `INSERT INTO vec_vectors (chunk_id, embedding) VALUES (?, ?)`,
             [chunk.id, vecString]
           );
         } catch (error) {
@@ -1146,6 +1392,106 @@ export class SQLiteAdapter implements GraphStorePort {
     } catch (error) {
       console.error("❌ SQLite getChunksByIds error:", error);
       return [];
+    }
+  }
+
+  /**
+   * Diagnoses graph consistency issues
+   * Returns info about database state and detects inconsistencies
+   */
+  async diagnoseConsistency(): Promise<{
+    nodesCount: number;
+    edgesCount: number;
+    vectorsCount: number;
+    chunksWithoutNodes: number;
+    nodesWithoutVectors: number;
+    isConsistent: boolean;
+    issues: string[];
+  }> {
+    if (!this.db) throw new Error("SQLite not initialized");
+    
+    try {
+      // Count nodes
+      const nodesResult = await this.get<{ count: number }>(
+        'SELECT COUNT(*) as count FROM nodes',
+        []
+      );
+      const nodesCount = nodesResult?.count || 0;
+      
+      // Count edges
+      const edgesResult = await this.get<{ count: number }>(
+        'SELECT COUNT(*) as count FROM edges',
+        []
+      );
+      const edgesCount = edgesResult?.count || 0;
+      
+      // Count vectors
+      const vectorsResult = await this.get<{ count: number }>(
+        'SELECT COUNT(*) as count FROM vectors',
+        []
+      );
+      const vectorsCount = vectorsResult?.count || 0;
+      
+      // Find vectors without corresponding nodes
+      // Vector rowids should match node IDs or be chunk IDs
+      const orphanVectorsResult = await this.get<{ count: number }>(
+        `SELECT COUNT(*) as count FROM vectors v
+         WHERE NOT EXISTS (
+           SELECT 1 FROM nodes n WHERE n.id = v.chunk_id
+         )`,
+        []
+      );
+      const chunksWithoutNodes = orphanVectorsResult?.count || 0;
+      
+      // Find nodes without corresponding vectors (chunk nodes should have vectors)
+      const orphanNodesResult = await this.get<{ count: number }>(
+        `SELECT COUNT(*) as count FROM nodes n
+         WHERE n.type = 'chunk' AND NOT EXISTS (
+           SELECT 1 FROM vectors v WHERE v.chunk_id = n.id
+         )`,
+        []
+      );
+      const nodesWithoutVectors = orphanNodesResult?.count || 0;
+      
+      // Determine issues
+      const issues: string[] = [];
+      
+      if (nodesCount === 0 && vectorsCount > 0) {
+        issues.push(
+          `CRITICAL: No nodes but ${vectorsCount} vectors exist. Graph is empty but vectors are indexed.`
+        );
+      }
+      
+      if (chunksWithoutNodes > 0) {
+        issues.push(
+          `${chunksWithoutNodes} vectors without corresponding nodes. These chunks are indexed but not in the graph.`
+        );
+      }
+      
+      if (nodesWithoutVectors > 0) {
+        issues.push(
+          `${nodesWithoutVectors} chunk nodes without vectors. These nodes exist but have no embeddings.`
+        );
+      }
+      
+      if (nodesCount > 0 && edgesCount === 0) {
+        issues.push(
+          `WARNING: ${nodesCount} nodes but no edges. Graph has nodes but no relationships.`
+        );
+      }
+      
+      return {
+        nodesCount,
+        edgesCount,
+        vectorsCount,
+        chunksWithoutNodes,
+        nodesWithoutVectors,
+        isConsistent: issues.length === 0,
+        issues
+      };
+    } catch (error) {
+      console.error("❌ SQLite diagnoseConsistency error:", error);
+      throw new Error(`Failed to diagnose consistency: ${error}`);
     }
   }
 }

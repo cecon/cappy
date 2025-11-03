@@ -5,7 +5,7 @@
  * @since 3.0.0
  */
 
-import type { VectorStorePort, GraphStorePort } from '../../../domains/graph/ports/indexing-port';
+import type { VectorStorePort, GraphStorePort } from '../../../domains/dashboard/ports/indexing-port';
 import type { DocumentChunk } from '../../../shared/types/chunk';
 import type { EmbeddingService } from './embedding-service';
 import type { LLMProvider } from './entity-discovery/providers/LLMProvider';
@@ -61,17 +61,22 @@ export class IndexingService {
     try {
       console.log(`📑 Indexing ${filePath} with ${chunks.length} chunks...`);
 
-      // 1. Generate embeddings for all chunks
-      console.log(`🤖 Generating embeddings for ${chunks.length} chunks...`);
-      const embeddings = await this.embeddingService.embedBatch(
-        chunks.map(c => c.content),
-        32
-      );
+      // 1. Generate embeddings for all chunks (if available)
+      try {
+        console.log(`🤖 Generating embeddings for ${chunks.length} chunks...`);
+        const embeddings = await this.embeddingService.embedBatch(
+          chunks.map(c => c.content),
+          32
+        );
 
-      // Attach embeddings to chunks
-      chunks.forEach((chunk, i) => {
-        chunk.vector = embeddings[i];
-      });
+        // Attach embeddings to chunks
+        chunks.forEach((chunk, i) => {
+          chunk.vector = embeddings[i];
+        });
+      } catch (error) {
+        console.warn(`⚠️ Failed to generate embeddings for ${filePath}, continuing without vector search:`, error);
+        // Continue without embeddings - chunks won't have vectors but graph will still work
+      }
 
       // 2. Create file node in graph FIRST (before chunks, before vector store)
       // This ensures the file exists in the graph immediately, allowing other files
@@ -185,16 +190,21 @@ export class IndexingService {
 
         // Check if target file EXISTS in graph (already indexed)
         if (existingFilePaths.has(targetPath)) {
-          console.log(`   ✅ Found existing file in graph: ${targetPath}`);
+          const importLabel = im.isDynamic ? 'dynamic import' : 'import';
+          console.log(`   ✅ Found existing file in graph (${importLabel}): ${targetPath}`);
           
           // Create File -> File IMPORTS relationship
+          // Use IMPORTS_DYNAMIC type for dynamic imports
+          const relationshipType = im.isDynamic ? 'IMPORTS_DYNAMIC' : 'IMPORTS';
           rels.push({
             from: filePath,
             to: targetPath,
-            type: 'IMPORTS',
+            type: relationshipType,
             properties: {
               source: im.source,
-              specifiers: im.specifiers
+              specifiers: im.specifiers,
+              ...(im.isDynamic && { isDynamic: true }),
+              ...(im.method && { method: im.method })
             }
           });
 
@@ -205,13 +215,15 @@ export class IndexingService {
               to: targetPath,
               type: 'REFERENCES',
               properties: {
-                referenceType: 'import',
-                source: im.source
+                referenceType: im.isDynamic ? 'dynamic-import' : 'import',
+                source: im.source,
+                ...(im.isDynamic && { isDynamic: true })
               }
             });
           }
         } else {
-          console.log(`   ⏭️  Target not yet indexed: ${targetPath} (will connect when processed)`);
+          const importLabel = im.isDynamic ? 'dynamic import' : 'import';
+          console.log(`   ⏭️  Target not yet indexed (${importLabel}): ${targetPath} (will connect when processed)`);
         }
       }
 

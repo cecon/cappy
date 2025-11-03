@@ -176,7 +176,7 @@ docs/
 ```
 src/extension.ts
 src/types/chunk.ts
-src/domains/graph/ports/indexing-port.ts
+src/domains/dashboard/ports/indexing-port.ts
 src/adapters/secondary/graph/kuzu-adapter.ts
 package.json
 ```

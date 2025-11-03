@@ -3,30 +3,11 @@ import type { EntityDiscoveryOptions } from "../entities/EntityDiscoveryOptions"
 import type { LLMProvider } from "../providers/LLMProvider";
 
 const ENTITY_DISCOVERY_PROMPT = `
-Analyze the following content and extract ALL entities and relationships.
-Don't limit yourself to predefined types. Discover:
+You are an information extraction engine. Your response MUST be a single valid JSON object that matches the schema shown below.
+Do not include explanations, apologies, code fences, or any text outside the JSON object.
+If no entities or relationships are found, return {"entities": [], "relationships": []}.
 
-1. **Technical Entities**
-   - Services, APIs, databases, queues, caches
-   - Components, modules, packages
-   - Infrastructure elements
-
-2. **Business Entities**
-   - Domain objects (User, Order, Payment)
-   - Workflows, processes
-   - Business rules
-
-3. **Abstract Entities**
-   - Design patterns
-   - Architectural concepts
-   - Best practices
-
-4. **Relationships**
-   - Uses, depends on, calls, configures
-   - Implements, extends, composes
-   - Triggers, processes, transforms
-
-Return JSON format:
+Schema:
 {
   "entities": [
     {
@@ -51,12 +32,19 @@ Return JSON format:
   ]
 }
 
+Instructions:
+1. Extract technical entities (services, APIs, databases, queues, caches, components, modules, packages, infrastructure elements).
+2. Extract business entities (domain objects, workflows, processes, business rules).
+3. Extract abstract entities (design patterns, architectural concepts, best practices).
+4. Extract relationships (uses, depends on, calls, configures, implements, extends, composes, triggers, processes, transforms).
+5. Confidence scores must be numeric between 0 and 1.
+
 Content to analyze:
 {content}
 `;
 
 export class EntityDiscoveryService {
-  private llmProvider?: LLMProvider;
+  private readonly llmProvider?: LLMProvider;
   
   constructor(llmProvider?: LLMProvider) {
     this.llmProvider = llmProvider;
@@ -80,7 +68,7 @@ export class EntityDiscoveryService {
     try {
       const prompt = ENTITY_DISCOVERY_PROMPT.replace("{content}", content);
       const response = await this.llmProvider.generate(prompt);
-      const parsed = JSON.parse(response);
+      const parsed = this.parseJsonResponse(response);
 
       interface EntityLike {
         name: string;
@@ -95,6 +83,15 @@ export class EntityDiscoveryService {
         type: string;
         confidence: number;
         context?: string;
+      }
+
+      // Type guard to ensure parsed has the expected structure
+      const isValidParsedResponse = (obj: unknown): obj is { entities?: EntityLike[]; relationships?: RelationshipLike[] } => {
+        return obj !== null && typeof obj === 'object';
+      };
+
+      if (!isValidParsedResponse(parsed)) {
+        throw new Error("Invalid response format from LLM");
       }
 
       const entities = (parsed.entities || [])
@@ -134,6 +131,61 @@ export class EntityDiscoveryService {
         summary: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
       };
     }
+  }
+
+  private parseJsonResponse(response: string): unknown {
+    const candidates = this.extractJsonCandidates(response);
+
+    if (candidates.length === 0) {
+      throw new Error("LLM response did not contain any JSON content");
+    }
+
+    let lastError: unknown;
+
+    for (const candidate of candidates) {
+      try {
+        return JSON.parse(candidate);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    const message =
+      lastError instanceof Error ? lastError.message : "Unknown JSON parsing error";
+    throw new Error(`Failed to parse LLM response as JSON: ${message}`);
+  }
+
+  private extractJsonCandidates(response: string): string[] {
+    const trimmed = response.trim();
+    const seen = new Set<string>();
+    const candidates: string[] = [];
+
+    const addCandidate = (candidate: string): void => {
+      const normalized = candidate.trim();
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      candidates.push(normalized);
+    };
+
+    const fencedJson = /```(?:json)?\s*([\s\S]*?)```/gi;
+    let match: RegExpExecArray | null;
+    while ((match = fencedJson.exec(trimmed)) !== null) {
+      addCandidate(match[1]);
+    }
+
+    const firstBrace = trimmed.indexOf("{");
+    const lastBrace = trimmed.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      addCandidate(trimmed.slice(firstBrace, lastBrace + 1));
+    }
+
+    if (trimmed) {
+      addCandidate(trimmed);
+    }
+
+    return candidates;
   }
 
   private mapToStructuredType(discoveredType: string): string | undefined {

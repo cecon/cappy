@@ -66,40 +66,137 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
       }
 
       this.db.serialize(() => {
-        this.db!.run(`
-          CREATE TABLE IF NOT EXISTS file_metadata (
-            id TEXT PRIMARY KEY,
-            file_path TEXT NOT NULL UNIQUE,
-            file_name TEXT NOT NULL,
-            file_size INTEGER NOT NULL,
-            file_hash TEXT NOT NULL,
-            file_content TEXT,
-            status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'completed', 'failed', 'cancelled', 'extracting_entities', 'creating_relationships', 'entity_discovery', 'processed', 'error', 'paused')),
-            progress INTEGER DEFAULT 0,
-            current_step TEXT,
-            error_message TEXT,
-            retry_count INTEGER DEFAULT 0,
-            max_retries INTEGER DEFAULT 3,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            processing_started_at TEXT,
-            processing_completed_at TEXT,
-            chunks_count INTEGER,
-            nodes_count INTEGER,
-            relationships_count INTEGER
-          )
-        `, (err) => {
+        // Check if table exists and needs migration
+        this.db!.get(
+          "SELECT sql FROM sqlite_master WHERE type='table' AND name='file_metadata'",
+          async (err, row: { sql?: string } | undefined) => {
+            if (err) {
+              reject(new Error(`Failed to check table schema: ${err.message}`));
+              return;
+            }
+
+            const needsMigration = row?.sql && (
+              !row.sql.includes("'processed'") || 
+              !row.sql.includes("'error'")
+            );
+
+            if (needsMigration) {
+              console.log('🔄 [SQLite] Migrating file_metadata table to new schema...');
+              await this.migrateTable().catch(reject);
+            }
+
+            // Create or skip if already exists
+            this.db!.run(`
+              CREATE TABLE IF NOT EXISTS file_metadata (
+                id TEXT PRIMARY KEY,
+                file_path TEXT NOT NULL UNIQUE,
+                file_name TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                file_hash TEXT NOT NULL,
+                file_content TEXT,
+                status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'completed', 'failed', 'cancelled', 'extracting_entities', 'creating_relationships', 'entity_discovery', 'processed', 'error', 'paused')),
+                progress INTEGER DEFAULT 0,
+                current_step TEXT,
+                error_message TEXT,
+                retry_count INTEGER DEFAULT 0,
+                max_retries INTEGER DEFAULT 3,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                processing_started_at TEXT,
+                processing_completed_at TEXT,
+                chunks_count INTEGER,
+                nodes_count INTEGER,
+                relationships_count INTEGER
+              )
+            `, (err) => {
+              if (err) {
+                reject(new Error(`Failed to create table: ${err.message}`));
+                return;
+              }
+
+              this.createIndexes()
+                .then(() => {
+                  console.log('📋 File metadata table and indexes created');
+                  resolve();
+                })
+                .catch(reject);
+            });
+          }
+        );
+      });
+    });
+  }
+
+  /**
+   * Migrates the file_metadata table to support new status values
+   */
+  private async migrateTable(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+
+      console.log('🔄 Starting file_metadata migration...');
+
+      this.db.serialize(() => {
+        // Step 1: Rename old table
+        this.db!.run('ALTER TABLE file_metadata RENAME TO file_metadata_old', (err) => {
           if (err) {
-            reject(new Error(`Failed to create table: ${err.message}`));
+            reject(new Error(`Failed to rename old table: ${err.message}`));
             return;
           }
 
-          this.createIndexes()
-            .then(() => {
-              console.log('📋 File metadata table and indexes created');
-              resolve();
-            })
-            .catch(reject);
+          // Step 2: Create new table with updated schema
+          this.db!.run(`
+            CREATE TABLE file_metadata (
+              id TEXT PRIMARY KEY,
+              file_path TEXT NOT NULL UNIQUE,
+              file_name TEXT NOT NULL,
+              file_size INTEGER NOT NULL,
+              file_hash TEXT NOT NULL,
+              file_content TEXT,
+              status TEXT NOT NULL CHECK(status IN ('pending', 'processing', 'completed', 'failed', 'cancelled', 'extracting_entities', 'creating_relationships', 'entity_discovery', 'processed', 'error', 'paused')),
+              progress INTEGER DEFAULT 0,
+              current_step TEXT,
+              error_message TEXT,
+              retry_count INTEGER DEFAULT 0,
+              max_retries INTEGER DEFAULT 3,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              processing_started_at TEXT,
+              processing_completed_at TEXT,
+              chunks_count INTEGER,
+              nodes_count INTEGER,
+              relationships_count INTEGER
+            )
+          `, (err) => {
+            if (err) {
+              reject(new Error(`Failed to create new table: ${err.message}`));
+              return;
+            }
+
+            // Step 3: Copy data from old table
+            this.db!.run(`
+              INSERT INTO file_metadata 
+              SELECT * FROM file_metadata_old
+            `, (err) => {
+              if (err) {
+                reject(new Error(`Failed to copy data: ${err.message}`));
+                return;
+              }
+
+              // Step 4: Drop old table
+              this.db!.run('DROP TABLE file_metadata_old', (err) => {
+                if (err) {
+                  console.warn('⚠️ Failed to drop old table (non-critical):', err.message);
+                }
+
+                console.log('✅ Migration completed successfully');
+                resolve();
+              });
+            });
+          });
         });
       });
     });

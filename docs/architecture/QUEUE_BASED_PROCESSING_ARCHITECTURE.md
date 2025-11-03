@@ -85,20 +85,19 @@ CREATE INDEX IF NOT EXISTS idx_status_created ON file_metadata(status, created_a
 CREATE INDEX IF NOT EXISTS idx_hash ON file_metadata(file_hash);
 ```
 
-### 2. **UnifiedQueueProcessor** (Novo)
+### 2. **FileProcessingQueue**
 
-Service único que processa items da fila baseado em status.
+Service que processa items da fila baseado em status.
 
 ```typescript
-export class UnifiedQueueProcessor {
+export class FileProcessingQueue {
   private isRunning: boolean = false;
   private isPaused: boolean = false;
-  private processingInterval: NodeJS.Timeout | null = null;
   
   constructor(
     private database: FileMetadataDatabase,
     private worker: FileProcessingWorker,
-    private config: QueueProcessorConfig
+    private config: QueueConfig
   ) {}
   
   /**
@@ -399,7 +398,7 @@ export class WorkspaceScanner {
     await this.cleanupDeletedFiles(files);
     
     console.log('✅ Workspace scan completed');
-    console.log('   Files will be processed by UnifiedQueueProcessor');
+    console.log('   Files will be processed by FileProcessingQueue');
   }
 }
 ```
@@ -428,13 +427,13 @@ private async handleEnqueue(req: http.IncomingMessage, res: http.ServerResponse)
     fileSize: fileContent.length,
     fileHash: hash,
     fileContent: uploadRequest.content, // Base64
-    status: 'pending', // <- UnifiedQueueProcessor vai pegar
+    status: 'pending', // <- FileProcessingQueue vai pegar
     progress: 0,
     retryCount: 0,
     maxRetries: 3
   });
   
-  // UnifiedQueueProcessor vai processar automaticamente
+  // FileProcessingQueue vai processar automaticamente
   console.log(`📝 File added to queue: ${uploadRequest.fileName}`);
   
   res.end(JSON.stringify({ 
@@ -527,10 +526,10 @@ export function activate(context: vscode.ExtensionContext) {
   await database.initialize();
   
   // Initialize queue processor
-  const queueProcessor = new UnifiedQueueProcessor(
+  const queueProcessor = new FileProcessingQueue(
     database,
     worker,
-    { concurrency: 2, pollInterval: 1000, batchSize: 10 }
+    { concurrency: 2, maxRetries: 3, autoStart: true }
   );
   
   // Start processing automatically (background)
@@ -567,7 +566,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 ### ✅ Separação de Responsabilidades
 - `WorkspaceScanner`: apenas descobre arquivos
-- `UnifiedQueueProcessor`: processa baseado em status
+- `FileProcessingQueue`: processa baseado em status
 - `FileChangeWatcher`: monitora mudanças
 - `FileMetadataDatabase`: fonte única da verdade
 
@@ -587,9 +586,9 @@ export function activate(context: vscode.ExtensionContext) {
 - Feedback em tempo real
 
 ### ✅ Único Ponto de Entrada
-- Upload → metadata table → UnifiedQueueProcessor
-- Workspace scan → metadata table → UnifiedQueueProcessor
-- File change → metadata table → UnifiedQueueProcessor
+- Upload → metadata table → FileProcessingQueue
+- Workspace scan → metadata table → FileProcessingQueue
+- File change → metadata table → FileProcessingQueue
 
 ### ✅ Escalável
 - Fácil adicionar novos estados
@@ -599,7 +598,7 @@ export function activate(context: vscode.ExtensionContext) {
 ## Plano de Implementação
 
 1. **Estender tipos** (FileProcessingStatus)
-2. **Criar UnifiedQueueProcessor**
+2. **Usar FileProcessingQueue**
 3. **Criar FileChangeWatcher**
 4. **Refatorar WorkspaceScanner**
 5. **Simplificar upload flow**

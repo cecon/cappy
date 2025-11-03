@@ -8,10 +8,12 @@ import type { DocumentChunk } from "../../shared/types/chunk";
  * Domain Service: Analisador de código TypeScript/JavaScript
  */
 export class TypeScriptAnalyzer implements ICodeAnalyzer {
-  constructor(
-    private fileSystem: IFileSystem,
-    private workspaceRoot: string
-  ) {}
+  private readonly workspaceRoot: string;
+
+  constructor(_fileSystem: IFileSystem, workspaceRoot: string) {
+    // fileSystem parameter kept for interface compatibility but not used
+    this.workspaceRoot = workspaceRoot;
+  }
 
   getSupportedExtensions(): string[] {
     return [".ts", ".tsx", ".js", ".jsx"];

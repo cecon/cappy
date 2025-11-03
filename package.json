@@ -2,7 +2,7 @@
   "name": "cappy",
   "displayName": "Cappy",
   "description": "AI coding companion with Single-Focus Workflow, Hybrid Retriever, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
-  "version": "3.0.8",
+  "version": "3.1.0",
   "publisher": "eduardocecon",
   "icon": "src/assets/icon.png",
   "repository": {
@@ -48,6 +48,11 @@
   },
   "contributes": {
     "commands": [
+      {
+        "command": "cappy.init",
+        "title": "🚀 Cappy: Initialize Workspace",
+        "category": "Cappy"
+      },
       {
         "command": "cappy.openGraph",
         "title": "📊 Cappy: Open Graph",
@@ -316,15 +321,17 @@
     "compile-extension": "tsc --project tsconfig.extension.json",
     "watch": "tsc -watch -p ./",
     "package": "npm version patch && npm run compile-extension && vsce package --dependencies",
-    "package:win32": "node scripts/package-platform.js win32",
+    "package:win32": "node scripts/package-platform.js win32-x64",
     "package:darwin": "node scripts/package-platform.js darwin-x64 && node scripts/package-platform.js darwin-arm64",
-    "package:linux": "node scripts/package-platform.js linux",
-    "package:all": "npm run package:win32 && npm run package:darwin && npm run package:linux",
+    "package:darwin-arm64": "node scripts/package-platform.js darwin-arm64",
+    "package:linux": "node scripts/package-platform.js linux-x64",
+    "package:all": "npm run build && npm run compile-extension && node scripts/build-cross-platform.js --all",
+    "build:cross": "node scripts/build-cross-platform.js",
     "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix",
-    "publish:win32": "node scripts/package-platform.js win32 && vsce publish --packagePath cappy-*-win32.vsix",
-    "publish:darwin": "node scripts/package-platform.js darwin-x64 && node scripts/package-platform.js darwin-arm64 && vsce publish --packagePath cappy-*-darwin-x64.vsix && vsce publish --packagePath cappy-*-darwin-arm64.vsix",
-    "publish:linux": "node scripts/package-platform.js linux && vsce publish --packagePath cappy-*-linux.vsix",
-    "publish:all": "npm run publish:win32 && npm run publish:darwin && npm run publish:linux"
+    "publish:win32": "vsce publish --packagePath cappy-*-win32-x64.vsix",
+    "publish:darwin": "vsce publish --packagePath cappy-*-darwin-x64.vsix cappy-*-darwin-arm64.vsix",
+    "publish:linux": "vsce publish --packagePath cappy-*-linux-x64.vsix",
+    "publish:all": "npm run package:all && vsce publish --packagePath cappy-*.vsix"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.11.28",

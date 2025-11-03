@@ -1,5 +1,5 @@
 import { ChatView } from './pages/chat/ChatView.tsx'
-import DocumentsPage from './pages/dashboard/DocumentsPage.tsx'
+import DocumentsPage from './pages/dashboard/pages/DocumentsPage.tsx'
 
 function App() {
   // Detect which page to render based on data-page attribute

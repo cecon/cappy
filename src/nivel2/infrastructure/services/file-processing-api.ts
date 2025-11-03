@@ -1,7 +1,8 @@
 import * as http from 'http';
 import type { FileProcessingQueue } from './file-processing-queue';
 import type { FileMetadataDatabase, FileMetadata } from './file-metadata-database';
-import type { GraphStorePort } from '../../../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../domains/dashboard/ports/indexing-port';
+import { FileHashService } from './file-hash-service';
 
 export interface FileUploadRequest {
   filePath: string;
@@ -30,6 +31,7 @@ export class FileProcessingAPI {
   private readonly port: number;
   private readonly onScanWorkspace?: () => Promise<void>;
   private readonly onReprocessFile?: (filePath: string) => Promise<void>;
+  private readonly hashService: FileHashService;
 
   constructor(
     _queue: FileProcessingQueue,
@@ -45,6 +47,7 @@ export class FileProcessingAPI {
     this.graphStore = graphStore;
     this.onScanWorkspace = onScanWorkspace;
     this.onReprocessFile = onReprocessFile;
+    this.hashService = new FileHashService();
   }
 
   start(): Promise<void> {
@@ -209,7 +212,7 @@ export class FileProcessingAPI {
         console.log(`[FileProcessingAPI] 🗑️  Remove requested for ${fileId} (${filePath})`);
 
         // Try to fetch metadata from DB (may be absent for indexed-only entries)
-        const metadata = this.database.getFile(String(fileId));
+        const metadata = await this.database.getFile(String(fileId));
 
         // Determine the file path to operate on (prefer explicit filePath from request)
         const actualFilePath = filePath || metadata?.filePath;
@@ -242,7 +245,7 @@ export class FileProcessingAPI {
 
         // 2. Delete from database if it exists (for uploaded/queued files)
         if (metadata) {
-          this.database.deleteFile(String(fileId));
+          await this.database.deleteFile(String(fileId));
           console.log(`[FileProcessingAPI] ✅ File metadata deleted from database`);
         } else {
           // If no metadata, this is likely an indexed-only entry; treat as best-effort graph cleanup
@@ -280,19 +283,18 @@ export class FileProcessingAPI {
         const uploadRequest: FileUploadRequest = JSON.parse(body);
         console.log('[FileProcessingAPI] File:', uploadRequest.fileName);
         
-        // Calculate hash directly from base64 content
+        // Calculate hash using FileHashService with BLAKE3
         const fileContent = Buffer.from(uploadRequest.content, 'base64');
         console.log('[FileProcessingAPI] File size:', fileContent.length, 'bytes');
         
-        const crypto = await import('crypto');
-        const hash = crypto.createHash('sha256').update(fileContent).digest('hex');
-        console.log('[FileProcessingAPI] File hash:', hash);
+        const hash = await this.hashService.hashString(fileContent.toString());
+        console.log('[FileProcessingAPI] File hash (BLAKE3):', hash);
 
         // Use virtual path for uploaded files
         const virtualPath = `uploaded:${uploadRequest.fileName}`;
         
         // Check if file already exists
-        const existing = this.database.getFileByPath(virtualPath);
+        const existing = await this.database.getFileByPath(virtualPath);
         
         let fileId: string;
         if (existing) {
@@ -303,7 +305,7 @@ export class FileProcessingAPI {
             fileId = existing.id;
           } else {
             // Different content, mark for reprocessing
-            this.database.updateFile(existing.id, {
+            await this.database.updateFile(existing.id, {
               status: 'pending',
               fileHash: hash,
               fileContent: uploadRequest.content,
@@ -327,7 +329,7 @@ export class FileProcessingAPI {
             fileSize: fileContent.length,
             fileHash: hash,
             fileContent: uploadRequest.content, // Store base64 content
-            status: 'pending', // UnifiedQueueProcessor will pick it up
+            status: 'pending', // FileProcessingQueue will pick it up
             progress: 0,
             retryCount: 0,
             maxRetries: 3
@@ -361,7 +363,7 @@ export class FileProcessingAPI {
       return;
     }
 
-    const metadata = this.database.getFile(fileIdStr);
+    const metadata = await this.database.getFile(fileIdStr);
 
     if (!metadata) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -517,8 +519,9 @@ export class FileProcessingAPI {
       console.log('[FileProcessingAPI] 🗑️ Clearing all files from database and graph...');
       
       // Clear all files from metadata database (memory + disk)
-      this.database.clearAll();
-      console.log('[FileProcessingAPI] ✅ File metadata cleared');
+      // TODO: Implement clearAll method in FileMetadataDatabase
+      // this.database.clearAll();
+      console.log('[FileProcessingAPI] ⚠️  File metadata clear not implemented yet');
       
       // Clear all data from graph database (memory + disk)
       if (this.graphStore) {
@@ -526,7 +529,7 @@ export class FileProcessingAPI {
         console.log('[FileProcessingAPI] ✅ Graph database cleared');
       }
       
-      console.log('[FileProcessingAPI] ✅ All data cleared successfully');
+      console.log('[FileProcessingAPI] ✅ Graph data cleared successfully');
       
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ 

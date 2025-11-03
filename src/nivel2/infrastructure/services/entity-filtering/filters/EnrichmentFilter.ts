@@ -1,6 +1,6 @@
 import type { NormalizedEntity, EnrichedEntity, FilterPipelineConfig } from '../types/FilterTypes';
 import type { DocumentChunk } from '../../../../../shared/types/chunk';
-import type { GraphStorePort } from '../../../../../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../../../domains/dashboard/ports/indexing-port';
 import { ConfidenceEnricher } from '../enrichers/ConfidenceEnricher';
 import { RelationshipInferrer } from '../enrichers/RelationshipInferrer';
 import { DocumentationExtractor } from '../enrichers/DocumentationExtractor';

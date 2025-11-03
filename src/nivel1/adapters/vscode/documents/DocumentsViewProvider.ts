@@ -42,10 +42,15 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   private readonly documents: Map<string, DocumentItem> = new Map();
   private readonly _extensionUri: vscode.Uri;
   private _fileDatabase?: FileMetadataDatabase;
+  private _graphStore?: unknown; // Will be typed as GraphStorePort when passed
+  private _refreshIntervalId?: NodeJS.Timeout;
+  private readonly _refreshIntervalMs = 5000; // Refresh every 5 seconds when view is visible
 
   constructor(extensionUri: vscode.Uri, fileDatabase?: FileMetadataDatabase) {
+    console.log('🏗️ [DocumentsViewProvider] Constructor called');
     this._extensionUri = extensionUri;
     this._fileDatabase = fileDatabase;
+    console.log('🏗️ [DocumentsViewProvider] Initialized with fileDatabase:', !!fileDatabase);
   }
 
   /**
@@ -53,6 +58,64 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    */
   setFileDatabase(fileDatabase: FileMetadataDatabase): void {
     this._fileDatabase = fileDatabase;
+  }
+
+  /**
+   * Sets the graph store (can be called after initialization)
+   */
+  setGraphStore(graphStore: unknown): void {
+    this._graphStore = graphStore;
+  }
+
+  /**
+   * Notifies the webview of file processing updates
+   * Called by FileProcessingQueue when files are processed
+   */
+  notifyFileUpdate(event: {
+    type: 'processing' | 'completed' | 'error';
+    fileId: string;
+    filePath: string;
+    progress?: number;
+    currentStep?: string;
+    error?: string;
+    metrics?: {
+      chunksCount: number;
+      nodesCount: number;
+      relationshipsCount: number;
+      duration: number;
+    };
+  }): void {
+    if (!this._view) {
+      return;
+    }
+
+    console.log(`📢 [DocumentsViewProvider] Notifying webview of ${event.type} for ${event.filePath}`);
+
+    // Send update to webview
+    this._view.webview.postMessage({
+      type: 'document/update',
+      payload: {
+        fileId: event.fileId,
+        filePath: event.filePath,
+        status: event.type === 'completed' ? 'processed' : event.type,
+        progress: event.progress,
+        currentStep: event.currentStep,
+        errorMessage: event.error,
+        chunksCount: event.metrics?.chunksCount,
+        nodesCount: event.metrics?.nodesCount,
+        relationshipsCount: event.metrics?.relationshipsCount
+      }
+    });
+
+    // If processing completed or failed, refresh the list to show updated data
+    if (event.type === 'completed' || event.type === 'error') {
+      // Debounce refresh to avoid too many updates
+      setTimeout(() => {
+        this.refreshDocumentList().catch(err => {
+          console.error('Failed to refresh document list after update:', err);
+        });
+      }, 500);
+    }
   }
 
   /**
@@ -66,6 +129,7 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     // Mark unused parameters as intentionally referenced for linting
     console.debug?.('[DocumentsViewProvider] resolveWebviewView args present:', Boolean(_context), Boolean(_token));
     console.log('🔧 [DocumentsViewProvider] Resolving webview view...');
+    console.log('🔧 [DocumentsViewProvider] File database available:', !!this._fileDatabase);
     this._view = webviewView;
 
     webviewView.webview.options = {
@@ -76,11 +140,11 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
     
-    // Load initial document list from database
-    console.log('📊 [DocumentsViewProvider] Loading initial document list from database');
-    this.refreshDocumentList().catch(error => {
-      console.error('❌ [DocumentsViewProvider] Failed to load initial documents:', error);
-    });
+    // DON'T load initial list here - wait for webview-ready message
+    console.log('📊 [DocumentsViewProvider] Waiting for webview-ready before loading documents');
+
+    // Start auto-refresh interval when view becomes visible
+    this._startAutoRefresh();
     
     // Probe extension -> webview channel
     try {
@@ -90,10 +154,26 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
       console.warn('⚠️ [DocumentsViewProvider] Failed to send hello to webview:', e);
     }
 
+    // Stop auto-refresh when view is hidden
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        console.log('👁️ [DocumentsViewProvider] View became visible - starting auto-refresh');
+        this._startAutoRefresh();
+      } else {
+        console.log('🙈 [DocumentsViewProvider] View became hidden - stopping auto-refresh');
+        this._stopAutoRefresh();
+      }
+    });
+
     // Handle messages from the webview
+    console.log('🎧 [DocumentsViewProvider] Setting up message listener for webview');
     const disposeListener = webviewView.webview.onDidReceiveMessage(async (data) => {
+      console.log(`📨 [DocumentsViewProvider] ⚡ RAW MESSAGE RECEIVED:`, JSON.stringify(data));
+      console.log(`📨 [DocumentsViewProvider] Message type: "${data.type}"`);
+      console.log(`📨 [DocumentsViewProvider] Message payload:`, data.payload);
       try {
-        console.log(`📨 DocumentsView received message: ${data.type}`, data);
+        console.log(`📨 [DocumentsViewProvider] Received message: ${data.type}`, data);
+        console.log(`📨 [DocumentsViewProvider] About to enter switch statement...`);
         switch (data.type) {
           case 'document/upload':
             console.log('🔼 Handling upload...');
@@ -106,6 +186,13 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
           case 'document/process':
             console.log('⚙️ Handling process...');
             await this.handleProcess(data.payload.fileUri);
+            break;
+          case 'document/view-details':
+            console.log('👁️ [DocumentsViewProvider] CASE MATCHED: document/view-details');
+            console.log('👁️ [DocumentsViewProvider] Payload:', data.payload);
+            console.log('👁️ [DocumentsViewProvider] Calling handleViewDetails...');
+            await this.handleViewDetails(data.payload.fileId);
+            console.log('👁️ [DocumentsViewProvider] handleViewDetails completed');
             break;
           case 'document/retry':
             console.log('🔄 Handling retry...');
@@ -123,11 +210,18 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
             break;
           }
           case 'webview-ready':
-            console.log('✅ [DocumentsViewProvider] Webview reported ready');
+            console.log('✅ [DocumentsViewProvider] Webview reported ready - loading documents');
+            // Load documents when webview is ready
+            await this.refreshDocumentList();
+            break;
+          default:
+            console.warn(`⚠️ [DocumentsViewProvider] Unknown message type: "${data.type}"`);
             break;
         }
+        console.log(`✅ [DocumentsViewProvider] Message handling completed for: ${data.type}`);
       } catch (error) {
-        console.error('❌ Error handling webview message:', error);
+        console.error('❌ [DocumentsViewProvider] Error handling webview message:', error);
+        console.error('❌ [DocumentsViewProvider] Error stack:', (error as Error).stack);
         vscode.window.showErrorMessage(`Error: ${error}`);
       }
     });
@@ -223,32 +317,107 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    */
   private async handleScan() {
     console.log('🔍 [DocumentsViewProvider] handleScan started');
+    console.log('🔍 [DocumentsViewProvider] Webview available:', !!this._view);
+    console.log('🔍 [DocumentsViewProvider] Webview visible:', this._view?.visible);
+    
+    let progressDisposable: vscode.Disposable | undefined;
+    
     try {
+      // Get file metadata database to get initial file count
+      if (!this._fileDatabase) {
+        vscode.window.showErrorMessage('File database not available');
+        return;
+      }
+
+      // Quick scan to get estimated file count
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        vscode.window.showErrorMessage('No workspace folder open');
+        return;
+      }
+
       // Notifica o webview que o scan começou
       console.log('📤 [DocumentsViewProvider] Sending scan-started message to webview');
-      this._view?.webview.postMessage({
-        type: 'document/scan-started'
+      this._view?.webview.postMessage({ 
+        type: 'document/scan-started',
+        payload: { totalFiles: 0 } // Will be updated during scan
       });
 
-      console.log('⚡ [DocumentsViewProvider] Executing cappy.scanWorkspace command');
-      
-      // Execute the command directly - it has its own progress notification
-      await vscode.commands.executeCommand('cappy.scanWorkspace');
-      
-      console.log('✅ [DocumentsViewProvider] cappy.scanWorkspace completed');
+      // Setup progress tracking with VS Code progress API
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Scanning Workspace',
+          cancellable: false
+        },
+        async (progress) => {
+          // Refresh the document list periodically during scan to show new files
+          // This provides real-time feedback as files are being processed
+          const progressInterval = setInterval(() => {
+            this.refreshDocumentList().catch(console.error);
+            progress.report({ increment: 1 });
+          }, 1500);
+
+          try {
+            console.log('⚡ [DocumentsViewProvider] Executing cappy.scanWorkspace command');
+            
+            // Execute the command directly
+            await vscode.commands.executeCommand('cappy.scanWorkspace');
+            
+            console.log('✅ [DocumentsViewProvider] cappy.scanWorkspace completed');
+          } finally {
+            clearInterval(progressInterval);
+          }
+        }
+      );
       
       // Refresh document list from database
+      console.log('🔄 [DocumentsViewProvider] Refreshing document list...');
       await this.refreshDocumentList();
+      console.log('✅ [DocumentsViewProvider] Document list refreshed');
       
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error during scan:', error);
       vscode.window.showErrorMessage(`Scan failed: ${error}`);
     } finally {
+      if (progressDisposable) {
+        progressDisposable.dispose();
+      }
+      
       // Sempre notifica que o scan terminou
-      console.log('📤 [DocumentsViewProvider] Sending scan-completed message to webview');
-      this._view?.webview.postMessage({
-        type: 'document/scan-completed'
-      });
+      console.log('📤 [DocumentsViewProvider] Sending scan-completed message to webview (finally block)');
+      this._view?.webview.postMessage({ type: 'document/scan-completed' });
+      console.log('✅ [DocumentsViewProvider] scan-completed message sent successfully');
+    }
+  }
+
+  /**
+   * Starts auto-refresh interval
+   */
+  private _startAutoRefresh(): void {
+    // Clear existing interval if any
+    this._stopAutoRefresh();
+
+    console.log(`🔄 [DocumentsViewProvider] Starting auto-refresh (every ${this._refreshIntervalMs}ms)`);
+    
+    this._refreshIntervalId = setInterval(() => {
+      if (this._view?.visible) {
+        console.log('🔄 [DocumentsViewProvider] Auto-refreshing document list');
+        this.refreshDocumentList().catch(err => {
+          console.error('Failed to auto-refresh documents:', err);
+        });
+      }
+    }, this._refreshIntervalMs);
+  }
+
+  /**
+   * Stops auto-refresh interval
+   */
+  private _stopAutoRefresh(): void {
+    if (this._refreshIntervalId) {
+      clearInterval(this._refreshIntervalId);
+      this._refreshIntervalId = undefined;
+      console.log('⏹️ [DocumentsViewProvider] Stopped auto-refresh');
     }
   }
 
@@ -262,11 +431,17 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     sortBy?: 'id' | 'created_at' | 'updated_at';
     sortOrder?: 'asc' | 'desc';
   }) {
-    console.log('🔄 [DocumentsViewProvider] Refreshing document list from database', paginationParams);
+    console.log('🔄 [DocumentsViewProvider] ============================================');
+    console.log('🔄 [DocumentsViewProvider] REFRESH DOCUMENT LIST CALLED');
+    console.log('🔄 [DocumentsViewProvider] Pagination params:', paginationParams);
+    console.log('🔄 [DocumentsViewProvider] File database available:', !!this._fileDatabase);
+    console.log('🔄 [DocumentsViewProvider] Webview available:', !!this._view);
+    console.log('🔄 [DocumentsViewProvider] ============================================');
     
     // Get documents from file metadata database
     if (!this._fileDatabase) {
-      console.warn('⚠️ [DocumentsViewProvider] No file database available');
+      console.error('❌ [DocumentsViewProvider] No file database available - file processing system may not be initialized yet');
+      console.error('❌ [DocumentsViewProvider] Please wait for the file processing system to initialize or run "Cappy: Start File Processing" command');
       this._view?.webview.postMessage({
         type: 'document/list',
         payload: { documents: [], total: 0, page: 1, limit: 10, totalPages: 0 }
@@ -277,6 +452,8 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     try {
       // ALWAYS use pagination - use defaults if not provided
       const { page = 1, limit = 10, status, sortBy = 'updated_at', sortOrder = 'desc' } = paginationParams || {};
+      
+      console.log('📊 [DocumentsViewProvider] Fetching paginated files:', { page, limit, status, sortBy, sortOrder });
       
       const result = await this._fileDatabase.getFilesPaginated({
         page,
@@ -296,9 +473,12 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
         this.documents.set(doc.id, doc);
       }
       
-      // Send paginated result to webview
-      console.log(`📤 [DocumentsViewProvider] Sending ${documents.length} documents to webview (paginated)`);
-      this._view?.webview.postMessage({
+      if (!this._view) {
+        console.error('❌ [DocumentsViewProvider] Cannot send message - webview is undefined!');
+        return;
+      }
+      
+      const messagePayload = {
         type: 'document/list',
         payload: { 
           documents,
@@ -307,7 +487,15 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
           limit: result.limit,
           totalPages: result.totalPages
         }
-      });
+      };
+      
+      console.log('📤 [DocumentsViewProvider] About to call postMessage with:', JSON.stringify(messagePayload).substring(0, 500));
+      
+      this._view.webview.postMessage(messagePayload);
+      
+      console.log('✅ [DocumentsViewProvider] ============================================');
+      console.log('✅ [DocumentsViewProvider] POST MESSAGE CALLED SUCCESSFULLY');
+      console.log('✅ [DocumentsViewProvider] ============================================');
     } catch (error) {
       console.error('❌ [DocumentsViewProvider] Error loading documents from database:', error);
       this._view?.webview.postMessage({
@@ -351,6 +539,129 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    */
   private async handleProcess(fileUri: string) {
     await this.processFile(fileUri);
+  }
+
+  /**
+   * Handles reprocessing a file by:
+   * 1. Removing all graph data (nodes, chunks, relationships)
+   * 2. Setting status to pending for reprocessing
+   */
+  /**
+   * Handles viewing document details (embeddings, graph node, relationships)
+   */
+  private async handleViewDetails(fileId: string) {
+    console.log(`👁️ [DocumentsViewProvider] ========================================`);
+    console.log(`👁️ [DocumentsViewProvider] handleViewDetails CALLED`);
+    console.log(`👁️ [DocumentsViewProvider] fileId: ${fileId}`);
+    console.log(`👁️ [DocumentsViewProvider] _graphStore available: ${!!this._graphStore}`);
+    console.log(`👁️ [DocumentsViewProvider] _fileDatabase available: ${!!this._fileDatabase}`);
+    console.log(`👁️ [DocumentsViewProvider] ========================================`);
+    
+    if (!this._graphStore) {
+      console.error('❌ [DocumentsViewProvider] No graph store available');
+      this._view?.webview.postMessage({
+        type: 'document/details',
+        payload: {
+          embeddings: [],
+          graphNode: null,
+          relationships: []
+        }
+      });
+      return;
+    }
+
+    try {
+      // Get file metadata to find file path
+      console.log(`🔍 [DocumentsViewProvider] Fetching file metadata for: ${fileId}`);
+      const file = await this._fileDatabase?.getFile(fileId);
+      console.log(`🔍 [DocumentsViewProvider] File metadata:`, file);
+      if (!file) {
+        console.error('❌ [DocumentsViewProvider] File not found:', fileId);
+        this._view?.webview.postMessage({
+          type: 'document/details',
+          payload: {
+            embeddings: [],
+            graphNode: null,
+            relationships: []
+          }
+        });
+        return;
+      }
+
+      const graphStore = this._graphStore as {
+        getFileChunks?: (filePath: string) => Promise<Array<{
+          id: string;
+          content: string;
+          embedding?: number[];
+          metadata?: Record<string, unknown>;
+        }>>;
+        getNode?: (nodeId: string) => Promise<{
+          id: string;
+          type: string;
+          properties: Record<string, unknown>;
+        } | null>;
+        getRelationships?: (nodeId: string) => Promise<Array<{
+          from: string;
+          to: string;
+          type: string;
+        }>>;
+      };
+
+      // Get chunks/embeddings for this file
+      console.log(`🔍 [DocumentsViewProvider] Getting file chunks for: ${file.filePath}`);
+      console.log(`🔍 [DocumentsViewProvider] graphStore.getFileChunks exists: ${!!graphStore.getFileChunks}`);
+      const chunks = graphStore.getFileChunks 
+        ? await graphStore.getFileChunks(file.filePath)
+        : [];
+      console.log(`✅ [DocumentsViewProvider] Found ${chunks.length} chunks`);
+
+      // Get graph node for this file (use file ID as node ID)
+      console.log(`🔍 [DocumentsViewProvider] Getting graph node for: ${fileId}`);
+      console.log(`🔍 [DocumentsViewProvider] graphStore.getNode exists: ${!!graphStore.getNode}`);
+      const graphNode = graphStore.getNode 
+        ? await graphStore.getNode(fileId)
+        : null;
+      console.log(`✅ [DocumentsViewProvider] Graph node found: ${!!graphNode}`);
+
+      // Get relationships if we have a node
+      console.log(`🔍 [DocumentsViewProvider] Getting relationships...`);
+      const relationships = graphNode && graphStore.getRelationships
+        ? await graphStore.getRelationships(graphNode.id)
+        : [];
+      console.log(`✅ [DocumentsViewProvider] Found ${relationships.length} relationships`);
+
+      console.log(`✅ [DocumentsViewProvider] SUMMARY: ${chunks.length} chunks, node: ${!!graphNode}, ${relationships.length} relationships`);
+
+      // Send details to webview
+      console.log(`📤 [DocumentsViewProvider] Sending details to webview...`);
+      console.log(`📤 [DocumentsViewProvider] Webview available: ${!!this._view}`);
+      const payload = {
+        embeddings: chunks.map(c => ({
+          chunkId: c.id,
+          content: c.content,
+          embedding: c.embedding || []
+        })),
+        graphNode,
+        relationships
+      };
+      console.log(`📤 [DocumentsViewProvider] Payload:`, JSON.stringify(payload, null, 2).substring(0, 500));
+      this._view?.webview.postMessage({
+        type: 'document/details',
+        payload
+      });
+      console.log(`✅ [DocumentsViewProvider] Message sent to webview!`);
+    } catch (error) {
+      console.error('❌ [DocumentsViewProvider] Error fetching document details:', error);
+      console.error('❌ [DocumentsViewProvider] Error stack:', (error as Error).stack);
+      this._view?.webview.postMessage({
+        type: 'document/details',
+        payload: {
+          embeddings: [],
+          graphNode: null,
+          relationships: []
+        }
+      });
+    }
   }
 
   /**
@@ -476,11 +787,13 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
    * Gets the HTML content for the webview
    */
   private _getHtmlForWebview(webview: vscode.Webview) {
+    // IMPORTANT: Vite outputs 'chat.js' and 'chat.css' for the unified Chat/Documents entry
+    // (see vite.config.ts rollupOptions.input). There is no 'main.js' in out/.
     const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'out', 'main.js')
+      vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.js')
     );
     const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'out', 'main.css')
+      vscode.Uri.joinPath(this._extensionUri, 'out', 'chat.css')
     );
 
     const nonce = (() => {
@@ -500,21 +813,26 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https:; font-src ${webview.cspSource}; connect-src ${webview.cspSource};">
   <link href="${styleUri}" rel="stylesheet">
   <title>Cappy Documents</title>
+  <script nonce="${nonce}">
+    // CRITICAL: Initialize vscodeApi BEFORE any other script loads
+    (function() {
+      try {
+        console.log('[Documents Webview] 🚀 Initializing vscodeApi...');
+        const vscode = acquireVsCodeApi();
+        window.vscodeApi = vscode;
+        console.log('[Documents Webview] ✅ vscodeApi ready:', !!window.vscodeApi);
+        
+        // Notify extension that webview is ready
+        window.vscodeApi.postMessage({ type: 'webview-ready' });
+        console.log('[Documents Webview] 📤 Sent webview-ready message');
+      } catch (e) {
+        console.error('[Documents Webview] ❌ Failed to acquire VS Code API:', e);
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="root" data-page="documents"></div>
-  <script nonce="${nonce}">
-    try {
-      console.log('[Documents Webview] Initializing vscodeApi...');
-      // @ts-ignore
-      window.vscodeApi = acquireVsCodeApi();
-      console.log('[Documents Webview] vscodeApi ready:', !!window.vscodeApi);
-      // Notify extension that webview is ready to communicate
-      window.vscodeApi.postMessage({ type: 'webview-ready' });
-    } catch (e) {
-      console.error('[Documents Webview] Failed to acquire VS Code API:', e);
-    }
-  </script>
   <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

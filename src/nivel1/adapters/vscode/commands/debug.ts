@@ -63,8 +63,8 @@ export function registerDebugDatabaseCommand(context: vscode.ExtensionContext): 
       const db = new FileMetadataDatabase(dbPath);
       await db.initialize();
       
-      const stats = db.getStats();
-      const allFiles = db.getAllFileMetadata();
+      const stats = await db.getStats();
+      const allFiles = await db.getAllFiles();
       
       console.log('📊 Database stats:', stats);
       console.log('📄 All files:', allFiles);
@@ -189,7 +189,7 @@ export function registerDebugAddTestDataCommand(context: vscode.ExtensionContext
         }
       }
       
-      const stats = db.getStats();
+      const stats = await db.getStats();
       db.close();
       
       vscode.window.showInformationMessage(

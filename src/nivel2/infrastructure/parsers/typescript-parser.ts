@@ -8,6 +8,7 @@
 import { parse } from '@typescript-eslint/parser';
 import type { DocumentChunk } from '../../../shared/types/chunk';
 import * as fs from 'fs';
+import { generateChunkId } from './chunk-id-generator';
 
 /**
  * Parsed symbol from TypeScript AST
@@ -51,7 +52,7 @@ export class TypeScriptParser {
       // Create chunks for each symbol with JSDoc
       for (const symbol of symbols) {
         if (symbol.jsdoc) {
-          const chunkId = this.generateChunkId(filePath, symbol.lineStart, symbol.lineEnd);
+          const chunkId = generateChunkId(filePath, symbol.lineStart, symbol.lineEnd);
           
           chunks.push({
             id: chunkId,
@@ -232,13 +233,6 @@ export class TypeScriptParser {
     return undefined;
   }
 
-  /**
-   * Generates a chunk ID
-   */
-  private generateChunkId(filePath: string, lineStart: number, lineEnd: number): string {
-    const fileName = filePath.split('/').pop() || filePath;
-    return `chunk:${fileName}:${lineStart}-${lineEnd}`;
-  }
 }
 
 /**

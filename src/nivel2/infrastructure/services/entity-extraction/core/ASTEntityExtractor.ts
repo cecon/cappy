@@ -31,9 +31,17 @@ export class ASTEntityExtractor {
    */
   async extractFromFile(filePath: string): Promise<ASTEntity[]> {
     const absFilePath = path.isAbsolute(filePath) ? filePath : path.join(this.workspaceRoot, filePath);
-    
+
     if (!fs.existsSync(absFilePath)) {
       console.warn(`⚠️ File not found: ${absFilePath}`);
+      return [];
+    }
+
+    const supportedExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".cjs", ".mjs"]);
+    const fileExtension = path.extname(absFilePath).toLowerCase();
+
+    if (!supportedExtensions.has(fileExtension)) {
+      console.info(`ℹ️ Skipping AST extraction for unsupported file type: ${filePath}`);
       return [];
     }
 

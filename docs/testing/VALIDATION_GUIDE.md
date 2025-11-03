@@ -333,7 +333,7 @@ async listAllFiles(): Promise<Array<{ path: string; language: string; linesOfCod
 
 **5. GraphStorePort.listAllFiles**
 ```typescript
-// Em: src/domains/graph/ports/indexing-port.ts
+// Em: src/domains/dashboard/ports/indexing-port.ts
 export interface GraphStorePort {
   listAllFiles(): Promise<Array<{ path: string; language: string; linesOfCode: number }>>;
   // DEVE estar na interface

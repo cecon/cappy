@@ -5,10 +5,12 @@
  */
 
 import * as vscode from 'vscode';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { ToolCategory } from '../types';
-import { HybridRetriever, type HybridRetrieverOptions } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
+import { HybridRetriever, type HybridRetrieverOptions, type RetrievedContext } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 import { GraphService } from '../../../../nivel2/infrastructure/services/graph-service';
-import type { GraphData } from '../../../../domains/graph/types';
+import type { GraphData } from '../../../../domains/dashboard/types';
 
 interface ContextRetrievalInput {
   /**
@@ -125,8 +127,12 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
   ): Promise<vscode.LanguageModelToolResult> {
     const { query, maxResults, minScore, sources, category, includeRelated } = options.input;
 
-    console.log(`[ContextRetrievalTool] invoke called with query: "${query}"`);
-    console.log(`[ContextRetrievalTool] retriever initialized: ${!!this.retriever}`);
+    console.log(`[ContextRetrievalTool] ═══════════════════════════════════════════════`);
+    console.log(`[ContextRetrievalTool] INVOKE CALLED`);
+    console.log(`[ContextRetrievalTool] Query: "${query}"`);
+    console.log(`[ContextRetrievalTool] Options:`, { maxResults, minScore, sources, category, includeRelated });
+    console.log(`[ContextRetrievalTool] Retriever initialized: ${!!this.retriever}`);
+    console.log(`[ContextRetrievalTool] GraphService initialized: ${!!this.graphService}`);
 
     try {
       // Ensure retriever is initialized
@@ -148,7 +154,7 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
       const retrievalOptions: HybridRetrieverOptions = {
         maxResults: maxResults ?? 10,
         minScore: minScore ?? 0.5,
-        sources: (sources || ['code', 'documentation', 'prevention']) as ('code' | 'documentation' | 'prevention' | 'task' | 'metadata')[],
+        sources: (sources || ['code', 'documentation']) as ('code' | 'documentation' | 'metadata')[],
         category,
         includeRelated: includeRelated ?? true,
         rerank: true
@@ -205,6 +211,12 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
           parts.push(new vscode.LanguageModelTextPart(`📄 File: \`${ctx.filePath}\`\n`));
         }
         
+        if (ctx.metadata.lineStart && ctx.metadata.lineEnd) {
+          parts.push(new vscode.LanguageModelTextPart(
+            `📍 Lines: ${ctx.metadata.lineStart}-${ctx.metadata.lineEnd}\n`
+          ));
+        }
+        
         if (ctx.metadata.keywords && ctx.metadata.keywords.length > 0) {
           const keywords = ctx.metadata.keywords.slice(0, 5).join(', ');
           parts.push(new vscode.LanguageModelTextPart(`🏷️ Keywords: ${keywords}\n`));
@@ -212,13 +224,29 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
         
         parts.push(new vscode.LanguageModelTextPart('\n**Content:**\n'));
         
-        // Use snippet if available, otherwise use truncated content
-        const content = ctx.snippet || (ctx.content.length > 500 
-          ? ctx.content.substring(0, 500) + '...' 
-          : ctx.content);
+        // Enrich minimal content by reading surrounding code
+        const enrichedContent = await this.enrichContext(ctx);
         
-        parts.push(new vscode.LanguageModelTextPart(`\`\`\`\n${content}\n\`\`\`\n\n`));
-        parts.push(new vscode.LanguageModelTextPart('---\n\n'));
+        // Determine which content to use
+        let content: string;
+        if (enrichedContent === ctx.content) {
+          // Not enriched, use snippet or truncated content
+          if (ctx.snippet) {
+            content = ctx.snippet;
+          } else if (ctx.content.length > 500) {
+            content = ctx.content.substring(0, 500) + '...';
+          } else {
+            content = ctx.content;
+          }
+        } else {
+          // Use enriched content
+          content = enrichedContent;
+        }
+        
+        // Add language hint for code blocks
+        const language = ctx.metadata.language || '';
+        const codeBlockPart = `\`\`\`${language}\n${content}\n\`\`\`\n\n---\n\n`;
+        parts.push(new vscode.LanguageModelTextPart(codeBlockPart));
       }
 
       return new vscode.LanguageModelToolResult(parts);
@@ -269,6 +297,60 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
         return '✅';
       default:
         return '📄';
+    }
+  }
+
+  /**
+   * Enrich context by reading surrounding code lines when content is minimal
+   * @param ctx Retrieved context to enrich
+   * @returns Enriched content or original content if enrichment fails
+   */
+  private async enrichContext(ctx: RetrievedContext): Promise<string> {
+    // Only enrich code contexts with file paths and line information
+    if (ctx.source !== 'code' || !ctx.filePath || !ctx.metadata.lineStart) {
+      return ctx.content;
+    }
+
+    // Check if content is minimal (less than 150 characters or very few lines)
+    const isMinimalContent = ctx.content.length < 150 || 
+                             ctx.content.split('\n').length < 5;
+    
+    if (!isMinimalContent) {
+      return ctx.content;
+    }
+
+    try {
+      // Read the file from workspace
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders || workspaceFolders.length === 0) {
+        return ctx.content;
+      }
+
+      // Find the file in workspace
+      let fullPath = ctx.filePath;
+      if (!path.isAbsolute(fullPath)) {
+        fullPath = path.join(workspaceFolders[0].uri.fsPath, ctx.filePath);
+      }
+
+      // Read the file
+      const fileContent = await fs.readFile(fullPath, 'utf-8');
+      const lines = fileContent.split('\n');
+
+      // Calculate expanded range (add context lines before and after)
+      const contextLines = 5; // Add 5 lines before and after
+      const startLine = Math.max(0, (ctx.metadata.lineStart || 1) - contextLines - 1);
+      const endLine = Math.min(lines.length, (ctx.metadata.lineEnd || startLine + 1) + contextLines);
+
+      // Extract expanded content
+      const enrichedLines = lines.slice(startLine, endLine);
+      const enrichedContent = enrichedLines.join('\n');
+
+      console.log(`[ContextRetrievalTool] Enriched context for ${ctx.filePath}:${ctx.metadata.lineStart} from ${ctx.content.length} to ${enrichedContent.length} chars`);
+
+      return enrichedContent;
+    } catch (error) {
+      console.warn(`[ContextRetrievalTool] Failed to enrich context for ${ctx.filePath}:`, error);
+      return ctx.content;
     }
   }
 }

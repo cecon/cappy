@@ -8,11 +8,17 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ensureCappyInitialized } from '../../../../shared/utils/workspace-check';
 
 /**
  * Resets the graph database by deleting the SQLite file
  */
 export async function resetDatabase(): Promise<void> {
+  // Check if Cappy is initialized
+  if (!await ensureCappyInitialized()) {
+    return;
+  }
+
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
     vscode.window.showErrorMessage('No workspace folder found');

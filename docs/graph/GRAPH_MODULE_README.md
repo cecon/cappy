@@ -17,7 +17,7 @@ O módulo de Graph permite:
 
 ```
 src/
-├── domains/graph/              # Domain Layer (entidades, ports)
+├── domains/dashboard/              # Domain Layer (entidades, ports)
 │   ├── entities/              # GraphNode, GraphEdge, GraphData
 │   ├── ports/                 # Interfaces (Repository, Services)
 │   ├── types/                 # TypeScript interfaces

@@ -6,7 +6,7 @@
  */
 
 import * as vscode from 'vscode';
-import type { GraphStorePort } from '../../../../domains/graph/ports/indexing-port';
+import type { GraphStorePort } from '../../../../domains/dashboard/ports/indexing-port';
 import { ASTRelationshipExtractor } from '../../../../nivel2/infrastructure/services/ast-relationship-extractor';
 import type { FileMetadataDatabase } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 import * as path from 'node:path';
@@ -74,7 +74,7 @@ export async function reanalyzeRelationships(
 
             if (isUploadedFile && metadataDb) {
               // Get file content from metadata database
-              const metadata = metadataDb.getFileByPath(filePath);
+              const metadata = await metadataDb.getFileByPath(filePath);
               
               if (metadata?.fileContent) {
                 // Create temporary file for analysis

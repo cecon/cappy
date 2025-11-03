@@ -5,6 +5,7 @@
  * Estes são adaptadores da camada de apresentação (Nivel 1).
  */
 
+export { registerInitWorkspaceCommand } from './init-workspace';
 export { registerProcessSingleFileCommand } from './process-single-file';
 export { registerDebugRetrievalCommand } from './debug-retrieval';
 export { 
@@ -15,3 +16,4 @@ export {
 export { reanalyzeRelationships, registerReanalyzeRelationshipsCommand } from './reanalyze-relationships';
 export { registerResetDatabaseCommand } from './reset-database';
 export { diagnoseGraph, registerDiagnoseGraphCommand } from './diagnose-graph';
+export { registerCleanInvalidFilesCommand } from './clean-invalid-files';

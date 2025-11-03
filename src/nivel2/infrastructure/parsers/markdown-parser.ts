@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import matter from 'gray-matter';
 import type { DocumentChunk } from '../../../shared/types/chunk';
+import { generateChunkId } from './chunk-id-generator';
 
 /**
  * Markdown section
@@ -40,7 +41,7 @@ export class MarkdownParser {
 
       // Create chunks for each section
       for (const section of sections) {
-        const chunkId = this.generateChunkId(filePath, section.lineStart, section.lineEnd);
+        const chunkId = generateChunkId(filePath, section.lineStart, section.lineEnd);
         
         chunks.push({
           id: chunkId,
@@ -146,7 +147,7 @@ export class MarkdownParser {
         const chunkContent = tokens.slice(start, end).join(' ').trim();
 
         if (chunkContent.length > 0) {
-          const chunkId = this.generateChunkId(filePath, start + 1, end);
+          const chunkId = generateChunkId(filePath, start + 1, end, chunkNumber);
           chunks.push({
             id: chunkId,
             content: chunkContent,
@@ -180,13 +181,6 @@ export class MarkdownParser {
     }
   }
 
-  /**
-   * Generates a chunk ID
-   */
-  private generateChunkId(filePath: string, lineStart: number, lineEnd: number): string {
-    const fileName = filePath.split('/').pop() || filePath;
-    return `chunk:${fileName}:${lineStart}-${lineEnd}`;
-  }
 }
 
 /**

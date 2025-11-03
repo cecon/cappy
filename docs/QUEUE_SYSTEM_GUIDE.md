@@ -19,7 +19,7 @@ O Cappy agora usa uma **arquitetura moderna baseada em filas com máquina de est
     └────────┬────────┘
              │
              ▼
-    UnifiedQueueProcessor (background loop)
+    FileProcessingQueue (background loop)
              │
              ├─► pending → processing
              ├─► extracting_entities (parse + extract)
@@ -78,7 +78,7 @@ O Cappy agora usa uma **arquitetura moderna baseada em filas com máquina de est
 }
 
 // Sistema adiciona à metadata table com status: pending
-// UnifiedQueueProcessor pega e processa automaticamente
+// FileProcessingQueue pega e processa automaticamente
 ```
 
 ### 2. Workspace Scan
@@ -88,7 +88,7 @@ O Cappy agora usa uma **arquitetura moderna baseada em filas com máquina de est
 // 1. Descobre todos os arquivos
 // 2. Adiciona novos arquivos à metadata table
 // 3. Marca arquivos modificados (hash diferente) como pending
-// 4. UnifiedQueueProcessor processa em background
+// 4. FileProcessingQueue processa em background
 ```
 
 ### 3. Mudança de Arquivo
@@ -97,7 +97,7 @@ O Cappy agora usa uma **arquitetura moderna baseada em filas com máquina de est
 // FileChangeWatcher detecta mudança
 // 1. Calcula novo hash
 // 2. Se hash diferente, marca como pending
-// 3. UnifiedQueueProcessor reprocessa
+// 3. FileProcessingQueue reprocessa
 ```
 
 ## 📈 Monitoramento
@@ -140,15 +140,13 @@ GET http://localhost:3456/list
 
 ## ⚙️ Configuração
 
-### UnifiedQueueProcessor
+### FileProcessingQueue
 
 ```typescript
 {
   concurrency: 2,        // Max 2 arquivos em paralelo
-  pollInterval: 1000,    // Verifica fila a cada 1s
-  batchSize: 10,         // Busca até 10 arquivos por vez
   maxRetries: 3,         // Tenta até 3x antes de marcar erro
-  retryDelay: 5000       // Espera 5s entre retries
+  autoStart: true        // Inicia automaticamente
 }
 ```
 
@@ -228,20 +226,19 @@ Ctrl+Shift+P → "Cappy: Scan Workspace"
 ## 📝 Logs
 
 ```typescript
-// Logs do UnifiedQueueProcessor
-🚀 Starting UnifiedQueueProcessor...
-✅ Queue processor started (concurrency: 2, poll: 1000ms)
+// Logs do FileProcessingQueue
+✅ FileProcessingQueue initialized and started
 
 // Logs de processamento
-📝 File added to queue: document.pdf
+📝 File enqueued: document.pdf (file-xxx)
 🔄 File changed, marked for reprocessing: src/main.ts
 ➕ New file added to queue: src/new-file.ts
 ➖ Deleted file removed from queue: old-file.ts
 
 // Logs de estado
-⏸️  Pausing queue processor...
-▶️  Resuming queue processor...
-🛑 UnifiedQueueProcessor stopped
+⏸️  Processing queue paused
+▶️  Processing queue resumed
+🛑 File processing queue stopped
 ```
 
 ## 🚀 Próximos Passos

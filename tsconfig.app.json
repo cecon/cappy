@@ -29,6 +29,6 @@
     "src/services/**",
     "src/adapters/primary/vscode/**",
     "src/adapters/secondary/graph/**",
-    "src/domains/graph/ports/**"
+    "src/domains/dashboard/ports/**"
   ]
 }

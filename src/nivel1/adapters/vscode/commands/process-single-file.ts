@@ -14,6 +14,7 @@ import { EmbeddingService } from '../../../../nivel2/infrastructure/services/emb
 import { SQLiteAdapter } from '../../../../nivel2/infrastructure/database/sqlite-adapter';
 import { createVectorStore } from '../../../../nivel2/infrastructure/vector/sqlite-vector-adapter';
 import { ConfigService } from '../../../../nivel2/infrastructure/services/config-service';
+import { ensureCappyInitialized } from '../../../../shared/utils/workspace-check';
 
 /**
  * Progress callback type
@@ -32,6 +33,11 @@ export async function processSingleFileInternal(options: {
 
   if (!workspaceRoot) {
     throw new Error('No workspace folder open');
+  }
+
+  // Check if Cappy is initialized (internal command used programmatically)
+  if (!await ensureCappyInitialized()) {
+    throw new Error('Cappy is not initialized. Please run "Cappy: Initialize Workspace" first.');
   }
 
   try {

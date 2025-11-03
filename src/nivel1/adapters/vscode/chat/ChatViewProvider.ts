@@ -152,11 +152,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {
+    // Use Vite-built assets: the chat entry bundles the unified App (chat/documents)
     const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'out', 'main.js')
+      vscode.Uri.joinPath(this.extensionUri, 'out', 'chat.js')
     );
     const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'out', 'main.css')
+      vscode.Uri.joinPath(this.extensionUri, 'out', 'chat.css')
     );
 
     console.log('📁 [ChatViewProvider] Script URI:', scriptUri.toString());

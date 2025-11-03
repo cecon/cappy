@@ -61,7 +61,7 @@ Exemplos práticos de:
 ## 🔧 Arquivos Modificados
 
 ### 1. GraphStorePort (Interface)
-**Arquivo**: `src/domains/graph/ports/indexing-port.ts`
+**Arquivo**: `src/domains/dashboard/ports/indexing-port.ts`
 
 **Métodos adicionados**:
 ```typescript

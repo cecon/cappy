@@ -26,6 +26,8 @@ export interface ImportInfo {
   source: string;
   specifiers: string[];
   isExternal: boolean;
+  isDynamic?: boolean;
+  method?: 'import' | 'require';
   packageResolution?: PackageResolution;
 }
 
@@ -73,7 +75,7 @@ export class ASTRelationshipExtractor {
    * Process entities and categorize them
    */
   private processEntities(astEntities: ASTEntity[]) {
-    const importMap = new Map<string, { specifiers: string[]; isExternal: boolean }>();
+    const importMap = new Map<string, { specifiers: string[]; isExternal: boolean; isDynamic?: boolean; method?: 'import' | 'require' }>();
     const exports: string[] = [];
     const calls: string[] = [];
     const typeRefs: string[] = [];
@@ -90,7 +92,7 @@ export class ASTRelationshipExtractor {
    */
   private categorizeEntity(
     entity: ASTEntity,
-    importMap: Map<string, { specifiers: string[]; isExternal: boolean }>,
+    importMap: Map<string, { specifiers: string[]; isExternal: boolean; isDynamic?: boolean; method?: 'import' | 'require' }>,
     exports: string[],
     calls: string[],
     typeRefs: string[]
@@ -100,10 +102,19 @@ export class ASTRelationshipExtractor {
       const source = entity.originalModule;
       const isExternal = entity.category === 'external' || entity.category === 'builtin';
       
-      if (!importMap.has(source)) {
-        importMap.set(source, { specifiers: [], isExternal });
+      // Check if this is a dynamic import (marked by ImportMapBuilder)
+      const isDynamic = source.startsWith('__dynamic__') || source.startsWith('__require__');
+      const actualSource = isDynamic ? source.replace(/^__(?:dynamic|require)__/, '') : source;
+      const method = source.startsWith('__require__') ? 'require' : 'import';
+      
+      if (!importMap.has(actualSource)) {
+        importMap.set(actualSource, { 
+          specifiers: [], 
+          isExternal,
+          ...(isDynamic && { isDynamic: true, method })
+        });
       }
-      importMap.get(source)!.specifiers.push(entity.name);
+      importMap.get(actualSource)!.specifiers.push(entity.name);
     }
     // Handle exports
     else if (entity.isExported) {
@@ -123,17 +134,19 @@ export class ASTRelationshipExtractor {
    * Convert import map to array and resolve external packages
    */
   private async resolveImports(
-    importMap: Map<string, { specifiers: string[]; isExternal: boolean }>,
+    importMap: Map<string, { specifiers: string[]; isExternal: boolean; isDynamic?: boolean; method?: 'import' | 'require' }>,
     absFilePath: string
   ): Promise<ImportInfo[]> {
-    const imports: Array<{ source: string; specifiers: string[]; isExternal: boolean }> = [];
+    const imports: Array<{ source: string; specifiers: string[]; isExternal: boolean; isDynamic?: boolean; method?: 'import' | 'require' }> = [];
     
     // Convert import map to array
     for (const [source, data] of importMap.entries()) {
       imports.push({
         source,
         specifiers: data.specifiers,
-        isExternal: data.isExternal
+        isExternal: data.isExternal,
+        ...(data.isDynamic && { isDynamic: true }),
+        ...(data.method && { method: data.method })
       });
     }
     

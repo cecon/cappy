@@ -38,9 +38,14 @@ export class FileMetadataService {
       updates.processingStartedAt = new Date().toISOString();
     }
 
+    // Support both 'completed' and legacy 'processed' status
     if ((status === 'processed' || status === 'completed') && !additionalUpdates?.processingCompletedAt) {
       updates.processingCompletedAt = new Date().toISOString();
       updates.progress = 100;
+      // Normalize 'processed' to 'completed' for consistency
+      if (status === 'processed') {
+        updates.status = 'completed';
+      }
     }
 
     await this.repository.updateFile(id, updates);

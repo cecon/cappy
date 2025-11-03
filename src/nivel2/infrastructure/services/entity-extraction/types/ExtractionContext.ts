@@ -1,4 +1,14 @@
 /**
+ * Import information with support for dynamic imports
+ */
+export interface ImportInfo {
+  source: string;
+  isExternal: boolean;
+  isDynamic?: boolean;
+  method?: 'import' | 'require';
+}
+
+/**
  * Context for entity extraction shared across extractors
  */
 export interface ExtractionContext {
@@ -12,7 +22,7 @@ export interface ExtractionContext {
   exportedNames: Set<string>;
 
   /** Map of imported symbols to their source module */
-  importedSymbols: Map<string, { source: string; isExternal: boolean }>;
+  importedSymbols: Map<string, ImportInfo>;
 
   /** File content */
   content: string;

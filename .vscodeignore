@@ -1,16 +1,115 @@
 # Exclude large/unnecessary folders from the VSIX
 # Note: We need node_modules for production dependencies like @lancedb/lancedb
 # The --dependencies flag should handle including only production deps
+
+# ========================================
+# WORKSPACE DATA (MUST EXCLUDE)
+# ========================================
+.cappy/
+.cappy/**
+
+# ========================================
+# DOCUMENTATION & DEV FOLDERS
+# ========================================
 old/
 docs/
 .vscode/
 .git/
 .gitignore
 .vscodeignore
+.github/
+
+# ========================================
+# SOURCE CODE (exclude everything except assets)
+# ========================================
+src/**
+!src/assets/**
+# Specifically exclude these if they somehow get included
+src/nivel1/**
+src/nivel2/**
+src/domains/**
+src/shared/**
+src/vite-plugin/**
+src/extension.ts
+
+# ========================================
+# BUILD ARTIFACTS & CONFIG
+# ========================================
+tsconfig*.json
+tsconfig*.tsbuildinfo
+vite.config.ts
+vitest.config.ts
+postcss.config.js
+tailwind.config.js
+eslint.config.js
+.eslintignore
+.eslintrc*
+.prettierrc*
+migrate-step1.js
+test-retriever-tool.ts
+*.log
+.env
+.env.local
+
+# ========================================
+# DEVELOPMENT SCRIPTS & INSTALL HELPERS
+# ========================================
+scripts/**
+/scripts/
+/install.sh
+/install.ps1
+*.ps1
+*.sh
+
+# ========================================
+# TESTS & TEST FILES
+# ========================================
 **/*.map
 **/*.test.*
 **/__tests__/**
-# Keep built output and extension entry
+**/*.spec.*
+test/
+tests/
+
+# ========================================
+# SCRIPTS (keep only necessary ones)
+# ========================================
+scripts/diagnose-*.ts
+scripts/reset-database.sh
+scripts/convert-icon.js
+scripts/bundle-deps.js
+
+# ========================================
+# NODE_MODULES CLEANUP
+# ========================================
+node_modules/.bin/**
+node_modules/**/.git/**
+node_modules/**/.github/**
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/*.md
+!node_modules/**/README.md
+node_modules/**/*.markdown
+node_modules/**/*.ts
+!node_modules/**/*.d.ts
+node_modules/**/.*
+node_modules/**/.editorconfig
+node_modules/**/.travis.yml
+node_modules/**/.npmignore
+node_modules/**/Makefile
+node_modules/**/makefile
+node_modules/**/CHANGELOG*
+node_modules/**/HISTORY*
+node_modules/**/NEWS
+node_modules/**/NOTICE
+
+# ========================================
+# KEEP THESE (explicitly)
+# ========================================
 !out/**
-!src/assets/**
-# Include package.json, README, LICENSE by default
+!package.json
+!readme.md
+!LICENSE.txt
+!chat.html
+!dashboard.html
+!.env.example

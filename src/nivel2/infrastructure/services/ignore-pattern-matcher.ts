@@ -51,7 +51,18 @@ export class IgnorePatternMatcher {
         '.cappy/',
         '*.log',
         '.DS_Store',
-        'coverage/'
+        'coverage/',
+        // Ignore extension assets (SVG, WASM, etc.)
+        'src/assets/*.svg',
+        'src/assets/*.wasm',
+        'src/assets/*.png',
+        'src/assets/*.jpg',
+        'src/assets/*.jpeg',
+        'src/assets/*.gif',
+        'src/assets/*.ico',
+        // Ignore build outputs
+        'out/',
+        '*.vsix'
       ]);
       console.log('📋 Using default .cappyignore patterns');
     }
@@ -62,7 +73,7 @@ export class IgnorePatternMatcher {
    */
   shouldIgnore(relPath: string): boolean {
     // Normalize path for ignore
-    const normalizedPath = relPath.replace(/\\/g, '/');
+    const normalizedPath = relPath.replaceAll('\\', '/');
     
     return this.gitIgnore.ignores(normalizedPath) || 
            this.cappyIgnore.ignores(normalizedPath);

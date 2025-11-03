@@ -7,10 +7,13 @@ import type { IFileSystem } from "../ports/IFileSystem";
  * Use Case: API de Tasks
  */
 export class TasksAPIHandler implements IHTTPHandler {
-  constructor(
-    private fileSystem: IFileSystem,
-    private workspaceRoot: string
-  ) {}
+  private readonly fileSystem: IFileSystem;
+  private readonly workspaceRoot: string;
+
+  constructor(fileSystem: IFileSystem, workspaceRoot: string) {
+    this.fileSystem = fileSystem;
+    this.workspaceRoot = workspaceRoot;
+  }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = req.url || "";
