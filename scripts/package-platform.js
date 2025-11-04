@@ -41,6 +41,29 @@ if (!validPlatforms.includes(platform)) {
 const packagingFor = target ? 'target: ' + target : 'platform: ' + platform;
 console.log('📦 Packaging Cappy for ' + packagingFor);
 
+function rebuildNativeModules(targetPlatform, targetArch) {
+  console.log(`🔧 Rebuilding native modules for ${targetPlatform}-${targetArch}...`);
+  
+  try {
+    // Try to rebuild sqlite3 for target platform
+    const rebuildCmd = `npm rebuild sqlite3 @vscode/sqlite3 --silent`;
+    execSync(rebuildCmd, {
+      cwd: path.join(__dirname, '..'),
+      stdio: 'pipe', // Suppress output unless there's an error
+      env: {
+        ...process.env,
+        npm_config_target_platform: targetPlatform,
+        npm_config_target_arch: targetArch,
+        npm_config_cache: path.join(__dirname, '..', '.npm-cache')
+      }
+    });
+    console.log('✅ Native modules rebuilt successfully');
+  } catch (error) {
+    console.warn('⚠️  Native module rebuild had warnings (this is usually OK for VS Code extensions)');
+    console.warn('   SQLite3 will fall back to @vscode/sqlite3 bundled with VS Code');
+  }
+}
+
 // Define which sharp binaries to keep for each platform
 const platformBinaries = {
   win32: [
@@ -132,6 +155,13 @@ for (const pkg of sharpPackages) {
 }
 
 console.log(`✅ Removed ${removedCount} unnecessary sharp binaries`);
+
+// Rebuild native modules for target platform if we have a specific target
+if (target) {
+  const [targetPlatform, targetArch] = target.split('-');
+  rebuildNativeModules(targetPlatform, targetArch);
+}
+
 console.log(`📦 Building extension package...`);
 
 // Get package version
