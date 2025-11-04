@@ -333,6 +333,7 @@
     "setup:native": "node scripts/setup-native-modules.js",
     "postinstall": "npm run setup:native",
     "clean:native": "rimraf node_modules/sqlite3/build node_modules/@vscode/sqlite3/build node_modules/sharp/build",
+    "install:extension": "node scripts/install-extension.js",
     "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix",
     "publish:win32": "vsce publish --packagePath cappy-*-win32-x64.vsix",
     "publish:darwin": "vsce publish --packagePath cappy-*-darwin-x64.vsix cappy-*-darwin-arm64.vsix",

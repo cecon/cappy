@@ -15,9 +15,9 @@ export default defineConfig(() => ({
     rollupOptions: {
       input: {
         // Chat React app entry point (Chat View)
-        chat: path.resolve(import.meta.dirname, 'chat.html'),
+        chat: path.resolve(import.meta.dirname, 'src/nivel1/chat.html'),
         // Dashboard WebView entry point
-        dashboard: path.resolve(import.meta.dirname, 'dashboard.html'),
+        dashboard: path.resolve(import.meta.dirname, 'src/nivel1/dashboard.html'),
       },
       output: { 
         entryFileNames: '[name].js',

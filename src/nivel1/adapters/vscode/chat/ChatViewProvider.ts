@@ -21,7 +21,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'out')]
+      localResourceRoots: [
+        vscode.Uri.joinPath(this.extensionUri, 'out')
+      ]
     };
 
     // Load the React app (same as main chat)
@@ -160,8 +162,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const nonce = this.getNonce();
     const cspSource = webview.cspSource;
 
-    // Load HTML from chat.html in workspace root (Vite build output)
-    const htmlPath = vscode.Uri.joinPath(this.extensionUri, 'chat.html');
+    // Load HTML from out/src/nivel1/chat.html (Vite build output)
+    const htmlPath = vscode.Uri.joinPath(this.extensionUri, 'out', 'src', 'nivel1', 'chat.html');
     
     if (!fs.existsSync(htmlPath.fsPath)) {
       const errorMsg = `Chat HTML not found at: ${htmlPath.fsPath}\n\nMake sure you've run 'npm run build' to generate the chat.html file.`;
@@ -173,15 +175,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     let htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
     console.log('✅ [ChatViewProvider] Loaded HTML from:', htmlPath.fsPath);
 
-    // Get webview URIs for assets (for CSS if embedded in HTML)
-    const chatCssUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'out', 'chat.css')
+    // Get webview URIs for assets in out/ directory
+    const mainJsUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'out', 'main.js')
+    );
+    const mainCssUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'out', 'main.css')
     );
 
-    // Replace CSS path if present in HTML (but leave script src untouched for Vite)
-    if (htmlContent.includes('./chat.css')) {
-      htmlContent = htmlContent.replace('./chat.css', chatCssUri.toString());
-    }
+    // Replace relative paths with webview URIs (Vite generates ../../main.js from nivel1 subfolder)
+    htmlContent = htmlContent.replace('../../main.js', mainJsUri.toString());
+    htmlContent = htmlContent.replace('../../main.css', mainCssUri.toString());
 
     // Remove modulepreload links (not needed in webview)
     htmlContent = htmlContent.replaceAll(/<link rel="modulepreload"[^>]*>/g, '');

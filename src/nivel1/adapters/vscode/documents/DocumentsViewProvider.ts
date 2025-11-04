@@ -834,8 +834,8 @@ export class DocumentsViewProvider implements vscode.WebviewViewProvider {
     })();
     const cspSource = webview.cspSource;
 
-    // Load Vite-built HTML from out/dashboard.html (Documents/Dashboard entry)
-    const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'out', 'dashboard.html');
+    // Load Vite-built HTML from out/src/nivel1/dashboard.html (Documents/Dashboard entry)
+    const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'out', 'src', 'nivel1', 'dashboard.html');
     
     if (!fs.existsSync(htmlPath.fsPath)) {
       const errorMsg = `Dashboard HTML not found: ${htmlPath.fsPath}. Run 'npm run build' to generate it.`;

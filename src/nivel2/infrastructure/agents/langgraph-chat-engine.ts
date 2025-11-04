@@ -534,13 +534,23 @@ export class LangGraphChatEngine implements ChatAgentPort {
         }
 
         if (toolCalls.length === 0 && phaseResult.type === 'continue') {
-          // Se não há tool calls e não há ação especial, continua o loop
+          console.log(`[Analyst] Checking continuation: phase=${state.currentPhase}, toolCalls=${toolCalls.length}, result=${phaseResult.type}`)
+          
+          // Fases iniciais devem continuar automaticamente
+          if (state.currentPhase === 'intent' || state.currentPhase === 'context') {
+            console.log(`[Analyst] Auto-continuing from ${state.currentPhase} phase`)
+            continue
+          }
+          
+          // Para outras fases, verifica se há comando para continuar
           if (textAccumulator.includes('<!-- agent:continue -->')) {
+            console.log('[Analyst] Found continue marker, continuing...')
             continue
           }
           
           // Se não tem nada para fazer, encerra
           console.log('[Analyst] No tool calls and no phase action, finishing')
+          console.log(`[Analyst] Final state: phase=${state.currentPhase}, hasIntent=${!!state.intent}`)
           return
         }
       }
@@ -749,13 +759,23 @@ Mark with <!-- agent:done --> when complete.
       try {
         const jsonMatch = text.match(/\{[\s\S]*?"objective"[\s\S]*?\}/)?.[0]
         if (jsonMatch) {
-          state.intent = JSON.parse(jsonMatch)
+          const intent = JSON.parse(jsonMatch)
+          state.intent = intent
           state.currentPhase = 'context'
           console.log('[Analyst] Phase transition: intent → context')
+          console.log(`[Analyst] Intent extracted: ${intent.objective}`)
+          console.log('[Analyst] Forcing continue to avoid premature exit')
+          return { type: 'continue' }
         }
       } catch (e) {
         console.warn('[Analyst] Failed to parse intent JSON:', e)
       }
+    }
+
+    // Debug: Log when intent phase is detected but no transition happens
+    if (state.currentPhase === 'intent') {
+      console.log('[Analyst] Still in intent phase, text preview:', text.substring(0, 200))
+      console.log('[Analyst] Contains objective?', text.includes('"objective"'))
     }
 
     // FASE 2: CONTEXT GATHERING
@@ -784,7 +804,7 @@ Mark with <!-- agent:done --> when complete.
           const parsed = this.parseRetrievalResult(result)
           
           // Determina source baseado no input
-          const input = toolCall.input as any
+          const input = toolCall.input as { sources?: string[] }
           const sources = input.sources || ['code']
           const primarySource = sources[0] || 'code'
           

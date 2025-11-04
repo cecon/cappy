@@ -1,33 +1,70 @@
 ## Instalação da Extensão
 
-A extensão tem builds específicas por plataforma para incluir apenas os binários do sharp necessários:
+A extensão tem builds específicas por plataforma para incluir apenas os binários nativos necessários e evitar problemas de compatibilidade.
+
+### ⚡ Instalação Automática (Recomendada)
+
+```bash
+# Detecta sua plataforma e instala automaticamente
+npm run install:extension
+```
+
+### 🔧 Instalação Manual por Plataforma
 
 **Windows:**
 ```bash
 npm run build
 npm run package:win32
-code --install-extension cappy-{version}-win32.vsix --force
+code --install-extension cappy-{version}-win32-x64.vsix --force
 ```
 
-**macOS:**
+**macOS Intel:**
 ```bash
 npm run build
 npm run package:darwin
-code --install-extension cappy-{version}-darwin.vsix --force
+code --install-extension cappy-{version}-darwin-x64.vsix --force
+```
+
+**macOS Apple Silicon:**
+```bash
+npm run build
+npm run package:darwin-arm64
+code --install-extension cappy-{version}-darwin-arm64.vsix --force
 ```
 
 **Linux:**
 ```bash
 npm run build
 npm run package:linux
-code --install-extension cappy-{version}-linux.vsix --force
+code --install-extension cappy-{version}-linux-x64.vsix --force
 ```
 
-**Todas as plataformas (para CI/CD):**
+### 🚀 Build Cross-Platform (Para CI/CD)
+
 ```bash
-npm run build
+# Constrói para todas as plataformas
 npm run package:all
+
+# Publishes para todas as plataformas
+npm run publish:all
 ```
+
+### 🐛 Troubleshooting Módulos Nativos
+
+Se encontrar problemas com SQLite3 ou Sharp:
+
+```bash
+# Diagnóstico e fix automático
+npm run setup:native
+
+# Limpeza manual
+npm run clean:native
+npm install
+```
+
+**Erro comum:** "not a valid Win32 application"
+- ✅ **Solução**: A extensão agora detecta automaticamente e usa fallbacks
+- ✅ **Prevention**: Use builds específicos por plataforma
 <!-- CAPPY INI -->
 # CAPPY — Manual de Comandos (Orquestração de Contexto)
 

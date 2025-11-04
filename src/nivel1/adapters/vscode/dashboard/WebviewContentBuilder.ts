@@ -12,7 +12,7 @@ export class WebviewContentBuilder {
     const cspSource = panel.webview.cspSource;
 
     // Strict: require Vite-built HTML under out/
-    const htmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'out', 'dashboard.html');
+    const htmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'out', 'src', 'nivel1', 'dashboard.html');
     if (!fs.existsSync(htmlPath.fsPath)) {
       throw new Error(`Dashboard HTML not found: ${htmlPath.fsPath}. Run 'npm run build' to generate it.`);
     }
