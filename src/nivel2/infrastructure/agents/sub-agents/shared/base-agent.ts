@@ -37,6 +37,7 @@ export abstract class BaseSubAgent implements SubAgent {
       nextAgent,
       metadata: {
         agentName: this.name,
+        agentPriority: this.priority,
         processingTime: Date.now()
       }
     }
@@ -45,7 +46,7 @@ export abstract class BaseSubAgent implements SubAgent {
   /**
    * Helper: Log agent activity
    */
-  protected log(message: string, ...args: any[]): void {
+  protected log(message: string, ...args: unknown[]): void {
     console.log(`[${this.name}]`, message, ...args)
   }
   

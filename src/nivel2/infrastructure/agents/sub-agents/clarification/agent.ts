@@ -49,7 +49,7 @@ export class ClarificationAgent extends BaseSubAgent {
       clarificationMessage = GENERIC_CLARIFICATION
     } else if (intent.ambiguities && intent.ambiguities.length > 0) {
       // Has specific ambiguities - mention them
-      clarificationMessage = buildClarificationPrompt(userMessage, intent.ambiguities)
+      clarificationMessage = buildClarificationPrompt(userMessage, Array.from(intent.ambiguities))
     } else {
       // Has category but unclear - offer options
       clarificationMessage = buildClarificationWithOptions(userMessage, intent.category)

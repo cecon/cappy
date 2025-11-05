@@ -7,7 +7,8 @@ import * as vscode from 'vscode';
 import { GraphPanel } from '../dashboard/GraphPanel';
 import { ChatViewProvider } from '../chat/ChatViewProvider';
 import { DocumentsViewProvider } from '../documents/DocumentsViewProvider';
-import { LangGraphChatEngine } from '../../../../nivel2/infrastructure/agents/langgraph-chat-engine';
+// import { LangGraphChatEngine } from '../../../../nivel2/infrastructure/agents/langgraph-chat-engine';
+import { OrchestratedChatEngine } from '../../../../nivel2/infrastructure/agents/chat-engine/orchestrated-chat-engine';
 import { createChatService } from '../../../../domains/chat/services/chat-service';
 
 export interface ViewsBootstrapResult {
@@ -34,9 +35,10 @@ export class ViewsBootstrap {
     const graphPanel = new GraphPanel(context, graphOutputChannel);
     console.log('  ✅ Graph Panel created');
 
-    // Create chat service
-    const chatEngine = new LangGraphChatEngine();
+    // Create chat service with new orchestrated engine
+    const chatEngine = new OrchestratedChatEngine();
     const chatService = createChatService(chatEngine);
+    console.log('  ✅ OrchestratedChatEngine initialized (3 sub-agents)');
 
     // Register Chat View Provider
     const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
