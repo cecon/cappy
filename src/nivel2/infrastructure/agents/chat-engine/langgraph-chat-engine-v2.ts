@@ -98,6 +98,7 @@ export class LangGraphChatEngine implements ChatAgentPort {
       console.log('🛠️ Available Cappy tools: cappy_create_file, cappy_fetch_web, cappy_retrieve_context')
 
       let textAccumulator = ''
+      let hasGeneratedUserResponse = false
 
       for (let step = 1; step <= MAX_AGENT_STEPS; step++) {
         if (shouldStopDueToMaxSteps(step, MAX_AGENT_STEPS)) {
@@ -106,6 +107,12 @@ export class LangGraphChatEngine implements ChatAgentPort {
 
         state.step = step
         console.log(`[Analyst] Phase: ${state.currentPhase}, Step: ${step}/${MAX_AGENT_STEPS}`)
+        
+        // Stop if we already generated a response for unclear requests
+        if (hasGeneratedUserResponse && state.intent && state.intent.clarityScore < 0.5) {
+          console.log('[Analyst] Already responded to unclear request, stopping')
+          break
+        }
 
         // Add phase-specific prompt
         const phasePrompt = this.getPhasePrompt(state)
@@ -153,6 +160,7 @@ export class LangGraphChatEngine implements ChatAgentPort {
               if (!isJsonFragment) {
                 console.log('[Engine] ✅ Yielding fragment to user:', fragmentValue.substring(0, 50))
                 yield fragmentValue
+                hasGeneratedUserResponse = true
               } else {
                 console.log('[Engine] 🚫 Filtering JSON fragment from user display:', fragmentValue.substring(0, 100))
               }
@@ -165,19 +173,31 @@ export class LangGraphChatEngine implements ChatAgentPort {
           break
         }
 
-        // Process the current phase
+        // Process the current phase first to extract intent
         const phaseResult = await PhaseOrchestrator.processPhase(stepText, state, toolCalls)
+        
+        // CRITICAL: Stop immediately if we generated a user-facing response in intent phase 
+        // BUT ONLY if request is unclear (low clarity score)
+        if (hasGeneratedUserResponse && 
+            state.currentPhase === 'intent' && 
+            state.intent && 
+            state.intent.clarityScore < 0.5) {
+          console.log('[Analyst] 🛑 STOP: Generated response for unclear request, breaking to prevent repetitions')
+          console.log(`[Analyst] Clarity score: ${state.intent.clarityScore}`)
+          break
+        }
 
         // Check if we should continue
         if (!PhaseOrchestrator.shouldContinuePhase(state, toolCalls, phaseResult, textAccumulator)) {
+          console.log('[Analyst] shouldContinuePhase returned false, breaking loop')
           break
         }
 
         // Handle phase-specific results
         if (phaseResult.type === 'ask' && phaseResult.data) {
           // Present questions to user and wait for answers
-          // This would be implemented based on UI requirements
-          console.log('[Analyst] Questions generated, would present to user:', phaseResult.data)
+          console.log('[Analyst] Questions generated, stopping to wait for user input')
+          break
         }
 
         if (phaseResult.type === 'done') {
@@ -186,8 +206,16 @@ export class LangGraphChatEngine implements ChatAgentPort {
         }
         
         // Stop early for unclear requests to avoid repetitions
-        if (state.currentPhase === 'questions' && state.intent && state.intent.clarityScore < 0.5) {
-          console.log('[Analyst] Low clarity request, stopping to avoid repetitions')
+        if (state.currentPhase === 'questions' && hasGeneratedUserResponse) {
+          console.log('[Analyst] Already asked for clarification, stopping to avoid repetitions')
+          break
+        }
+        
+        // Emergency brake: if we yielded content and are in intent/questions phase with low clarity
+        if (hasGeneratedUserResponse && 
+            (state.currentPhase === 'intent' || state.currentPhase === 'questions') &&
+            state.intent && state.intent.clarityScore < 0.5) {
+          console.log('[Analyst] 🚨 Emergency stop: Low clarity + response generated, breaking loop')
           break
         }
       }
