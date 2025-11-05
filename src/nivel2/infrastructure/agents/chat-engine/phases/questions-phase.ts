@@ -9,6 +9,29 @@ export class QuestionsPhaseHandler {
   static process(text: string, state: AnalystState): PhaseResult {
     console.log('[QuestionsPhaseHandler] Processing questions phase')
     
+    // Handle unclear requests directly
+    if (state.intent && state.intent.clarityScore < 0.5) {
+      console.log('[QuestionsPhaseHandler] Low clarity score, generating clarification questions')
+      
+      const clarificationQuestions = [{
+        id: 'clarification',
+        question: `Sua mensagem "${state.userInput}" não ficou clara para mim. Você poderia me explicar melhor o que você precisa?`,
+        type: 'clarification' as const,
+        context: 'Preciso entender melhor sua solicitação',
+        why: 'Para poder ajudar você adequadamente',
+        options: [
+          'Implementar uma nova funcionalidade',
+          'Corrigir um problema existente', 
+          'Analisar código existente',
+          'Criar documentação',
+          'Outra coisa'
+        ]
+      }]
+      
+      state.questions = clarificationQuestions
+      return { type: 'ask', data: clarificationQuestions }
+    }
+    
     // Try to parse questions from response
     if (text.includes('"questions"')) {
       try {

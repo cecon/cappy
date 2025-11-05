@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import type { ChatAgentPort, ChatContext } from '../../../../domains/chat/ports/agent-port'
+import type { ChatAgentPort } from '../../../../domains/chat/ports/agent-port'
 import type { Message } from '../../../../domains/chat/entities/message'
 import type { AnalystState } from './types'
 import { ANALYST_SYSTEM_PROMPT, PHASE_PROMPTS } from './prompts/system-prompts-v2'
@@ -42,13 +42,15 @@ export class LangGraphChatEngine implements ChatAgentPort {
       
       // Check for simple greetings first
       const greetingInfo = detectGreeting(message.content)
+      console.log(`[LangGraphChatEngine] Greeting detection result:`, greetingInfo)
+      
       if (greetingInfo.isGreeting && greetingInfo.response) {
-        console.log(`[LangGraphChatEngine] Greeting detected, sending response`)
+        console.log(`[LangGraphChatEngine] ✅ Greeting detected, sending response`)
         yield greetingInfo.response
         return
       }
       
-      console.log(`[LangGraphChatEngine] Not a greeting, proceeding with full analysis`)
+      console.log(`[LangGraphChatEngine] ❌ Not a greeting, proceeding with full analysis`)
       
       // Emit reasoning start
       yield '<!-- reasoning:start -->\n'      
@@ -134,7 +136,26 @@ export class LangGraphChatEngine implements ChatAgentPort {
             if (fragment instanceof vscode.LanguageModelTextPart) {
               stepText += fragment.value
               textAccumulator += fragment.value
-              yield fragment.value
+              
+              // Filter out JSON responses - don't show them to user
+              const fragmentValue = fragment.value
+              
+              // More robust JSON detection
+              const containsJsonStructure = fragmentValue.includes('"objective"') || 
+                                          fragmentValue.includes('"clarityScore"') ||
+                                          fragmentValue.includes('"technicalTerms"') ||
+                                          fragmentValue.includes('"ambiguities"')
+              
+              const isStartOfJson = fragmentValue.trim().startsWith('{')
+              const isEndOfJson = fragmentValue.trim().endsWith('}')
+              const isJsonFragment = containsJsonStructure || isStartOfJson || isEndOfJson
+              
+              if (!isJsonFragment) {
+                console.log('[Engine] ✅ Yielding fragment to user:', fragmentValue.substring(0, 50))
+                yield fragmentValue
+              } else {
+                console.log('[Engine] 🚫 Filtering JSON fragment from user display:', fragmentValue.substring(0, 100))
+              }
             } else if (fragment instanceof vscode.LanguageModelToolCallPart) {
               toolCalls.push(fragment)
             }
@@ -161,6 +182,12 @@ export class LangGraphChatEngine implements ChatAgentPort {
 
         if (phaseResult.type === 'done') {
           console.log('[Analyst] Task completed successfully')
+          break
+        }
+        
+        // Stop early for unclear requests to avoid repetitions
+        if (state.currentPhase === 'questions' && state.intent && state.intent.clarityScore < 0.5) {
+          console.log('[Analyst] Low clarity request, stopping to avoid repetitions')
           break
         }
       }
