@@ -19,9 +19,9 @@ import type { GraphPanel } from '../dashboard/GraphPanel';
 import type { DocumentsViewProvider } from '../documents/DocumentsViewProvider';
 
 /**
- * Main extension state
+ * Main extension state (internal - mutable)
  */
-export interface ExtensionState {
+interface InternalExtensionState {
   fileDatabase: FileMetadataDatabase | null;
   fileQueue: FileProcessingQueue | null;
   fileWatcher: FileChangeWatcher | null;
@@ -31,6 +31,31 @@ export interface ExtensionState {
   graphPanel: GraphPanel | null;
   documentsViewProvider: DocumentsViewProvider | null;
   commandsBootstrap?: InstanceType<typeof CommandsBootstrap>;
+  viewsBootstrap?: ViewsBootstrap;
+}
+
+/**
+ * Main extension state (external - readonly)
+ */
+export interface ExtensionState {
+  readonly fileDatabase: FileMetadataDatabase | null;
+  readonly fileQueue: FileProcessingQueue | null;
+  readonly fileWatcher: FileChangeWatcher | null;
+  readonly graphStore: GraphStorePort | null;
+  readonly cleanupService: GraphCleanupService | null;
+  readonly contextRetrievalTool: ContextRetrievalTool | null;
+  readonly graphPanel: GraphPanel | null;
+  readonly documentsViewProvider: DocumentsViewProvider | null;
+  readonly commandsBootstrap?: InstanceType<typeof CommandsBootstrap>;
+  readonly viewsBootstrap?: ViewsBootstrap;
+}
+
+/**
+ * Result from ViewsBootstrap registration
+ */
+interface ViewsBootstrapResult {
+  readonly graphPanel: GraphPanel;
+  readonly documentsViewProvider: DocumentsViewProvider;
 }
 
 /**
@@ -43,7 +68,7 @@ export interface ExtensionState {
  * - File Processing System (Application Layer)
  */
 export class ExtensionBootstrap {
-  private state: ExtensionState = {
+  private state: InternalExtensionState = {
     fileDatabase: null,
     fileQueue: null,
     fileWatcher: null,
@@ -67,10 +92,10 @@ export class ExtensionBootstrap {
 
     // Phase 2: Register Views (webviews, panels, sidebar)
     const viewsBootstrap = new ViewsBootstrap();
-    const { graphPanel, documentsViewProvider } = viewsBootstrap.register(context);
-    this.state.graphPanel = graphPanel;
-    this.state.documentsViewProvider = documentsViewProvider;
-    (this.state as any).viewsBootstrap = viewsBootstrap; // Store for later updates
+    const viewsResult: ViewsBootstrapResult = viewsBootstrap.register(context);
+    this.state.graphPanel = viewsResult.graphPanel;
+    this.state.documentsViewProvider = viewsResult.documentsViewProvider;
+    this.state.viewsBootstrap = viewsBootstrap; // Store for later updates
 
     // Phase 3: Register Commands
     const commandsBootstrap = new CommandsBootstrap({
@@ -136,9 +161,10 @@ export class ExtensionBootstrap {
       try {
         const { HybridRetriever } = await import('../../../../nivel2/infrastructure/services/hybrid-retriever.js');
         const hybridRetriever = new HybridRetriever(undefined, result.graphStore);
-        const chatEngine = (this.state as any).viewsBootstrap?.chatEngine;
-        if (chatEngine && 'updateRetrievalCapability' in chatEngine) {
-          chatEngine.updateRetrievalCapability(hybridRetriever.useCase);
+        const viewsBootstrap = this.state.viewsBootstrap as ViewsBootstrap | undefined;
+        const chatEngine = viewsBootstrap?.['chatEngine' as keyof ViewsBootstrap];
+        if (chatEngine && typeof chatEngine === 'object' && 'updateRetrievalCapability' in chatEngine) {
+          (chatEngine as { updateRetrievalCapability: (useCase: unknown) => void }).updateRetrievalCapability(hybridRetriever.useCase);
           console.log('📡 [ExtensionBootstrap] Chat engine updated with retrieval capability');
         }
       } catch (err) {
