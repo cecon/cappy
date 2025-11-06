@@ -6,6 +6,7 @@
 import { BaseSubAgent } from '../shared/base-agent'
 import type { SubAgentContext, SubAgentResponse, Intent } from '../shared/types'
 import { buildClarificationPrompt, buildClarificationWithOptions, GENERIC_CLARIFICATION } from './prompts'
+import { ScopeClarityPhaseHandler, type ScopeGap } from '../../chat-engine/phases/scope-clarity-phase'
 
 /**
  * ClarificationAgent
@@ -142,6 +143,7 @@ export class ClarificationAgent extends BaseSubAgent {
   
   /**
    * Build clarification questions based on intent
+   * Uses Scope Clarity Agent for intelligent question generation
    */
   private buildClarificationQuestions(intent: Intent | undefined): Array<{text: string; suggestions?: string[]}> {
     const questions: Array<{text: string; suggestions?: string[]}> = []
@@ -159,6 +161,49 @@ export class ClarificationAgent extends BaseSubAgent {
       })
       return questions
     }
+    
+    // Use Scope Clarity to analyze vagueness
+    const clarityAnalysis = ScopeClarityPhaseHandler.analyzeClarity(intent.objective)
+    
+    if (!clarityAnalysis.isSpecific && clarityAnalysis.gaps.length > 0) {
+      const gaps = clarityAnalysis.gaps
+      
+      this.log(`Using Scope Clarity: found ${gaps.length} gaps`)
+      
+      // Question 1: Technology if missing
+      const techGap = gaps.find((g: ScopeGap) => g.category === 'technology')
+      if (techGap) {
+        questions.push({
+          text: 'Qual tecnologia você quer usar?',
+          suggestions: ['React', 'Vue', 'VS Code Webview', 'VS Code Quick Pick', 'Outra']
+        })
+      }
+      
+      // Question 2: Persistence if missing
+      const persistenceGap = gaps.find((g: ScopeGap) => g.category === 'persistence')
+      if (persistenceGap) {
+        questions.push({
+          text: 'Onde os dados devem ser salvos?',
+          suggestions: ['VS Code Settings', 'Arquivo no projeto', 'Banco de dados', 'Memória']
+        })
+      }
+      
+      // Question 3: Requirements if missing
+      const reqGap = gaps.find((g: ScopeGap) => g.category === 'requirements')
+      if (reqGap) {
+        questions.push({
+          text: 'Quais são os principais requisitos/funcionalidades?',
+          suggestions: undefined
+        })
+      }
+      
+      if (questions.length > 0) {
+        return questions
+      }
+    }
+    
+    // Fallback to old logic
+    this.log('Using fallback clarification questions')
     
     // Question 1: Clarify objective if vague
     if (intent.clarityScore < 0.6) {

@@ -180,6 +180,20 @@
       "title": "Cappy",
       "properties": {}
     },
+    "chatParticipants": [
+      {
+        "id": "cappy.assistant",
+        "name": "cappy",
+        "description": "AI coding assistant with CodeAct pattern - can read files, execute commands, and help with development tasks",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "help",
+            "description": "Get help on how to use Cappy"
+          }
+        ]
+      }
+    ],
     "languageModelTools": [
       {
         "name": "cappy_create_file",

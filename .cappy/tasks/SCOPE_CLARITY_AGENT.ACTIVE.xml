@@ -1,0 +1,646 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<task xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+      xsi:noNamespaceSchemaLocation="../schemas/task-schema.xsd"
+      id="SCOPE_CLARITY_AGENT"
+      category="feature"
+      status="active"
+      priority="high"
+      created="2025-11-06T00:00:00Z"
+      updated="2025-11-06T00:00:00Z">
+
+  <metadata>
+    <title>Implementar Scope Clarity Agent - Análise de Vagueza</title>
+    <description>
+      Criar agente que intercepta requisições vagas ANTES do retriever, evitando desperdício de tokens e buscas irrelevantes.
+      
+      PROBLEMA ATUAL:
+      Escopo Vago → Retriever Busca Tudo → Contexto Irrelevante → Resposta Genérica
+      
+      SOLUÇÃO:
+      Escopo Vago → Scope Clarity Agent → Perguntas Direcionadas → Escopo Claro → Retriever Otimizado
+    </description>
+    <tags>
+      <tag>agent</tag>
+      <tag>scope-clarity</tag>
+      <tag>phase</tag>
+      <tag>optimization</tag>
+    </tags>
+  </metadata>
+
+  <context>
+    <codebase>
+      <file path="src/nivel2/infrastructure/agents/chat-engine/types.ts" relevance="high">
+        Interface AnalystState com fases atuais: intent, context, questions, options, spec, done
+      </file>
+      <file path="src/nivel2/infrastructure/agents/chat-engine/phases/phase-orchestrator.ts" relevance="high">
+        Orquestrador de fases que precisa incluir 'scope-clarity' ANTES de 'intent'
+      </file>
+      <file path="src/nivel2/infrastructure/agents/chat-engine/phases/intent-phase.ts" relevance="medium">
+        Fase atual que identifica intenção - deve receber escopo já clarificado
+      </file>
+      <file path="src/nivel2/infrastructure/agents/chat-engine/phases/context-phase.ts" relevance="high">
+        Fase que dispara retriever - deve receber query refinada baseada no escopo claro
+      </file>
+    </codebase>
+    
+    <dependencies>
+      <dependency name="vscode" version="^1.95.0" />
+      <dependency name="@langchain/core" version="^0.3.24" />
+    </dependencies>
+    
+    <prevention>
+      <rule category="architecture">Seguir padrão Phase Handler existente</rule>
+      <rule category="performance">Evitar múltiplas chamadas ao retriever</rule>
+      <rule category="ux">Perguntas devem ser contextualizadas ao projeto</rule>
+    </prevention>
+  </context>
+
+  <steps>
+    <step id="1" status="pending">
+      <title>Criar Scope Clarity Phase Handler</title>
+      <description>
+        Implementar nova fase 'scope-clarity' que analisa qualidade do escopo inicial.
+        
+        FUNCIONALIDADES:
+        - Scoring de clareza (0-100) baseado em: especificidade, tecnologia mencionada, requisitos explícitos
+        - Identificação de lacunas: tecnologia UI, persistência, validações, integração
+        - Detecção de termos vagos: "tela", "config", "elegante" sem detalhes
+        
+        CRITÉRIOS DE VAGUEZA:
+        - Score &lt; 60: VAGO → gerar perguntas
+        - Score ≥ 60: CLARO → prosseguir para 'intent'
+      </description>
+      <implementation>
+        <file path="src/nivel2/infrastructure/agents/chat-engine/phases/scope-clarity-phase.ts" action="create">
+          <content><![CDATA[
+import type { AnalystState, PhaseResult } from '../types'
+
+export interface ScopeClarityScore {
+  score: number // 0-100
+  gaps: ScopeGap[]
+  vagueTerms: string[]
+  isSpecific: boolean
+}
+
+export interface ScopeGap {
+  category: 'technology' | 'requirements' | 'integration' | 'validation'
+  description: string
+  critical: boolean
+}
+
+export class ScopeClarityPhaseHandler {
+  /**
+   * Analisa qualidade do escopo e identifica lacunas críticas
+   */
+  static process(text: string, state: AnalystState): PhaseResult {
+    console.log('[ScopeClarityPhase] Analyzing scope quality...')
+    
+    const clarity = this.analyzeClarity(text)
+    
+    // Store clarity analysis in state
+    state.scopeClarity = clarity
+    
+    if (clarity.score < 60) {
+      console.log(`[ScopeClarityPhase] Vague scope detected (score: ${clarity.score})`)
+      return {
+        type: 'ask',
+        data: {
+          nextPhase: 'scope-questions',
+          gaps: clarity.gaps
+        }
+      }
+    }
+    
+    console.log(`[ScopeClarityPhase] Scope is clear (score: ${clarity.score})`)
+    return {
+      type: 'continue',
+      data: { nextPhase: 'intent' }
+    }
+  }
+  
+  private static analyzeClarity(text: string): ScopeClarityScore {
+    const gaps: ScopeGap[] = []
+    const vagueTerms: string[] = []
+    let score = 100
+    
+    // Check for technology specification
+    const hasTechMention = /react|vue|angular|webview|quickpick|treeview|svelte/i.test(text)
+    if (!hasTechMention) {
+      gaps.push({
+        category: 'technology',
+        description: 'Tecnologia de UI não especificada',
+        critical: true
+      })
+      score -= 25
+    }
+    
+    // Check for vague terms
+    const vague = ['tela', 'config', 'elegante', 'bonito', 'legal', 'sistema']
+    vague.forEach(term => {
+      if (new RegExp(`\\b${term}\\b`, 'i').test(text)) {
+        vagueTerms.push(term)
+        score -= 10
+      }
+    })
+    
+    // Check for persistence mention
+    const hasPersistence = /salvar|persistir|arquivo|banco|settings|storage/i.test(text)
+    if (!hasPersistence) {
+      gaps.push({
+        category: 'requirements',
+        description: 'Estratégia de persistência não especificada',
+        critical: true
+      })
+      score -= 20
+    }
+    
+    // Check for specific requirements
+    const hasRequirements = /campo|botão|validar|exibir|mostrar/i.test(text)
+    if (!hasRequirements) {
+      gaps.push({
+        category: 'requirements',
+        description: 'Requisitos funcionais não especificados',
+        critical: false
+      })
+      score -= 15
+    }
+    
+    return {
+      score: Math.max(0, score),
+      gaps,
+      vagueTerms,
+      isSpecific: score >= 60
+    }
+  }
+}
+          ]]></content>
+        </file>
+      </implementation>
+      <validation>
+        <criterion>Scoring detecta escopo "adicionar tela de config" como vago (score &lt; 60)</criterion>
+        <criterion>Identifica lacunas: tecnologia UI, persistência, requisitos funcionais</criterion>
+        <criterion>Retorna PhaseResult com type='ask' para escopos vagos</criterion>
+      </validation>
+    </step>
+
+    <step id="2" status="pending">
+      <title>Criar Question Generator com Contexto do Projeto</title>
+      <description>
+        Serviço que gera perguntas inteligentes baseadas nas lacunas identificadas e no contexto do projeto.
+        
+        FONTES DE CONTEXTO:
+        - .cappy/stack.md: tecnologias já usadas no projeto
+        - .cappy/config.json: configurações existentes
+        - src/: padrões de código existentes
+        
+        TIPOS DE PERGUNTAS:
+        - Escolha múltipla com opções do projeto
+        - Sim/Não para decisões binárias
+        - Texto livre para detalhes específicos
+      </description>
+      <implementation>
+        <file path="src/nivel2/infrastructure/agents/chat-engine/services/question-generator.ts" action="create">
+          <content><![CDATA[
+import * as vscode from 'vscode'
+import * as path from 'path'
+import type { Question, ScopeGap } from '../types'
+
+export class ScopeQuestionGenerator {
+  /**
+   * Gera perguntas contextualizadas baseadas nas lacunas do escopo
+   */
+  static async generateQuestions(gaps: ScopeGap[]): Promise<Question[]> {
+    const questions: Question[] = []
+    
+    for (const gap of gaps) {
+      switch (gap.category) {
+        case 'technology':
+          questions.push(await this.generateTechnologyQuestion())
+          break
+          
+        case 'requirements':
+          questions.push(this.generateRequirementsQuestion(gap))
+          break
+          
+        case 'integration':
+          questions.push(this.generateIntegrationQuestion(gap))
+          break
+          
+        case 'validation':
+          questions.push(this.generateValidationQuestion(gap))
+          break
+      }
+    }
+    
+    return questions
+  }
+  
+  private static async generateTechnologyQuestion(): Promise<Question> {
+    // Check project for existing UI patterns
+    const hasReact = await this.projectUsesTechnology('react')
+    const hasVue = await this.projectUsesTechnology('vue')
+    const hasWebview = await this.projectUsesTechnology('webview')
+    
+    const options: string[] = []
+    if (hasReact) options.push('React (já usado no projeto)')
+    if (hasVue) options.push('Vue (já usado no projeto)')
+    if (hasWebview) options.push('VS Code Webview (já usado no projeto)')
+    
+    // Add common options
+    options.push('VS Code Quick Pick (nativo, leve)')
+    options.push('VS Code TreeView (nativo, hierárquico)')
+    options.push('Outra tecnologia')
+    
+    return {
+      id: 'tech-ui',
+      question: 'Qual tecnologia você quer usar para a interface de configuração?',
+      type: 'technical',
+      context: 'Escolha baseada nas tecnologias já presentes no projeto',
+      why: 'Precisamos saber a tecnologia para gerar código compatível e aproveitar padrões existentes',
+      options
+    }
+  }
+  
+  private static generateRequirementsQuestion(gap: ScopeGap): Question {
+    return {
+      id: 'req-persistence',
+      question: 'Onde as configurações devem ser salvas?',
+      type: 'technical',
+      context: gap.description,
+      why: 'Define a estratégia de persistência e acesso às configurações',
+      options: [
+        'VS Code Settings (settings.json) - sincroniza entre máquinas',
+        '.cappy/config.json - arquivo local do projeto',
+        'Arquivo customizado no workspace',
+        'Memória (não persiste)'
+      ]
+    }
+  }
+  
+  private static generateIntegrationQuestion(gap: ScopeGap): Question {
+    return {
+      id: 'integration',
+      question: 'A tela de config precisa integrar com quais sistemas existentes?',
+      type: 'business',
+      context: gap.description,
+      why: 'Identifica dependências e pontos de integração necessários',
+      options: []
+    }
+  }
+  
+  private static generateValidationQuestion(gap: ScopeGap): Question {
+    return {
+      id: 'validation',
+      question: 'Quais validações são necessárias nas configurações?',
+      type: 'technical',
+      context: gap.description,
+      why: 'Define regras de negócio e prevenção de erros',
+      options: [
+        'Formato de campos (ex: URL, API key)',
+        'Valores obrigatórios',
+        'Dependências entre campos',
+        'Nenhuma validação especial'
+      ]
+    }
+  }
+  
+  private static async projectUsesTechnology(tech: string): Promise<boolean> {
+    const workspaceFolders = vscode.workspace.workspaceFolders
+    if (!workspaceFolders) return false
+    
+    try {
+      const packageJsonPath = path.join(workspaceFolders[0].uri.fsPath, 'package.json')
+      const packageJson = await vscode.workspace.fs.readFile(vscode.Uri.file(packageJsonPath))
+      const content = JSON.parse(Buffer.from(packageJson).toString())
+      
+      const allDeps = {
+        ...content.dependencies,
+        ...content.devDependencies
+      }
+      
+      return Object.keys(allDeps).some(dep => dep.toLowerCase().includes(tech))
+    } catch {
+      return false
+    }
+  }
+}
+          ]]></content>
+        </file>
+      </implementation>
+      <validation>
+        <criterion>Gera perguntas específicas para cada tipo de lacuna</criterion>
+        <criterion>Consulta package.json para sugerir tecnologias já usadas</criterion>
+        <criterion>Perguntas incluem context e why para o usuário entender o motivo</criterion>
+      </validation>
+    </step>
+
+    <step id="3" status="pending">
+      <title>Atualizar Types e Phase Orchestrator</title>
+      <description>
+        Integrar nova fase 'scope-clarity' no fluxo existente.
+        
+        MUDANÇAS:
+        1. types.ts: adicionar 'scope-clarity' em ChatPhase
+        2. types.ts: adicionar scopeClarity em AnalystState
+        3. phase-orchestrator.ts: adicionar case 'scope-clarity'
+        4. Ajustar fluxo: scope-clarity → intent (se claro) OU scope-questions (se vago)
+      </description>
+      <implementation>
+        <file path="src/nivel2/infrastructure/agents/chat-engine/types.ts" action="modify">
+          <changes>
+            <change line="1">
+              Modificar: export type ChatPhase = 'scope-clarity' | 'intent' | 'context' | 'questions' | 'options' | 'spec' | 'done'
+            </change>
+            <change line="3-26">
+              Adicionar campo scopeClarity em AnalystState:
+              scopeClarity?: {
+                score: number
+                gaps: ScopeGap[]
+                vagueTerms: string[]
+                isSpecific: boolean
+              }
+            </change>
+          </changes>
+        </file>
+        
+        <file path="src/nivel2/infrastructure/agents/chat-engine/phases/phase-orchestrator.ts" action="modify">
+          <changes>
+            <change line="1-7">
+              Adicionar import: import { ScopeClarityPhaseHandler } from './scope-clarity-phase'
+            </change>
+            <change line="24-49">
+              Adicionar case 'scope-clarity' ANTES de 'intent':
+              
+              case 'scope-clarity':
+                phaseResult = ScopeClarityPhaseHandler.process(text, state)
+                break
+            </change>
+          </changes>
+        </file>
+      </implementation>
+      <validation>
+        <criterion>ChatPhase aceita 'scope-clarity' sem erros de tipo</criterion>
+        <criterion>PhaseOrchestrator roteia corretamente para ScopeClarityPhaseHandler</criterion>
+        <criterion>Estado mantém informações de clareza do escopo</criterion>
+      </validation>
+    </step>
+
+    <step id="4" status="pending">
+      <title>Implementar UI para Perguntas de Clarificação</title>
+      <description>
+        Criar interface que exibe perguntas ao usuário e coleta respostas.
+        
+        FORMATO:
+        - Título: "📋 Preciso de mais informações sobre seu pedido"
+        - Lista de perguntas numeradas
+        - Opções clicáveis (quando aplicável)
+        - Campo de texto livre (quando necessário)
+        - Botão "Confirmar respostas"
+        
+        COMPORTAMENTO:
+        - Validar todas as respostas antes de prosseguir
+        - Permitir revisão de respostas
+        - Exibir resumo do escopo clarificado
+      </description>
+      <implementation>
+        <file path="src/nivel2/infrastructure/agents/chat-engine/phases/scope-questions-phase.ts" action="create">
+          <content><![CDATA[
+import * as vscode from 'vscode'
+import type { AnalystState, PhaseResult, Question, Answer } from '../types'
+import { ScopeQuestionGenerator } from '../services/question-generator'
+
+export class ScopeQuestionsPhaseHandler {
+  /**
+   * Apresenta perguntas de clarificação ao usuário
+   */
+  static async process(text: string, state: AnalystState): Promise<PhaseResult> {
+    console.log('[ScopeQuestionsPhase] Generating clarification questions...')
+    
+    const gaps = state.scopeClarity?.gaps || []
+    const questions = await ScopeQuestionGenerator.generateQuestions(gaps)
+    
+    // Store questions in state
+    state.clarificationQuestions = questions
+    
+    // Generate formatted message with questions
+    const message = this.formatQuestionsMessage(questions)
+    
+    return {
+      type: 'ask',
+      data: {
+        message,
+        questions,
+        awaitingAnswers: true
+      }
+    }
+  }
+  
+  /**
+   * Processa respostas do usuário
+   */
+  static processAnswers(text: string, state: AnalystState): PhaseResult {
+    console.log('[ScopeQuestionsPhase] Processing user answers...')
+    
+    const answers = this.parseAnswers(text, state.clarificationQuestions || [])
+    state.clarificationAnswers = answers
+    
+    // Validate all questions were answered
+    if (answers.length < (state.clarificationQuestions?.length || 0)) {
+      return {
+        type: 'ask',
+        data: {
+          message: '⚠️ Por favor, responda todas as perguntas antes de prosseguir.',
+          missingQuestions: this.getMissingQuestions(state)
+        }
+      }
+    }
+    
+    // Build refined scope from answers
+    const refinedScope = this.buildRefinedScope(state.userInput, answers)
+    state.refinedScope = refinedScope
+    
+    // Show summary and proceed to intent
+    const summary = this.formatScopeSummary(refinedScope)
+    
+    return {
+      type: 'continue',
+      data: {
+        nextPhase: 'intent',
+        message: `✅ Escopo clarificado:\n\n${summary}\n\nProsseguindo com a análise...`
+      }
+    }
+  }
+  
+  private static formatQuestionsMessage(questions: Question[]): string {
+    let message = '📋 **Preciso de mais informações sobre seu pedido:**\n\n'
+    
+    questions.forEach((q, index) => {
+      message += `**${index + 1}. ${q.question}**\n`
+      message += `   _${q.why}_\n\n`
+      
+      if (q.options && q.options.length > 0) {
+        message += '   Opções:\n'
+        q.options.forEach((opt, i) => {
+          message += `   ${String.fromCharCode(97 + i)}) ${opt}\n`
+        })
+        message += '\n'
+      }
+    })
+    
+    message += '\n💡 _Responda com o número/letra ou descreva livremente._'
+    
+    return message
+  }
+  
+  private static parseAnswers(text: string, questions: Question[]): Answer[] {
+    // TODO: Implementar parser inteligente de respostas
+    // Por ora, retorna array vazio (step 4 completo quando parser estiver pronto)
+    return []
+  }
+  
+  private static getMissingQuestions(state: AnalystState): Question[] {
+    const answered = new Set((state.clarificationAnswers || []).map(a => a.questionId))
+    return (state.clarificationQuestions || []).filter(q => !answered.has(q.id))
+  }
+  
+  private static buildRefinedScope(originalScope: string, answers: Answer[]): string {
+    let refined = originalScope
+    
+    answers.forEach(answer => {
+      refined += `\n- ${answer.questionId}: ${answer.answer}`
+    })
+    
+    return refined
+  }
+  
+  private static formatScopeSummary(refinedScope: string): string {
+    return `\`\`\`\n${refinedScope}\n\`\`\``
+  }
+}
+          ]]></content>
+        </file>
+      </implementation>
+      <validation>
+        <criterion>Exibe perguntas formatadas com contexto e opções</criterion>
+        <criterion>Valida que todas as perguntas foram respondidas</criterion>
+        <criterion>Constrói escopo refinado a partir das respostas</criterion>
+      </validation>
+    </step>
+
+    <step id="5" status="pending">
+      <title>Otimizar Context Phase com Query Refinada</title>
+      <description>
+        Modificar ContextPhaseHandler para usar escopo clarificado ao invés de input original.
+        
+        OTIMIZAÇÕES:
+        - Usar state.refinedScope (se disponível) ao invés de state.userInput
+        - Gerar query de busca específica baseada nas respostas
+        - Filtrar resultados por categoria relevante
+        - Limitar número de documentos buscados
+        
+        EXEMPLO:
+        ANTES: "adicionar tela de config" → busca genérica → 50 documentos irrelevantes
+        DEPOIS: "criar webview React para editar .cappy/config.json com validação de API keys" → busca precisa → 5 documentos relevantes
+      </description>
+      <implementation>
+        <file path="src/nivel2/infrastructure/agents/chat-engine/phases/context-phase.ts" action="modify">
+          <changes>
+            <change line="15-25">
+              Modificar início do método process():
+              
+              // Use refined scope if available (from scope-clarity phase)
+              const searchQuery = state.refinedScope || state.userInput
+              console.log(`[ContextPhase] Using search query: ${searchQuery.substring(0, 100)}...`)
+              
+              // Extract technical terms from refined scope
+              const technicalTerms = this.extractTechnicalTerms(searchQuery)
+              console.log(`[ContextPhase] Technical terms:`, technicalTerms)
+            </change>
+            <change line="end">
+              Adicionar método helper:
+              
+              private static extractTechnicalTerms(text: string): string[] {
+                const techPatterns = [
+                  /\b(react|vue|angular|webview|quickpick|treeview)\b/gi,
+                  /\b(api|rest|graphql|websocket)\b/gi,
+                  /\b(json|yaml|xml|config)\b/gi,
+                  /\b(validation|persistence|storage)\b/gi
+                ]
+                
+                const terms = new Set&lt;string&gt;()
+                techPatterns.forEach(pattern => {
+                  const matches = text.match(pattern)
+                  if (matches) {
+                    matches.forEach(m => terms.add(m.toLowerCase()))
+                  }
+                })
+                
+                return Array.from(terms)
+              }
+            </change>
+          </changes>
+        </file>
+      </implementation>
+      <validation>
+        <criterion>Context Phase usa refinedScope quando disponível</criterion>
+        <criterion>Query de busca inclui termos técnicos específicos</criterion>
+        <criterion>Número de documentos recuperados é reduzido (max 10 ao invés de 50)</criterion>
+        <criterion>Teste: "adicionar tela de config" → perguntas → busca otimizada</criterion>
+      </validation>
+    </step>
+  </steps>
+
+  <testing>
+    <scenario id="1">
+      <description>Requisição vaga detectada e perguntas geradas</description>
+      <input>User: "quero adicionar uma tela de config"</input>
+      <expected>
+        1. Scope Clarity detecta vagueza (score &lt; 60)
+        2. Identifica gaps: tecnologia UI, persistência, requisitos
+        3. Gera 3-4 perguntas contextualizadas
+        4. Exibe perguntas formatadas ao usuário
+        5. Aguarda respostas antes de chamar retriever
+      </expected>
+    </scenario>
+    
+    <scenario id="2">
+      <description>Requisição clara pula clarificação</description>
+      <input>User: "criar webview React em src/config-ui/ que edita .cappy/config.json com validação de API keys usando Zod"</input>
+      <expected>
+        1. Scope Clarity detecta clareza (score ≥ 60)
+        2. Pula fase de perguntas
+        3. Vai direto para Intent Phase
+        4. Context Phase usa input original (já específico)
+      </expected>
+    </scenario>
+    
+    <scenario id="3">
+      <description>Usuário responde perguntas e busca é otimizada</description>
+      <input>
+        User: "adicionar tela de config"
+        Agent: [perguntas]
+        User: "1. VS Code Webview, 2. .cappy/config.json, 3. Validar API keys"
+      </input>
+      <expected>
+        1. Scope Questions processa respostas
+        2. Constrói refinedScope com detalhes
+        3. Context Phase busca com query específica: "webview config.json api key validation"
+        4. Recupera apenas 5-10 docs relevantes (vs 50 antes)
+      </expected>
+    </scenario>
+  </testing>
+
+  <success_criteria>
+    <criterion>Requisições vagas (score &lt; 60) sempre geram perguntas antes de buscar contexto</criterion>
+    <criterion>Perguntas são contextualizadas ao projeto (tecnologias já usadas aparecem primeiro)</criterion>
+    <criterion>Respostas refinam o escopo antes de disparar retriever</criterion>
+    <criterion>Context Phase usa escopo refinado, reduzindo documentos recuperados em 80%</criterion>
+    <criterion>Tempo até primeira busca aumenta (perguntas), mas tempo total diminui (menos retrabalho)</criterion>
+  </success_criteria>
+
+  <learnings>
+    <learning phase="initial">
+      Identificado antipadrão: escopo vago → busca genérica → contexto irrelevante → desperdício
+    </learning>
+  </learnings>
+</task>

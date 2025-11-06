@@ -3,6 +3,26 @@ export type ChatPhase = 'intent' | 'context' | 'questions' | 'options' | 'spec' 
 export interface AnalystState {
   userInput: string
   currentPhase: ChatPhase
+  // Scope clarity analysis (new)
+  scopeClarity?: {
+    score: number
+    gaps: Array<{
+      category: 'technology' | 'requirements' | 'integration' | 'validation' | 'persistence'
+      description: string
+      critical: boolean
+      suggestion?: string
+    }>
+    vagueTerms: string[]
+    isSpecific: boolean
+    detectedTech?: string[]
+    hasRequirements: boolean
+    hasPersistence: boolean
+  }
+  // Clarification questions and answers (new)
+  clarificationQuestions?: Question[]
+  clarificationAnswers?: Answer[]
+  // Refined scope after clarification (new)
+  refinedScope?: string
   intent?: {
     objective: string
     technicalTerms: string[]
@@ -61,7 +81,7 @@ export interface Option {
 
 export interface PhaseResult {
   type: 'continue' | 'ask' | 'done'
-  data?: any
+  data?: unknown
 }
 
 export interface GreetingInfo {

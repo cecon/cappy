@@ -11,6 +11,28 @@ Stop fighting with AI tools that don't understand your codebase. Cappy builds a 
 
 ---
 
+## 📖 Table of Contents
+
+1. [The Problem](#the-problem)
+2. [The Solution](#the-solution)
+3. [Real-World Impact](#real-world-impact)
+4. [How It Works](#how-it-works)
+5. [Features](#features)
+6. [Installation](#installation)
+7. [Usage](#usage)
+8. [Use Cases](#use-cases)
+9. [Configuration](#configuration)
+10. [Architecture](#architecture)
+11. [Roadmap](#roadmap)
+12. [FAQ](#faq)
+13. [Enterprise / Agent Service](#enterprise--agent-service)
+14. [Contributing](#contributing)
+15. [Tech Stack](#tech-stack)
+16. [License](#license)
+17. [Credits](#credits)
+
+---
+
 ## The Problem
 
 You're building with AI tools but:

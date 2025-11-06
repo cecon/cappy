@@ -9,6 +9,7 @@ import { LanguageModelToolsBootstrap } from './LanguageModelToolsBootstrap';
 import { ViewsBootstrap } from './ViewsBootstrap';
 import { CommandsBootstrap } from './CommandsBootstrap';
 import { FileProcessingSystemBootstrap } from './FileProcessingSystemBootstrap';
+import { CappyAgentAdapter } from '../../../../nivel2/infrastructure/agents/codeact/cappy-agent-adapter';
 import type { FileMetadataDatabase } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 import type { FileProcessingQueue } from '../../../../nivel2/infrastructure/services/file-processing-queue';
 import type { FileChangeWatcher } from '../../../../nivel2/infrastructure/services/file-change-watcher';
@@ -97,7 +98,10 @@ export class ExtensionBootstrap {
     this.state.documentsViewProvider = viewsResult.documentsViewProvider;
     this.state.viewsBootstrap = viewsBootstrap; // Store for later updates
 
-    // Phase 3: Register Commands
+    // Phase 3: Register CodeAct Agent Chat Participant
+    this.registerCodeActAgent(context);
+
+    // Phase 4: Register Commands
     const commandsBootstrap = new CommandsBootstrap({
       graphPanel: this.state.graphPanel,
       fileDatabase: this.state.fileDatabase,
@@ -109,15 +113,83 @@ export class ExtensionBootstrap {
     commandsBootstrap.register(context);
     this.state.commandsBootstrap = commandsBootstrap;
 
-    // Phase 4: Auto-start file processing if Cappy is initialized
+    // Phase 5: Auto-start file processing if Cappy is initialized
     await this.autoStartFileProcessing(context);
 
-    // Phase 5: Log available commands
+    // Phase 6: Log available commands
     this.logAvailableCommands();
 
     // Show success message
     vscode.window.showInformationMessage('Cappy loaded successfully!');
     console.log('✅ [Extension] Cappy activation complete');
+  }
+
+  /**
+   * Registers the CodeAct Agent as a chat participant
+   */
+  private registerCodeActAgent(context: vscode.ExtensionContext): void {
+    console.log('🤖 Registering CodeAct Agent...');
+    
+    // Create chat participant
+    const cappyAgent = vscode.chat.createChatParticipant(
+      'cappy.assistant',
+      async (
+        request: vscode.ChatRequest,
+        _chatContext: vscode.ChatContext,
+        stream: vscode.ChatResponseStream,
+        token: vscode.CancellationToken
+      ) => {
+        try {
+          // Create adapter (will be updated with retrieval when available)
+          const adapter = new CappyAgentAdapter();
+          await adapter.initialize();
+          
+          // Create Message object
+          const message = {
+            id: Date.now().toString(),
+            content: request.prompt,
+            author: 'user' as const,
+            timestamp: Date.now()
+          };
+          
+          // Create ChatContext object
+          const chatContext = {
+            sessionId: _chatContext.history.length > 0 
+              ? `session-${Date.now()}` 
+              : 'new-session',
+            history: []
+          };
+          
+          // Process message with streaming to VS Code
+          for await (const chunk of adapter.processMessage(message, chatContext)) {
+            if (token.isCancellationRequested) {
+              stream.markdown('\n\n_Task cancelled by user_');
+              break;
+            }
+            
+            // Stream chunk to VS Code Chat
+            stream.markdown(chunk);
+          }
+          
+          return { metadata: { command: 'chat' } };
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+          stream.markdown(`\n\n⚠️ **Error**: ${errMsg}`);
+          console.error('[CodeActAgent] Error:', error);
+          return { metadata: { command: 'chat', error: errMsg } };
+        }
+      }
+    );
+    
+    // Set icon
+    cappyAgent.iconPath = vscode.Uri.joinPath(
+      context.extensionUri,
+      'assets',
+      'cappy-icon.png'
+    );
+    
+    context.subscriptions.push(cappyAgent);
+    console.log('  ✅ CodeAct Agent registered as @cappy');
   }
 
   /**
@@ -155,22 +227,8 @@ export class ExtensionBootstrap {
         graphStore: result.graphStore
       });
     }
-
-    // Update chat engine with retrieval capability
-    if (result.graphStore) {
-      try {
-        const { HybridRetriever } = await import('../../../../nivel2/infrastructure/services/hybrid-retriever.js');
-        const hybridRetriever = new HybridRetriever(undefined, result.graphStore);
-        const viewsBootstrap = this.state.viewsBootstrap as ViewsBootstrap | undefined;
-        const chatEngine = viewsBootstrap?.['chatEngine' as keyof ViewsBootstrap];
-        if (chatEngine && typeof chatEngine === 'object' && 'updateRetrievalCapability' in chatEngine) {
-          (chatEngine as { updateRetrievalCapability: (useCase: unknown) => void }).updateRetrievalCapability(hybridRetriever.useCase);
-          console.log('📡 [ExtensionBootstrap] Chat engine updated with retrieval capability');
-        }
-      } catch (err) {
-        console.warn('[ExtensionBootstrap] Could not update chat engine with retrieval:', err);
-      }
-    }
+    
+    console.log('✅ [ExtensionBootstrap] File processing system initialized successfully');
   }
 
   /**

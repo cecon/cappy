@@ -5,28 +5,17 @@
 
 import * as vscode from 'vscode';
 import { GraphPanel } from '../dashboard/GraphPanel';
-import { ChatViewProvider } from '../chat/ChatViewProvider';
 import { DocumentsViewProvider } from '../documents/DocumentsViewProvider';
-import { OrchestratedChatEngine } from '../../../../nivel2/infrastructure/agents/chat-engine/orchestrated-chat-engine';
-import { createChatService } from '../../../../domains/chat/services/chat-service';
-import type { HybridRetriever } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 
 export interface ViewsBootstrapResult {
   graphPanel: GraphPanel;
-  chatViewProvider: ChatViewProvider;
   documentsViewProvider: DocumentsViewProvider;
-}
-
-export interface ViewsBootstrapOptions {
-  hybridRetriever?: HybridRetriever;
 }
 
 /**
  * Registers all VS Code views (webviews, panels, etc)
  */
 export class ViewsBootstrap {
-  private chatEngine?: OrchestratedChatEngine;
-  
   /**
    * Registers all views
    */
@@ -40,20 +29,6 @@ export class ViewsBootstrap {
     // Create graph panel
     const graphPanel = new GraphPanel(context, graphOutputChannel);
     console.log('  ✅ Graph Panel created');
-
-    // Create chat service with OrchestratedChatEngine
-    this.chatEngine = new OrchestratedChatEngine();
-    const chatService = createChatService(this.chatEngine);
-    console.log('  ✅ OrchestratedChatEngine initialized with sub-agents');
-
-    // Register Chat View Provider
-    const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
-    const chatViewDisposable = vscode.window.registerWebviewViewProvider(
-      ChatViewProvider.viewType,
-      chatViewProvider
-    );
-    context.subscriptions.push(chatViewDisposable);
-    console.log('  ✅ Chat View Provider registered');
 
     // Register Documents View Provider
     const documentsViewProvider = new DocumentsViewProvider(context.extensionUri);
@@ -75,7 +50,6 @@ export class ViewsBootstrap {
 
     return {
       graphPanel,
-      chatViewProvider,
       documentsViewProvider
     };
   }
