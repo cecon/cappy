@@ -67,12 +67,10 @@ export class ExtensionBootstrap {
 
     // Phase 2: Register Views (webviews, panels, sidebar)
     const viewsBootstrap = new ViewsBootstrap();
-    const { graphPanel, documentsViewProvider, updateRetriever } = viewsBootstrap.register(context);
+    const { graphPanel, documentsViewProvider } = viewsBootstrap.register(context);
     this.state.graphPanel = graphPanel;
     this.state.documentsViewProvider = documentsViewProvider;
-    
-    // Store updateRetriever callback for later use
-    (this.state as any).updateRetriever = updateRetriever;
+    (this.state as any).viewsBootstrap = viewsBootstrap; // Store for later updates
 
     // Phase 3: Register Commands
     const commandsBootstrap = new CommandsBootstrap({
@@ -132,15 +130,19 @@ export class ExtensionBootstrap {
         graphStore: result.graphStore
       });
     }
-    
-    // Update chat engine with HybridRetriever if available
-    const updateRetriever = (this.state as any).updateRetriever;
-    if (updateRetriever && result.vectorStore) {
-      console.log('📡 [ExtensionBootstrap] Updating chat engine with HybridRetriever');
-      // VectorStore has a getRetriever() method that returns HybridRetriever
-      const hybridRetriever = (result.vectorStore as any).retriever;
-      if (hybridRetriever) {
-        updateRetriever(hybridRetriever);
+
+    // Update chat engine with retrieval capability
+    if (result.graphStore) {
+      try {
+        const { HybridRetriever } = await import('../../../../nivel2/infrastructure/services/hybrid-retriever.js');
+        const hybridRetriever = new HybridRetriever(undefined, result.graphStore);
+        const chatEngine = (this.state as any).viewsBootstrap?.chatEngine;
+        if (chatEngine && 'updateRetrievalCapability' in chatEngine) {
+          chatEngine.updateRetrievalCapability(hybridRetriever.useCase);
+          console.log('📡 [ExtensionBootstrap] Chat engine updated with retrieval capability');
+        }
+      } catch (err) {
+        console.warn('[ExtensionBootstrap] Could not update chat engine with retrieval:', err);
       }
     }
   }

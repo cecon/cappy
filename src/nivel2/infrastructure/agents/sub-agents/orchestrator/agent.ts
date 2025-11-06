@@ -94,6 +94,59 @@ export class OrchestratorAgent {
       )
     }
   }
+
+  /**
+   * Streaming orchestration - delegates to sub-agent's processStream if available
+   */
+  async *orchestrateStream(context: SubAgentContext): AsyncIterable<string> {
+    const startTime = Date.now()
+    
+    console.log('[Orchestrator] Starting streaming orchestration...')
+    console.log(`[Orchestrator] User message: "${context.userMessage}"`)
+    console.log(`[Orchestrator] Available agents: ${this.agents.length}`)
+    
+    if (this.agents.length === 0) {
+      console.error('[Orchestrator] No agents registered!')
+      yield 'No agents available to handle request'
+      return
+    }
+    
+    // Find best agent
+    const decision = await this.selectAgent(context)
+    
+    if (!decision) {
+      console.warn('[Orchestrator] No agent could handle the request')
+      yield 'Unable to process request - no suitable agent found'
+      return
+    }
+    
+    console.log(`[Orchestrator] ✅ Selected: ${decision.selectedAgent.name}`)
+    console.log(`[Orchestrator] Confidence: ${decision.confidence}`)
+    console.log(`[Orchestrator] Reason: ${decision.reason}`)
+    
+    // Execute selected agent with streaming if available
+    try {
+      const agent = decision.selectedAgent
+      
+      // Check if agent supports streaming
+      if ('processStream' in agent && typeof agent.processStream === 'function') {
+        console.log(`[Orchestrator] Using streaming mode for ${agent.name}`)
+        yield* agent.processStream(context)
+      } else {
+        // Fallback to non-streaming
+        console.log(`[Orchestrator] Using non-streaming mode for ${agent.name}`)
+        const response = await agent.process(context)
+        yield response.content
+      }
+      
+      const elapsedTime = Date.now() - startTime
+      console.log(`[Orchestrator] ✅ Streaming complete in ${elapsedTime}ms`)
+      
+    } catch (error) {
+      console.error(`[Orchestrator] Error executing agent ${decision.selectedAgent.name}:`, error)
+      yield `Error processing request: ${error instanceof Error ? error.message : 'Unknown error'}`
+    }
+  }
   
   /**
    * Select the best agent for the given context
@@ -147,7 +200,7 @@ export class OrchestratorAgent {
       confidence = confidence * 0.5 + context.intent.clarityScore * 0.5
     }
     
-    return Math.min(confidence, 1.0)
+    return Math.min(confidence, 1)
   }
   
   /**

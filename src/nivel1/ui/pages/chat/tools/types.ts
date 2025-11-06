@@ -11,7 +11,18 @@ export interface PendingToolCall {
   resolver: (approved: boolean) => void;
 }
 
+export interface PendingTextPrompt {
+  messageId: string;
+  question: string;
+  suggestions?: string[];
+  resolver: (response: string) => void;
+}
+
 export interface ToolCallActions {
   approveToolCall: (messageId: string) => void;
   denyToolCall: (messageId: string) => void;
+}
+
+export interface TextPromptActions {
+  respondToPrompt: (messageId: string, response: string) => void;
 }

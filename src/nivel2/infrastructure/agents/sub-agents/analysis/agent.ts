@@ -18,11 +18,11 @@ import { ANALYSIS_SYSTEM_PROMPT, buildRetrievalPrompt, NO_CONTEXT_FOUND } from '
  * 2. Analyzing with LLM
  * 3. Generating comprehensive plan
  * 
- * Priority: 50 (default - after greeting and clarification)
+ * Priority: 80 (after ContextOrganizer:85, before general handlers)
  */
 export class AnalysisAgent extends BaseSubAgent {
   readonly name = 'AnalysisAgent'
-  readonly priority = 50
+  readonly priority = 80
   
   private readonly retrievalHelper: RetrievalHelper
   
@@ -117,6 +117,69 @@ export class AnalysisAgent extends BaseSubAgent {
       undefined,
     )
   }
+
+  /**
+   * Process with streaming - emit reasoning in real-time
+   */
+  async *processStream(context: SubAgentContext): AsyncIterable<string> {
+    this.log('Starting streaming analysis...')
+    
+    const { intent } = context
+    if (!intent) {
+      this.log('⚠️ No intent available, cannot analyze')
+      yield 'Não foi possível extrair a intenção da mensagem. Pode reformular?'
+      return
+    }
+    
+    // Emit reasoning start
+    yield '__REASONING_START__\n'
+    
+    // Step 1: Show we're searching
+    yield '🔍 **Buscando contexto no projeto...**\n\n'
+    
+    // Retrieve context (this might take a few seconds)
+    const retrievedContext = await this.retrievalHelper.retrieveContext(intent)
+    this.log(`Retrieved ${retrievedContext.totalResults} contexts`)
+    
+    // Step 2: Show what we found
+    if (retrievedContext.totalResults > 0) {
+      yield `✅ Encontrei **${retrievedContext.totalResults} referências** relevantes:\n`
+      if (retrievedContext.code.length > 0) {
+        yield `- ${retrievedContext.code.length} exemplos de código\n`
+      }
+      if (retrievedContext.documentation.length > 0) {
+        yield `- ${retrievedContext.documentation.length} documentos\n`
+      }
+      if (retrievedContext.prevention.length > 0) {
+        yield `- ${retrievedContext.prevention.length} regras de prevenção\n`
+      }
+      yield '\n'
+    } else {
+      yield '⚠️ **Nenhum contexto relevante encontrado no projeto.**\n\n'
+      yield 'Isso pode significar:\n'
+      yield '• É uma funcionalidade completamente nova\n'
+      yield '• Preciso de mais informações para buscar melhor\n'
+      yield '• Os termos usados não correspondem ao código existente\n\n'
+    }
+    
+    // Step 3: Check if we found anything
+    if (retrievedContext.totalResults === 0) {
+      this.log('No context found, asking for more info')
+      yield '__REASONING_END__\n\n'
+      yield NO_CONTEXT_FOUND
+      return
+    }
+    
+    // Step 4: Show we're analyzing
+    yield '🧠 **Analisando com IA...**\n'
+    yield '__REASONING_END__\n\n'
+    
+    // Add a small indicator before LLM starts
+    yield '💭 '
+    
+    // Step 5: Stream LLM analysis
+    yield* this.analyzeWithLLMStream(intent, retrievedContext)
+  }
   
   /**
    * Analyze retrieved context with LLM
@@ -146,7 +209,7 @@ export class AnalysisAgent extends BaseSubAgent {
         vscode.LanguageModelChatMessage.User(`${analysisPrompt}\n\nContexto recuperado:\n${contextSummary}`)
       ]
       
-      // Get LLM response
+      // Get LLM response without tools (analysis is local, context already retrieved)
       const request = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token)
       
       let analysis = ''
@@ -164,6 +227,58 @@ export class AnalysisAgent extends BaseSubAgent {
       return this.buildFallbackAnalysis(intent, context)
     }
   }
+
+  /**
+   * Analyze retrieved context with LLM - streaming version
+   */
+  private async *analyzeWithLLMStream(intent: Intent, context: RetrievedContext): AsyncIterable<string> {
+    try {
+      // Get VS Code LLM
+      const models = await vscode.lm.selectChatModels({
+        vendor: 'copilot',
+        family: 'gpt-4o'
+      })
+      
+      if (models.length === 0) {
+        this.log('⚠️ No LLM available')
+        yield this.buildFallbackAnalysis(intent, context)
+        return
+      }
+      
+      const model = models[0]
+      this.log('Using LLM for streaming analysis...')
+      
+      // Build prompt with context
+      const contextSummary = this.buildContextSummary(context)
+      const analysisPrompt = buildRetrievalPrompt(intent.objective, intent.category)
+      
+      const messages = [
+        vscode.LanguageModelChatMessage.User(ANALYSIS_SYSTEM_PROMPT),
+        vscode.LanguageModelChatMessage.User(`${analysisPrompt}\n\nContexto recuperado:\n${contextSummary}`)
+      ]
+      
+      // Stream LLM response
+      const request = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token)
+      
+      let hasContent = false
+      for await (const fragment of request.stream) {
+        if (fragment instanceof vscode.LanguageModelTextPart) {
+          yield fragment.value
+          hasContent = true
+        }
+      }
+      
+      if (!hasContent) {
+        yield this.buildFallbackAnalysis(intent, context)
+      }
+      
+      this.log('Streaming analysis complete')
+      
+    } catch (error) {
+      this.log('Error during LLM analysis:', error)
+      yield this.buildFallbackAnalysis(intent, context)
+    }
+  }
   
   /**
    * Build context summary for LLM
@@ -173,23 +288,29 @@ export class AnalysisAgent extends BaseSubAgent {
     
     if (context.code.length > 0) {
       parts.push(`**Código encontrado (${context.code.length} referências):**`)
-      context.code.slice(0, 3).forEach((ctx, i: number) => {
-        parts.push(`${i + 1}. ${ctx.source || 'Unknown'} - ${ctx.content.substring(0, 200)}...`)
-      })
+      let i = 0
+      for (const ctx of context.code.slice(0, 3)) {
+        i++
+        parts.push(`${i}. ${ctx.source || 'Unknown'} - ${ctx.content.substring(0, 200)}...`)
+      }
     }
     
     if (context.documentation.length > 0) {
       parts.push(`\n**Documentação (${context.documentation.length} referências):**`)
-      context.documentation.slice(0, 2).forEach((ctx, i: number) => {
-        parts.push(`${i + 1}. ${ctx.source || 'Unknown'} - ${ctx.content.substring(0, 150)}...`)
-      })
+      let i = 0
+      for (const ctx of context.documentation.slice(0, 2)) {
+        i++
+        parts.push(`${i}. ${ctx.source || 'Unknown'} - ${ctx.content.substring(0, 150)}...`)
+      }
     }
     
     if (context.prevention.length > 0) {
       parts.push(`\n**Regras de prevenção (${context.prevention.length}):**`)
-      context.prevention.slice(0, 2).forEach((ctx, i: number) => {
-        parts.push(`${i + 1}. ${ctx.content.substring(0, 100)}...`)
-      })
+      let i = 0
+      for (const ctx of context.prevention.slice(0, 2)) {
+        i++
+        parts.push(`${i}. ${ctx.content.substring(0, 100)}...`)
+      }
     }
     
     return parts.join('\n')

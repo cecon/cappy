@@ -1,5 +1,5 @@
-// Main chat engine
-export { LangGraphChatEngine } from './langgraph-chat-engine-v2'
+// Main chat engine - using OrchestratedChatEngine with sub-agents
+export { OrchestratedChatEngine } from './orchestrated-chat-engine'
 
 // Types
 export type * from './types'

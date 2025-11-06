@@ -4,28 +4,16 @@
  */
 
 import * as vscode from 'vscode'
-import type { ChatAgentPort } from '../../../../domains/chat/ports/agent-port'
+import type { ChatAgentPort, ChatContext } from '../../../../domains/chat/ports/agent-port'
 import type { Message } from '../../../../domains/chat/entities/message'
 import type { SubAgentContext, Intent } from '../sub-agents/shared/types'
 import { OrchestratorAgent } from '../sub-agents/orchestrator/agent'
 import { GreetingAgent } from '../sub-agents/greeting/agent'
 import { ClarificationAgent } from '../sub-agents/clarification/agent'
+import { PlanningAgent } from '../sub-agents/planning/agent'
+// import { ContextOrganizerAgent } from '../sub-agents/context-organizer/agent' // DISABLED: blocks flow
 import { AnalysisAgent } from '../sub-agents/analysis/agent'
 import type { RetrieveContextUseCase } from '../../../../domains/retrieval/use-cases/retrieve-context-use-case'
-
-/**
- * OrchestrationResult - Complete result from orchestration
- */
-interface OrchestrationResult {
-  content: string
-  needsMoreInfo: boolean
-  metadata: {
-    agentName: string
-    agentPriority: number
-    processingTime: number
-    [key: string]: unknown
-  }
-}
 
 /**
  * OrchestratedChatEngine
@@ -38,37 +26,72 @@ interface OrchestrationResult {
  * Uses Assistant UI reasoning parts for thinking blocks.
  */
 export class OrchestratedChatEngine implements ChatAgentPort {
-  private readonly orchestrator: OrchestratorAgent
-  private readonly retrieveContextUseCase?: RetrieveContextUseCase
+  private orchestrator: OrchestratorAgent
+  private readonly pendingToolApprovals: Map<string, (approved: boolean) => void> = new Map()
+  private readonly pendingPromptResponses: Map<string, (response: string) => void> = new Map()
   
   constructor(retrieveContextUseCase?: RetrieveContextUseCase) {
-    this.retrieveContextUseCase = retrieveContextUseCase
-    this.orchestrator = new OrchestratorAgent()
-    
-    // Register all sub-agents in priority order
-    this.orchestrator.registerAgent(new GreetingAgent())
-    this.orchestrator.registerAgent(new ClarificationAgent())
-    this.orchestrator.registerAgent(new AnalysisAgent(retrieveContextUseCase))
-    
-    console.log('[OrchestratedChatEngine] Initialized with 3 sub-agents')
+    this.orchestrator = this.createOrchestrator(retrieveContextUseCase)
+    console.log('[OrchestratedChatEngine] Initialized with 4 sub-agents (Greeting, Clarification, Planning, Analysis)')
+  }
+  
+  /**
+   * Create a new orchestrator with sub-agents
+   */
+  private createOrchestrator(retrieveContextUseCase?: RetrieveContextUseCase): OrchestratorAgent {
+    const orchestrator = new OrchestratorAgent()
+    orchestrator.registerAgent(new GreetingAgent())
+    orchestrator.registerAgent(new ClarificationAgent())
+    orchestrator.registerAgent(new PlanningAgent())
+    // orchestrator.registerAgent(new ContextOrganizerAgent()) // DISABLED: blocks flow without executing retrieval
+    orchestrator.registerAgent(new AnalysisAgent(retrieveContextUseCase))
+    return orchestrator
+  }
+  
+  /**
+   * Update retrieval capability with a new use case
+   */
+  updateRetrievalCapability(retrieveContextUseCase: RetrieveContextUseCase): void {
+    console.log('[OrchestratedChatEngine] Updating with new RetrieveContextUseCase')
+    this.orchestrator = this.createOrchestrator(retrieveContextUseCase)
+    console.log('[OrchestratedChatEngine] Orchestrator updated with retrieval capability')
   }
   
   /**
    * Process user message and stream response with reasoning parts
    */
-  async *processMessage(message: Message): AsyncIterable<string> {
+  async *processMessage(message: Message, context: ChatContext): AsyncIterable<string> {
     try {
       console.log('[OrchestratedChatEngine] Processing message:', message.content)
       
       // Step 1: Extract intent
       const intent = await this.extractIntent(message.content)
       
-      // Step 2: Build context
-      const context: SubAgentContext = {
+      // Step 2: Build sub-agent context with onPromptRequest
+      const subAgentContext: SubAgentContext = {
         userMessage: message.content,
         intent,
-        history: [],
-        sessionId: this.generateSessionId()
+        history: context.history || [],
+        sessionId: context.sessionId,
+        onPromptRequest: context.onPromptRequest ? async (prompt) => {
+          // Create a promise that will be resolved when user responds
+          const responsePromise = new Promise<string>((resolve) => {
+            this.pendingPromptResponses.set(prompt.messageId, resolve)
+          })
+          
+          // Convert SubAgent PromptRequest to domain UserPrompt and send to UI
+          const userPrompt = {
+            messageId: prompt.messageId,
+            question: prompt.prompt,
+            suggestions: prompt.suggestions,
+            toolCall: undefined
+          }
+          context.onPromptRequest!(userPrompt)
+          
+          // Wait for user response (will be resolved via handleUserPromptResponse)
+          const response = await responsePromise
+          return response
+        } : undefined
       }
       
       console.log('[OrchestratedChatEngine] Intent extracted:', {
@@ -80,33 +103,23 @@ export class OrchestratedChatEngine implements ChatAgentPort {
       // Step 3: Check if this is a greeting (skip reasoning for instant responses)
       const isGreeting = intent?.category === 'greeting'
       
-      // Step 4: Generate reasoning part for non-greetings
+      // Step 4: Generate initial reasoning part for non-greetings
       if (!isGreeting) {
-        // Send reasoning as a separate message part
-        const reasoningText = this.buildReasoningText(intent, context)
+        // Send initial reasoning as a separate message part
+        const reasoningText = this.buildInitialReasoningText(intent)
         
         // Emit reasoning part using special markers that Assistant UI understands
-        yield `__REASONING_START__\n${reasoningText}\n__REASONING_END__\n`
+        yield `__REASONING_START__\n${reasoningText}\n`
+        
+        // Note: We don't close __REASONING_END__ yet - the sub-agent will add more
+        // reasoning and close it when ready
       }
       
-      // Step 5: Orchestrate
-      const result = await this.orchestrator.orchestrate(context)
+      // Step 5: Orchestrate with streaming
+      // The orchestrator will delegate to sub-agents and stream their responses
+      yield* this.orchestrator.orchestrateStream(subAgentContext)
       
-      console.log('[OrchestratedChatEngine] Orchestration complete:', {
-        agent: result.metadata.agentName,
-        priority: result.metadata.agentPriority,
-        needsMoreInfo: result.needsMoreInfo
-      })
-      
-      // Step 6: Stream main response
-      yield result.content
-      
-      // Log final state
-      if (result.needsMoreInfo) {
-        console.log('[OrchestratedChatEngine] ⏸️  Waiting for user clarification')
-      } else {
-        console.log('[OrchestratedChatEngine] ✅ Request completed')
-      }
+      console.log('[OrchestratedChatEngine] ✅ Streaming completed')
       
     } catch (error) {
       console.error('[OrchestratedChatEngine] Error:', error)
@@ -115,40 +128,35 @@ export class OrchestratedChatEngine implements ChatAgentPort {
   }
   
   /**
-   * Build reasoning text from intent
+   * Build initial reasoning text from intent (before retrieval)
    */
-  private buildReasoningText(intent: Intent | undefined, _context: SubAgentContext): string {
-    const parts: string[] = []
-    
-    parts.push('🧠 **Analisando sua solicitação...**\n')
-    
-    if (intent) {
-      parts.push(`**Objetivo identificado:** ${intent.objective}\n`)
-      
-      if (intent.technicalTerms.length > 0) {
-        parts.push(`**Termos técnicos:** ${intent.technicalTerms.join(', ')}\n`)
-      }
-      
-      parts.push(`**Categoria:** ${intent.category}\n`)
-      parts.push(`**Clareza:** ${(intent.clarityScore * 100).toFixed(0)}%\n`)
-      
-      if (intent.clarityScore < 0.7) {
-        parts.push(`\n⚠️ *Atenção: A solicitação pode precisar de mais detalhes*\n`)
-      }
-      
-      if (intent.ambiguities.length > 0) {
-        parts.push(`\n**Pontos de atenção:**\n${intent.ambiguities.map(a => `- ${a}`).join('\n')}\n`)
-      }
+  private buildInitialReasoningText(intent: Intent | undefined): string {
+    if (!intent) {
+      return '🧠 **Analisando sua solicitação...**\n\n'
     }
     
-    // Check if we need retrieval
-    if (intent && intent.clarityScore >= 0.5) {
-      parts.push(`\n🔍 **Buscando contexto relevante no projeto...**\n`)
-    }
+    const technicalTermsText = intent.technicalTerms.length > 0
+      ? `**Termos técnicos:** ${intent.technicalTerms.join(', ')}\n`
+      : ''
     
-    return parts.join('\n')
+    const clarityPercent = (intent.clarityScore * 100).toFixed(0)
+    const clarityWarning = intent.clarityScore < 0.7
+      ? '\n⚠️ *Atenção: A solicitação pode precisar de mais detalhes*\n'
+      : ''
+    
+    const ambiguitiesText = intent.ambiguities.length > 0
+      ? '\n**Pontos de atenção:**\n' + intent.ambiguities.map(a => `- ${a}`).join('\n') + '\n'
+      : ''
+    
+    return `🧠 **Analisando sua solicitação...**
+
+**Objetivo identificado:** ${intent.objective}
+${technicalTermsText}**Categoria:** ${intent.category}
+**Clareza:** ${clarityPercent}%
+${clarityWarning}${ambiguitiesText}
+`
   }
-  
+
   /**
    * Extract intent from user message using LLM
    */
@@ -213,13 +221,14 @@ Respond with this exact JSON structure (no markdown, no explanation):
    */
   private cleanJsonResponse(response: string): string {
     // Remove markdown code blocks
-    let cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '')
+    let cleaned = response.replaceAll(/```json\n?/g, '').replaceAll(/```\n?/g, '')
     
     // Remove comments
-    cleaned = cleaned.replace(/\/\/.*$/gm, '')
+    cleaned = cleaned.replaceAll(/\/\/.*$/gm, '')
     
     // Find JSON object
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+    const jsonRegex = /\{[\s\S]*\}/
+    const jsonMatch = jsonRegex.exec(cleaned)
     if (jsonMatch) {
       return jsonMatch[0]
     }
@@ -240,7 +249,7 @@ Respond with this exact JSON structure (no markdown, no explanation):
         objective: 'User is greeting',
         technicalTerms: [],
         category: 'greeting',
-        clarityScore: 1.0,
+        clarityScore: 1,
         ambiguities: [],
         rawMessage: userMessage
       }
@@ -270,17 +279,30 @@ Respond with this exact JSON structure (no markdown, no explanation):
   }
   
   /**
-   * Generate unique session ID
-   */
-  private generateSessionId(): string {
-    return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-  }
-  
-  /**
    * Handle user prompt response (for multi-turn conversations)
    */
   handleUserPromptResponse(messageId: string, response: string): void {
     console.log('[OrchestratedChatEngine] User response:', messageId, response)
-    // TODO: Implement multi-turn conversation handling
+    
+    // Check if it's a prompt response
+    const promptResolver = this.pendingPromptResponses.get(messageId)
+    if (promptResolver) {
+      console.log(`[OrchestratedChatEngine] Resolving prompt: ${messageId}`)
+      promptResolver(response)
+      this.pendingPromptResponses.delete(messageId)
+      return
+    }
+    
+    // Check if it's a tool approval
+    const toolResolver = this.pendingToolApprovals.get(messageId)
+    if (toolResolver) {
+      const approved = response === 'yes'
+      console.log(`[OrchestratedChatEngine] Tool ${approved ? 'approved' : 'rejected'}: ${messageId}`)
+      toolResolver(approved)
+      this.pendingToolApprovals.delete(messageId)
+      return
+    }
+    
+    console.warn(`[OrchestratedChatEngine] No pending request found for message: ${messageId}`)
   }
 }

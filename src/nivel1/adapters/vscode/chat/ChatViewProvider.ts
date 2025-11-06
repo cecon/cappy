@@ -87,7 +87,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       console.log('🤖 [ChatViewProvider] Sending message through LangGraph engine with tools...');
       
       // Callback to handle prompt requests from the agent
-      const onPromptRequest = (prompt: import('../../../../domains/chat/entities/prompt').UserPrompt & { question?: string; toolCall?: { name: string; input: unknown } }) => {
+      const onPromptRequest = (prompt: import('../../../../domains/chat/entities/prompt').UserPrompt & { question?: string; toolCall?: { name: string; input: unknown }; suggestions?: string[] }) => {
         console.log('🔧 [ChatViewProvider] onPromptRequest called:', prompt);
         webview.postMessage({
           type: 'promptRequest',
@@ -95,7 +95,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           promptMessageId: prompt.messageId,
           prompt: {
             question: prompt.question,
-            toolCall: prompt.toolCall
+            toolCall: prompt.toolCall,
+            suggestions: prompt.suggestions
           }
         });
       };

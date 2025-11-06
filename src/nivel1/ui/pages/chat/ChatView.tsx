@@ -16,7 +16,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { SendHorizontalIcon, CircleStopIcon } from "lucide-react";
-import { ToolCallConfirmation, type PendingToolCall } from "./tools/index.ts";
+import { ToolCallConfirmation, TextPromptInput, type PendingToolCall, type PendingTextPrompt } from "./tools/index.ts";
 
 interface ChatViewProps {
   readonly sessionId?: string;
@@ -42,13 +42,14 @@ class VSCodeChatAdapter implements ChatModelAdapter {
   private readonly vscode: VsCodeApi;
   private readonly sessionId?: string;
   public pendingToolCalls: Map<string, PendingToolCall> = new Map();
+  public pendingTextPrompts: Map<string, PendingTextPrompt> = new Map();
 
   constructor(vscode: VsCodeApi, sessionId?: string) {
     this.vscode = vscode;
     this.sessionId = sessionId;
   }
 
-  public approveToolCall(messageId: string) {
+  approveToolCall(messageId: string): void {
     const pending = this.pendingToolCalls.get(messageId);
     if (pending) {
       pending.resolver(true);
@@ -56,11 +57,19 @@ class VSCodeChatAdapter implements ChatModelAdapter {
     }
   }
 
-  public denyToolCall(messageId: string) {
+  denyToolCall(messageId: string): void {
     const pending = this.pendingToolCalls.get(messageId);
     if (pending) {
       pending.resolver(false);
       this.pendingToolCalls.delete(messageId);
+    }
+  }
+  
+  respondToPrompt(messageId: string, response: string): void {
+    const pending = this.pendingTextPrompts.get(messageId);
+    if (pending) {
+      pending.resolver(response);
+      this.pendingTextPrompts.delete(messageId);
     }
   }
 
@@ -151,40 +160,59 @@ class VSCodeChatAdapter implements ChatModelAdapter {
           isDone = true;
           break;
         case "promptRequest": {
+          // Distinguish between tool call and text prompt
+          const hasToolCall = message.prompt?.toolCall !== undefined;
           
-          // Create pending tool call and add to map
-          const userDecision = new Promise<boolean>((resolve) => {
+          if (hasToolCall) {
+            // Handle as tool call (yes/no approval)
             const pendingTool: PendingToolCall = {
               messageId: message.promptMessageId,
-              toolName: message.prompt?.toolCall?.name || "unknown",
-              args: message.prompt?.toolCall?.input || {},
-              question: message.prompt?.question || "Execute tool?",
-              resolver: resolve,
+              toolName: message.prompt.toolCall.name,
+              args: message.prompt.toolCall.input || {},
+              question: message.prompt.question || "Execute tool?",
+              resolver: (approved: boolean) => {
+                // Send response to backend when resolved
+                this.vscode.postMessage({
+                  type: "userPromptResponse",
+                  messageId: message.promptMessageId,
+                  response: approved ? "yes" : "no",
+                });
+                
+                // Update text to show result
+                if (approved) {
+                  fullText += `✅ Tool approved\n\n`;
+                } else {
+                  fullText += `❌ Tool denied\n\n`;
+                  isDone = true;
+                }
+              },
             };
             this.pendingToolCalls.set(message.promptMessageId, pendingTool);
-          });
 
-          // Add marker to text
-          fullText += `\n\n__TOOL_CALL_PENDING__:${message.promptMessageId}\n\n`;
-          
-          // The periodic yield loop below will pick up this change and render the UI
-          
-          // Wait for user decision
-          const approved = await userDecision;
-
-          // Send response to backend
-          this.vscode.postMessage({
-            type: "userPromptResponse",
-            messageId: message.promptMessageId,
-            response: approved ? "yes" : "no",
-          });
-
-          // Update text to show result
-          if (approved) {
-            fullText += `✅ Tool approved\n\n`;
+            // Add marker to text (will trigger UI to show approval buttons)
+            fullText += `\n\n__TOOL_CALL_PENDING__:${message.promptMessageId}\n\n`;
           } else {
-            fullText += `❌ Tool denied\n\n`;
-            isDone = true;
+            // Handle as text prompt (user types answer)
+            const pendingPrompt: PendingTextPrompt = {
+              messageId: message.promptMessageId,
+              question: message.prompt?.question || "Please provide an answer:",
+              suggestions: message.prompt?.suggestions,
+              resolver: (response: string) => {
+                // Send response to backend when resolved
+                this.vscode.postMessage({
+                  type: "userPromptResponse",
+                  messageId: message.promptMessageId,
+                  response: response,
+                });
+                
+                // Update text to show user's answer
+                fullText += `📝 **Sua resposta:** ${response}\n\n`;
+              },
+            };
+            this.pendingTextPrompts.set(message.promptMessageId, pendingPrompt);
+
+            // Add marker to text for UI to detect (will trigger TextPromptInput to show)
+            fullText += `\n\n__TEXT_PROMPT_PENDING__:${message.promptMessageId}\n\n`;
           }
           break;
         }
@@ -273,8 +301,10 @@ class VSCodeChatAdapter implements ChatModelAdapter {
     const reasoningRegex = /__REASONING_START__\n([\s\S]*?)\n__REASONING_END__\n/g;
     let lastIndex = 0;
     let match: RegExpExecArray | null;
+    let hasReasoningBlock = false;
     
     while ((match = reasoningRegex.exec(fullText)) !== null) {
+      hasReasoningBlock = true;
       console.log('[VSCodeChatAdapter] Found reasoning block at index', match.index);
       
       // Add any text before reasoning as regular text
@@ -302,14 +332,29 @@ class VSCodeChatAdapter implements ChatModelAdapter {
     if (lastIndex < fullText.length) {
       const textAfter = fullText.substring(lastIndex).trim();
       if (textAfter) {
-        // Remove any tool call markers before adding
+        // Remove any tool call and text prompt markers before adding
         const cleanText = textAfter
-          .replace(/__TOOL_CALL_PENDING__:[^\n]+\n*/g, '');
+          .replaceAll(/__TOOL_CALL_PENDING__:[^\n]+\n*/g, '')
+          .replaceAll(/__TEXT_PROMPT_PENDING__:[^\n]+\n*/g, '');
         
         if (cleanText.trim()) {
           parts.push({ type: "text", text: cleanText } as TextMessagePart);
         }
       }
+    }
+    
+    // Check for incomplete reasoning (reasoning ended but no content yet)
+    // This happens when reasoning finishes but LLM is still generating response
+    const hasIncompleteReasoning = hasReasoningBlock && 
+                                   fullText.includes('__REASONING_END__') &&
+                                   lastIndex === fullText.length;
+    
+    if (hasIncompleteReasoning) {
+      console.log('[VSCodeChatAdapter] Detected incomplete reasoning - adding thinking indicator');
+      parts.push({ 
+        type: "text", 
+        text: "__THINKING_INDICATOR__" 
+      } as TextMessagePart);
     }
     
     // If no parts extracted, return original text
@@ -360,7 +405,7 @@ const Composer = () => {
         rows={1}
         autoFocus
         placeholder="Write a message..."
-        className="placeholder:text-muted-foreground max-h-40 flex-grow resize-none border-none bg-transparent px-2 py-4 text-sm outline-none focus:ring-0 disabled:cursor-not-allowed"
+        className="placeholder:text-muted-foreground max-h-40 flex-grow resize-none border-none bg-transparent px-2 py-4 text-[13px] outline-none focus:ring-0 disabled:cursor-not-allowed"
       />
       <ComposerAction />
     </ComposerPrimitive.Root>
@@ -378,7 +423,7 @@ const useChatAdapter = () => {
 
 const UserMessage: React.FC = () => (
   <MessagePrimitive.Root className="mb-4 flex justify-end">
-    <div className="max-w-[80%] rounded-2xl bg-blue-500 px-4 py-2 text-white">
+    <div className="w-full rounded-2xl bg-blue-500 px-4 py-2 text-white text-[13px]">
       <MessagePrimitive.Content />
     </div>
   </MessagePrimitive.Root>
@@ -394,39 +439,62 @@ const TypingIndicator: React.FC = () => (
 
 const AssistantText: React.FC<{ text: string }> = ({ text }) => {
   const adapter = useChatAdapter();
+  
+  // Detect thinking indicator (shown after reasoning ends, before content arrives)
+  if (text === "__THINKING_INDICATOR__") {
+    return (
+      <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-[13px] italic">
+        <TypingIndicator />
+        <span>Pensando...</span>
+      </div>
+    );
+  }
+  
   // Detect pending tool marker
   const pendingRegex = /__TOOL_CALL_PENDING__:([^\s]+)/;
   const pendingMatch = pendingRegex.exec(text);
   const pendingMessageId = pendingMatch?.[1]?.trim();
   const pendingTool = pendingMessageId ? adapter.pendingToolCalls.get(pendingMessageId) : null;
+  
+  // Detect pending text prompt marker
+  const textPromptRegex = /__TEXT_PROMPT_PENDING__:([^\s]+)/;
+  const textPromptMatch = textPromptRegex.exec(text);
+  const textPromptMessageId = textPromptMatch?.[1]?.trim();
+  const pendingTextPrompt = textPromptMessageId ? adapter.pendingTextPrompts.get(textPromptMessageId) : null;
 
   // Remove all special markers for display
   const cleanText = text
     .replaceAll(/__TOOL_CALL_PENDING__:[^\s]+/g, '')
+    .replaceAll(/__TEXT_PROMPT_PENDING__:[^\s]+/g, '')
     .replaceAll(/__PROMPT_REQUEST__:[^\n]+/g, '')
     .replaceAll(/<!-- reasoning:start -->[\s\S]*?<!-- reasoning:end -->/g, '')
     .trim();
 
-  const actions = {
+  const toolActions = {
     approveToolCall: (id: string) => adapter.approveToolCall(id),
     denyToolCall: (id: string) => adapter.denyToolCall(id),
   };
+  
+  const promptActions = {
+    respondToPrompt: (id: string, response: string) => adapter.respondToPrompt(id, response),
+  };
 
   // Show typing indicator when there's no content yet
-  if (!cleanText && !pendingTool) {
+  if (!cleanText && !pendingTool && !pendingTextPrompt) {
     return <TypingIndicator />;
   }
 
   return (
     <>
       {cleanText && (
-        <div className="prose dark:prose-invert max-w-none">
+        <div className="prose dark:prose-invert max-w-none text-[13px]">
           <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
             {cleanText}
           </ReactMarkdown>
         </div>
       )}
-      {pendingTool && <ToolCallConfirmation pendingTool={pendingTool} actions={actions} />}
+      {pendingTool && <ToolCallConfirmation pendingTool={pendingTool} actions={toolActions} />}
+      {pendingTextPrompt && <TextPromptInput pendingPrompt={pendingTextPrompt} actions={promptActions} />}
     </>
   );
 };
@@ -449,7 +517,7 @@ const ReasoningText: React.FC<{ text: string }> = ({ text }) => {
         <span className="ml-auto text-xs">{isOpen ? '▼' : '▶'}</span>
       </summary>
       <div className="px-4 py-3 border-t border-gray-300 dark:border-gray-700">
-        <div className="prose dark:prose-invert max-w-none text-sm text-gray-600 dark:text-gray-400">
+        <div className="prose dark:prose-invert max-w-none text-[12px] text-gray-600 dark:text-gray-400">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {text}
           </ReactMarkdown>
@@ -461,7 +529,7 @@ const ReasoningText: React.FC<{ text: string }> = ({ text }) => {
 
 const AssistantMessage: React.FC = () => (
   <MessagePrimitive.Root className="mb-4">
-    <div className="max-w-[80%] rounded-2xl bg-gray-100 dark:bg-gray-800 px-4 py-2">
+    <div className="w-full rounded-2xl bg-gray-100 dark:bg-gray-800 px-4 py-2 text-[13px]">
       <MessagePrimitive.Parts 
         components={{ 
           Text: AssistantText,
@@ -513,7 +581,7 @@ export function ChatView({ sessionId }: Readonly<ChatViewProps>) {
     <AssistantRuntimeProvider runtime={runtime}>
       <AdapterContext.Provider value={adapter}>
       <ThreadPrimitive.Root className="flex h-screen flex-col">
-        <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto px-4 pt-8">
+        <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto px-6 pt-8 max-w-[90%] mx-auto w-full">
           <ThreadPrimitive.Messages
             components={{
               UserMessage: UserMessage,
@@ -522,7 +590,7 @@ export function ChatView({ sessionId }: Readonly<ChatViewProps>) {
           />
         </ThreadPrimitive.Viewport>
 
-        <div className="border-t p-4">
+        <div className="border-t p-4 max-w-[90%] mx-auto w-full">
           <Composer />
         </div>
       </ThreadPrimitive.Root>

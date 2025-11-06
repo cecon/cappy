@@ -35,7 +35,7 @@ export class GreetingAgent extends BaseSubAgent {
   /**
    * Process greeting - return welcoming message
    */
-  async process(context: SubAgentContext): Promise<SubAgentResponse> {
+  async process(): Promise<SubAgentResponse> {
     this.log('Processing greeting...')
     
     return this.createResponse(

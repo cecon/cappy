@@ -58,6 +58,12 @@ export interface SubAgentContext {
   /** Unique session identifier */
   readonly sessionId?: string
   
+  /** Clarification state (if in clarification flow) */
+  readonly clarificationState?: ClarificationState
+  
+  /** Callback to request user input during processing */
+  readonly onPromptRequest?: (prompt: PromptRequest) => Promise<string>
+  
   /** Additional metadata */
   readonly metadata?: Readonly<Record<string, unknown>>
 }
@@ -103,6 +109,43 @@ export interface SubAgentResponse {
 }
 
 /**
+ * Request for user input during agent processing
+ */
+export interface PromptRequest {
+  /** Unique identifier for this prompt */
+  readonly messageId: string
+  
+  /** The question or prompt to show the user */
+  readonly prompt: string
+  
+  /** Optional suggestions/options for the user */
+  readonly suggestions?: readonly string[]
+  
+  /** Type of prompt (question, confirmation, choice) */
+  readonly type?: 'question' | 'confirmation' | 'choice'
+}
+
+/**
+ * State maintained during clarification conversation
+ */
+export interface ClarificationState {
+  /** Original intent that triggered clarification */
+  readonly originalIntent: Intent
+  
+  /** Questions that have been asked */
+  readonly questionsAsked: string[]
+  
+  /** Answers received from user */
+  readonly answersReceived: string[]
+  
+  /** Current clarity progress (0-1) */
+  readonly clarityProgress: number
+  
+  /** Enriched intent after clarification */
+  readonly enrichedIntent?: Intent
+}
+
+/**
  * Base interface for all sub-agents
  */
 export interface SubAgent {
@@ -125,6 +168,13 @@ export interface SubAgent {
    * @returns Complete response with metadata
    */
   process(context: SubAgentContext): Promise<SubAgentResponse>
+  
+  /**
+   * Process the context with streaming support (optional)
+   * @param context - User context and intent
+   * @returns AsyncIterable of response chunks
+   */
+  processStream?(context: SubAgentContext): AsyncIterable<string>
 }
 
 /**
