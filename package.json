@@ -188,6 +188,14 @@
         "isSticky": true,
         "commands": [
           {
+            "name": "plan",
+            "description": "Create a structured development plan with steps, validation, and post-execution hooks"
+          },
+          {
+            "name": "code",
+            "description": "Execute code changes directly without creating a plan"
+          },
+          {
             "name": "help",
             "description": "Get help on how to use Cappy"
           }

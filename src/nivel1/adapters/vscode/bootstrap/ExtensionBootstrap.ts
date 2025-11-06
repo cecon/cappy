@@ -144,10 +144,18 @@ export class ExtensionBootstrap {
           const adapter = new CappyAgentAdapter();
           await adapter.initialize();
           
+          // Check for slash commands
+          let messageContent = request.prompt;
+          if (request.command === 'plan') {
+            messageContent = `@cappy/plan ${request.prompt}`;
+          } else if (request.command === 'code') {
+            messageContent = `@cappy/code ${request.prompt}`;
+          }
+          
           // Create Message object
           const message = {
             id: Date.now().toString(),
-            content: request.prompt,
+            content: messageContent,
             author: 'user' as const,
             timestamp: Date.now()
           };
@@ -189,7 +197,7 @@ export class ExtensionBootstrap {
     );
     
     context.subscriptions.push(cappyAgent);
-    console.log('  ✅ CodeAct Agent registered as @cappy');
+    console.log('  ✅ CodeAct Agent registered as @cappy with /plan and /code commands');
   }
 
   /**

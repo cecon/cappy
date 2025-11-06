@@ -4,10 +4,10 @@
  */
 
 import * as vscode from 'vscode'
-import * as fs from 'fs'
-import * as path from 'path'
 import { BaseSubAgent } from '../shared/base-agent'
 import type { SubAgentContext, SubAgentResponse, Intent } from '../shared/types'
+import type { WorkPlan } from '../../codeact/types/work-plan'
+import { SavePlanTool } from '../../codeact/tools/save-plan-tool'
 
 /**
  * PlanningAgent
@@ -25,10 +25,18 @@ export class PlanningAgent extends BaseSubAgent {
   readonly priority = 85
   
   /**
-   * Can handle if user wants a plan/roadmap/strategy
+   * Can handle if user wants a plan/roadmap/strategy or uses /plan prefix
    */
   canHandle(context: SubAgentContext): boolean {
     const { userMessage, intent } = context
+    
+    const messageLower = userMessage.toLowerCase()
+    
+    // Check for explicit /plan or @cappy/plan prefix
+    if (messageLower.startsWith('/plan') || messageLower.includes('@cappy/plan')) {
+      this.log(`✅ Detected /plan prefix`)
+      return true
+    }
     
     // Keywords that indicate planning request
     const planningKeywords = [
@@ -38,7 +46,6 @@ export class PlanningAgent extends BaseSubAgent {
       'criar', 'create', 'construir', 'build'
     ]
     
-    const messageLower = userMessage.toLowerCase()
     const hasPlanningKeyword = planningKeywords.some(kw => messageLower.includes(kw))
     
     // Also check intent category
@@ -48,7 +55,7 @@ export class PlanningAgent extends BaseSubAgent {
     const canHandle = hasPlanningKeyword && isPlanningCategory
     
     if (canHandle) {
-      this.log(`✅ Detected planning request`)
+      this.log(`✅ Detected planning request via keywords`)
     }
     
     return canHandle
@@ -60,7 +67,11 @@ export class PlanningAgent extends BaseSubAgent {
   async *processStream(context: SubAgentContext): AsyncIterable<string> {
     this.log('Starting planning with questions...')
     
-    const { userMessage, intent, onPromptRequest } = context
+    let { userMessage } = context
+    const { intent, onPromptRequest } = context
+    
+    // Remove @cappy/plan prefix if present
+    userMessage = userMessage.replace(/@cappy\/plan\s*/gi, '').trim()
     
     // Close any open reasoning block
     yield '__REASONING_END__\n\n'
@@ -160,12 +171,20 @@ export class PlanningAgent extends BaseSubAgent {
       
       const plan = await this.generatePlan(userMessage, planningData, intent)
       
-      // Save plan to file
-      const filePath = await this.savePlanToFile(userMessage, plan)
+      // Save plan using SavePlanTool
+      yield `💾 Salvando plano...\n\n`
+      
+      const saveResult = await SavePlanTool.execute({
+        plan,
+        format: 'both' // Save both JSON and Markdown
+      })
       
       yield `\n\n---\n\n`
-      yield `✅ **Plano salvo em:** \`${filePath}\`\n\n`
-      yield `Você pode abrir o arquivo para ver o plano completo.\n`
+      yield `✅ ${saveResult}\n\n`
+      yield `\n**Próximos passos:**\n`
+      yield `1. Revise o plano JSON para validação\n`
+      yield `2. Use o comando "execute plan" para executar os steps\n`
+      yield `3. O plano Markdown está disponível para leitura\n`
       
     } catch (error) {
       this.log(`Error: ${error}`)
@@ -177,13 +196,13 @@ export class PlanningAgent extends BaseSubAgent {
    * Collect planning information through questions
    */
   /**
-   * Generate plan using LLM
+   * Generate plan using LLM - returns WorkPlan JSON
    */
   private async generatePlan(
     userMessage: string,
     planningData: Record<string, string>,
     intent: Intent | undefined
-  ): Promise<string> {
+  ): Promise<WorkPlan> {
     try {
       const models = await vscode.lm.selectChatModels({
         vendor: 'copilot',
@@ -204,14 +223,34 @@ export class PlanningAgent extends BaseSubAgent {
       
       const request = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token)
       
-      let plan = ''
+      let response = ''
       for await (const fragment of request.stream) {
         if (fragment instanceof vscode.LanguageModelTextPart) {
-          plan += fragment.value
+          response += fragment.value
         }
       }
       
-      return plan || this.buildFallbackPlan(userMessage, planningData)
+      // Parse JSON response
+      if (!response.trim()) {
+        throw new Error('Empty response from LLM')
+      }
+      
+      // Remove markdown code blocks if present
+      let jsonStr = response.trim()
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replace(/^```json\n/, '').replace(/\n```$/, '')
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/^```\n/, '').replace(/\n```$/, '')
+      }
+      
+      const plan = JSON.parse(jsonStr) as WorkPlan
+      
+      // Validate required fields
+      if (!plan.id || !plan.goal || !plan.steps || !Array.isArray(plan.steps)) {
+        throw new Error('Invalid plan structure from LLM')
+      }
+      
+      return plan
       
     } catch (error) {
       this.log(`Error generating plan: ${error}`)
@@ -220,175 +259,323 @@ export class PlanningAgent extends BaseSubAgent {
   }
   
   /**
-   * Build prompt for LLM
+   * Build prompt for LLM - generates structured JSON WorkPlan
    */
   private buildPlanningPrompt(
     userMessage: string,
     planningData: Record<string, string>,
     intent: Intent | undefined
   ): string {
-    return `Você é um arquiteto de software experiente. Crie um plano de desenvolvimento DETALHADO e ESTRUTURADO em Markdown.
+    return `You are an expert software architect. Create a DETAILED and STRUCTURED work plan in JSON format following the WorkPlan schema.
 
-**Solicitação Original:** ${userMessage}
+**User Request:** ${userMessage}
 
-**Informações Coletadas:**
+**Collected Information:**
 ${Object.entries(planningData).map(([k, v]) => `- ${this.formatLabel(k)}: ${v}`).join('\n')}
 
-**Contexto Técnico:**
-- Categoria: ${intent?.category || 'geral'}
-- Termos técnicos: ${intent?.technicalTerms.join(', ') || 'N/A'}
+**Technical Context:**
+- Category: ${intent?.category || 'general'}
+- Technical Terms: ${intent?.technicalTerms.join(', ') || 'N/A'}
 
-**Estrutura OBRIGATÓRIA do Plano:**
+**REQUIRED JSON Structure:**
 
-# Plano de Desenvolvimento: [Título]
+\`\`\`json
+{
+  "id": "unique-id-kebab-case",
+  "version": "1.0.0",
+  "createdAt": "ISO-8601 timestamp",
+  "updatedAt": "ISO-8601 timestamp",
+  "status": "draft",
+  
+  "goal": {
+    "title": "Brief title",
+    "description": "Detailed description",
+    "userRequest": "${userMessage}",
+    "clarifications": [
+      {
+        "question": "Question asked",
+        "answer": "User's answer",
+        "source": "user"
+      }
+    ]
+  },
+  
+  "requirements": {
+    "functional": ["List of functional requirements"],
+    "technical": ["List of technical requirements"],
+    "constraints": ["List of constraints"]
+  },
+  
+  "context": {
+    "relevantFiles": [
+      {
+        "path": "relative/path/to/file.ts",
+        "startLine": 10,
+        "endLine": 50,
+        "description": "Why this file is relevant"
+      }
+    ],
+    "dependencies": ["list-of-npm-packages-or-libraries"],
+    "architecture": "Brief description of architecture pattern",
+    "patterns": ["Design patterns to use"]
+  },
+  
+  "steps": [
+    {
+      "id": "step-1",
+      "title": "Step title",
+      "description": "What this step accomplishes",
+      "status": "pending",
+      "action": {
+        "type": "create_file|edit_file|run_command",
+        "details": "Specific action details",
+        "expectedOutput": "What should result"
+      },
+      "context": {
+        "reasoning": "Why this step is needed",
+        "constraints": ["Any limitations"],
+        "dependencies": ["Other steps or requirements"]
+      },
+      "relevantFiles": [
+        {
+          "path": "file/to/modify.ts",
+          "startLine": 10,
+          "endLine": 20,
+          "description": "What part to focus on"
+        }
+      ],
+      "validation": {
+        "command": "npm test",
+        "expectedResult": "All tests pass"
+      }
+    }
+  ],
+  
+  "postExecutionHooks": [
+    {
+      "id": "hook-1",
+      "name": "Git Commit",
+      "description": "Commit changes after successful execution",
+      "enabled": true,
+      "order": 1,
+      "action": {
+        "type": "git_commit",
+        "params": {
+          "message": "Commit message"
+        }
+      },
+      "condition": {
+        "onSuccess": true
+      }
+    },
+    {
+      "id": "hook-2",
+      "name": "Run Tests",
+      "description": "Execute test suite",
+      "enabled": true,
+      "order": 2,
+      "action": {
+        "type": "run_tests",
+        "command": "npm test"
+      }
+    },
+    {
+      "id": "hook-3",
+      "name": "Update Embeddings",
+      "description": "Reindex semantic search",
+      "enabled": true,
+      "order": 3,
+      "action": {
+        "type": "update_embeddings"
+      }
+    }
+  ],
+  
+  "testing": {
+    "strategy": "Testing approach description",
+    "testCases": [
+      {
+        "id": "test-1",
+        "description": "What to test",
+        "type": "unit|integration|e2e",
+        "command": "npm test -- test-file.test.ts"
+      }
+    ]
+  },
+  
+  "successCriteria": [
+    {
+      "id": "criteria-1",
+      "description": "Measurable success criterion",
+      "verified": false
+    }
+  ],
+  
+  "metrics": {
+    "totalSteps": 0,
+    "completedSteps": 0,
+    "failedSteps": 0
+  }
+}
+\`\`\`
 
-## 1. Visão Geral
-- Objetivo
-- Justificativa
-- Benefícios esperados
+**CRITICAL REQUIREMENTS:**
+1. Return ONLY valid JSON (no markdown code blocks, no explanatory text)
+2. Include 3-7 actionable steps with specific file paths and line ranges
+3. Each step must have clear validation criteria
+4. Include relevant files with actual line numbers
+5. Post-execution hooks must be realistic and useful
+6. Success criteria must be measurable
+7. Use ISO-8601 timestamps for dates
+8. All IDs must be kebab-case strings
 
-## 2. Requisitos
-### 2.1 Funcionais
-- Lista detalhada de funcionalidades
-
-### 2.2 Não-Funcionais
-- Performance, segurança, usabilidade, etc.
-
-## 3. Arquitetura Proposta
-### 3.1 Componentes Principais
-- Descrição de cada componente
-
-### 3.2 Tecnologias
-- Stack escolhido e justificativa
-
-### 3.3 Diagramas (texto)
-- Fluxo de dados
-- Arquitetura de componentes
-
-## 4. Plano de Implementação
-### Fase 1: Fundação (X dias)
-- [ ] Tarefa 1
-- [ ] Tarefa 2
-
-### Fase 2: Core (X dias)
-- [ ] Tarefa 1
-- [ ] Tarefa 2
-
-### Fase 3: Refinamento (X dias)
-- [ ] Tarefa 1
-- [ ] Tarefa 2
-
-## 5. Riscos e Mitigações
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|--------------|---------|-----------|
-| ...   | ...          | ...     | ...       |
-
-## 6. Critérios de Sucesso
-- Como medir se o projeto foi bem-sucedido
-
-## 7. Próximos Passos
-- Ações imediatas para começar
-
----
-
-**IMPORTANTE:** 
-- Seja ESPECÍFICO e TÉCNICO
-- Use exemplos de código quando relevante
-- Inclua estimativas realistas
-- Considere as restrições mencionadas
-- Gere um plano COMPLETO e ACIONÁVEL`
+**IMPORTANT:**
+- Be SPECIFIC and TECHNICAL
+- Include actual file paths from the project
+- Provide realistic time estimates in step descriptions
+- Consider the constraints mentioned: ${planningData.restricoes}
+- Timeline: ${planningData.prazo}
+- Generate a COMPLETE and ACTIONABLE plan`
   }
   
   /**
-   * Fallback plan if LLM fails
+   * Fallback plan if LLM fails - returns WorkPlan JSON
    */
-  private buildFallbackPlan(userMessage: string, planningData: Record<string, string>): string {
-    return `# Plano de Desenvolvimento: ${userMessage}
-
-## 1. Visão Geral
-
-**Objetivo:** ${planningData.objetivo}
-
-**Escopo:** ${planningData.escopo}
-
-**Stack Tecnológico:** ${planningData.stack}
-
-**Restrições:** ${planningData.restricoes}
-
-**Prazo:** ${planningData.prazo}
-
-## 2. Requisitos
-
-### 2.1 Funcionais
-- [A ser detalhado]
-
-### 2.2 Não-Funcionais
-- Performance
-- Segurança
-- Usabilidade
-
-## 3. Arquitetura Proposta
-
-### 3.1 Componentes
-- [A ser detalhado]
-
-### 3.2 Tecnologias
-${planningData.stack}
-
-## 4. Plano de Implementação
-
-### Fase 1: Setup
-- [ ] Configurar ambiente
-- [ ] Estrutura inicial
-
-### Fase 2: Desenvolvimento
-- [ ] Implementar core
-- [ ] Testes
-
-### Fase 3: Finalização
-- [ ] Documentação
-- [ ] Deploy
-
-## 5. Próximos Passos
-1. Revisar este plano
-2. Começar implementação
-`
-  }
-  
-  /**
-   * Save plan to file
-   */
-  private async savePlanToFile(userMessage: string, plan: string): Promise<string> {
-    // Get workspace root
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
-    if (!workspaceFolder) {
-      throw new Error('No workspace folder found')
-    }
-    
-    const workspaceRoot = workspaceFolder.uri.fsPath
-    
-    // Create plans directory
-    const plansDir = path.join(workspaceRoot, 'docs', 'plans')
-    if (!fs.existsSync(plansDir)) {
-      fs.mkdirSync(plansDir, { recursive: true })
-    }
-    
-    // Generate filename
-    const timestamp = new Date().toISOString().split('T')[0]
-    const slug = userMessage
+  private buildFallbackPlan(userMessage: string, planningData: Record<string, string>): WorkPlan {
+    const now = new Date().toISOString()
+    const planId = userMessage
       .toLowerCase()
       .replaceAll(/[^a-z0-9]+/g, '-')
       .replaceAll(/(^-|-$)/g, '')
-      .substring(0, 50)
+      .substring(0, 30)
     
-    const filename = `${timestamp}-${slug}.md`
-    const filePath = path.join(plansDir, filename)
-    
-    // Write file
-    fs.writeFileSync(filePath, plan, 'utf-8')
-    
-    // Return relative path
-    return path.relative(workspaceRoot, filePath)
+    return {
+      id: planId,
+      version: '1.0.0',
+      createdAt: now,
+      updatedAt: now,
+      status: 'draft',
+      
+      goal: {
+        title: userMessage,
+        description: planningData.objetivo || userMessage,
+        userRequest: userMessage,
+        clarifications: Object.entries(planningData).map(([q, a]) => ({
+          question: this.formatLabel(q),
+          answer: a,
+          source: 'user' as const
+        }))
+      },
+      
+      requirements: {
+        functional: ['To be detailed based on requirements'],
+        technical: ['Follow existing project patterns', 'Maintain code quality'],
+        constraints: planningData.restricoes ? [planningData.restricoes] : []
+      },
+      
+      context: {
+        relevantFiles: [],
+        dependencies: [],
+        architecture: 'To be determined based on project structure',
+        patterns: ['Follow existing patterns']
+      },
+      
+      steps: [
+        {
+          id: 'step-1',
+          title: 'Setup and Analysis',
+          description: 'Analyze requirements and setup development environment',
+          status: 'pending',
+          action: {
+            type: 'custom',
+            details: 'Review requirements and identify affected files'
+          },
+          relevantFiles: []
+        },
+        {
+          id: 'step-2',
+          title: 'Core Implementation',
+          description: 'Implement main functionality',
+          status: 'pending',
+          action: {
+            type: 'custom',
+            details: 'Implement core features'
+          },
+          relevantFiles: []
+        },
+        {
+          id: 'step-3',
+          title: 'Testing and Validation',
+          description: 'Add tests and validate implementation',
+          status: 'pending',
+          action: {
+            type: 'run_command',
+            details: 'npm test'
+          },
+          relevantFiles: [],
+          validation: {
+            command: 'npm test',
+            expectedResult: 'All tests pass'
+          }
+        }
+      ],
+      
+      postExecutionHooks: [
+        {
+          id: 'hook-git',
+          name: 'Git Commit',
+          description: 'Commit changes',
+          enabled: true,
+          order: 1,
+          action: {
+            type: 'git_commit',
+            params: { message: `feat: ${userMessage}` }
+          },
+          condition: { onSuccess: true }
+        },
+        {
+          id: 'hook-test',
+          name: 'Run Tests',
+          description: 'Execute test suite',
+          enabled: true,
+          order: 2,
+          action: {
+            type: 'run_tests',
+            command: 'npm test'
+          }
+        }
+      ],
+      
+      testing: {
+        strategy: 'Unit and integration testing',
+        testCases: [
+          {
+            id: 'test-1',
+            description: 'Validate core functionality',
+            type: 'unit'
+          }
+        ]
+      },
+      
+      successCriteria: [
+        {
+          id: 'criteria-1',
+          description: 'All requirements implemented',
+          verified: false
+        },
+        {
+          id: 'criteria-2',
+          description: 'All tests passing',
+          verified: false
+        }
+      ],
+      
+      metrics: {
+        totalSteps: 3,
+        completedSteps: 0,
+        failedSteps: 0
+      }
+    }
   }
   
   /**
