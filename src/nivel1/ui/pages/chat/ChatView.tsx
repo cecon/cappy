@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useRef } from "react";
+import React, { createContext, useContext, useMemo, useRef } from "react";
 import {
   AssistantRuntimeProvider,
   ThreadPrimitive,
@@ -8,6 +8,9 @@ import {
   type ChatModelAdapter,
   type ChatModelRunOptions,
   type ChatModelRunResult,
+  type TextMessagePart,
+  type ReasoningMessagePart,
+  type ThreadAssistantMessagePart,
 } from "@assistant-ui/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -222,20 +225,18 @@ class VSCodeChatAdapter implements ChatModelAdapter {
         sessionId: this.sessionId,
       });
 
-      // Yield accumulated text periodically (filter out reasoning markers)
+      // Yield accumulated text periodically with reasoning parts
       let lastYieldedLength = 0;
 
       while (!isDone) {
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         if (fullText.length > lastYieldedLength) {
-          // Remove reasoning markers for display
-          const displayText = fullText
-            .replaceAll("<!-- reasoning:start -->", "")
-            .replaceAll("<!-- reasoning:end -->", "");
-
+          // Extract reasoning and content parts
+          const parts = this.extractMessageParts(fullText);
+          
           yield {
-            content: [{ type: "text", text: displayText }],
+            content: parts,
           };
           lastYieldedLength = fullText.length;
         }
@@ -245,14 +246,11 @@ class VSCodeChatAdapter implements ChatModelAdapter {
         }
       }
 
-      // Final yield (filter reasoning markers)
+      // Final yield with reasoning parts
       if (fullText) {
-        const displayText = fullText
-          .replaceAll("<!-- reasoning:start -->", "")
-          .replaceAll("<!-- reasoning:end -->", "");
-
+        const parts = this.extractMessageParts(fullText);
         yield {
-          content: [{ type: "text", text: displayText }],
+          content: parts,
         };
       }
     } finally {
@@ -261,6 +259,65 @@ class VSCodeChatAdapter implements ChatModelAdapter {
         abortSignal.removeEventListener("abort", handleAbort);
       }
     }
+  }
+
+  /**
+   * Extract message parts (reasoning + text) from full text
+   */
+  private extractMessageParts(fullText: string): ThreadAssistantMessagePart[] {
+    const parts: ThreadAssistantMessagePart[] = [];
+    
+    console.log('[VSCodeChatAdapter] Extracting parts from text:', fullText.substring(0, 200));
+    
+    // Extract reasoning blocks using our custom markers
+    const reasoningRegex = /__REASONING_START__\n([\s\S]*?)\n__REASONING_END__\n/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    
+    while ((match = reasoningRegex.exec(fullText)) !== null) {
+      console.log('[VSCodeChatAdapter] Found reasoning block at index', match.index);
+      
+      // Add any text before reasoning as regular text
+      if (match.index > lastIndex) {
+        const textBefore = fullText.substring(lastIndex, match.index).trim();
+        if (textBefore) {
+          console.log('[VSCodeChatAdapter] Adding text part before reasoning:', textBefore.substring(0, 50));
+          parts.push({ type: "text", text: textBefore } as TextMessagePart);
+        }
+      }
+      
+      // Add reasoning part
+      const reasoningText = match[1].trim();
+      if (reasoningText) {
+        console.log('[VSCodeChatAdapter] Adding reasoning part:', reasoningText.substring(0, 100));
+        parts.push({ type: "reasoning", text: reasoningText } as ReasoningMessagePart);
+      }
+      
+      lastIndex = reasoningRegex.lastIndex;
+    }
+    
+    console.log('[VSCodeChatAdapter] Total parts extracted:', parts.length);
+    
+    // Add remaining text after last reasoning
+    if (lastIndex < fullText.length) {
+      const textAfter = fullText.substring(lastIndex).trim();
+      if (textAfter) {
+        // Remove any tool call markers before adding
+        const cleanText = textAfter
+          .replace(/__TOOL_CALL_PENDING__:[^\n]+\n*/g, '');
+        
+        if (cleanText.trim()) {
+          parts.push({ type: "text", text: cleanText } as TextMessagePart);
+        }
+      }
+    }
+    
+    // If no parts extracted, return original text
+    if (parts.length === 0 && fullText.trim()) {
+      return [{ type: "text", text: fullText.trim() } as TextMessagePart];
+    }
+    
+    return parts;
   }
 }
 
@@ -374,10 +431,43 @@ const AssistantText: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
+/**
+ * Reasoning component - renders reasoning parts with visual distinction
+ */
+const ReasoningText: React.FC<{ text: string }> = ({ text }) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  return (
+    <details 
+      className="mb-4 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
+      open={isOpen}
+      onToggle={(e) => setIsOpen((e.target as HTMLDetailsElement).open)}
+    >
+      <summary className="cursor-pointer px-4 py-2 font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-2">
+        <span className="text-lg">🧠</span>
+        <span>Raciocínio</span>
+        <span className="ml-auto text-xs">{isOpen ? '▼' : '▶'}</span>
+      </summary>
+      <div className="px-4 py-3 border-t border-gray-300 dark:border-gray-700">
+        <div className="prose dark:prose-invert max-w-none text-sm text-gray-600 dark:text-gray-400">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {text}
+          </ReactMarkdown>
+        </div>
+      </div>
+    </details>
+  );
+};
+
 const AssistantMessage: React.FC = () => (
   <MessagePrimitive.Root className="mb-4">
     <div className="max-w-[80%] rounded-2xl bg-gray-100 dark:bg-gray-800 px-4 py-2">
-      <MessagePrimitive.Content components={{ Text: AssistantText }} />
+      <MessagePrimitive.Parts 
+        components={{ 
+          Text: AssistantText,
+          Reasoning: ReasoningText,
+        }} 
+      />
     </div>
   </MessagePrimitive.Root>
 );

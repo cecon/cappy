@@ -8,7 +8,7 @@ import { BaseSubAgent } from '../shared/base-agent'
 import type { SubAgentContext, SubAgentResponse, Intent } from '../shared/types'
 import type { RetrieveContextUseCase } from '../../../../../domains/retrieval/use-cases/retrieve-context-use-case'
 import { RetrievalHelper, type RetrievedContext } from './retrieval'
-import { ANALYSIS_SYSTEM_PROMPT, buildRetrievalPrompt, buildAcknowledgment, NO_CONTEXT_FOUND } from './prompts'
+import { ANALYSIS_SYSTEM_PROMPT, buildRetrievalPrompt, NO_CONTEXT_FOUND } from './prompts'
 
 /**
  * AnalysisAgent
@@ -28,6 +28,7 @@ export class AnalysisAgent extends BaseSubAgent {
   
   constructor(retrieveContextUseCase?: RetrieveContextUseCase) {
     super()
+    console.log(`[AnalysisAgent] Constructor called with useCase: ${!!retrieveContextUseCase}`)
     this.retrievalHelper = new RetrievalHelper(retrieveContextUseCase)
   }
   
@@ -60,28 +61,55 @@ export class AnalysisAgent extends BaseSubAgent {
       )
     }
     
-    // Step 1: Acknowledge and start retrieval
-    const acknowledgment = buildAcknowledgment(intent.objective)
-    this.log('Acknowledging request:', intent.objective)
+    // Build thinking section
+    let thinkingContent = ''
     
-    // Step 2: Retrieve context
+    // Step 1: Retrieve context
+    thinkingContent += '🔍 **Buscando contexto no projeto...**\n\n'
     const retrievedContext = await this.retrievalHelper.retrieveContext(intent)
     this.log(`Retrieved ${retrievedContext.totalResults} contexts`)
     
-    // Step 3: Check if we found anything
+    if (retrievedContext.totalResults > 0) {
+      thinkingContent += `✅ Encontrei **${retrievedContext.totalResults} referências** relevantes:\n`
+      if (retrievedContext.code.length > 0) {
+        thinkingContent += `- ${retrievedContext.code.length} exemplos de código\n`
+      }
+      if (retrievedContext.documentation.length > 0) {
+        thinkingContent += `- ${retrievedContext.documentation.length} documentos\n`
+      }
+      if (retrievedContext.prevention.length > 0) {
+        thinkingContent += `- ${retrievedContext.prevention.length} regras de prevenção\n`
+      }
+      thinkingContent += '\n'
+    } else {
+      thinkingContent += '⚠️ **Nenhum contexto relevante encontrado no projeto.**\n\n'
+      thinkingContent += 'Isso pode significar:\n'
+      thinkingContent += '• É uma funcionalidade completamente nova\n'
+      thinkingContent += '• Preciso de mais informações para buscar melhor\n'
+      thinkingContent += '• Os termos usados não correspondem ao código existente\n\n'
+    }
+    
+    // Step 2: Check if we found anything
     if (retrievedContext.totalResults === 0) {
       this.log('No context found, asking for more info')
+      
+      const clarificationMessage = `<!-- thinking -->\n${thinkingContent}<!-- /thinking -->\n\n` +
+        `${NO_CONTEXT_FOUND}`
+      
       return this.createResponse(
-        `${acknowledgment}\n\n${NO_CONTEXT_FOUND}`,
+        clarificationMessage,
         true
       )
     }
     
+    // Step 3: Add analysis indicator
+    thinkingContent += '🧠 **Analisando com IA...**\n\n'
+    
     // Step 4: Analyze with LLM
     const analysis = await this.analyzeWithLLM(intent, retrievedContext)
     
-    // Step 5: Return complete response
-    const fullResponse = `${acknowledgment}\n\n${analysis}`
+    // Step 5: Return complete response with thinking block
+    const fullResponse = `<!-- thinking -->\n${thinkingContent}<!-- /thinking -->\n\n${analysis}`
     
     return this.createResponse(
       fullResponse,

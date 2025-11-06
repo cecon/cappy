@@ -49,7 +49,7 @@ export type {
  * ```
  */
 export class HybridRetriever {
-  private readonly useCase: RetrieveContextUseCase;
+  public readonly useCase: RetrieveContextUseCase;
   private graphContentAdapter: GraphContentAdapter;
   
   constructor(

@@ -35,7 +35,7 @@ interface OrchestrationResult {
  * 2. Delegates to OrchestratorAgent
  * 3. Streams response back to user
  * 
- * No loops, no complex phase management - just clean delegation.
+ * Uses Assistant UI reasoning parts for thinking blocks.
  */
 export class OrchestratedChatEngine implements ChatAgentPort {
   private readonly orchestrator: OrchestratorAgent
@@ -54,13 +54,13 @@ export class OrchestratedChatEngine implements ChatAgentPort {
   }
   
   /**
-   * Process user message and stream response
+   * Process user message and stream response with reasoning parts
    */
   async *processMessage(message: Message): AsyncIterable<string> {
     try {
       console.log('[OrchestratedChatEngine] Processing message:', message.content)
       
-      // Step 1: Extract intent (simple version - can be enhanced)
+      // Step 1: Extract intent
       const intent = await this.extractIntent(message.content)
       
       // Step 2: Build context
@@ -77,7 +77,19 @@ export class OrchestratedChatEngine implements ChatAgentPort {
         clarityScore: intent?.clarityScore
       })
       
-      // Step 3: Orchestrate (single call - no loops!)
+      // Step 3: Check if this is a greeting (skip reasoning for instant responses)
+      const isGreeting = intent?.category === 'greeting'
+      
+      // Step 4: Generate reasoning part for non-greetings
+      if (!isGreeting) {
+        // Send reasoning as a separate message part
+        const reasoningText = this.buildReasoningText(intent, context)
+        
+        // Emit reasoning part using special markers that Assistant UI understands
+        yield `__REASONING_START__\n${reasoningText}\n__REASONING_END__\n`
+      }
+      
+      // Step 5: Orchestrate
       const result = await this.orchestrator.orchestrate(context)
       
       console.log('[OrchestratedChatEngine] Orchestration complete:', {
@@ -86,7 +98,7 @@ export class OrchestratedChatEngine implements ChatAgentPort {
         needsMoreInfo: result.needsMoreInfo
       })
       
-      // Step 4: Stream response
+      // Step 6: Stream main response
       yield result.content
       
       // Log final state
@@ -100,6 +112,41 @@ export class OrchestratedChatEngine implements ChatAgentPort {
       console.error('[OrchestratedChatEngine] Error:', error)
       yield `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`
     }
+  }
+  
+  /**
+   * Build reasoning text from intent
+   */
+  private buildReasoningText(intent: Intent | undefined, _context: SubAgentContext): string {
+    const parts: string[] = []
+    
+    parts.push('🧠 **Analisando sua solicitação...**\n')
+    
+    if (intent) {
+      parts.push(`**Objetivo identificado:** ${intent.objective}\n`)
+      
+      if (intent.technicalTerms.length > 0) {
+        parts.push(`**Termos técnicos:** ${intent.technicalTerms.join(', ')}\n`)
+      }
+      
+      parts.push(`**Categoria:** ${intent.category}\n`)
+      parts.push(`**Clareza:** ${(intent.clarityScore * 100).toFixed(0)}%\n`)
+      
+      if (intent.clarityScore < 0.7) {
+        parts.push(`\n⚠️ *Atenção: A solicitação pode precisar de mais detalhes*\n`)
+      }
+      
+      if (intent.ambiguities.length > 0) {
+        parts.push(`\n**Pontos de atenção:**\n${intent.ambiguities.map(a => `- ${a}`).join('\n')}\n`)
+      }
+    }
+    
+    // Check if we need retrieval
+    if (intent && intent.clarityScore >= 0.5) {
+      parts.push(`\n🔍 **Buscando contexto relevante no projeto...**\n`)
+    }
+    
+    return parts.join('\n')
   }
   
   /**

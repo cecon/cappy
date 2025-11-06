@@ -69,6 +69,7 @@ export class RetrievalHelper {
   
   constructor(retrieveContextUseCase?: RetrieveContextUseCase) {
     this.retrieveContextUseCase = retrieveContextUseCase
+    console.log(`[RetrievalHelper] Constructor called with useCase: ${!!retrieveContextUseCase}`)
   }
   
   /**
