@@ -27,7 +27,21 @@ export class ClarificationAgent extends BaseSubAgent {
    */
   canHandle(context: SubAgentContext): boolean {
     const clarityScore = this.getClarityScore(context)
-    const needsClarification = clarityScore < this.CLARITY_THRESHOLD
+
+    // Do NOT handle if explicit planning prefix is present (let PlanningAgent take over)
+    const msg = context.userMessage || ''
+    const lower = msg.toLowerCase()
+    const tight = lower.split(/\s+/).join('')
+    const hasPlanPrefix =
+      lower.startsWith('/plan') ||
+      lower.includes('@cappy/plan') ||
+      tight.includes('@cappyplan') ||
+      tight.includes('cappyplan')
+    if (hasPlanPrefix) {
+      this.log('Bypassing Clarification due to explicit plan prefix')
+      return false
+    }
+  const needsClarification = clarityScore < this.CLARITY_THRESHOLD
     
     if (needsClarification) {
       this.log(`✅ Low clarity score (${clarityScore}), needs clarification`)

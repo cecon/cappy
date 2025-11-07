@@ -31,9 +31,15 @@ export class PlanningAgent extends BaseSubAgent {
     const { userMessage, intent } = context
     
     const messageLower = userMessage.toLowerCase()
+  const messageTight = messageLower.split(/\s+/).join('')
     
     // Check for explicit /plan or @cappy/plan prefix
-    if (messageLower.startsWith('/plan') || messageLower.includes('@cappy/plan')) {
+    if (
+      messageLower.startsWith('/plan') ||
+      messageLower.includes('@cappy/plan') ||
+      messageTight.includes('@cappyplan') ||
+      messageTight.includes('cappyplan')
+    ) {
       this.log(`✅ Detected /plan prefix`)
       return true
     }
@@ -65,17 +71,21 @@ export class PlanningAgent extends BaseSubAgent {
    * Process with streaming - ask questions and generate plan
    */
   async *processStream(context: SubAgentContext): AsyncIterable<string> {
-    this.log('Starting planning with questions...')
-    
+    this.log('Starting planning with humanized clarifications...')
+
     let { userMessage } = context
     const { intent, onPromptRequest } = context
-    
+
     // Remove @cappy/plan prefix if present
-    userMessage = userMessage.replace(/@cappy\/plan\s*/gi, '').trim()
-    
+    userMessage = userMessage
+      .replaceAll('@cappy/plan', '')
+      .replaceAll('@cappyplan', '')
+      .replaceAll('cappyplan', '')
+      .trim()
+
     // Close any open reasoning block
     yield '__REASONING_END__\n\n'
-    
+
     // If no prompt callback, fallback
     if (!onPromptRequest) {
       this.log('No onPromptRequest available')
@@ -83,112 +93,166 @@ export class PlanningAgent extends BaseSubAgent {
       yield response.content
       return
     }
-    
+
     try {
-      yield `🎯 Vou criar um plano de desenvolvimento para: **"${userMessage}"**\n\n`
-      yield `Preciso fazer algumas perguntas para entender melhor seus requisitos.\n\n`
-      
-      // Collect planning information
-      const planningData: Record<string, string> = {}
-      
-      // Question 1: Objetivo
-      yield `**1/5:** Qual é o objetivo principal deste desenvolvimento? Seja específico.\n\n`
-      
-      const objetivo = await onPromptRequest({
-        messageId: `planning-objetivo-${Date.now()}`,
-        prompt: 'Qual é o objetivo principal deste desenvolvimento? Seja específico.',
-        type: 'question'
-      })
-      planningData.objetivo = objetivo
-      yield `✅ **Sua resposta:** ${objetivo}\n\n`
-      
-      // Question 2: Escopo
-      yield `**2/5:** Quais funcionalidades devem fazer parte deste desenvolvimento?\n\n`
-      
-      const escopo = await onPromptRequest({
-        messageId: `planning-escopo-${Date.now()}`,
-        prompt: 'Quais funcionalidades devem fazer parte deste desenvolvimento?',
-        suggestions: [
-          'Funcionalidades básicas apenas',
-          'Funcionalidades completas',
-          'MVP (Produto Mínimo Viável)',
-          'Sistema completo com extras'
-        ],
+      // 1) Refine scope in 1–2 lines and confirm
+      const refined = this.refineScope(userMessage)
+      yield `Entendi assim: “${refined}”. Está correto?` + '\n\n'
+
+      const confirmScope = await onPromptRequest({
+        messageId: `planning-confirm-scope-${Date.now()}`,
+        prompt: 'Está correto?',
+        suggestions: ['Sim', 'Quase, preciso ajustar'],
         type: 'choice'
       })
-      planningData.escopo = escopo
-      yield `✅ **Sua resposta:** ${escopo}\n\n`
-      
-      // Question 3: Stack
-      yield `**3/5:** Qual stack tecnológico você quer usar? (ou deixe em branco para usar o existente)\n\n`
-      
-      const stack = await onPromptRequest({
-        messageId: `planning-stack-${Date.now()}`,
-        prompt: 'Qual stack tecnológico você quer usar? (ou deixe em branco para usar o existente)',
-        type: 'question'
-      })
-      planningData.stack = stack || 'Usar stack existente do projeto'
-      yield `✅ **Sua resposta:** ${planningData.stack}\n\n`
-      
-      // Question 4: Restrições
-      yield `**4/5:** Há alguma restrição técnica ou de negócio? (ex: performance, compatibilidade, budget)\n\n`
-      
-      const restricoes = await onPromptRequest({
-        messageId: `planning-restricoes-${Date.now()}`,
-        prompt: 'Há alguma restrição técnica ou de negócio? (ex: performance, compatibilidade, budget)',
-        type: 'question'
-      })
-      planningData.restricoes = restricoes || 'Nenhuma restrição específica'
-      yield `✅ **Sua resposta:** ${planningData.restricoes}\n\n`
-      
-      // Question 5: Prazo
-      yield `**5/5:** Qual o prazo desejado?\n\n`
-      
-      const prazo = await onPromptRequest({
-        messageId: `planning-prazo-${Date.now()}`,
-        prompt: 'Qual o prazo desejado?',
-        suggestions: [
-          '1-2 semanas',
-          '1 mês',
-          '2-3 meses',
-          'Sem prazo definido'
-        ],
-        type: 'choice'
-      })
-      planningData.prazo = prazo
-      yield `✅ **Sua resposta:** ${prazo}\n\n`
-      
-      // Show summary
-      yield `\n---\n\n`
-      yield `✨ **Informações Coletadas:**\n\n`
-      for (const [key, value] of Object.entries(planningData)) {
-        yield `**${this.formatLabel(key)}:** ${value}\n`
+
+      let finalScope = refined
+      if (String(confirmScope).toLowerCase().startsWith('quase')) {
+        const correction = await onPromptRequest({
+          messageId: `planning-scope-correction-${Date.now()}`,
+          prompt: 'Qual seria o ajuste?',
+          type: 'question'
+        })
+        finalScope = this.refineScope(correction)
+        yield `Beleza, ficando: “${finalScope}”.` + '\n\n'
       }
-      yield `\n`
-      
-      // Generate plan with LLM
-      yield `🤖 Gerando plano de desenvolvimento estruturado...\n\n`
-      
-      const plan = await this.generatePlan(userMessage, planningData, intent)
-      
-      // Save plan using SavePlanTool
-      yield `💾 Salvando plano...\n\n`
-      
+
+      // 2) Build internal question list and attempt auto-answers
+  const questions = this.buildQuestionList(finalScope)
+      const answers: Record<string, string> = {}
+
+      // Attempt simple auto-answers from message/intent (no code scanning here)
+      for (const q of questions) {
+        const auto = this.tryAutoAnswerFromContext(q, finalScope, intent)
+        if (auto) answers[q.id] = auto
+      }
+
+      // Show only a brief analysis summary
+      yield `Resumo da análise: vou validar objetivo e restrições e só então rascunhar 3–6 passos curtos com validação.` + '\n\n'
+
+      // 3) Ask only remaining essentials, one-by-one
+      const remaining = questions.filter(q => !answers[q.id])
+      let idx = 1
+      for (const q of remaining) {
+        const resp = await onPromptRequest({
+          messageId: `${q.id}-${Date.now()}`,
+          prompt: `${idx}/${remaining.length} — ${q.prompt}`,
+          suggestions: q.suggestions,
+          type: q.type
+        })
+        answers[q.id] = String(resp || '').trim()
+        idx++
+      }
+
+      // Normalize planning data
+      const planningData: Record<string, string> = {
+        objetivo: finalScope,
+        escopo: answers['scope'] || '',
+        stack: answers['stack'] || 'Usar stack existente do projeto',
+        restricoes: answers['constraints'] || 'Nenhuma restrição específica',
+        prazo: answers['timeline'] || 'Sem prazo definido',
+        publico: answers['audience'] || ''
+      }
+
+      // 4) Confirm final scope before planning
+      yield `Fechamos assim: “${finalScope}”. Posso preparar o plano?` + '\n\n'
+      const confirmPlan = await onPromptRequest({
+        messageId: `planning-confirm-plan-${Date.now()}`,
+        prompt: 'Posso preparar o plano?',
+        suggestions: ['Sim', 'Não'],
+        type: 'choice'
+      })
+      if (String(confirmPlan).toLowerCase() !== 'sim') {
+        yield `Certo — interrompendo antes de gerar o plano. Quando quiser retomar, me avise.`
+        return
+      }
+
+      // 5) Generate plan with LLM
+      yield `Vou gerar um plano com passos curtos, validações e arquivos relevantes.` + '\n\n'
+      const plan = await this.generatePlan(finalScope, planningData, intent)
+
+      // 6) Save plan using SavePlanTool
+      yield `💾 Salvando plano...` + '\n\n'
       const saveResult = await SavePlanTool.execute({
         plan,
-        format: 'both' // Save both JSON and Markdown
+        format: 'both'
       })
-      
+
       yield `\n\n---\n\n`
       yield `✅ ${saveResult}\n\n`
-      yield `\n**Próximos passos:**\n`
-      yield `1. Revise o plano JSON para validação\n`
-      yield `2. Use o comando "execute plan" para executar os steps\n`
-      yield `3. O plano Markdown está disponível para leitura\n`
-      
+      yield `Próximos passos:\n`
+      yield `1. Revise o plano JSON\n`
+      yield `2. Use “execute plan” para rodar os steps\n`
+      yield `3. O Markdown está disponível para leitura\n`
+
     } catch (error) {
       this.log(`Error: ${error}`)
       yield `\n❌ Ocorreu um erro ao criar o plano: ${error instanceof Error ? error.message : 'Erro desconhecido'}\n`
+    }
+  }
+
+  /**
+   * Improve the user's scope sentence into a concise, clear statement
+   */
+  private refineScope(message: string): string {
+    const m = (message || '').trim()
+    if (!m) return 'Criar um plano de desenvolvimento'
+    // Simple heuristics to tighten the scope sentence
+    return m
+      .split(/\s+/).join(' ')
+      .replace(/^eu quero\s+/i, '')
+      .replace(/^quero\s+/i, '')
+      .replace(/^vamos\s+/i, '')
+      .replace(/^implementar\s+/i, 'Implementar ')
+      .replace(/^melhorar\s+/i, 'Melhorar ')
+      .trim()
+  }
+
+  /**
+   * Build an internal list of clarifying questions (kept in memory)
+   */
+  private buildQuestionList(scope: string) {
+    type Q = { id: string; prompt: string; type: 'question' | 'choice'; suggestions?: string[] }
+    const qs: Q[] = [
+      { id: 'scope', prompt: 'Qual é o resultado esperado em 1 frase?', type: 'question' },
+      { id: 'constraints', prompt: 'Há alguma restrição técnica ou de negócio?', type: 'question' },
+      { id: 'stack', prompt: 'Deseja usar a stack existente ou especificar algo?', type: 'choice', suggestions: ['Usar stack existente', 'Quero especificar'] },
+      { id: 'timeline', prompt: 'Qual o prazo desejado?', type: 'choice', suggestions: ['1-2 semanas', '1 mês', '2-3 meses', 'Sem prazo definido'] },
+      { id: 'audience', prompt: 'O público é devs, usuários finais, ou ambos?', type: 'choice', suggestions: ['Devs', 'Usuários finais', 'Ambos'] }
+    ]
+
+    // Domain hints (lightweight heuristics)
+    const s = scope.toLowerCase()
+    if (/jwt|auth|token/.test(s)) {
+      qs.unshift({ id: 'jwt_flow', prompt: 'Você prefere access + refresh tokens?', type: 'choice', suggestions: ['Sim', 'Não', 'Indiferente'] })
+      qs.unshift({ id: 'jwt_alg', prompt: 'Algoritmo preferido? (HS256 ou RS256)', type: 'choice', suggestions: ['RS256', 'HS256', 'Indiferente'] })
+    }
+
+    return qs
+  }
+
+  /**
+   * Try to auto-answer simple questions from the scope/intent (no code scanning)
+   */
+  private tryAutoAnswerFromContext(q: { id: string }, scope: string, intent?: Intent): string | undefined {
+    const s = scope.toLowerCase()
+    switch (q.id) {
+      case 'stack':
+        return 'Usar stack existente do projeto'
+      case 'timeline':
+        return undefined
+      case 'constraints':
+        return undefined
+      case 'audience':
+        return intent?.category === 'architecture' ? 'Devs' : undefined
+      case 'jwt_alg':
+        return /rs256/.test(s) ? 'RS256' : undefined
+      case 'jwt_flow':
+        return /refresh/.test(s) ? 'Sim' : undefined
+      case 'scope':
+        return scope
+      default:
+        return undefined
     }
   }
   
