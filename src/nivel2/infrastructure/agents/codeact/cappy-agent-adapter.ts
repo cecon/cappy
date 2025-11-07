@@ -7,7 +7,7 @@ import { CappyAgent } from './cappy-agent'
 import { AgentController } from './agent-controller'
 import type { ChatAgentPort, ChatContext } from '../../../../domains/chat/ports/agent-port'
 import type { Message } from '../../../../domains/chat/entities/message'
-import type { RetrieveContextUseCase } from '../../../../domains/retrieval/use-cases/retrieve-context-use-case'
+import type { HybridRetriever } from '../../services/hybrid-retriever'
 import type { AgentConfig } from './core/base-agent'
 import type { AnyAction, MessageAction, ToolCallAction } from './core/actions'
 import type { AnyObservation } from './core/observations'
@@ -21,14 +21,14 @@ import type { AnyObservation } from './core/observations'
  * - Stream formatted output
  */
 export class CappyAgentAdapter implements ChatAgentPort {
-  private controller: AgentController
-  private agent: CappyAgent
+  private readonly controller: AgentController
+  private readonly agent: CappyAgent
   
   constructor(
     config: AgentConfig = {},
-    retrieveUseCase?: RetrieveContextUseCase
+    retriever?: HybridRetriever
   ) {
-    this.agent = new CappyAgent(config, retrieveUseCase)
+    this.agent = new CappyAgent(config, retriever)
     this.controller = new AgentController(
       this.agent,
       'default-session',  // Could generate unique ID per session

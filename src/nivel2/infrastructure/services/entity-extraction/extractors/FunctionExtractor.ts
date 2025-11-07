@@ -19,7 +19,11 @@ export class FunctionExtractor {
       source: context.relFilePath,
       line: node.loc?.start?.line || 0,
       column: node.loc?.start?.column || 0,
+      // keep metadata for backward compatibility
       metadata: { params, returnType },
+      // flatten for tests
+      parameters: params,
+      returnType,
       isExported: context.exportedNames.has(name),
       exportType: context.exportedNames.has(name) ? "named" : undefined,
       confidence: ConfidenceCalculator.calculate(node as ASTNode, "function", context),

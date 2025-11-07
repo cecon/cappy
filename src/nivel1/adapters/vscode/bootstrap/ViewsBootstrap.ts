@@ -5,11 +5,9 @@
 
 import * as vscode from 'vscode';
 import { GraphPanel } from '../dashboard/GraphPanel';
-import { DocumentsViewProvider } from '../documents/DocumentsViewProvider';
 
 export interface ViewsBootstrapResult {
   graphPanel: GraphPanel;
-  documentsViewProvider: DocumentsViewProvider;
 }
 
 /**
@@ -26,18 +24,9 @@ export class ViewsBootstrap {
     const graphOutputChannel = vscode.window.createOutputChannel('Cappy Graph');
     context.subscriptions.push(graphOutputChannel);
 
-    // Create graph panel
+    // Create graph panel (includes documents page in dashboard)
     const graphPanel = new GraphPanel(context, graphOutputChannel);
-    console.log('  ✅ Graph Panel created');
-
-    // Register Documents View Provider
-    const documentsViewProvider = new DocumentsViewProvider(context.extensionUri);
-    const documentsViewDisposable = vscode.window.registerWebviewViewProvider(
-      DocumentsViewProvider.viewType,
-      documentsViewProvider
-    );
-    context.subscriptions.push(documentsViewDisposable);
-    console.log('  ✅ Documents View Provider registered');
+    console.log('  ✅ Graph Panel created (includes Documents page)');
 
     // Create status bar shortcut
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -49,8 +38,7 @@ export class ViewsBootstrap {
     console.log('  ✅ Status Bar item created');
 
     return {
-      graphPanel,
-      documentsViewProvider
+      graphPanel
     };
   }
 }

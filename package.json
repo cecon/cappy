@@ -59,11 +59,6 @@
         "category": "Cappy"
       },
       {
-        "command": "cappy.openChat",
-        "title": "💬 Cappy: Open Chat",
-        "category": "Cappy"
-      },
-      {
         "command": "cappy.scanWorkspace",
         "title": "🔍 Cappy: Scan Workspace",
         "category": "Cappy"
@@ -130,39 +125,13 @@
       }
     ],
     "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "cappy",
-          "title": "Cappy",
-          "icon": "src/assets/cappy-activity.svg"
-        }
-      ]
+      "activitybar": []
     },
-    "views": {
-      "cappy": [
-        {
-          "id": "cappy.chatView",
-          "name": "Chat",
-          "type": "webview",
-          "icon": "src/assets/chat.svg"
-        },
-        {
-          "id": "cappy.documentsView",
-          "name": "Documents",
-          "type": "webview",
-          "icon": "src/assets/documents.svg"
-        }
-      ]
-    },
+    "views": {},
     "menus": {
       "commandPalette": [
         {
           "command": "cappy.openGraph",
-          "when": "true",
-          "group": "cappy"
-        },
-        {
-          "command": "cappy.openChat",
           "when": "true",
           "group": "cappy"
         }
@@ -182,23 +151,36 @@
     },
     "chatParticipants": [
       {
-        "id": "cappy.assistant",
-        "name": "cappy",
-        "description": "AI coding assistant with CodeAct pattern - can read files, execute commands, and help with development tasks",
+        "id": "cappy.plan",
+        "name": "cappyplan",
+        "description": "Planning-focused assistant: creates structured development plans with steps, validation, and hooks.",
         "isSticky": true,
         "commands": [
           {
-            "name": "plan",
-            "description": "Create a structured development plan with steps, validation, and post-execution hooks"
-          },
-          {
-            "name": "code",
-            "description": "Execute code changes directly without creating a plan"
-          },
+            "name": "help",
+            "description": "Get help on how to use @cappyplan and planning workflows"
+          }
+        ]
+      },
+      {
+        "id": "cappy.code",
+        "name": "cappycode",
+        "description": "Coding-focused assistant: applies changes directly using the CodeAct pattern.",
+        "isSticky": true,
+        "commands": [
           {
             "name": "help",
-            "description": "Get help on how to use Cappy"
+            "description": "Get help on how to use @cappycode for direct code changes"
           }
+        ]
+      },
+      {
+        "id": "cappy.assistant",
+        "name": "cappy",
+        "description": "Legacy combined assistant (@cappy). /plan and /code are discontinued — please use @cappyplan and @cappycode.",
+        "isSticky": false,
+        "commands": [
+          { "name": "help", "description": "Get help on how to use Cappy" }
         ]
       }
     ],

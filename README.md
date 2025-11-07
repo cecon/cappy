@@ -152,13 +152,36 @@ Or search "Cappy" in VSCode Extensions
 
 ## Usage
 
+### New Native Chat Participants
+
+You can now interact with two focused assistants in the VS Code chat:
+
+- @cappyplan — creates structured development plans with clear steps, validation, and follow-ups
+- @cappycode — applies code changes directly using the CodeAct pattern
+
+### Using the New Chat
+
+The new chat feature allows you to interact with your codebase more effectively. Here's how to use it:
+
+1. **Accessing the Chat**: Open the chat interface in VS Code and mention `@cappyplan` or `@cappycode`.
+2. **Examples of Commands**:
+   - `@cappyplan Implement search pagination in the products list`
+   - `@cappycode Update the ProductsService to accept page and pageSize, and wire it to the controller`
+3. **Key Notes**:
+   - The old slash commands (/plan and /code) on @cappy are discontinued. Use `@cappyplan` and `@cappycode` instead.
+   - The chat integrates with your codebase context to provide precise and actionable responses.
+
+Notes:
+- The old slash commands (/plan and /code) on @cappy are discontinued. Use @cappyplan and @cappycode instead.
+
 ### Chat with Your Codebase
 ```
 You: "Where do we validate user emails?"
 Cappy: Found in src/validators/email.ts, used by UserService and AuthController
 
 You: "Add CPF validation following the same pattern"
-Cappy: [generates todo list with exact file locations and relationships]
+@cappyplan: [generates a plan with exact file locations and relationships]
+@cappycode: [applies the changes as per the plan]
 ```
 
 ### View Knowledge Graph

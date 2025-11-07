@@ -16,8 +16,8 @@ import type { FileChangeWatcher } from '../../../../nivel2/infrastructure/servic
 import type { GraphStorePort } from '../../../../domains/dashboard/ports/indexing-port';
 import type { GraphCleanupService } from '../../../../nivel2/infrastructure/services/graph-cleanup-service';
 import type { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
+import type { HybridRetriever } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 import type { GraphPanel } from '../dashboard/GraphPanel';
-import type { DocumentsViewProvider } from '../documents/DocumentsViewProvider';
 
 /**
  * Main extension state (internal - mutable)
@@ -29,8 +29,8 @@ interface InternalExtensionState {
   graphStore: GraphStorePort | null;
   cleanupService: GraphCleanupService | null;
   contextRetrievalTool: ContextRetrievalTool | null;
+  hybridRetriever: HybridRetriever | null;
   graphPanel: GraphPanel | null;
-  documentsViewProvider: DocumentsViewProvider | null;
   commandsBootstrap?: InstanceType<typeof CommandsBootstrap>;
   viewsBootstrap?: ViewsBootstrap;
 }
@@ -45,19 +45,12 @@ export interface ExtensionState {
   readonly graphStore: GraphStorePort | null;
   readonly cleanupService: GraphCleanupService | null;
   readonly contextRetrievalTool: ContextRetrievalTool | null;
+  readonly hybridRetriever: HybridRetriever | null;
   readonly graphPanel: GraphPanel | null;
-  readonly documentsViewProvider: DocumentsViewProvider | null;
   readonly commandsBootstrap?: InstanceType<typeof CommandsBootstrap>;
   readonly viewsBootstrap?: ViewsBootstrap;
 }
 
-/**
- * Result from ViewsBootstrap registration
- */
-interface ViewsBootstrapResult {
-  readonly graphPanel: GraphPanel;
-  readonly documentsViewProvider: DocumentsViewProvider;
-}
 
 /**
  * Main bootstrap orchestrator for the extension
@@ -69,15 +62,15 @@ interface ViewsBootstrapResult {
  * - File Processing System (Application Layer)
  */
 export class ExtensionBootstrap {
-  private state: InternalExtensionState = {
+  private readonly state: InternalExtensionState = {
     fileDatabase: null,
     fileQueue: null,
     fileWatcher: null,
     graphStore: null,
     cleanupService: null,
     contextRetrievalTool: null,
-    graphPanel: null,
-    documentsViewProvider: null
+    hybridRetriever: null,
+    graphPanel: null
   };
 
   /**
@@ -91,12 +84,11 @@ export class ExtensionBootstrap {
     const lmToolsBootstrap = new LanguageModelToolsBootstrap();
     this.state.contextRetrievalTool = lmToolsBootstrap.register(context);
 
-    // Phase 2: Register Views (webviews, panels, sidebar)
+        // Phase 2: Register Views (Graph Panel with Documents page integrated)
     const viewsBootstrap = new ViewsBootstrap();
-    const viewsResult: ViewsBootstrapResult = viewsBootstrap.register(context);
+    const viewsResult = viewsBootstrap.register(context);
     this.state.graphPanel = viewsResult.graphPanel;
-    this.state.documentsViewProvider = viewsResult.documentsViewProvider;
-    this.state.viewsBootstrap = viewsBootstrap; // Store for later updates
+    this.state.viewsBootstrap = viewsBootstrap;
 
     // Phase 3: Register CodeAct Agent Chat Participant
     this.registerCodeActAgent(context);
@@ -128,94 +120,103 @@ export class ExtensionBootstrap {
    * Registers the CodeAct Agent as a chat participant
    */
   private registerCodeActAgent(context: vscode.ExtensionContext): void {
-    console.log('🤖 Registering CodeAct Agent...');
-    
-    // Create chat participant
-    const cappyAgent = vscode.chat.createChatParticipant(
-      'cappy.assistant',
-      async (
-        request: vscode.ChatRequest,
-        _chatContext: vscode.ChatContext,
-        stream: vscode.ChatResponseStream,
-        token: vscode.CancellationToken
-      ) => {
-        try {
-          // Create adapter (will be updated with retrieval when available)
-          const adapter = new CappyAgentAdapter();
-          await adapter.initialize();
-          
-          // Check for slash commands
-          let messageContent = request.prompt;
-          if (request.command === 'plan') {
-            messageContent = `@cappy/plan ${request.prompt}`;
-          } else if (request.command === 'code') {
-            messageContent = `@cappy/code ${request.prompt}`;
-          }
-          
-          // Create Message object
-          const message = {
-            id: Date.now().toString(),
-            content: messageContent,
-            author: 'user' as const,
-            timestamp: Date.now()
-          };
-          
-          // Create ChatContext object
-          const chatContext = {
-            sessionId: _chatContext.history.length > 0 
-              ? `session-${Date.now()}` 
-              : 'new-session',
-            history: []
-          };
-          
-          // Process message with streaming to VS Code
-          for await (const chunk of adapter.processMessage(message, chatContext)) {
-            if (token.isCancellationRequested) {
-              stream.markdown('\n\n_Task cancelled by user_');
-              break;
+    console.log('🤖 Registering CodeAct Chat Participants...');
+
+    const registerParticipant = (
+      id: string,
+      mode: 'plan' | 'code' | 'legacy'
+    ) => {
+      const participant = vscode.chat.createChatParticipant(
+        id,
+        async (
+          request: vscode.ChatRequest,
+          _chatContext: vscode.ChatContext,
+          stream: vscode.ChatResponseStream,
+          token: vscode.CancellationToken
+        ) => {
+          try {
+            // Create adapter with HybridRetriever if available
+            const adapter = new CappyAgentAdapter({ mode }, this.state.hybridRetriever || undefined);
+            await adapter.initialize();
+
+            // Build message content according to participant mode
+            let messageContent = request.prompt;
+            if (mode === 'plan') {
+              messageContent = `@cappy/plan ${request.prompt}`;
+            } else if (mode === 'code') {
+              messageContent = `@cappy/code ${request.prompt}`;
             }
-            
-            // Stream chunk to VS Code Chat
-            stream.markdown(chunk);
+            // legacy: slash commands /plan and /code are discontinued; pass through prompt unchanged
+
+            // Create Message object
+            const message = {
+              id: Date.now().toString(),
+              content: messageContent,
+              author: 'user' as const,
+              timestamp: Date.now()
+            };
+
+            // Create ChatContext object
+            const chatContext = {
+              sessionId: _chatContext.history.length > 0
+                ? `session-${Date.now()}`
+                : 'new-session',
+              history: []
+            };
+
+            // Process message with streaming to VS Code
+            for await (const chunk of adapter.processMessage(message, chatContext)) {
+              if (token.isCancellationRequested) {
+                stream.markdown('\n\n_Task cancelled by user_');
+                break;
+              }
+              stream.markdown(chunk);
+            }
+
+            return { metadata: { command: 'chat', mode } };
+          } catch (error) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            stream.markdown(`\n\n⚠️ **Error**: ${errMsg}`);
+            console.error('[CodeActAgent] Error:', error);
+            return { metadata: { command: 'chat', error: errMsg, mode } };
           }
-          
-          return { metadata: { command: 'chat' } };
-        } catch (error) {
-          const errMsg = error instanceof Error ? error.message : String(error);
-          stream.markdown(`\n\n⚠️ **Error**: ${errMsg}`);
-          console.error('[CodeActAgent] Error:', error);
-          return { metadata: { command: 'chat', error: errMsg } };
         }
-      }
-    );
-    
-    // Set icon
-    cappyAgent.iconPath = vscode.Uri.joinPath(
-      context.extensionUri,
-      'assets',
-      'cappy-icon.png'
-    );
-    
-    context.subscriptions.push(cappyAgent);
-    console.log('  ✅ CodeAct Agent registered as @cappy with /plan and /code commands');
+      );
+
+      // Set icon (use the actual icon from src/assets)
+      participant.iconPath = vscode.Uri.joinPath(
+        context.extensionUri,
+        'src',
+        'assets',
+        'icon.png'
+      );
+
+      context.subscriptions.push(participant);
+      return participant;
+    };
+
+    // Register the new participants
+    registerParticipant('cappy.plan', 'plan');
+    registerParticipant('cappy.code', 'code');
+    // Keep legacy combined participant for compatibility
+    registerParticipant('cappy.assistant', 'legacy');
+
+    console.log('  ✅ Registered @cappyplan, @cappycode, and legacy @cappy');
   }
 
   /**
    * Initializes the file processing system
    */
   private async initializeFileProcessingSystem(
-    context: vscode.ExtensionContext,
-    graphPanel: GraphPanel
+    context: vscode.ExtensionContext
   ): Promise<void> {
-    if (!this.state.documentsViewProvider || !this.state.contextRetrievalTool) {
+    if (!this.state.contextRetrievalTool) {
       throw new Error('Extension not fully initialized');
     }
 
     const fileProcessingBootstrap = new FileProcessingSystemBootstrap();
     const result = await fileProcessingBootstrap.initialize(
       context,
-      graphPanel,
-      this.state.documentsViewProvider,
       this.state.contextRetrievalTool
     );
 
@@ -225,6 +226,7 @@ export class ExtensionBootstrap {
     this.state.fileWatcher = result.watcher;
     this.state.graphStore = result.graphStore;
     this.state.cleanupService = result.cleanupService;
+    this.state.hybridRetriever = result.hybridRetriever;
 
     // Update CommandsBootstrap with the new dependencies
     if (this.state.commandsBootstrap) {
@@ -249,7 +251,7 @@ export class ExtensionBootstrap {
       console.log('🚀 Cappy is initialized, auto-starting file processing system...');
       
       try {
-        await this.initializeFileProcessingSystem(context, this.state.graphPanel!);
+        await this.initializeFileProcessingSystem(context);
         console.log('✅ File processing system auto-started successfully');
       } catch (error: unknown) {
         const errMsg = error instanceof Error ? error.message : String(error);

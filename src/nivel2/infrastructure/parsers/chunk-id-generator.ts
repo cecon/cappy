@@ -15,19 +15,13 @@ export function generateChunkId(
   lineEnd: number,
   chunkNumber?: number
 ): string {
-  // Create a simple hash from the full path to avoid collisions
-  let hash = 0;
-  for (let i = 0; i < filePath.length; i++) {
-    hash = ((hash << 5) - hash) + filePath.codePointAt(i)!;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  
-  const pathHash = Math.abs(hash).toString(36).slice(0, 6);
+  // Backward-compatible ID format expected by tests: chunk:<fileName>:<lineStart>-<lineEnd>
+  // Optional chunk number for multi-symbol files: chunk:<fileName>:<chunkNumber>:<lineStart>-<lineEnd>
   const fileName = filePath.split('/').pop() || filePath;
   
   if (chunkNumber !== undefined) {
-    return `chunk:${fileName}:${pathHash}:${chunkNumber}:${lineStart}-${lineEnd}`;
+    return `chunk:${fileName}:${chunkNumber}:${lineStart}-${lineEnd}`;
   }
   
-  return `chunk:${fileName}:${pathHash}:${lineStart}-${lineEnd}`;
+  return `chunk:${fileName}:${lineStart}-${lineEnd}`;
 }

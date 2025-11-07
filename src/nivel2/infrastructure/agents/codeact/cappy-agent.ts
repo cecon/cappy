@@ -20,7 +20,7 @@ import { BashTool } from './tools/bash-tool'
 import { FileReadTool } from './tools/file-read-tool'
 import { FileWriteTool } from './tools/file-write-tool'
 import { EditFileTool } from './tools/edit-file-tool'
-import type { RetrieveContextUseCase } from '../../../../domains/retrieval/use-cases/retrieve-context-use-case'
+import type { HybridRetriever } from '../../services/hybrid-retriever'
 
 /**
  * System prompt for Cappy agent
@@ -65,6 +65,42 @@ Answer in the same language as the user unless explicitly instructed otherwise.
 `.trim()
 
 /**
+ * Additional guardrails for plan mode
+ */
+const PLAN_MODE_PROMPT = `PLAN MODE POLICY
+
+You are operating in planning-only mode. Your job is to ask targeted questions, consult context, and produce a clear, actionable plan — then STOP.
+
+Hard constraints:
+- Do NOT propose code changes
+- Do NOT suggest starting implementation
+- Do NOT modify files or run commands
+- Do NOT include diffs or patches
+
+Turn-by-turn process:
+1) If the request is under-specified, ask exactly ONE short, critical clarifying question. Then STOP and wait for the answer. Do NOT call tools in the same turn you ask a question.
+2) Once you have enough information, use retrieve_context (at least once) and summarize key findings with file path citations when available.
+3) Draft the plan. If information is still missing, mark relevant steps as "pending answer" and ask at most ONE follow-up question at the end. Do not repeat or rephrase earlier questions.
+
+Required output sections (use concise bullets):
+- (When asking a question) Only the single clarifying question, nothing else.
+- (When planning) Context summary (with citations when available)
+- (When planning) Plan (clear steps)
+- (When planning) Validation criteria (measurable, PASS/FAIL)
+- (When planning) Risks and mitigations
+- (When planning) Rollback strategy
+- (When planning) Estimated effort
+
+Always end with exactly one confirmation question when presenting a plan.`.trim()
+
+/**
+ * Additional guardrails for code mode (optional guidance)
+ */
+const CODE_MODE_PROMPT = `CODE MODE POLICY
+
+You may propose concrete code changes and use tools. Prefer minimal, focused edits. Summarize intent first, then proceed. Validate with build/tests when possible.`.trim()
+
+/**
  * Main Cappy Agent implementing CodeAct pattern
  * 
  * This agent consolidates all capabilities into a single, powerful agent
@@ -72,14 +108,14 @@ Answer in the same language as the user unless explicitly instructed otherwise.
  */
 export class CappyAgent extends BaseAgent {
   private llmModel: vscode.LanguageModelChat | null = null
-  private retrieveUseCase?: RetrieveContextUseCase
+  private readonly retriever?: HybridRetriever
   
   constructor(
     config: AgentConfig = {},
-    retrieveUseCase?: RetrieveContextUseCase
+    retriever?: HybridRetriever
   ) {
     super(config)
-    this.retrieveUseCase = retrieveUseCase
+    this.retriever = retriever
     this.tools = this.initializeTools()
   }
   
@@ -112,19 +148,23 @@ export class CappyAgent extends BaseAgent {
     
     // File operation tools
     tools.push(new FileReadTool())
-    tools.push(new FileWriteTool())
-    tools.push(new EditFileTool())
     
-    // Terminal/execution tool
-    tools.push(new BashTool())
+    // In plan mode, restrict to read-only + retrieval + finish
+    if (this.config.mode !== 'plan') {
+      tools.push(new FileWriteTool())
+      tools.push(new EditFileTool())
+      
+      // Terminal/execution tool
+      tools.push(new BashTool())
+    }
     
-    // Context retrieval
-    tools.push(new RetrieveContextTool(this.retrieveUseCase))
+    // Context retrieval (unified system)
+    tools.push(new RetrieveContextTool(this.retriever))
     
     // Completion tool (should be last)
     tools.push(new FinishTool())
     
-    console.log(`[CappyAgent] Initialized with ${tools.length} tools:`, tools.map(t => t.name).join(', '))
+    console.log(`[CappyAgent] Initialized (${this.config.mode || 'default'} mode) with ${tools.length} tools:`, tools.map(t => t.name).join(', '))
     return tools
   }
   
@@ -190,6 +230,13 @@ export class CappyAgent extends BaseAgent {
     
     // Add system prompt
     messages.push(vscode.LanguageModelChatMessage.User(SYSTEM_PROMPT))
+    
+    // Mode-specific guardrails
+    if (this.config.mode === 'plan') {
+      messages.push(vscode.LanguageModelChatMessage.User(PLAN_MODE_PROMPT))
+    } else if (this.config.mode === 'code') {
+      messages.push(vscode.LanguageModelChatMessage.User(CODE_MODE_PROMPT))
+    }
     
     // Get recent history (limit to avoid context overflow)
     const recentHistory = state.getRecentHistory(10)

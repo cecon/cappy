@@ -32,7 +32,6 @@ export const CommandIds = {
   PROCESS_SINGLE_FILE: 'cappy.processSingleFile',
   
   // UI Commands
-  OPEN_CHAT: 'cappy.openChat',
   OPEN_KNOWLEDGE_BASE: 'cappy.openKnowledgeBase',
 } as const;
 

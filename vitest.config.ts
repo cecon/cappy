@@ -24,6 +24,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@infra': path.resolve(__dirname, './src/nivel2/infrastructure'),
       // Mock VS Code API during tests to avoid native module resolution
       vscode: path.resolve(__dirname, './test/__mocks__/vscode.ts'),
     },

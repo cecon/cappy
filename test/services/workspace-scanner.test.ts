@@ -4,28 +4,34 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { WorkspaceScanQueue } from '@/nivel2/infrastructure/services/workspace-scan-queue';
-import { FileHashService } from '@/nivel2/infrastructure/services/file-hash-service';
-import { IgnorePatternMatcher } from '@/nivel2/infrastructure/services/ignore-pattern-matcher';
-import { FileMetadataExtractor } from '@/nivel2/infrastructure/services/file-metadata-extractor';
+import { WorkspaceScanQueue } from '../../src/nivel2/infrastructure/services/workspace-scan-queue';
+import { FileHashService } from '../../src/nivel2/infrastructure/services/file-hash-service';
+import { IgnorePatternMatcher } from '../../src/nivel2/infrastructure/services/ignore-pattern-matcher';
+import { FileMetadataExtractor } from '../../src/nivel2/infrastructure/services/file-metadata-extractor';
 
 describe('WorkspaceScanQueue', () => {
+  const createDelayPromise = () => new Promise(resolve => setTimeout(resolve, 10));
+  
+  const createTask = (processedCounter: { count: number }) => async () => {
+    await createDelayPromise();
+    processedCounter.count++;
+  };
+
   it('should process tasks with concurrency control', async () => {
     const queue = new WorkspaceScanQueue({
       concurrency: 2,
       batchSize: 5
     });
 
-    let processed = 0;
-    const tasks = Array.from({ length: 10 }, () => async () => {
-      await new Promise(resolve => setTimeout(resolve, 10));
-      processed++;
-    });
+    const processedCounter = { count: 0 };
+    const tasks = Array.from({ length: 10 }, () => createTask(processedCounter));
 
-    tasks.forEach(task => queue.enqueue(task));
+    for (const task of tasks) {
+      queue.enqueue(task);
+    }
     await queue.drain();
 
-    expect(processed).toBe(10);
+    expect(processedCounter.count).toBe(10);
   });
 
   it('should report queue status', () => {
@@ -41,21 +47,21 @@ describe('WorkspaceScanQueue', () => {
 });
 
 describe('FileHashService', () => {
-  it('should hash strings consistently', () => {
+  it('should hash strings consistently', async () => {
     const service = new FileHashService();
     
-    const hash1 = service.hashString('test');
-    const hash2 = service.hashString('test');
+    const hash1 = await service.hashString('test');
+    const hash2 = await service.hashString('test');
     
     expect(hash1).toBe(hash2);
   });
 
-  it('should compare hashes correctly', () => {
+  it('should compare hashes correctly', async () => {
     const service = new FileHashService();
     
-    const hash1 = service.hashString('test');
-    const hash2 = service.hashString('test');
-    const hash3 = service.hashString('different');
+    const hash1 = await service.hashString('test');
+    const hash2 = await service.hashString('test');
+    const hash3 = await service.hashString('different');
     
     expect(service.compareHashes(hash1, hash2)).toBe(true);
     expect(service.compareHashes(hash1, hash3)).toBe(false);

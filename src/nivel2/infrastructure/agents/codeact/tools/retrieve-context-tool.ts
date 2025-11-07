@@ -5,11 +5,11 @@
 
 import { BaseTool } from '../core/tool'
 import type { ToolParameter, ToolResult } from '../core/tool'
-import type { RetrieveContextUseCase } from '../../../../../domains/retrieval/use-cases/retrieve-context-use-case'
+import type { HybridRetriever } from '../../../services/hybrid-retriever'
 
 /**
  * Retrieve context tool - semantic search in codebase
- * Integrates with existing RetrieveContextUseCase
+ * Uses HybridRetriever (unified retrieval system)
  */
 export class RetrieveContextTool extends BaseTool {
   name = 'retrieve_context'
@@ -30,7 +30,7 @@ export class RetrieveContextTool extends BaseTool {
       default: ['code', 'documentation'],
       items: {
         type: 'string',
-        enum: ['code', 'documentation', 'prevention', 'task']
+        enum: ['code', 'documentation', 'metadata']
       }
     },
     {
@@ -49,11 +49,11 @@ export class RetrieveContextTool extends BaseTool {
     }
   ]
   
-  private retrieveUseCase?: RetrieveContextUseCase
+  private readonly retriever?: HybridRetriever
   
-  constructor(retrieveUseCase?: RetrieveContextUseCase) {
+  constructor(retriever?: HybridRetriever) {
     super()
-    this.retrieveUseCase = retrieveUseCase
+    this.retriever = retriever
   }
   
   async execute(input: Record<string, unknown>): Promise<ToolResult> {
@@ -62,8 +62,8 @@ export class RetrieveContextTool extends BaseTool {
       return this.error(validation.error!)
     }
     
-    if (!this.retrieveUseCase) {
-      return this.error('RetrieveContextUseCase not available. Indexing may not be complete.')
+    if (!this.retriever) {
+      return this.error('HybridRetriever not available. Indexing may not be complete.')
     }
     
     try {
@@ -72,7 +72,7 @@ export class RetrieveContextTool extends BaseTool {
       const maxResults = (input.maxResults as number) || 5
       const minScore = (input.minScore as number) || 0.5
       
-      const results = await this.retrieveUseCase.execute(query, {
+      const results = await this.retriever.retrieve(query, {
         sources: sources as ('code' | 'documentation' | 'metadata')[],
         maxResults,
         minScore

@@ -14,7 +14,7 @@ export class CallExpressionExtractor {
       name: callName,
       type: "function",
       kind: "call", // AST node kind
-      category: "internal",
+      category: callName.startsWith("console.") ? "builtin" : "internal",
       source: context.relFilePath,
       line: node.loc?.start?.line || 0,
       column: node.loc?.start?.column || 0,
@@ -27,7 +27,7 @@ export class CallExpressionExtractor {
 
     for (const arg of args) {
       if (arg.type === "Literal" && typeof arg.value === "string") {
-        literals.push(arg.value as string);
+        literals.push(arg.value);
       }
     }
 

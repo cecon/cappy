@@ -1,5 +1,5 @@
 import React from 'react';
-import logo from '../../../../../assets/cappy-activity.svg';
+import logo from '../../../../../assets/cappy-icon.svg';
 import { TabsList, TabsTrigger } from '../../../primitives';
 import { cn } from '../../../../../nivel2/infrastructure/utils/utils';
 

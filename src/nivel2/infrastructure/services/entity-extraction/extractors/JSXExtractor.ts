@@ -1,8 +1,7 @@
 import type { JSXElementNode, ASTNode } from "../ast-types/ASTNodeTypes";
 import type { ExtractionContext } from "../types/ExtractionContext";
-import type { ASTEntity } from "../types/ASTEntity";
+import type { ASTEntity, ASTEntityCategory } from "../types/ASTEntity";
 import { ASTHelpers } from "../helpers/ASTHelpers";
-import { ConfidenceCalculator } from "../helpers/ConfidenceCalculator";
 
 export class JSXExtractor {
   static extract(node: JSXElementNode, context: ExtractionContext): ASTEntity | null {
@@ -11,18 +10,25 @@ export class JSXExtractor {
 
     const props = ASTHelpers.extractJSXProps(node.openingElement as ASTNode);
     const importInfo = context.importedSymbols.get(name);
+    const category = JSXExtractor.determineCategory(importInfo);
 
     return {
       name,
       type: "component",
-      category: importInfo ? (importInfo.isExternal ? "external" : "internal") : "jsx",
+      category,
       source: importInfo?.source || context.relFilePath,
       line: node.loc?.start?.line || 0,
       column: node.loc?.start?.column || 0,
       metadata: { props },
+      props,
       isImported: !!importInfo,
       originalModule: importInfo?.source,
-      confidence: ConfidenceCalculator.calculate(node as ASTNode, "component", context),
+      confidence: 0
     };
+  }
+
+  private static determineCategory(importInfo?: import("../types/ExtractionContext").ImportInfo): ASTEntityCategory {
+    if (!importInfo) return "jsx";
+    return importInfo.isExternal ? "external" : "internal";
   }
 }
