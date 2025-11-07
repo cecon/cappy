@@ -21,6 +21,7 @@
     "node_modules",
     "out",
     "dist",
+    "test",
     "src/**/*.tsx",
     "src/nivel1/main.tsx",
     "src/nivel1/graph-main.tsx",

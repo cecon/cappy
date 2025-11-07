@@ -151,12 +151,17 @@ export class ExtensionBootstrap {
               timestamp: Date.now()
             };
 
-            // Create ChatContext object
+            // Create ChatContext object with proper history
             const chatContext = {
               sessionId: _chatContext.history.length > 0
                 ? `session-${Date.now()}`
                 : 'new-session',
-              history: []
+              history: _chatContext.history.map((h, index) => ({
+                id: `hist-${Date.now()}-${index}`,
+                content: 'prompt' in h ? h.prompt : ('response' in h ? h.response.join('') : ''),
+                author: h.participant === id ? 'assistant' as const : 'user' as const,
+                timestamp: Date.now()
+              }))
             };
 
             // Process message with streaming to VS Code

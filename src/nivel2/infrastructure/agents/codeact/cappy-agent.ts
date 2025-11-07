@@ -10,7 +10,7 @@ import { BaseAgent } from './core/base-agent'
 import type { AgentConfig } from './core/base-agent'
 import type { State } from './core/state'
 import type { AnyAction, ToolCallAction } from './core/actions'
-import type { ToolResultObservation } from './core/observations'
+import type { AnyObservation, ToolResultObservation } from './core/observations'
 import { createMessageAction, createToolCallAction } from './core/actions'
 import type { Tool } from './core/tool'
 import { ThinkTool } from './tools/think-tool'
@@ -39,27 +39,27 @@ You assist developers by executing commands, modifying code, analyzing codebases
 1. **Understand** the user's request
 2. **Respond** with helpful information or ask clarifying questions if needed
 3. **Use tools** if you need to read files, search, or execute actions
-4. **Finish** after you've completed the request
+4. **Finish** when done by calling the finish tool
 
-For simple questions: Just answer directly, then use finish.
-For complex tasks: Use tools as needed, provide updates, then finish when done.
+For simple questions: Answer directly, then call finish.
+For complex tasks: Use tools as needed, provide updates, then call finish when done.
 </WORKFLOW>
 
 <AVAILABLE_TOOLS>
 - think: Internal reasoning (use for complex problems)
 - retrieve_context: Semantic search across codebase
-- file_read: Read file contents
-- file_write: Create or overwrite files
+- read_file: Read file contents
+- write_file: Create or overwrite files
 - edit_file: Search and replace in files
 - bash: Execute shell commands (PowerShell on Windows)
-- finish: Mark the task as complete (use when done)
+- finish: Call when your work is complete (completed=true) or when waiting for user (completed=false)
 </AVAILABLE_TOOLS>
 
 <IMPORTANT>
-* Always respond to the user before using finish
+* Always respond to the user before finishing
+* Use finish tool to signal task completion
 * For simple greetings or questions, answer directly
 * Use tools only when necessary
-* Finish every interaction - don't leave conversations hanging
 </IMPORTANT>
 
 Answer in the same language as the user unless explicitly instructed otherwise.
@@ -70,29 +70,43 @@ Answer in the same language as the user unless explicitly instructed otherwise.
  */
 const PLAN_MODE_PROMPT = `PLAN MODE POLICY
 
-You are operating in planning-only mode. Your job is to ask targeted questions, consult context, and produce a clear, actionable plan — then STOP.
+You are in planning-only mode. Create plans, do NOT implement code.
 
-Hard constraints:
+WORKFLOW:
+1. If unclear → Ask ONE clarifying question → Call finish with completed=false
+2. If clear → Provide complete plan → Call finish with completed=true
+
+CONSTRAINTS:
 - Do NOT propose code changes
-- Do NOT suggest starting implementation
+- Do NOT suggest implementation
 - Do NOT modify files or run commands
 - Do NOT include diffs or patches
 
-Turn-by-turn process:
-1) If the request is under-specified, ask exactly ONE short, critical clarifying question. Then STOP and wait for the answer. Do NOT call tools in the same turn you ask a question.
-2) Once you have enough information, use retrieve_context (at least once) and summarize key findings with file path citations when available.
-3) Draft the plan. If information is still missing, mark relevant steps as "pending answer" and ask at most ONE follow-up question at the end. Do not repeat or rephrase earlier questions.
+PLAN FORMAT:
+## Context Summary
+[What you know with file citations]
 
-Required output sections (use concise bullets):
-- (When asking a question) Only the single clarifying question, nothing else.
-- (When planning) Context summary (with citations when available)
-- (When planning) Plan (clear steps)
-- (When planning) Validation criteria (measurable, PASS/FAIL)
-- (When planning) Risks and mitigations
-- (When planning) Rollback strategy
-- (When planning) Estimated effort
+## Plan
+1. [Step 1]
+2. [Step 2]
+...
 
-Always end with exactly one confirmation question when presenting a plan.`.trim()
+## Validation Criteria
+- [Measurable PASS/FAIL criteria]
+
+## Risks and Mitigations
+- Risk: [X], Mitigation: [Y]
+
+## Rollback Strategy
+[How to undo if needed]
+
+## Estimated Effort
+[Time estimate]
+
+## Confirmation Question
+[ONE question to confirm understanding]
+
+Call finish tool when done providing plan.`.trim()
 
 /**
  * Additional guardrails for code mode (optional guidance)
@@ -194,6 +208,7 @@ export class CappyAgent extends BaseAgent {
     
     // 3. Call LLM with tools
     const toolSchemas = this.tools.map(t => this.toolToVSCodeSchema(t))
+    console.log(`[CappyAgent] Available tools: ${toolSchemas.map(t => t.name).join(', ')}`)
     
     try {
       const request = await this.llmModel.sendRequest(
@@ -226,6 +241,156 @@ export class CappyAgent extends BaseAgent {
   }
   
   /**
+   * Decide if agent should continue after observation
+   * This gives the agent control over iteration flow
+   */
+  shouldContinue(observation: AnyObservation, state: State): boolean {
+    console.log(`[CappyAgent] shouldContinue called for observation: ${observation.observation}`)
+    
+    // 1. Check if finish tool was called
+    if (observation.observation === 'tool_result') {
+      const result = observation as ToolResultObservation
+      
+      if (result.toolName === 'finish') {
+        console.log('[CappyAgent] Finish tool called - stopping')
+        return false // Always stop after finish
+      }
+    }
+    
+    // 2. In PLAN mode, special logic
+    if (this.config.mode === 'plan') {
+      return this.shouldContinuePlanMode(observation, state)
+    }
+    
+    // 3. Check for terminal errors
+    if (observation.observation === 'error') {
+      const recentErrors = this.countRecentErrors(state)
+      
+      if (recentErrors >= 3) {
+        console.log('[CappyAgent] Too many consecutive errors - stopping')
+        return false
+      }
+      
+      // Continue to try recovery
+      console.log('[CappyAgent] Error observed but will try to recover')
+      return true
+    }
+    
+    // 4. Check if we've completed a meaningful action
+    if (observation.observation === 'success') {
+      // Check if this was after a user-facing message
+      const lastAction = this.getLastAction(state)
+      
+      if (lastAction?.action === 'message') {
+        console.log('[CappyAgent] Message sent - should call finish next')
+        // Continue ONE more time to call finish
+        return true
+      }
+    }
+    
+    // 5. Safety: check iteration limit
+    if (state.metrics.iterations >= this.config.maxIterations!) {
+      console.log('[CappyAgent] Max iterations reached - stopping')
+      return false
+    }
+    
+    // Default: continue
+    return true
+  }
+  
+  /**
+   * Plan mode specific continuation logic
+   */
+  private shouldContinuePlanMode(_observation: AnyObservation, state: State): boolean {
+    const recentHistory = state.getRecentHistory(5)
+    
+    // Count messages without finish
+    let messagesCount = 0
+    let hasFinish = false
+    
+    for (let i = recentHistory.length - 1; i >= 0; i--) {
+      const event = recentHistory[i]
+      
+      if (event.type === 'action') {
+        if (event.action === 'message' && (event as { source?: string }).source === 'assistant') {
+          messagesCount++
+        } else if (event.action === 'tool_call') {
+          const toolCall = event as ToolCallAction
+          if (toolCall.toolName === 'finish') {
+            hasFinish = true
+            break
+          }
+        }
+      }
+    }
+    
+    // PLAN MODE RULE: After sending message, must call finish
+    if (messagesCount > 0 && !hasFinish) {
+      console.log('[CappyAgent] Plan mode: message sent, expecting finish call')
+      // Continue ONLY if we haven't called finish yet
+      
+      // But if we sent message in THIS iteration, stop - don't keep iterating
+      const lastAction = this.getLastAction(state)
+      if (lastAction?.action === 'message') {
+        console.log('[CappyAgent] Plan mode: just sent message, stopping to force finish next time')
+        return false // Stop here, user will see message, next turn should be finish
+      }
+      
+      return true
+    }
+    
+    // If we called finish, stop
+    if (hasFinish) {
+      console.log('[CappyAgent] Plan mode: finish called, stopping')
+      return false
+    }
+    
+    return true
+  }
+  
+  /**
+   * Count consecutive errors in recent history
+   */
+  private countRecentErrors(state: State): number {
+    const recent = state.getRecentHistory(10)
+    let errorCount = 0
+    
+    for (let i = recent.length - 1; i >= 0; i--) {
+      const event = recent[i]
+      
+      if (event.type === 'observation') {
+        if (event.observation === 'error') {
+          errorCount++
+        } else if (event.observation === 'success' || event.observation === 'tool_result') {
+          // Success breaks the error streak
+          const toolResult = event as ToolResultObservation
+          if (toolResult.success !== false) {
+            break
+          }
+        }
+      }
+    }
+    
+    return errorCount
+  }
+  
+  /**
+   * Get last action from state
+   */
+  private getLastAction(state: State): AnyAction | null {
+    const recent = state.getRecentHistory(5)
+    
+    for (let i = recent.length - 1; i >= 0; i--) {
+      const event = recent[i]
+      if (event.type === 'action') {
+        return event as AnyAction
+      }
+    }
+    
+    return null
+  }
+  
+  /**
    * Build messages array for LLM from state history
    */
   private async buildMessages(state: State): Promise<vscode.LanguageModelChatMessage[]> {
@@ -241,16 +406,20 @@ export class CappyAgent extends BaseAgent {
       messages.push(vscode.LanguageModelChatMessage.User(CODE_MODE_PROMPT))
     }
 
-    // ✨ AUTOMATIC CONTEXT INJECTION
-    const contextNeeds = await this.contextAnalyzer.analyzeNeeds(state)
-
-    if (contextNeeds.length > 0) {
-      const contextMessage = await this.buildContextMessage(contextNeeds)
-      messages.push(vscode.LanguageModelChatMessage.User(contextMessage))
-    }
-
-    // Get recent history (limit to avoid context overflow)
+    // ✨ AUTOMATIC CONTEXT INJECTION (only if needed)
     const recentHistory = state.getRecentHistory(10)
+    const hasRecentContextRetrieval = recentHistory.some(event => 
+      event.type === 'action' && event.action === 'tool_call' && event.toolName === 'retrieve_context'
+    )
+    const isEarlyConversation = recentHistory.length < 3
+
+    if (isEarlyConversation || !hasRecentContextRetrieval) {
+      const contextNeeds = await this.contextAnalyzer.analyzeNeeds(state)
+      if (contextNeeds.length > 0) {
+        const contextMessage = await this.buildContextMessage(contextNeeds)
+        messages.push(vscode.LanguageModelChatMessage.User(contextMessage))
+      }
+    }
     
     // Track tool calls to pair with results
     const pendingToolCalls = new Map<string, vscode.LanguageModelToolCallPart>()

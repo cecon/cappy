@@ -15,12 +15,13 @@ import { ErrorClassifier, ErrorCategory, type ClassifiedError } from './core/err
 
 /**
  * Controller that orchestrates agent execution loop (OpenHands pattern)
+ * Agent now controls when to continue/stop via shouldContinue()
  * 
  * Responsibilities:
  * 1. Manages persistent State
  * 2. Calls agent.step() to get actions
  * 3. Executes actions and generates observations
- * 4. Decides when to continue/stop
+ * 4. Asks agent if it wants to continue
  */
 export class AgentController {
   private agent: BaseAgent
@@ -61,7 +62,7 @@ export class AgentController {
   }
   
   /**
-   * Run agent until finish (OpenHands pattern)
+   * Run agent until it decides to stop (agent-controlled iteration)
    * Yields both actions and observations for streaming
    */
   async *run(): AsyncIterable<{
@@ -70,38 +71,45 @@ export class AgentController {
     isComplete: boolean
     iteration: number
   }> {
-    console.log('[AgentController] Starting execution')
+    console.log('[AgentController] Starting execution (agent-controlled)')
     
-    for (let iteration = 0; iteration < this.maxIterations; iteration++) {
+    let iteration = 0
+    
+    // Loop until agent decides to stop
+    while (iteration < this.maxIterations) {
+      iteration++
       this.state.startIteration()
       
-      console.log(`[AgentController] Iteration ${iteration + 1}/${this.maxIterations}`)
+      console.log(`[AgentController] Iteration ${iteration}/${this.maxIterations}`)
       
       try {
-        // 1. Agent DECIDES action (does not execute)
+        // 1. Agent DECIDES action
         const action = await this.agent.step(this.state)
         this.state.addEvent(action)
         
         console.log(`[AgentController] Action decided: ${action.action}`)
         
         // Yield action for streaming
-        yield { action, isComplete: false, iteration: iteration + 1 }
+        yield { action, isComplete: false, iteration }
         
-        // 2. Controller EXECUTES action and generates observation
+        // 2. Controller EXECUTES action
         const observation = await this.executeActionWithRetry(action)
         this.state.addEvent(observation)
         
         console.log(`[AgentController] Observation generated: ${observation.observation}`)
         
-        // 3. Check if finished
-        const isFinish = this.isFinishObservation(observation)
+        // 3. Ask agent if it wants to continue
+        const shouldContinue = this.agent.shouldContinue(observation, this.state)
         
-        // Yield observation for streaming
-        yield { observation, isComplete: isFinish, iteration: iteration + 1 }
+        console.log(`[AgentController] Agent shouldContinue: ${shouldContinue}`)
         
-        if (isFinish) {
+        // Yield observation
+        yield { observation, isComplete: !shouldContinue, iteration }
+        
+        // 4. Stop if agent says so
+        if (!shouldContinue) {
           this.state.finish()
-          console.log('[AgentController] Agent finished successfully')
+          console.log('[AgentController] Agent decided to stop')
           break
         }
         
@@ -111,9 +119,23 @@ export class AgentController {
           error instanceof Error ? error.message : 'Unknown error'
         )
         this.state.addEvent(errorObs)
-        yield { observation: errorObs, isComplete: true, iteration: iteration + 1 }
-        break
+        
+        // Ask agent if it wants to continue despite error
+        const shouldContinue = this.agent.shouldContinue(errorObs, this.state)
+        
+        yield { observation: errorObs, isComplete: !shouldContinue, iteration }
+        
+        if (!shouldContinue) {
+          this.state.finish()
+          break
+        }
       }
+    }
+    
+    // Safety: exceeded max iterations
+    if (iteration >= this.maxIterations) {
+      console.warn('[AgentController] Reached max iterations - forcing stop')
+      this.state.finish()
     }
     
     console.log('[AgentController] Execution completed')
@@ -221,22 +243,6 @@ export class AgentController {
 
     // For non-tool actions (message, think), create success observation
     return createSuccessObservation('Action processed')
-  }
-  
-  /**
-   * Check if observation indicates completion
-   */
-  private isFinishObservation(observation: AnyObservation): boolean {
-    if (observation.observation === 'tool_result') {
-      const result = observation as ToolResultObservation
-      
-      if (result.toolName === 'finish' && result.success && typeof result.result === 'object') {
-        const finishResult = result.result as { completed?: boolean }
-        return finishResult.completed === true
-      }
-    }
-    
-    return false
   }
   
   /**
