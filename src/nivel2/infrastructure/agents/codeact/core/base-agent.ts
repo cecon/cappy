@@ -17,7 +17,7 @@ export interface AgentConfig {
   temperature?: number
   enableThinking?: boolean
   enableTools?: boolean
-  mode?: 'plan' | 'code' | 'legacy'
+  mode?: 'plan' | 'code'
 }
 
 /**

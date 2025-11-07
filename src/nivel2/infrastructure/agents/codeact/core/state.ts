@@ -35,6 +35,17 @@ export interface Metrics {
 export type AgentStatus = 'idle' | 'running' | 'waiting_user' | 'error' | 'finished'
 
 /**
+ * Retry context for tracking failed attempts
+ */
+export interface RetryContext {
+  actionId: string
+  attempts: number
+  lastError?: string
+  strategies: string[]
+  startTime: number
+}
+
+/**
  * Unified state management for agent execution
  * Tracks history, metrics, context, and current status
  */
@@ -58,6 +69,9 @@ export class State {
   // Status
   status: AgentStatus = 'idle'
   lastError?: Error
+  
+  // Retry tracking
+  private retryContexts: Map<string, RetryContext> = new Map()
   
   // Additional metadata
   metadata: Record<string, unknown> = {}
@@ -179,6 +193,60 @@ export class State {
     }
     this.status = 'idle'
     this.lastError = undefined
+    this.retryContexts = new Map()
     this.metadata = {}
+  }
+
+  /**
+   * Registra tentativa de ação
+   */
+  recordAttempt(actionId: string, error?: string): RetryContext {
+    const existing = this.retryContexts.get(actionId)
+
+    if (existing) {
+      existing.attempts++
+      existing.lastError = error
+      return existing
+    }
+
+    const context: RetryContext = {
+      actionId,
+      attempts: 1,
+      lastError: error,
+      strategies: [],
+      startTime: Date.now()
+    }
+
+    this.retryContexts.set(actionId, context)
+    return context
+  }
+
+  /**
+   * Verifica se deve tentar novamente
+   */
+  shouldRetry(actionId: string, maxAttempts = 3): boolean {
+    const context = this.retryContexts.get(actionId)
+    return !context || context.attempts < maxAttempts
+  }
+
+  /**
+   * Limpa contexto de retry após sucesso
+   */
+  clearRetry(actionId: string): void {
+    this.retryContexts.delete(actionId)
+  }
+
+  /**
+   * Get retry context para informar próximo step
+   */
+  getRetryContext(actionId: string): RetryContext | undefined {
+    return this.retryContexts.get(actionId)
+  }
+
+  /**
+   * Get all active retry contexts
+   */
+  getActiveRetries(): RetryContext[] {
+    return Array.from(this.retryContexts.values())
   }
 }

@@ -173,15 +173,6 @@
             "description": "Get help on how to use @cappycode for direct code changes"
           }
         ]
-      },
-      {
-        "id": "cappy.assistant",
-        "name": "cappy",
-        "description": "Legacy combined assistant (@cappy). /plan and /code are discontinued — please use @cappyplan and @cappycode.",
-        "isSticky": false,
-        "commands": [
-          { "name": "help", "description": "Get help on how to use Cappy" }
-        ]
       }
     ],
     "languageModelTools": [

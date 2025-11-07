@@ -49,7 +49,7 @@ export function registerInitWorkspaceCommand(context: vscode.ExtensionContext): 
       // Add .cappy/data to .gitignore
       console.log('📝 [INIT] Updating .gitignore...');
       let gitignoreContent = '';
-      let gitignoreExists = fs.existsSync(gitignorePath);
+      const gitignoreExists = fs.existsSync(gitignorePath);
       
       if (gitignoreExists) {
         gitignoreContent = fs.readFileSync(gitignorePath, 'utf-8');

@@ -124,7 +124,7 @@ export class ExtensionBootstrap {
 
     const registerParticipant = (
       id: string,
-      mode: 'plan' | 'code' | 'legacy'
+      mode: 'plan' | 'code'
     ) => {
       const participant = vscode.chat.createChatParticipant(
         id,
@@ -139,14 +139,9 @@ export class ExtensionBootstrap {
             const adapter = new CappyAgentAdapter({ mode }, this.state.hybridRetriever || undefined);
             await adapter.initialize();
 
-            // Build message content according to participant mode
-            let messageContent = request.prompt;
-            if (mode === 'plan') {
-              messageContent = `@cappy/plan ${request.prompt}`;
-            } else if (mode === 'code') {
-              messageContent = `@cappy/code ${request.prompt}`;
-            }
-            // legacy: slash commands /plan and /code are discontinued; pass through prompt unchanged
+            // Use request.prompt directly - the mode is already set in the adapter
+            // No need to add @cappy/plan or @cappy/code prefix as we're already in a specific participant
+            const messageContent = request.prompt;
 
             // Create Message object
             const message = {
@@ -195,13 +190,11 @@ export class ExtensionBootstrap {
       return participant;
     };
 
-    // Register the new participants
+    // Register the participants
     registerParticipant('cappy.plan', 'plan');
     registerParticipant('cappy.code', 'code');
-    // Keep legacy combined participant for compatibility
-    registerParticipant('cappy.assistant', 'legacy');
 
-    console.log('  ✅ Registered @cappyplan, @cappycode, and legacy @cappy');
+    console.log('  ✅ Registered @cappyplan and @cappycode');
   }
 
   /**

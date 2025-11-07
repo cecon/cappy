@@ -21,6 +21,7 @@ import { FileReadTool } from './tools/file-read-tool'
 import { FileWriteTool } from './tools/file-write-tool'
 import { EditFileTool } from './tools/edit-file-tool'
 import type { HybridRetriever } from '../../services/hybrid-retriever'
+import { ContextAnalyzer, type ContextNeed } from './services/context-analyzer'
 
 /**
  * System prompt for Cappy agent
@@ -109,6 +110,7 @@ You may propose concrete code changes and use tools. Prefer minimal, focused edi
 export class CappyAgent extends BaseAgent {
   private llmModel: vscode.LanguageModelChat | null = null
   private readonly retriever?: HybridRetriever
+  private readonly contextAnalyzer: ContextAnalyzer
   
   constructor(
     config: AgentConfig = {},
@@ -116,6 +118,7 @@ export class CappyAgent extends BaseAgent {
   ) {
     super(config)
     this.retriever = retriever
+    this.contextAnalyzer = new ContextAnalyzer()
     this.tools = this.initializeTools()
   }
   
@@ -187,14 +190,14 @@ export class CappyAgent extends BaseAgent {
     // 2. Build messages for LLM from state history
     const messages = this.buildMessages(state)
     
-    console.log(`[CappyAgent] Sending ${messages.length} messages to LLM`)
+    console.log(`[CappyAgent] Sending ${(await messages).length} messages to LLM`)
     
     // 3. Call LLM with tools
     const toolSchemas = this.tools.map(t => this.toolToVSCodeSchema(t))
     
     try {
       const request = await this.llmModel.sendRequest(
-        messages,
+        await messages,
         {
           justification: 'Cappy agent processing user request',
           tools: toolSchemas
@@ -225,19 +228,27 @@ export class CappyAgent extends BaseAgent {
   /**
    * Build messages array for LLM from state history
    */
-  private buildMessages(state: State): vscode.LanguageModelChatMessage[] {
+  private async buildMessages(state: State): Promise<vscode.LanguageModelChatMessage[]> {
     const messages: vscode.LanguageModelChatMessage[] = []
-    
+
     // Add system prompt
     messages.push(vscode.LanguageModelChatMessage.User(SYSTEM_PROMPT))
-    
+
     // Mode-specific guardrails
     if (this.config.mode === 'plan') {
       messages.push(vscode.LanguageModelChatMessage.User(PLAN_MODE_PROMPT))
     } else if (this.config.mode === 'code') {
       messages.push(vscode.LanguageModelChatMessage.User(CODE_MODE_PROMPT))
     }
-    
+
+    // ✨ AUTOMATIC CONTEXT INJECTION
+    const contextNeeds = await this.contextAnalyzer.analyzeNeeds(state)
+
+    if (contextNeeds.length > 0) {
+      const contextMessage = await this.buildContextMessage(contextNeeds)
+      messages.push(vscode.LanguageModelChatMessage.User(contextMessage))
+    }
+
     // Get recent history (limit to avoid context overflow)
     const recentHistory = state.getRecentHistory(10)
     
@@ -289,6 +300,42 @@ export class CappyAgent extends BaseAgent {
     }
     
     return messages
+  }
+
+  /**
+   * Build context message from analyzed needs
+   */
+  private async buildContextMessage(needs: ContextNeed[]): Promise<string> {
+    let message = '<AUTOMATIC_CONTEXT>\n'
+    message += 'The following context has been automatically retrieved based on the current situation:\n\n'
+
+    // Limit to top 5 most important contexts
+    for (const need of needs.slice(0, 5)) {
+      message += `## ${need.reason}\n`
+
+      for (const path of need.paths.slice(0, 3)) { // Max 3 files per need
+        const content = await this.readFileContent(path)
+        if (content) {
+          message += `\n### ${path}\n`
+          message += `\`\`\`\n${content.substring(0, 1000)}\n...\n\`\`\`\n`
+        }
+      }
+
+      message += '\n'
+    }
+
+    message += '</AUTOMATIC_CONTEXT>\n'
+    return message
+  }
+
+  private async readFileContent(path: string): Promise<string | null> {
+    try {
+      const uri = vscode.Uri.file(path)
+      const content = await vscode.workspace.fs.readFile(uri)
+      return Buffer.from(content).toString('utf-8')
+    } catch {
+      return null
+    }
   }
   
   /**

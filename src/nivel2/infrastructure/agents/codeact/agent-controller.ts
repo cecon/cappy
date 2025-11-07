@@ -8,9 +8,10 @@
 import type { BaseAgent } from './core/base-agent'
 import { State } from './core/state'
 import type { AnyAction, ToolCallAction } from './core/actions'
-import type { AnyObservation, ToolResultObservation } from './core/observations'
+import type { AnyObservation, ToolResultObservation, ErrorObservation } from './core/observations'
 import { createMessageAction } from './core/actions'
 import { createToolResultObservation, createErrorObservation, createSuccessObservation } from './core/observations'
+import { ErrorClassifier, ErrorCategory, type ClassifiedError } from './core/error-classifier'
 
 /**
  * Controller that orchestrates agent execution loop (OpenHands pattern)
@@ -25,6 +26,7 @@ export class AgentController {
   private agent: BaseAgent
   private state: State  // ← State persists here!
   private maxIterations: number
+  private errorClassifier: ErrorClassifier
   
   constructor(
     agent: BaseAgent,
@@ -34,6 +36,7 @@ export class AgentController {
     this.agent = agent
     this.state = new State(sessionId)  // ← Created once, persists across messages
     this.maxIterations = maxIterations
+    this.errorClassifier = new ErrorClassifier()
   }
   
   /**
@@ -85,7 +88,7 @@ export class AgentController {
         yield { action, isComplete: false, iteration: iteration + 1 }
         
         // 2. Controller EXECUTES action and generates observation
-        const observation = await this.executeAction(action)
+        const observation = await this.executeActionWithRetry(action)
         this.state.addEvent(observation)
         
         console.log(`[AgentController] Observation generated: ${observation.observation}`)
@@ -117,25 +120,92 @@ export class AgentController {
   }
   
   /**
+   * Execute action with automatic retry logic
+   */
+  private async executeActionWithRetry(
+    action: AnyAction,
+    maxAttempts = 3
+  ): Promise<AnyObservation> {
+    const actionId = this.generateActionId(action)
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`[AgentController] Executing ${action.action} (attempt ${attempt}/${maxAttempts})`)
+
+      const observation = await this.executeAction(action)
+
+      // Success - clear retry context
+      if (this.isSuccessObservation(observation)) {
+        this.state.clearRetry(actionId)
+        return observation
+      }
+
+      // Failed - classify error
+      const errorMsg = this.extractErrorMessage(observation)
+      this.state.recordAttempt(actionId, errorMsg)
+
+      const classified = this.errorClassifier.classify(errorMsg, {
+        toolName: action.action === 'tool_call' ? (action as ToolCallAction).toolName : action.action,
+        input: action.action === 'tool_call' ? (action as ToolCallAction).input : {},
+        previousAttempts: attempt
+      })
+
+      console.log(`[AgentController] Error classified as: ${classified.category}`)
+
+      // Terminal error - don't retry
+      if (classified.category === ErrorCategory.TERMINAL) {
+        return observation
+      }
+
+      // User input needed - don't retry
+      if (classified.category === ErrorCategory.USER_INPUT) {
+        return observation
+      }
+
+      // Retriable - wait and retry
+      if (classified.category === ErrorCategory.RETRIABLE && attempt < maxAttempts) {
+        const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 5000)
+        console.log(`[AgentController] Retrying after ${backoff}ms...`)
+        await this.sleep(backoff)
+        continue
+      }
+
+      // Fixable - add suggestions to observation and let agent try different strategy
+      if (classified.category === ErrorCategory.FIXABLE && attempt < maxAttempts) {
+        // Don't auto-retry fixable errors - let agent see the error
+        // and decide on different strategy
+        return this.enrichObservationWithSuggestions(observation, classified)
+      }
+
+      // Last attempt - return error
+      if (attempt === maxAttempts) {
+        return observation
+      }
+    }
+
+    // Should never reach here
+    return createErrorObservation('Maximum retry attempts exceeded')
+  }
+
+  /**
    * Execute action and return observation (Controller responsibility, not Agent)
    */
   private async executeAction(action: AnyAction): Promise<AnyObservation> {
     if (action.action === 'tool_call') {
       const toolCall = action as ToolCallAction
       const tool = this.agent.getTools().find(t => t.name === toolCall.toolName)
-      
+
       if (!tool) {
         return createErrorObservation(`Tool not found: ${toolCall.toolName}`)
       }
-      
+
       try {
         console.log(`[AgentController] Executing tool: ${toolCall.toolName}`)
         const result = await tool.execute(toolCall.input)
-        
+
         const resultContent: string | Record<string, unknown> = result.success
           ? (result.result as (string | Record<string, unknown>) || 'Success')
           : (result.error || 'Error occurred')
-        
+
         return createToolResultObservation(
           toolCall.toolName,
           toolCall.callId,
@@ -148,7 +218,7 @@ export class AgentController {
         )
       }
     }
-    
+
     // For non-tool actions (message, think), create success observation
     return createSuccessObservation('Action processed')
   }
@@ -181,5 +251,66 @@ export class AgentController {
    */
   reset(): void {
     this.state.reset()
+  }
+
+  private generateActionId(action: AnyAction): string {
+    if (action.action === 'tool_call') {
+      const tool = action as ToolCallAction
+      return `${tool.toolName}-${tool.callId}`
+    }
+    return `${action.action}-${action.timestamp}`
+  }
+
+  private extractErrorMessage(observation: AnyObservation): string {
+    if (observation.observation === 'error') {
+      return (observation as ErrorObservation).error
+    }
+    if (observation.observation === 'tool_result') {
+      const result = observation as ToolResultObservation
+      if (!result.success) {
+        return typeof result.result === 'string' ? result.result : JSON.stringify(result.result)
+      }
+    }
+    return 'Unknown error'
+  }
+
+  private isSuccessObservation(observation: AnyObservation): boolean {
+    if (observation.observation === 'success') return true
+    if (observation.observation === 'tool_result') {
+      return (observation as ToolResultObservation).success
+    }
+    return false
+  }
+
+  private enrichObservationWithSuggestions(
+    observation: AnyObservation,
+    classified: ClassifiedError
+  ): AnyObservation {
+    if (observation.observation === 'tool_result') {
+      const result = observation as ToolResultObservation
+
+      let enrichedResult = result.result
+
+      if (typeof enrichedResult === 'string') {
+        enrichedResult = `${enrichedResult}\n\nSuggestions:\n${classified.alternativeStrategies?.join('\n') || classified.suggestion || ''}`
+      } else if (typeof enrichedResult === 'object') {
+        enrichedResult = {
+          ...enrichedResult as Record<string, unknown>,
+          suggestions: classified.alternativeStrategies || [classified.suggestion],
+          errorCategory: classified.category
+        }
+      }
+
+      return {
+        ...result,
+        result: enrichedResult
+      }
+    }
+
+    return observation
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
   }
 }
