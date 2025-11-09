@@ -5,10 +5,12 @@
     "strict": true,
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"],
+    "ignoreDeprecations": "6.0",
     "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"],
-      "@infra/*": ["src/nivel2/infrastructure/*"]
+      "@infra/*": ["src/nivel2/infrastructure/*"],
+      "@types/*": ["src/shared/types/*"]
     }
   },
   "include": ["test/**/*.ts", "src/**/*.ts"],
