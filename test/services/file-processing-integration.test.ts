@@ -282,7 +282,7 @@ describe('File Processing Integration Test (SQLite Only)', () => {
       }
     });
 
-    queue.on('file:complete', (metadata, result) => {
+    queue.on('file:complete', (_metadata, result) => {
       processingCompleted = true;
       console.log(`  ✅ Processing completed!`);
       console.log(`     - Chunks: ${result.chunksCount}`);
@@ -291,7 +291,7 @@ describe('File Processing Integration Test (SQLite Only)', () => {
       console.log(`     - Duration: ${result.duration}ms`);
     });
 
-    queue.on('file:failed', (metadata, error) => {
+    queue.on('file:failed', (_metadata, error) => {
       processingFailed = true;
       console.error(`  ❌ Processing failed: ${error.message}`);
     });
@@ -395,7 +395,7 @@ describe('File Processing Integration Test (SQLite Only)', () => {
     const invalidPath = path.join(workspace.rootDir, 'non-existent.ts');
     
     let failureDetected = false;
-    queue.on('file:failed', (metadata, error) => {
+    queue.on('file:failed', (_metadata, error) => {
       failureDetected = true;
       console.log(`  ✓ Failure detected: ${error.message}`);
     });

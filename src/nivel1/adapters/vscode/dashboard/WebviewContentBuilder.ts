@@ -35,6 +35,10 @@ export class WebviewContentBuilder {
     );
 
     htmlContent = htmlContent
+      .replaceAll('../../dashboard.js', graphJsUri.toString())
+      .replaceAll('../../chat.js', indexJsUri.toString())
+      .replaceAll('../../dashboard.css', graphCssUri.toString())
+      .replaceAll('../../chat.css', mainCssUri.toString())
       .replace('./dashboard.js', graphJsUri.toString())
       .replace('./chat.js', indexJsUri.toString())
       .replace('./dashboard.css', graphCssUri.toString())
