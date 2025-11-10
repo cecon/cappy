@@ -61,7 +61,10 @@ export class ClarifyRequirementsTool extends BaseTool {
       name: 'questions',
       type: 'array',
       description: 'Array of specific, targeted questions to ask the user. Each question should investigate a different aspect of the unclear requirement.',
-      required: true
+      required: true,
+      items: {
+        type: 'string'
+      }
     },
     {
       name: 'reason',
@@ -73,13 +76,19 @@ export class ClarifyRequirementsTool extends BaseTool {
       name: 'assumptions_to_verify',
       type: 'array',
       description: 'Optional: List of assumptions you\'re making that need verification',
-      required: false
+      required: false,
+      items: {
+        type: 'string'
+      }
     },
     {
       name: 'alternative_approaches',
       type: 'array',
       description: 'Optional: Alternative approaches worth discussing with the user',
-      required: false
+      required: false,
+      items: {
+        type: 'string'
+      }
     }
   ]
   
