@@ -43,8 +43,35 @@ export class AgentController {
   /**
    * Add user message to state
    */
-  addUserMessage(content: string): void {
-    this.state.addEvent(createMessageAction(content, 'user'))
+  addUserMessage(content: string, isResponseToClarification = false): void {
+    const action = createMessageAction(content, 'user')
+    
+    // If this is a response to a clarification request, link them
+    if (isResponseToClarification) {
+      const lastClarification = this.state.getLastUnresolvedClarification()
+      if (lastClarification) {
+        // Mark clarification as resolved with user's response
+        this.state.addClarificationResponses(lastClarification.id, [content])
+        
+        // Add metadata to the action for context
+        action.metadata = {
+          respondsTo: lastClarification.id,
+          type: 'clarification_response',
+          originalQuestions: lastClarification.questions
+        }
+        
+        console.log(`[AgentController] ✅ User responded to clarification: ${lastClarification.id}`)
+        console.log(`[AgentController] Original questions: ${lastClarification.questions.length}`)
+        console.log(`[AgentController] Resuming execution with user-provided context`)
+        
+        // Resume execution
+        this.state.resumeExecution()
+      } else {
+        console.warn('[AgentController] isResponseToClarification=true but no unresolved clarification found')
+      }
+    }
+    
+    this.state.addEvent(action)
   }
   
   /**
@@ -223,6 +250,33 @@ export class AgentController {
       try {
         console.log(`[AgentController] Executing tool: ${toolCall.toolName}`)
         const result = await tool.execute(toolCall.input)
+
+        // 🔍 Track clarification requests
+        if (toolCall.toolName === 'clarify_requirements' && result.success && typeof result.result === 'object' && result.result !== null) {
+          const resultObj = result.result as Record<string, unknown>
+          const questions = resultObj.questions as string[] || []
+          const reason = resultObj.reason as string || 'Clarification needed'
+          const assumptions = resultObj.assumptions as string[] | undefined
+          const alternatives = resultObj.alternatives as string[] | undefined
+          
+          this.state.recordClarification(
+            questions,
+            reason,
+            toolCall.callId,
+            assumptions,
+            alternatives
+          )
+          
+          console.log(`[AgentController] ⏸️  PAUSED: Waiting for user to answer ${questions.length} questions`)
+          console.log(`[AgentController] Clarification ID: ${toolCall.callId}`)
+          console.log(`[AgentController] Reason: ${reason}`)
+          if (assumptions && assumptions.length > 0) {
+            console.log(`[AgentController] Assumptions to validate: ${assumptions.length}`)
+          }
+          if (alternatives && alternatives.length > 0) {
+            console.log(`[AgentController] Alternative approaches suggested: ${alternatives.length}`)
+          }
+        }
 
         const resultContent: string | Record<string, unknown> = result.success
           ? (result.result as (string | Record<string, unknown>) || 'Success')

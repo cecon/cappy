@@ -13,6 +13,7 @@ export interface Action {
   action: string
   timestamp: number
   source: 'user' | 'assistant'
+  metadata?: Record<string, unknown>  // Optional metadata for context linking
 }
 
 /**

@@ -46,6 +46,20 @@ export interface RetryContext {
 }
 
 /**
+ * Clarification request tracking
+ */
+export interface ClarificationRecord {
+  id: string
+  questions: string[]
+  reason: string
+  assumptions?: string[]
+  alternatives?: string[]
+  userResponses?: string[]
+  timestamp: number
+  resolved: boolean
+}
+
+/**
  * Unified state management for agent execution
  * Tracks history, metrics, context, and current status
  */
@@ -72,6 +86,9 @@ export class State {
   
   // Retry tracking
   private retryContexts: Map<string, RetryContext> = new Map()
+  
+  // Clarification tracking
+  private clarificationHistory: ClarificationRecord[] = []
   
   // Additional metadata
   metadata: Record<string, unknown> = {}
@@ -153,6 +170,7 @@ export class State {
    */
   waitForUser(): void {
     this.status = 'waiting_user'
+    console.log('[State] Status changed to waiting_user')
   }
   
   /**
@@ -248,5 +266,110 @@ export class State {
    */
   getActiveRetries(): RetryContext[] {
     return Array.from(this.retryContexts.values())
+  }
+  
+  /**
+   * Mark state as running after receiving user input
+   */
+  resumeExecution(): void {
+    if (this.status === 'waiting_user') {
+      this.status = 'running'
+      console.log('[State] Status changed to running - resuming execution')
+    }
+  }
+  
+  /**
+   * Check if currently waiting for user clarification
+   */
+  isWaitingForClarification(): boolean {
+    return this.status === 'waiting_user' && this.getLastUnresolvedClarification() !== null
+  }
+  
+  /**
+   * Get context from resolved clarifications for prompt building
+   */
+  getClarificationContext(): string {
+    const resolved = this.getResolvedClarifications()
+    if (resolved.length === 0) return ''
+    
+    let context = '\n## User-Provided Context from Previous Clarifications:\n\n'
+    
+    for (const clarification of resolved) {
+      context += `**Questions asked:**\n`
+      clarification.questions.forEach((q, i) => {
+        context += `${i + 1}. ${q}\n`
+      })
+      
+      if (clarification.userResponses && clarification.userResponses.length > 0) {
+        context += `\n**User's answers:**\n`
+        clarification.userResponses.forEach((r, i) => {
+          context += `${i + 1}. ${r}\n`
+        })
+      }
+      context += '\n'
+    }
+    
+    return context
+  }
+  
+  /**
+   * Record a clarification request from the agent
+   */
+  recordClarification(questions: string[], reason: string, id: string, assumptions?: string[], alternatives?: string[]): ClarificationRecord {
+    const record: ClarificationRecord = {
+      id,
+      questions,
+      reason,
+      assumptions,
+      alternatives,
+      timestamp: Date.now(),
+      resolved: false
+    }
+    
+    this.clarificationHistory.push(record)
+    console.log(`[State] Recorded clarification request: ${id} with ${questions.length} questions`)
+    return record
+  }
+  
+  /**
+   * Add user responses to a clarification
+   */
+  addClarificationResponses(id: string, responses: string[]): boolean {
+    const clarification = this.clarificationHistory.find(c => c.id === id)
+    if (clarification) {
+      clarification.userResponses = responses
+      clarification.resolved = true
+      console.log(`[State] Added responses to clarification: ${id}`)
+      return true
+    }
+    console.warn(`[State] Clarification not found: ${id}`)
+    return false
+  }
+  
+  /**
+   * Get the last unresolved clarification (if any)
+   */
+  getLastUnresolvedClarification(): ClarificationRecord | null {
+    for (let i = this.clarificationHistory.length - 1; i >= 0; i--) {
+      const clarification = this.clarificationHistory[i]
+      if (!clarification.resolved) {
+        return clarification
+      }
+    }
+    return null
+  }
+  
+  /**
+   * Get all clarifications (for context building)
+   */
+  getAllClarifications(): ClarificationRecord[] {
+    return [...this.clarificationHistory]
+  }
+  
+  /**
+   * Get resolved clarifications that might provide useful context
+   */
+  getResolvedClarifications(): ClarificationRecord[] {
+    return this.clarificationHistory.filter(c => c.resolved)
   }
 }
