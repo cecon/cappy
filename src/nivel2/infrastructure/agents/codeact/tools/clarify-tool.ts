@@ -60,7 +60,7 @@ export class ClarifyRequirementsTool extends BaseTool {
     {
       name: 'questions',
       type: 'array',
-      description: 'Array of specific, targeted questions to ask the user. Each question should investigate a different aspect of the unclear requirement.',
+      description: 'IMPORTANT: Provide ALL your questions here, but only the FIRST ONE will be asked to the user. The remaining questions will be asked one-by-one in subsequent turns. Each question should investigate a different aspect of the unclear requirement.',
       required: true,
       items: {
         type: 'string'
@@ -103,13 +103,16 @@ export class ClarifyRequirementsTool extends BaseTool {
     const assumptions = (input.assumptions_to_verify as string[] | undefined) || []
     const alternatives = (input.alternative_approaches as string[] | undefined) || []
     
+    // ⚠️ STRATEGY: Ask only ONE question at a time
+    // Store remaining questions in state for next turns
+    
     // ⚠️ VALIDAÇÃO RIGOROSA: Qualidade e quantidade das perguntas
-    if (questions.length < 2) {
-      return this.error('You must ask at least 2 questions to clarify requirements properly')
+    if (questions.length < 1) {
+      return this.error('You must ask at least 1 question to clarify requirements')
     }
     
     if (questions.length > 8) {
-      return this.error('Too many questions at once. Ask 2-5 focused, specific questions.')
+      return this.error('Too many questions planned. Limit to 8 maximum.')
     }
     
     // Validar que não são perguntas genéricas
@@ -130,35 +133,42 @@ export class ClarifyRequirementsTool extends BaseTool {
       return this.error('Ask SPECIFIC questions (e.g., "Which database?" not "Tell me more"). Be precise and technical.')
     }
     
+    // 🎯 ASK ONLY THE FIRST QUESTION
+    const currentQuestion = questions[0]
+    const remainingQuestions = questions.slice(1)
+    
     // Format the clarification request for the user
     let message = `🤔 **Preciso entender melhor antes de planejar**\n\n`
     message += `**Por que estou perguntando:** ${reason}\n\n`
     
     if (assumptions.length > 0) {
       message += `**Premissas que preciso validar:**\n`
-      assumptions.forEach((assumption, i) => {
+      for (const [i, assumption] of assumptions.entries()) {
         message += `${i + 1}. ${assumption}\n`
-      })
+      }
       message += `\n`
     }
     
-    message += `**Perguntas específicas:**\n`
-    questions.forEach((question, i) => {
-      message += `${i + 1}. ${question}\n`
-    })
+    message += `**Pergunta ${1}/${questions.length}:**\n`
+    message += `${currentQuestion}\n`
+    
+    if (remainingQuestions.length > 0) {
+      message += `\n_Terei mais ${remainingQuestions.length} pergunta(s) depois dessa._\n`
+    }
     
     if (alternatives.length > 0) {
       message += `\n**Abordagens alternativas para considerar:**\n`
-      alternatives.forEach((alt, i) => {
+      for (const [i, alt] of alternatives.entries()) {
         message += `${i + 1}. ${alt}\n`
-      })
+      }
     }
     
-    message += `\n📌 *Aguardando suas respostas para criar um plano adequado...*`
+    message += `\n📌 *Aguardando sua resposta...*`
     
     return this.success({
       message,
-      questions,
+      questions: [currentQuestion], // Only return first question
+      remainingQuestions, // Store for next turn
       reason,
       assumptions,
       alternatives,

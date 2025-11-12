@@ -25,9 +25,6 @@ export type { AgentConfig } from './core/base-agent'
 // Main agent
 export { CappyAgent } from './cappy-agent'
 
-// Adapter for chat integration
-export { CappyAgentAdapter } from './cappy-agent-adapter'
-
 // Tools
 export { ThinkTool } from './tools/think-tool'
 export { FinishTool } from './tools/finish-tool'

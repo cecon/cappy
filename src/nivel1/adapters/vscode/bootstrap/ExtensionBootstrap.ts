@@ -9,7 +9,6 @@ import { LanguageModelToolsBootstrap } from './LanguageModelToolsBootstrap';
 import { ViewsBootstrap } from './ViewsBootstrap';
 import { CommandsBootstrap } from './CommandsBootstrap';
 import { FileProcessingSystemBootstrap } from './FileProcessingSystemBootstrap';
-import { CappyAgentAdapter } from '../../../../nivel2/infrastructure/agents/codeact/cappy-agent-adapter';
 import type { FileMetadataDatabase } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 import type { FileProcessingQueue } from '../../../../nivel2/infrastructure/services/file-processing-queue';
 import type { FileChangeWatcher } from '../../../../nivel2/infrastructure/services/file-change-watcher';
@@ -90,8 +89,8 @@ export class ExtensionBootstrap {
     this.state.graphPanel = viewsResult.graphPanel;
     this.state.viewsBootstrap = viewsBootstrap;
 
-    // Phase 3: Register CodeAct Agent Chat Participant
-    this.registerCodeActAgent(context);
+    // Phase 3: Register Chat Participant
+    this.registerChatParticipant(context);
 
     // Phase 4: Register Commands
     const commandsBootstrap = new CommandsBootstrap({
@@ -117,89 +116,90 @@ export class ExtensionBootstrap {
   }
 
   /**
-   * Registers the CodeAct Agent as a chat participant
+   * Registers the Cappy chat participant
    */
-  private registerCodeActAgent(context: vscode.ExtensionContext): void {
-    console.log('🤖 Registering CodeAct Chat Participants...');
+  private registerChatParticipant(context: vscode.ExtensionContext): void {
+    console.log('🤖 Registering @cappy chat participant...');
 
-    const registerParticipant = (
-      id: string,
-      mode: 'plan' | 'code'
-    ) => {
-      const participant = vscode.chat.createChatParticipant(
-        id,
-        async (
-          request: vscode.ChatRequest,
-          _chatContext: vscode.ChatContext,
-          stream: vscode.ChatResponseStream,
-          token: vscode.CancellationToken
-        ) => {
-          try {
-            // Create adapter with HybridRetriever if available
-            const adapter = new CappyAgentAdapter({ mode }, this.state.hybridRetriever || undefined);
-            await adapter.initialize();
+    const participant = vscode.chat.createChatParticipant(
+      'cappy.chat',
+      async (
+        request: vscode.ChatRequest,
+        _chatContext: vscode.ChatContext,
+        stream: vscode.ChatResponseStream,
+        token: vscode.CancellationToken
+      ) => {
+        try {
+          // Import dynamically to avoid circular dependencies
+          const { CappyAgent } = await import('../../../../nivel2/infrastructure/agents/codeact/cappy-agent.js');
+          const { AgentController } = await import('../../../../nivel2/infrastructure/agents/codeact/agent-controller.js');
 
-            // Use request.prompt directly - the mode is already set in the adapter
-            // No need to add @cappy/plan or @cappy/code prefix as we're already in a specific participant
-            const messageContent = request.prompt;
+          // Create agent in PLAN mode (creates task plans, doesn't execute code)
+          const agent = new CappyAgent(
+            { mode: 'plan' },
+            this.state.hybridRetriever || undefined
+          );
+          await agent.initialize();
 
-            // Create Message object
-            const message = {
-              id: Date.now().toString(),
-              content: messageContent,
-              author: 'user' as const,
-              timestamp: Date.now()
-            };
+          // Create controller
+          const controller = new AgentController(agent, 'chat-session', 10);
 
-            // Create ChatContext object with proper history
-            const chatContext = {
-              sessionId: _chatContext.history.length > 0
-                ? `session-${Date.now()}`
-                : 'new-session',
-              history: _chatContext.history.map((h, index) => ({
-                id: `hist-${Date.now()}-${index}`,
-                content: 'prompt' in h ? h.prompt : ('response' in h ? h.response.join('') : ''),
-                author: h.participant === id ? 'assistant' as const : 'user' as const,
-                timestamp: Date.now()
-              }))
-            };
+          // Add user message
+          controller.addUserMessage(request.prompt);
 
-            // Process message with streaming to VS Code
-            for await (const chunk of adapter.processMessage(message, chatContext)) {
-              if (token.isCancellationRequested) {
-                stream.markdown('\n\n_Task cancelled by user_');
-                break;
-              }
-              stream.markdown(chunk);
+          // Stream response
+          for await (const step of controller.run()) {
+            if (token.isCancellationRequested) {
+              stream.markdown('\n\n_Cancelled by user_');
+              break;
             }
 
-            return { metadata: { command: 'chat', mode } };
-          } catch (error) {
-            const errMsg = error instanceof Error ? error.message : String(error);
-            stream.markdown(`\n\n⚠️ **Error**: ${errMsg}`);
-            console.error('[CodeActAgent] Error:', error);
-            return { metadata: { command: 'chat', error: errMsg, mode } };
+            // Stream action output
+            if (step.action) {
+              if (step.action.action === 'message') {
+                stream.markdown(step.action.content + '\n\n');
+              }
+            }
+
+            // Stream observation output (for clarify_requirements results)
+            if (step.observation) {
+              const obs = step.observation as { observation: string; toolName?: string; success?: boolean; result?: unknown };
+              if (obs.observation === 'tool_result' && obs.toolName === 'clarify_requirements') {
+                if (obs.success && typeof obs.result === 'object' && obs.result !== null) {
+                  const result = obs.result as { message?: string };
+                  if (result.message) {
+                    stream.markdown(result.message + '\n\n');
+                  }
+                }
+              }
+            }
+
+            // Stop if complete
+            if (step.isComplete) {
+              break;
+            }
           }
+
+          return { metadata: { command: 'chat' } };
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+          stream.markdown(`\n\n⚠️ **Error**: ${errMsg}`);
+          console.error('[ChatParticipant] Error:', error);
+          return { metadata: { command: 'chat', error: errMsg } };
         }
-      );
+      }
+    );
 
-      // Set icon (use the actual icon from src/assets)
-      participant.iconPath = vscode.Uri.joinPath(
-        context.extensionUri,
-        'src',
-        'assets',
-        'icon.png'
-      );
+    // Set icon
+    participant.iconPath = vscode.Uri.joinPath(
+      context.extensionUri,
+      'src',
+      'assets',
+      'icon.png'
+    );
 
-      context.subscriptions.push(participant);
-      return participant;
-    };
-
-    // Register the participants
-    registerParticipant('cappy.plan', 'plan');
-    registerParticipant('cappy.code', 'code');
-
-    console.log('  ✅ Registered @cappyplan and @cappycode');
+    context.subscriptions.push(participant);
+    console.log('  ✅ Registered @cappy');
   }
 
   /**

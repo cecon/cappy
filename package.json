@@ -148,26 +148,14 @@
     },
     "chatParticipants": [
       {
-        "id": "cappy.plan",
-        "name": "cappyplan",
-        "description": "Planning-focused assistant: creates structured development plans with steps, validation, and hooks.",
+        "id": "cappy.chat",
+        "name": "cappy",
+        "description": "Cappy planning assistant: asks clarifying questions and creates structured task plans (does not execute code directly)",
         "isSticky": true,
         "commands": [
           {
             "name": "help",
-            "description": "Get help on how to use @cappyplan and planning workflows"
-          }
-        ]
-      },
-      {
-        "id": "cappy.code",
-        "name": "cappycode",
-        "description": "Coding-focused assistant: applies changes directly using the CodeAct pattern.",
-        "isSticky": true,
-        "commands": [
-          {
-            "name": "help",
-            "description": "Get help on how to use @cappycode for direct code changes"
+            "description": "Get help on how to use @cappy"
           }
         ]
       }
