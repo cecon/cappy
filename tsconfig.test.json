@@ -7,11 +7,10 @@
     "jsx": "react-jsx",
     "types": ["node", "vitest/globals"],
     "ignoreDeprecations": "5.0",
-    "baseUrl": "./",
     "paths": {
-      "@/*": ["src/*"],
-      "@infra/*": ["src/nivel2/infrastructure/*"],
-      "@types/*": ["src/shared/types/*"]
+      "@/*": ["./src/*"],
+      "@infra/*": ["./src/nivel2/infrastructure/*"],
+      "@types/*": ["./src/shared/types/*"]
     }
   },
   "include": ["test/**/*.ts", "src/**/*.ts"],

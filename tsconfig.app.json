@@ -18,10 +18,9 @@
     "noEmit": true,
 
     /* Path mapping */
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@types/*": ["src/shared/types/*"]
+      "@/*": ["./src/*"],
+      "@types/*": ["./src/shared/types/*"]
     },
 
     /* Linting */

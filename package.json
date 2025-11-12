@@ -37,9 +37,6 @@
     "hybrid-retriever",
     "language-model-tools"
   ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
   "main": "./out/extension.js",
   "capabilities": {
     "languageModel": {
