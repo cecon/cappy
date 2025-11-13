@@ -17,6 +17,7 @@ import type { GraphCleanupService } from '../../../../nivel2/infrastructure/serv
 import type { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
 import type { HybridRetriever } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 import type { GraphPanel } from '../dashboard/GraphPanel';
+import { LangGraphChatAgent } from '../../../../nivel2/infrastructure/agents/langgraph/langgraph-chat-agent';
 
 /**
  * Main extension state (internal - mutable)
@@ -71,6 +72,7 @@ export class ExtensionBootstrap {
     hybridRetriever: null,
     graphPanel: null
   };
+  private readonly chatAgent = new LangGraphChatAgent();
 
   /**
    * Activates the extension
@@ -130,58 +132,41 @@ export class ExtensionBootstrap {
         token: vscode.CancellationToken
       ) => {
         try {
-          // Import dynamically to avoid circular dependencies
-          const { CappyAgent } = await import('../../../../nivel2/infrastructure/agents/codeact/cappy-agent.js');
-          const { AgentController } = await import('../../../../nivel2/infrastructure/agents/codeact/agent-controller.js');
+          const sessionId = this.getChatSessionId(request);
+          console.log('[ChatParticipant] Session:', sessionId);
 
-          // Create agent - @cappy always uses default config
-          const agent = new CappyAgent(
-            {},
-            this.state.hybridRetriever || undefined
-          );
-          await agent.initialize();
+          stream.progress('Consultando contexto...');
 
-          // Create controller
-          const controller = new AgentController(agent, 'chat-session');
-
-          // Add user message
-          controller.addUserMessage(request.prompt);
-
-          // Stream response
-          for await (const step of controller.run()) {
-            if (token.isCancellationRequested) {
-              stream.markdown('\n\n_Cancelled by user_');
-              break;
+          let streamedContent = '';
+          const finalMessage = await this.chatAgent.runTurn({
+            prompt: request.prompt,
+            sessionId,
+            token,
+            onToken: (chunk) => {
+              streamedContent += chunk;
             }
+          });
 
-            // Stream action output
-            if (step.action) {
-              if (step.action.action === 'message') {
-                stream.markdown(step.action.content + '\n\n');
-              }
-            }
+          if (token.isCancellationRequested) {
+            stream.markdown('\n\n_Cancelado pelo usuário_');
+            return { metadata: { command: 'chat', cancelled: true } };
+          }
 
-            // Stream observation output (for clarify_requirements results)
-            if (step.observation) {
-              const obs = step.observation as { observation: string; toolName?: string; success?: boolean; result?: unknown };
-              if (obs.observation === 'tool_result' && obs.toolName === 'clarify_requirements') {
-                if (obs.success && typeof obs.result === 'object' && obs.result !== null) {
-                  const result = obs.result as { message?: string };
-                  if (result.message) {
-                    stream.markdown(result.message + '\n\n');
-                  }
-                }
-              }
-            }
-
-            // Stop if complete
-            if (step.isComplete) {
-              break;
-            }
+          const responseText = (finalMessage || streamedContent).trim();
+          if (responseText.length > 0) {
+            stream.markdown(responseText + '\n\n');
+          } else {
+            stream.markdown('_Sem resposta gerada._');
           }
 
           return { metadata: { command: 'chat' } };
         } catch (error) {
+          if (token.isCancellationRequested) {
+            stream.markdown('\n\n_Cancelado pelo usuário_');
+            console.warn('[ChatParticipant] Request cancelled');
+            return { metadata: { command: 'chat', cancelled: true } };
+          }
+
           const errMsg = error instanceof Error ? error.message : String(error);
           stream.markdown(`\n\n⚠️ **Error**: ${errMsg}`);
           console.error('[ChatParticipant] Error:', error);
@@ -200,6 +185,19 @@ export class ExtensionBootstrap {
 
     context.subscriptions.push(participant);
     console.log('  ✅ Registered @cappy');
+  }
+
+  private getChatSessionId(request: vscode.ChatRequest): string {
+    const requestWithSession = request as {
+      session?: { id?: string };
+      sessionId?: string;
+    };
+
+    return (
+      requestWithSession.session?.id ??
+      requestWithSession.sessionId ??
+      'chat-session'
+    );
   }
 
   /**

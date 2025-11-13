@@ -152,27 +152,19 @@ Or search "Cappy" in VSCode Extensions
 
 ## Usage
 
-### New Native Chat Participants
+### Native Chat Participant
 
-You can now interact with two focused assistants in the VS Code chat:
+You can now interact with `@cappy` directly in the VS Code chat. The participant runs on top of a LangGraph workflow with persistent memory per session, giving you conversational continuity without additional configuration.
 
-- @cappyplan — creates structured development plans with clear steps, validation, and follow-ups
-- @cappycode — applies code changes directly using the CodeAct pattern
+### Using the Chat
 
-### Using the New Chat
-
-The new chat feature allows you to interact with your codebase more effectively. Here's how to use it:
-
-1. **Accessing the Chat**: Open the chat interface in VS Code and mention `@cappyplan` or `@cappycode`.
-2. **Examples of Commands**:
-   - `@cappyplan Implement search pagination in the products list`
-   - `@cappycode Update the ProductsService to accept page and pageSize, and wire it to the controller`
+1. **Access the Chat**: Open the chat interface in VS Code and mention `@cappy`.
+2. **Examples of Prompts**:
+   - `@cappy Implement search pagination in the products list`
+   - `@cappy What did I ask you to do a moment ago?`
 3. **Key Notes**:
-   - The old slash commands (/plan and /code) on @cappy are discontinued. Use `@cappyplan` and `@cappycode` instead.
+   - The legacy slash commands (/plan, /code) were removed in favor of the new unified participant.
    - The chat integrates with your codebase context to provide precise and actionable responses.
-
-Notes:
-- The old slash commands (/plan and /code) on @cappy are discontinued. Use @cappyplan and @cappycode instead.
 
 ### Chat with Your Codebase
 ```
@@ -180,8 +172,7 @@ You: "Where do we validate user emails?"
 Cappy: Found in src/validators/email.ts, used by UserService and AuthController
 
 You: "Add CPF validation following the same pattern"
-@cappyplan: [generates a plan with exact file locations and relationships]
-@cappycode: [applies the changes as per the plan]
+@cappy: [asks clarifying questions if needed, then returns a step-by-step plan]
 ```
 
 ### View Knowledge Graph
