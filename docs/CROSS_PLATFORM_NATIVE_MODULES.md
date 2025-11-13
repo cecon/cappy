@@ -88,16 +88,16 @@ npm run package:linux
 
 ```bash
 # Windows
-code --install-extension cappy-3.1.0-win32-x64.vsix --force
+code --install-extension cappy-3.1.2-win32-x64.vsix --force
 
 # macOS Intel
-code --install-extension cappy-3.1.0-darwin-x64.vsix --force
+code --install-extension cappy-3.1.2-darwin-x64.vsix --force
 
 # macOS Apple Silicon  
-code --install-extension cappy-3.1.0-darwin-arm64.vsix --force
+code --install-extension cappy-3.1.2-darwin-arm64.vsix --force
 
 # Linux
-code --install-extension cappy-3.1.0-linux-x64.vsix --force
+code --install-extension cappy-3.1.2-linux-x64.vsix --force
 ```
 
 ## 🐛 Troubleshooting
@@ -147,10 +147,10 @@ npm rebuild sharp
 ## 📁 Estrutura dos Packages
 
 ```
-cappy-3.1.0-win32-x64.vsix     # Windows 64-bit
-cappy-3.1.0-darwin-x64.vsix    # macOS Intel
-cappy-3.1.0-darwin-arm64.vsix  # macOS Apple Silicon
-cappy-3.1.0-linux-x64.vsix     # Linux 64-bit
+cappy-3.1.2-win32-x64.vsix     # Windows 64-bit
+cappy-3.1.2-darwin-x64.vsix    # macOS Intel
+cappy-3.1.2-darwin-arm64.vsix  # macOS Apple Silicon
+cappy-3.1.2-linux-x64.vsix     # Linux 64-bit
 ```
 
 Cada package contém apenas os binários necessários para sua plataforma, reduzindo o tamanho e evitando conflitos.
