@@ -134,15 +134,15 @@ export class ExtensionBootstrap {
           const { CappyAgent } = await import('../../../../nivel2/infrastructure/agents/codeact/cappy-agent.js');
           const { AgentController } = await import('../../../../nivel2/infrastructure/agents/codeact/agent-controller.js');
 
-          // Create agent in PLAN mode (creates task plans, doesn't execute code)
+          // Create agent - @cappy always uses default config
           const agent = new CappyAgent(
-            { mode: 'plan' },
+            {},
             this.state.hybridRetriever || undefined
           );
           await agent.initialize();
 
           // Create controller
-          const controller = new AgentController(agent, 'chat-session', 10);
+          const controller = new AgentController(agent, 'chat-session');
 
           // Add user message
           controller.addUserMessage(request.prompt);

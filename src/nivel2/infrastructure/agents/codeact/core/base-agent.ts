@@ -1,28 +1,22 @@
 /**
  * @fileoverview Base Agent class
  * @module codeact/core/base-agent
- * 
- * Inspired by OpenHands Agent base class
  */
 
 import type { State } from './state'
 import type { AnyAction } from './actions'
-import type { AnyObservation, ToolResultObservation } from './observations'
 import type { Tool } from './tool'
 
 /**
  * Configuration for agent
  */
 export interface AgentConfig {
-  maxIterations?: number
   temperature?: number
-  enableThinking?: boolean
-  enableTools?: boolean
-  mode?: 'plan' | 'code'
+  model?: string
 }
 
 /**
- * Abstract base class for all agents (OpenHands pattern with agent-controlled iteration)
+ * Abstract base class for all agents
  */
 export abstract class BaseAgent {
   protected config: AgentConfig
@@ -30,49 +24,21 @@ export abstract class BaseAgent {
   
   constructor(config: AgentConfig = {}) {
     this.config = {
-      maxIterations: 10,
       temperature: 0.7,
-      enableThinking: true,
-      enableTools: true,
+      model: 'claude-sonnet-4-20250514',
       ...config
     }
-    this.tools = []
+    this.tools = this.initializeTools()
   }
   
   /**
-   * Execute one step: decide next action (OpenHands pattern)
-   * ONLY decides - does NOT execute
+   * Decide next action based on current state
+   * This is called once per user message
    * 
+   * @param state - Current conversation state
    * @returns Action to be executed by the controller
    */
   abstract step(state: State): Promise<AnyAction>
-  
-  /**
-   * Decide if agent wants to continue after observing result
-   * This gives the agent control over iteration flow
-   * 
-   * @param observation - Result of last action
-   * @param state - Current state
-   * @returns true if agent wants another iteration, false to stop
-   */
-  shouldContinue(observation: AnyObservation, state: State): boolean {
-    // Default implementation: stop if finish tool was called successfully
-    if (observation.observation === 'tool_result') {
-      const result = observation as ToolResultObservation
-      
-      if (result.toolName === 'finish' && result.success) {
-        return false // Stop after finish
-      }
-    }
-    
-    // Continue if error and haven't exceeded max iterations
-    if (state.metrics.iterations >= this.config.maxIterations!) {
-      return false // Safety limit
-    }
-    
-    // Default: continue
-    return true
-  }
   
   /**
    * Initialize tools available to this agent
@@ -87,7 +53,7 @@ export abstract class BaseAgent {
   }
   
   /**
-   * Reset agent state
+   * Reset agent state (if needed)
    */
   reset(): void {
     // Override in subclasses if needed
