@@ -1,7 +1,5 @@
 import * as vscode from 'vscode'
-import { Annotation, END, START, StateGraph, type AnnotationRoot } from '@langchain/langgraph'
 import { MemorySaver } from '@langchain/langgraph-checkpoint'
-import type { RunnableConfig } from '@langchain/core/runnables'
 import type { DevelopmentPlan, CriticFeedback } from '../planning/types'
 import { PlanPersistence } from '../planning/plan-persistence'
 
@@ -23,28 +21,6 @@ interface InternalAgentState {
   planFilePath: string | null
   agentPhase: 'planning' | 'critic' | 'clarifying' | 'done'
 }
-
-const ChatStateDefinition: AnnotationRoot<{
-  messages: ReturnType<typeof Annotation<ChatMemoryMessage[]>>
-}> = Annotation.Root({
-  messages: Annotation<ChatMemoryMessage[]>({
-    reducer: (left: ChatMemoryMessage[], right: ChatMemoryMessage | ChatMemoryMessage[]) => {
-      if (!right) {
-        return left
-      }
-
-      if (Array.isArray(right)) {
-        if (right.length === 0) {
-          return left
-        }
-        return left.concat(right)
-      }
-
-      return left.concat([right])
-    },
-    default: () => []
-  })
-})
 
 const SYSTEM_PROMPT = `You are Cappy, an intelligent planning assistant that helps developers create detailed development plans.
 
@@ -291,23 +267,172 @@ export class LangGraphPlanningAgent {
     }
   }
 
-  private createGraph() {
-    const graphBuilder = new StateGraph(ChatStateDefinition)
-      .addNode('noop', async () => ({}))
-      .addEdge(START, 'noop')
-      .addEdge('noop', END)
-
-    return graphBuilder.compile({
-      checkpointer: this.checkpointer
-    })
-  }
-
-  private async generateAssistantResponse(
+  /**
+   * PHASE 1: Planning - Creates initial plan with extensive context gathering
+   */
+  private async runPlanningPhase(
     history: ReadonlyArray<ChatMemoryMessage>,
+    state: InternalAgentState,
+    sessionId: string,
     token?: vscode.CancellationToken,
     onToken?: (chunk: string) => void
   ): Promise<string> {
-    const messages = this.buildChatMessages(history)
+    console.log('[PlanningAgent/Planning] Creating initial development plan...')
+    
+    const planningPrompt = `${SYSTEM_PROMPT}
+
+<CURRENT_PHASE>PLANNING</CURRENT_PHASE>
+
+<TASK>
+Create an initial development plan in JSON format. Use tools EXTENSIVELY to gather context.
+After gathering context, output a JSON structure with:
+- Goal
+- Context (files, patterns, dependencies)
+- Steps (id, title, description, file paths if known)
+- Initial clarifications needed (mark unknowns)
+- Risks
+- Success criteria
+
+Save the plan to .cappy/plans/ and tell the user it's being refined.
+</TASK>`
+
+    const response = await this.runAgentWithTools(history, planningPrompt, token, onToken)
+    
+    // After planning, move to critic phase
+    state.agentPhase = 'critic'
+    
+    return response
+  }
+
+  /**
+   * PHASE 2: Critic - Reviews plan and identifies gaps
+   */
+  private async runCriticPhase(
+    history: ReadonlyArray<ChatMemoryMessage>,
+    state: InternalAgentState,
+    sessionId: string,
+    token?: vscode.CancellationToken,
+    onToken?: (chunk: string) => void
+  ): Promise<string> {
+    console.log('[PlanningAgent/Critic] Reviewing plan for gaps and ambiguities...')
+    
+    const criticPrompt = `You are a CRITIC agent reviewing a development plan.
+
+<TASK>
+Analyze the current plan JSON and identify:
+1. Missing information (file paths, dependencies, etc.)
+2. Ambiguous steps
+3. Unclear requirements
+4. Potential risks not considered
+
+For each issue found, determine if it's CRITICAL (blocks implementation) or optional.
+If there are CRITICAL issues, prepare ONE specific question to ask the user.
+If no critical issues, approve the plan.
+
+Be HARSH but constructive. A good plan should be implementable by an LLM without guessing.
+</TASK>
+
+Current Plan:
+${JSON.stringify(state.currentPlan, null, 2)}`
+
+    const criticResponse = await this.runAgentWithTools(history, criticPrompt, token, onToken)
+    
+    // TODO: Parse critic response to extract feedback
+    // If critical issues found → clarifying phase
+    // If no critical issues → done phase
+    
+    state.agentPhase = 'clarifying' // For now, always clarify
+    
+    return criticResponse
+  }
+
+  /**
+   * PHASE 3: Clarification - Asks ONE question to user
+   */
+  private async runClarificationPhase(
+    history: ReadonlyArray<ChatMemoryMessage>,
+    state: InternalAgentState,
+    sessionId: string,
+    token?: vscode.CancellationToken,
+    onToken?: (chunk: string) => void
+  ): Promise<string> {
+    console.log('[PlanningAgent/Clarification] Asking clarifying question...')
+    
+    const clarificationPrompt = `You are a CLARIFICATION agent.
+
+<TASK>
+Based on the critic feedback, ask the user ONE specific, context-rich question.
+
+Rules:
+- Ask ONLY ONE question
+- Include context you already found (show your research)
+- Be specific, not vague
+- Give options when possible
+
+Example GOOD question:
+"I found you have src/services/ and src/lib/ directories.
+ For the JWT service, should I create it in:
+ a) src/services/auth/jwt-service.ts (with other services)
+ b) src/lib/auth.ts (as a utility)
+ 
+ What's your preference?"
+
+Example BAD question:
+"Where should I put the JWT service?"
+</TASK>
+
+Critic Feedback:
+${JSON.stringify(state.criticFeedback, null, 2)}`
+
+    const question = await this.runAgentWithTools(history, clarificationPrompt, token, onToken)
+    
+    // After asking, wait for user response (next turn will handle it)
+    // Then go back to critic to re-evaluate
+    state.agentPhase = 'critic'
+    
+    return question
+  }
+
+  /**
+   * PHASE 4: Completion - Plan is ready
+   */
+  private async runCompletionPhase(
+    state: InternalAgentState,
+    token?: vscode.CancellationToken,
+    onToken?: (chunk: string) => void
+  ): Promise<string> {
+    console.log('[PlanningAgent/Completion] Plan approved and finalized')
+    
+    const completion = `✅ **Development Plan Complete!**
+
+📄 Plan saved at: \`${state.planFilePath}\`
+
+The plan has been reviewed and is ready for implementation. It includes:
+- ${state.currentPlan?.steps.length || 0} actionable steps
+- ${state.currentPlan?.clarifications.filter(c => c.answer).length || 0} clarifications resolved
+- ${state.currentPlan?.risks.length || 0} risks identified
+- ${state.currentPlan?.successCriteria.length || 0} success criteria
+
+Would you like to:
+1. Review the plan (I can open it in the editor)
+2. Make adjustments
+3. Send it to the development agent`
+
+    onToken?.(completion)
+    
+    return completion
+  }
+
+  /**
+   * Runs agent with tools and handles tool execution loop
+   */
+  private async runAgentWithTools(
+    history: ReadonlyArray<ChatMemoryMessage>,
+    systemPrompt: string,
+    token?: vscode.CancellationToken,
+    onToken?: (chunk: string) => void
+  ): Promise<string> {
+    const messages = this.buildChatMessagesWithPrompt(history, systemPrompt)
 
     const cancellation = new vscode.CancellationTokenSource()
     if (token) {
@@ -330,9 +455,6 @@ export class LangGraphPlanningAgent {
       if (['create_file', 'replace_string_in_file', 'run_in_terminal', 'run_task'].includes(name)) return false
       return false
     })
-    
-    console.log(`[PlanningAgent] Planning tools available: ${planningTools.length}`)
-    console.log(`[PlanningAgent] Tools: ${planningTools.map(t => t.name).join(', ')}`)
 
     const conversationMessages = [...messages]
     let finalTextResponse = ''
@@ -342,12 +464,11 @@ export class LangGraphPlanningAgent {
     // Tool execution loop
     while (iteration < maxIterations) {
       iteration++
-      console.log(`[PlanningAgent] Planning iteration ${iteration}`)
 
       const response = await this.model!.sendRequest(
         conversationMessages,
         { 
-          justification: 'Cappy Planning Agent - Context gathering and plan creation',
+          justification: 'Cappy Planning Agent - Multi-phase context gathering',
           tools: planningTools
         },
         cancellation.token
@@ -360,11 +481,8 @@ export class LangGraphPlanningAgent {
       }
 
       if (toolCalls.length === 0) {
-        console.log(`[PlanningAgent] No more context needed, plan complete`)
         break
       }
-
-      console.log(`[PlanningAgent] Gathering context: ${toolCalls.length} tool call(s)`)
       
       const toolResults = await this.executeToolCalls(toolCalls, planningTools, cancellation.token)
 
@@ -373,11 +491,6 @@ export class LangGraphPlanningAgent {
       }
 
       conversationMessages.push(...toolResults)
-    }
-
-    if (iteration >= maxIterations) {
-      console.warn(`[PlanningAgent] Max planning iterations reached (${maxIterations})`)
-      finalTextResponse += '\n\n_Note: Reached maximum context gathering iterations. Plan may need refinement._'
     }
 
     return finalTextResponse.trim()
@@ -474,9 +587,12 @@ export class LangGraphPlanningAgent {
     return resultText
   }
 
-  private buildChatMessages(history: ReadonlyArray<ChatMemoryMessage>): vscode.LanguageModelChatMessage[] {
+  private buildChatMessagesWithPrompt(
+    history: ReadonlyArray<ChatMemoryMessage>,
+    systemPrompt: string
+  ): vscode.LanguageModelChatMessage[] {
     const messages: vscode.LanguageModelChatMessage[] = [
-      vscode.LanguageModelChatMessage.User(SYSTEM_PROMPT)
+      vscode.LanguageModelChatMessage.User(systemPrompt)
     ]
 
     for (const item of history) {
