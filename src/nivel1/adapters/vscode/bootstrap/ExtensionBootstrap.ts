@@ -17,7 +17,7 @@ import type { GraphCleanupService } from '../../../../nivel2/infrastructure/serv
 import type { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
 import type { HybridRetriever } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 import type { GraphPanel } from '../dashboard/GraphPanel';
-import { LangGraphChatAgent } from '../../../../nivel2/infrastructure/agents/langgraph/langgraph-chat-agent';
+import { LangGraphPlanningAgent } from '../../../../nivel2/infrastructure/agents/langgraph/planning-agent';
 
 /**
  * Main extension state (internal - mutable)
@@ -72,7 +72,7 @@ export class ExtensionBootstrap {
     hybridRetriever: null,
     graphPanel: null
   };
-  private readonly chatAgent = new LangGraphChatAgent();
+  private readonly planningAgent = new LangGraphPlanningAgent();
 
   /**
    * Activates the extension
@@ -135,14 +135,14 @@ export class ExtensionBootstrap {
           const sessionId = this.getChatSessionId(request);
           console.log('[ChatParticipant] Session:', sessionId);
 
-          stream.progress('Consultando contexto...');
+          stream.progress('Analisando contexto e criando plano...');
 
           let streamedContent = '';
-          const finalMessage = await this.chatAgent.runTurn({
+          const finalMessage = await this.planningAgent.runTurn({
             prompt: request.prompt,
             sessionId,
             token,
-            onToken: (chunk) => {
+            onToken: (chunk: string) => {
               streamedContent += chunk;
             }
           });

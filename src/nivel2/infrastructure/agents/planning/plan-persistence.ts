@@ -1,0 +1,114 @@
+import * as vscode from 'vscode'
+import * as path from 'path'
+import type { DevelopmentPlan } from './types'
+
+/**
+ * Manages persistence of development plans as JSON files
+ */
+export class PlanPersistence {
+  /**
+   * Saves a plan to .cappy/plans/
+   */
+  static async savePlan(plan: DevelopmentPlan): Promise<string> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+    if (!workspaceFolder) {
+      throw new Error('No workspace folder found')
+    }
+
+    const plansDirUri = vscode.Uri.joinPath(workspaceFolder.uri, '.cappy', 'plans')
+    
+    try {
+      await vscode.workspace.fs.createDirectory(plansDirUri)
+    } catch {
+      // Directory might already exist
+    }
+
+    const fileName = `plan-${plan.id}.json`
+    const fileUri = vscode.Uri.joinPath(plansDirUri, fileName)
+    
+    const content = JSON.stringify(plan, null, 2)
+    await vscode.workspace.fs.writeFile(fileUri, Buffer.from(content, 'utf-8'))
+
+    return fileUri.fsPath
+  }
+
+  /**
+   * Loads a plan from file
+   */
+  static async loadPlan(planId: string): Promise<DevelopmentPlan | null> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+    if (!workspaceFolder) {
+      return null
+    }
+
+    const fileName = `plan-${planId}.json`
+    const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, '.cappy', 'plans', fileName)
+
+    try {
+      const content = await vscode.workspace.fs.readFile(fileUri)
+      return JSON.parse(content.toString()) as DevelopmentPlan
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Updates an existing plan
+   */
+  static async updatePlan(planId: string, updates: Partial<DevelopmentPlan>): Promise<DevelopmentPlan | null> {
+    const existingPlan = await this.loadPlan(planId)
+    if (!existingPlan) {
+      return null
+    }
+
+    const updatedPlan: DevelopmentPlan = {
+      ...existingPlan,
+      ...updates,
+      version: existingPlan.version + 1,
+      updatedAt: new Date().toISOString()
+    }
+
+    await this.savePlan(updatedPlan)
+    return updatedPlan
+  }
+
+  /**
+   * Lists all plans
+   */
+  static async listPlans(): Promise<string[]> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+    if (!workspaceFolder) {
+      return []
+    }
+
+    const plansDirUri = vscode.Uri.joinPath(workspaceFolder.uri, '.cappy', 'plans')
+
+    try {
+      const entries = await vscode.workspace.fs.readDirectory(plansDirUri)
+      return entries
+        .filter(([name]) => name.startsWith('plan-') && name.endsWith('.json'))
+        .map(([name]) => name.replace('plan-', '').replace('.json', ''))
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Opens a plan file in the editor
+   */
+  static async openPlanInEditor(planId: string): Promise<void> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+    if (!workspaceFolder) {
+      return
+    }
+
+    const fileName = `plan-${planId}.json`
+    const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, '.cappy', 'plans', fileName)
+
+    const doc = await vscode.workspace.openTextDocument(fileUri)
+    await vscode.window.showTextDocument(doc, {
+      preview: false,
+      viewColumn: vscode.ViewColumn.Beside
+    })
+  }
+}
