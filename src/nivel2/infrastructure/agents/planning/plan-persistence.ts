@@ -1,5 +1,4 @@
 import * as vscode from 'vscode'
-import * as path from 'path'
 import type { DevelopmentPlan } from './types'
 
 /**
@@ -75,7 +74,7 @@ export class PlanPersistence {
   /**
    * Lists all plans
    */
-  static async listPlans(): Promise<string[]> {
+  static async listPlans(): Promise<DevelopmentPlan[]> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
     if (!workspaceFolder) {
       return []
@@ -85,11 +84,44 @@ export class PlanPersistence {
 
     try {
       const entries = await vscode.workspace.fs.readDirectory(plansDirUri)
-      return entries
+      const planIds = entries
         .filter(([name]) => name.startsWith('plan-') && name.endsWith('.json'))
         .map(([name]) => name.replace('plan-', '').replace('.json', ''))
+      
+      const plans: DevelopmentPlan[] = []
+      for (const planId of planIds) {
+        const plan = await this.loadPlan(planId)
+        if (plan) {
+          plans.push(plan)
+        }
+      }
+      
+      // Sort by created date, newest first
+      return plans.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
     } catch {
       return []
+    }
+  }
+
+  /**
+   * Deletes a plan file
+   */
+  static async deletePlan(planId: string): Promise<boolean> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+    if (!workspaceFolder) {
+      return false
+    }
+
+    const fileName = `plan-${planId}.json`
+    const fileUri = vscode.Uri.joinPath(workspaceFolder.uri, '.cappy', 'plans', fileName)
+
+    try {
+      await vscode.workspace.fs.delete(fileUri)
+      return true
+    } catch {
+      return false
     }
   }
 

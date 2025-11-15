@@ -1,12 +1,6 @@
 import * as vscode from 'vscode'
-import { MemorySaver } from '@langchain/langgraph-checkpoint'
 import type { DevelopmentPlan, CriticFeedback } from '../planning/types'
 import { PlanPersistence } from '../planning/plan-persistence'
-
-interface ChatMemoryMessage {
-  readonly role: 'user' | 'assistant'
-  readonly content: string
-}
 
 interface AgentTurnParams {
   readonly prompt: string
@@ -145,8 +139,6 @@ Remember: You are a PLANNER, not a coder. Your value is in analysis, context gat
 `.trim()
 
 export class LangGraphPlanningAgent {
-  private readonly checkpointer = new MemorySaver()
-  private readonly graph = this.createGraph()
   private model: vscode.LanguageModelChat | null = null
   private initialized = false
   
@@ -173,7 +165,7 @@ export class LangGraphPlanningAgent {
   }
 
   async runTurn(params: AgentTurnParams): Promise<string> {
-    if (!this.initialized || !this.model) {
+    if (!this.initialized) {
       await this.initialize()
     }
 
@@ -182,44 +174,18 @@ export class LangGraphPlanningAgent {
     }
 
     const { prompt, sessionId, token, onToken } = params
-    const abortController = new AbortController()
-
-    if (token) {
-      token.onCancellationRequested(() => {
-        abortController.abort()
-      })
-    }
-
-    const config: RunnableConfig = {
-      configurable: { thread_id: sessionId },
-      signal: abortController.signal
-    }
 
     // Get or create internal state for this session
     const internalState = this.getOrCreateState(sessionId)
-
-    const updatedState = await this.graph.invoke(
-      { messages: [{ role: 'user', content: prompt }] },
-      config
-    )
-
-    const history = updatedState.messages ?? []
     
     // Multi-agent orchestration happens here
     const assistantResponse = await this.orchestrateAgents(
-      history, 
+      prompt, 
       internalState, 
       sessionId,
       token, 
       onToken
     )
-
-    if (assistantResponse) {
-      await this.graph.invoke(
-        { messages: [{ role: 'assistant', content: assistantResponse }] },
-        config
-      )
-    }
 
     return assistantResponse
   }
@@ -241,9 +207,9 @@ export class LangGraphPlanningAgent {
    * while presenting a unified interface to the user
    */
   private async orchestrateAgents(
-    history: ReadonlyArray<ChatMemoryMessage>,
+    userPrompt: string,
     state: InternalAgentState,
-    sessionId: string,
+    _sessionId: string,
     token?: vscode.CancellationToken,
     onToken?: (chunk: string) => void
   ): Promise<string> {
@@ -251,16 +217,16 @@ export class LangGraphPlanningAgent {
 
     switch (state.agentPhase) {
       case 'planning':
-        return await this.runPlanningPhase(history, state, sessionId, token, onToken)
+        return await this.runPlanningPhase(userPrompt, state, token, onToken)
       
       case 'critic':
-        return await this.runCriticPhase(history, state, sessionId, token, onToken)
+        return await this.runCriticPhase(userPrompt, state, token, onToken)
       
       case 'clarifying':
-        return await this.runClarificationPhase(history, state, sessionId, token, onToken)
+        return await this.runClarificationPhase(userPrompt, state, token, onToken)
       
       case 'done':
-        return await this.runCompletionPhase(state, token, onToken)
+        return await this.runCompletionPhase(state)
       
       default:
         return 'Unexpected state. Please try again.'
@@ -271,9 +237,8 @@ export class LangGraphPlanningAgent {
    * PHASE 1: Planning - Creates initial plan with extensive context gathering
    */
   private async runPlanningPhase(
-    history: ReadonlyArray<ChatMemoryMessage>,
+    userPrompt: string,
     state: InternalAgentState,
-    sessionId: string,
     token?: vscode.CancellationToken,
     onToken?: (chunk: string) => void
   ): Promise<string> {
@@ -283,20 +248,37 @@ export class LangGraphPlanningAgent {
 
 <CURRENT_PHASE>PLANNING</CURRENT_PHASE>
 
+<USER_REQUEST>
+${userPrompt}
+</USER_REQUEST>
+
 <TASK>
-Create an initial development plan in JSON format. Use tools EXTENSIVELY to gather context.
-After gathering context, output a JSON structure with:
-- Goal
-- Context (files, patterns, dependencies)
-- Steps (id, title, description, file paths if known)
-- Initial clarifications needed (mark unknowns)
-- Risks
+Create an initial development plan. Use tools EXTENSIVELY to gather context.
+After gathering context, create a comprehensive plan with:
+- Clear goal statement
+- Context gathered (files analyzed, patterns found, dependencies)
+- Detailed steps with file paths and line numbers
+- Initial clarifications needed
+- Risks and mitigation strategies
 - Success criteria
 
-Save the plan to .cappy/plans/ and tell the user it's being refined.
+Format your response as a markdown plan that I can parse.
 </TASK>`
 
-    const response = await this.runAgentWithTools(history, planningPrompt, token, onToken)
+    const response = await this.runAgentWithTools(planningPrompt, token, onToken)
+    
+    // Parse response and create plan structure
+    const plan = this.parsePlanFromResponse(response, userPrompt)
+    state.currentPlan = plan
+    
+    // Persist plan to disk
+    try {
+      const planPath = await PlanPersistence.savePlan(plan)
+      state.planFilePath = planPath
+      console.log(`[PlanningAgent] Plan saved to: ${planPath}`)
+    } catch (error) {
+      console.error('[PlanningAgent] Failed to save plan:', error)
+    }
     
     // After planning, move to critic phase
     state.agentPhase = 'critic'
@@ -308,9 +290,8 @@ Save the plan to .cappy/plans/ and tell the user it's being refined.
    * PHASE 2: Critic - Reviews plan and identifies gaps
    */
   private async runCriticPhase(
-    history: ReadonlyArray<ChatMemoryMessage>,
+    userPrompt: string,
     state: InternalAgentState,
-    sessionId: string,
     token?: vscode.CancellationToken,
     onToken?: (chunk: string) => void
   ): Promise<string> {
@@ -333,15 +314,40 @@ Be HARSH but constructive. A good plan should be implementable by an LLM without
 </TASK>
 
 Current Plan:
-${JSON.stringify(state.currentPlan, null, 2)}`
+${JSON.stringify(state.currentPlan, null, 2)}
 
-    const criticResponse = await this.runAgentWithTools(history, criticPrompt, token, onToken)
+User's Latest Input:
+${userPrompt}`
+
+    const criticResponse = await this.runAgentWithTools(criticPrompt, token, onToken)
     
-    // TODO: Parse critic response to extract feedback
-    // If critical issues found → clarifying phase
-    // If no critical issues → done phase
+    // Parse critic response and update feedback
+    state.criticFeedback = this.parseCriticFeedback(criticResponse)
     
-    state.agentPhase = 'clarifying' // For now, always clarify
+    // Parse critic response to determine next phase
+    const hasCriticalIssues = state.criticFeedback.some(f => f.severity === 'critical')
+    
+    if (hasCriticalIssues && state.currentPlan) {
+      state.agentPhase = 'clarifying'
+      state.currentPlan.status = 'clarifying'
+      state.currentPlan.updatedAt = new Date().toISOString()
+      
+      // Update persisted plan
+      if (state.planFilePath) {
+        await PlanPersistence.updatePlan(state.currentPlan.id, state.currentPlan)
+      }
+    } else {
+      state.agentPhase = 'done'
+      if (state.currentPlan) {
+        state.currentPlan.status = 'ready'
+        state.currentPlan.updatedAt = new Date().toISOString()
+        
+        // Update persisted plan
+        if (state.planFilePath) {
+          await PlanPersistence.updatePlan(state.currentPlan.id, state.currentPlan)
+        }
+      }
+    }
     
     return criticResponse
   }
@@ -350,13 +356,30 @@ ${JSON.stringify(state.currentPlan, null, 2)}`
    * PHASE 3: Clarification - Asks ONE question to user
    */
   private async runClarificationPhase(
-    history: ReadonlyArray<ChatMemoryMessage>,
+    userPrompt: string,
     state: InternalAgentState,
-    sessionId: string,
     token?: vscode.CancellationToken,
     onToken?: (chunk: string) => void
   ): Promise<string> {
     console.log('[PlanningAgent/Clarification] Asking clarifying question...')
+    
+    // If user provided an answer, record it first
+    if (userPrompt && state.currentPlan && state.currentPlan.clarifications.length > 0) {
+      const lastClarification = state.currentPlan.clarifications.at(-1)
+      if (lastClarification && !lastClarification.answer) {
+        lastClarification.answer = userPrompt
+        state.currentPlan.updatedAt = new Date().toISOString()
+        
+        // Update persisted plan
+        if (state.planFilePath) {
+          await PlanPersistence.updatePlan(state.currentPlan.id, state.currentPlan)
+        }
+        
+        // Go back to critic to re-evaluate with new answer
+        state.agentPhase = 'critic'
+        return 'Thank you for the clarification. Let me review the plan again with this information.'
+      }
+    }
     
     const clarificationPrompt = `You are a CLARIFICATION agent.
 
@@ -382,13 +405,29 @@ Example BAD question:
 </TASK>
 
 Critic Feedback:
-${JSON.stringify(state.criticFeedback, null, 2)}`
+${JSON.stringify(state.criticFeedback, null, 2)}
 
-    const question = await this.runAgentWithTools(history, clarificationPrompt, token, onToken)
+Current Plan:
+${JSON.stringify(state.currentPlan, null, 2)}`
+
+    const question = await this.runAgentWithTools(clarificationPrompt, token, onToken)
     
-    // After asking, wait for user response (next turn will handle it)
-    // Then go back to critic to re-evaluate
-    state.agentPhase = 'critic'
+    // Add clarification to plan
+    if (state.currentPlan) {
+      const clarificationId = `clarif-${state.currentPlan.clarifications.length + 1}`
+      state.currentPlan.clarifications.push({
+        id: clarificationId,
+        question,
+        critical: true,
+        relatedSteps: []
+      })
+      state.currentPlan.updatedAt = new Date().toISOString()
+      
+      // Update persisted plan
+      if (state.planFilePath) {
+        await PlanPersistence.updatePlan(state.currentPlan.id, state.currentPlan)
+      }
+    }
     
     return question
   }
@@ -397,9 +436,7 @@ ${JSON.stringify(state.criticFeedback, null, 2)}`
    * PHASE 4: Completion - Plan is ready
    */
   private async runCompletionPhase(
-    state: InternalAgentState,
-    token?: vscode.CancellationToken,
-    onToken?: (chunk: string) => void
+    state: InternalAgentState
   ): Promise<string> {
     console.log('[PlanningAgent/Completion] Plan approved and finalized')
     
@@ -417,8 +454,6 @@ Would you like to:
 1. Review the plan (I can open it in the editor)
 2. Make adjustments
 3. Send it to the development agent`
-
-    onToken?.(completion)
     
     return completion
   }
@@ -427,12 +462,13 @@ Would you like to:
    * Runs agent with tools and handles tool execution loop
    */
   private async runAgentWithTools(
-    history: ReadonlyArray<ChatMemoryMessage>,
     systemPrompt: string,
     token?: vscode.CancellationToken,
     onToken?: (chunk: string) => void
   ): Promise<string> {
-    const messages = this.buildChatMessagesWithPrompt(history, systemPrompt)
+    const messages: vscode.LanguageModelChatMessage[] = [
+      vscode.LanguageModelChatMessage.User(systemPrompt)
+    ]
 
     const cancellation = new vscode.CancellationTokenSource()
     if (token) {
@@ -587,26 +623,178 @@ Would you like to:
     return resultText
   }
 
-  private buildChatMessagesWithPrompt(
-    history: ReadonlyArray<ChatMemoryMessage>,
-    systemPrompt: string
-  ): vscode.LanguageModelChatMessage[] {
-    const messages: vscode.LanguageModelChatMessage[] = [
-      vscode.LanguageModelChatMessage.User(systemPrompt)
-    ]
+  /**
+   * Parse LLM response into DevelopmentPlan structure
+   */
+  private parsePlanFromResponse(response: string, originalRequest: string): DevelopmentPlan {
+    const planId = `plan-${Date.now()}-${Math.random().toString(36).substring(7)}`
+    const now = new Date().toISOString()
 
-    for (const item of history) {
-      if (!item.content) {
-        continue
-      }
+    // Simple parsing - extract sections from markdown response
+    // In production, you might want more sophisticated parsing or ask LLM to return JSON
+    
+    return {
+      id: planId,
+      title: this.extractTitle(response, originalRequest),
+      goal: originalRequest,
+      context: {
+        filesAnalyzed: this.extractFilesAnalyzed(response),
+        patternsFound: [],
+        dependencies: [],
+        assumptions: []
+      },
+      steps: this.extractSteps(response),
+      clarifications: [],
+      risks: this.extractRisks(response),
+      successCriteria: this.extractSuccessCriteria(response),
+      createdAt: now,
+      updatedAt: now,
+      status: 'draft',
+      version: 1
+    }
+  }
 
-      if (item.role === 'user') {
-        messages.push(vscode.LanguageModelChatMessage.User(item.content))
-      } else {
-        messages.push(vscode.LanguageModelChatMessage.Assistant(item.content))
+  private extractTitle(response: string, fallback: string): string {
+    const titleRegex = /^#\s+(.+)$/m
+    const titleMatch = titleRegex.exec(response)
+    if (titleMatch) return titleMatch[1].replace(/^Development Plan:\s*/i, '').trim()
+    return fallback.substring(0, 100)
+  }
+
+  private extractFilesAnalyzed(response: string): string[] {
+    const files: string[] = []
+    const fileMatches = response.matchAll(/`([^`]+\.(ts|js|tsx|jsx|json|md|yaml|yml))`/g)
+    for (const match of fileMatches) {
+      if (!files.includes(match[1])) {
+        files.push(match[1])
       }
     }
+    return files
+  }
 
-    return messages
+  private extractSteps(response: string): Array<{
+    id: string
+    title: string
+    description: string
+    file?: string
+    lineStart?: number
+    lineEnd?: number
+    dependencies: string[]
+    validation: string
+    rationale: string
+    status: 'pending' | 'clarifying' | 'ready' | 'completed'
+  }> {
+    const steps: Array<{
+      id: string
+      title: string
+      description: string
+      file?: string
+      dependencies: string[]
+      validation: string
+      rationale: string
+      status: 'pending' | 'clarifying' | 'ready' | 'completed'
+    }> = []
+    
+    // Match numbered steps - simplified regex
+    const stepRegex = /(\d+)\.\s+\*\*([^*]+)\*\*/g
+    const stepMatches = response.matchAll(stepRegex)
+    
+    for (const match of stepMatches) {
+      const stepNum = match[1]
+      const title = match[2].trim()
+      
+      // Extract description after the title
+      const matchIndex = match.index ?? 0
+      const afterTitle = response.substring(matchIndex + match[0].length)
+      const nextStepIdx = afterTitle.search(/\n\d+\.\s+\*\*/)
+      const description = nextStepIdx > 0 
+        ? afterTitle.substring(0, nextStepIdx).trim()
+        : afterTitle.substring(0, 200).trim()
+      
+      steps.push({
+        id: `step-${stepNum}`,
+        title,
+        description,
+        dependencies: [],
+        validation: 'Manual review required',
+        rationale: '',
+        status: 'pending'
+      })
+    }
+    
+    return steps
+  }
+
+  private extractRisks(response: string): Array<{
+    id: string
+    description: string
+    severity: 'low' | 'medium' | 'high'
+    mitigation: string
+  }> {
+    const risks: Array<{
+      id: string
+      description: string
+      severity: 'low' | 'medium' | 'high'
+      mitigation: string
+    }> = []
+    
+    const riskRegex = /###\s+(?:⚠️\s*)?Risks?\s*&?\s*Considerations?([^#]*)/i
+    const riskSection = riskRegex.exec(response)
+    if (riskSection) {
+      const riskItems = riskSection[1].matchAll(/[-*]\s+([^\n]+)/g)
+      let riskId = 1
+      for (const match of riskItems) {
+        risks.push({
+          id: `risk-${riskId++}`,
+          description: match[1].trim(),
+          severity: 'medium',
+          mitigation: 'To be determined'
+        })
+      }
+    }
+    
+    return risks
+  }
+
+  private extractSuccessCriteria(response: string): string[] {
+    const criteria: string[] = []
+    
+    const criteriaRegex = /###\s+(?:✅\s*)?Success\s+Criteria([^#]*)/i
+    const criteriaSection = criteriaRegex.exec(response)
+    if (criteriaSection) {
+      const criteriaItems = criteriaSection[1].matchAll(/[-*]\s+([^\n]+)/g)
+      for (const match of criteriaItems) {
+        criteria.push(match[1].trim())
+      }
+    }
+    
+    return criteria
+  }
+
+  private parseCriticFeedback(criticResponse: string): CriticFeedback[] {
+    const feedback: CriticFeedback[] = []
+    
+    // Look for patterns like "CRITICAL:", "WARNING:", "INFO:"
+    const criticalMatches = criticResponse.matchAll(/(?:❌|CRITICAL):\s*([^\n]+)/gi)
+    for (const match of criticalMatches) {
+      feedback.push({
+        issue: match[1].trim(),
+        severity: 'critical',
+        suggestion: '',
+        requiresClarification: true
+      })
+    }
+    
+    const warningMatches = criticResponse.matchAll(/(?:⚠️|WARNING):\s*([^\n]+)/gi)
+    for (const match of warningMatches) {
+      feedback.push({
+        issue: match[1].trim(),
+        severity: 'warning',
+        suggestion: '',
+        requiresClarification: false
+      })
+    }
+    
+    return feedback
   }
 }

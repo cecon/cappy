@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { GraphPanel } from '../dashboard/GraphPanel';
 import { isCappyInitialized } from '../../../../shared/utils/workspace-check';
 import { registerScanWorkspaceCommand } from '../commands/scan-workspace';
+import { registerPlanningCommands } from '../commands/planning-agent';
 import {
   registerInitWorkspaceCommand,
   registerProcessSingleFileCommand,
@@ -69,6 +70,9 @@ export class CommandsBootstrap {
     // Core commands
     this.registerCoreCommands(context);
 
+    // Planning agent commands
+    this.registerPlanningCommands(context);
+
     // Graph commands
     this.registerGraphCommands(context);
 
@@ -101,6 +105,13 @@ export class CommandsBootstrap {
     });
     context.subscriptions.push(openGraphCommand);
     console.log('  ✅ cappy.openGraph');
+  }
+
+  /**
+   * Registers planning agent commands
+   */
+  private registerPlanningCommands(context: vscode.ExtensionContext): void {
+    registerPlanningCommands(context);
   }
 
   /**

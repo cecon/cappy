@@ -1,48 +1,203 @@
 # Multi-Agent Planning System
 
-## 🎯 Arquitetura
+## 🎯 Architecture Overview
 
-Sistema de planejamento colaborativo com múltiplos agentes especializados que trabalham sobre um arquivo JSON compartilhado.
+The Cappy Planning Agent is a sophisticated multi-phase system that appears as a single intelligent agent to users but internally orchestrates multiple specialized agents to create comprehensive development plans.
 
-## 🤖 Agentes
+**Implementation**: `src/nivel2/infrastructure/agents/langgraph/planning-agent.ts`
 
-### 1. Planning Agent
-**Responsabilidade**: Criar plano inicial com base no contexto coletado
+## 🏗️ Architecture
 
-**Tools usadas**:
-- `cappy_retrieve_context` - Buscar padrões similares
-- `grep_search` - Encontrar código relacionado  
-- `read_file` - Analisar implementações
-- `list_dir` - Explorar estrutura
+### Phase-Based State Machine
 
-**Output**: `plan-{id}.json` com estrutura inicial
+Unlike traditional multi-agent systems, Cappy uses a **phase-based approach** that:
+- ✅ Appears as one agent to the user
+- ✅ Internally cycles through specialized phases
+- ✅ Persists plans to `.cappy/plans/` as JSON
+- ✅ Tracks session state in memory
+- ✅ Filters tools to prevent code generation during planning
 
-### 2. Critic Agent
-**Responsabilidade**: Revisar plano e identificar gaps/ambiguidades
+### Internal Phases
 
-**Analisa**:
-- ✅ Steps bem definidos?
-- ✅ Contexto suficiente?
-- ✅ Dependências claras?
-- ✅ Validação mensurável?
-- ❌ Informações faltantes?
-- ❌ Ambiguidades?
+```
+User Request → Planning → Critic → Clarification → Completion
+                  ↓         ↓            ↓             ↓
+              Create     Review      Ask ONE       Finalize
+               Plan       Plan       Question       & Save
+```
 
-**Output**: Lista de `CriticFeedback`
+## 🤖 Agent Phases
 
-### 3. Clarification Agent  
-**Responsabilidade**: Fazer UMA pergunta específica ao usuário
+### 1. Planning Phase
+**Responsibility**: Create initial comprehensive plan using extensive context gathering
 
-**Processo**:
-1. Pega feedback mais crítico do Critic
-2. Formula UMA pergunta clara
-3. Aguarda resposta do usuário
-4. Atualiza `plan-{id}.json` com a resposta
-5. Volta para Critic revisar novamente
+**Tools Used** (Analysis Only):
+- `cappy_retrieve_context` - Find similar patterns and documentation
+- `read_file` - Analyze existing implementations
+- `grep_search` - Search for code patterns
+- `list_dir` - Explore workspace structure
+- `semantic_search` - Find semantically related code
+- `file_search` - Locate specific files
 
-**Output**: `plan-{id}.json` atualizado + próxima pergunta
+**Blocked Tools** (No Code Generation):
+- ❌ `create_file`
+- ❌ `replace_string_in_file`
+- ❌ `run_in_terminal`
+- ❌ `run_task`
 
-## 🔄 Fluxo Completo
+**System Prompt Highlights**:
+```
+CRITICAL_WORKFLOW:
+1. SELF-DISCOVERY FIRST - Use tools to answer your own questions
+2. ASK ONE QUESTION AT A TIME - Only if tools cannot answer
+3. GATHER CONTEXT AUTONOMOUSLY - Extensive use of retrieval tools
+4. CONFIRM YOUR FINDINGS - Show evidence, don't ask open questions
+```
+
+**Output**: 
+- `DevelopmentPlan` object saved to `.cappy/plans/plan-{id}.json`
+- State transitions to **Critic Phase**
+
+### 2. Critic Phase
+**Responsibility**: Review plan and identify gaps, ambiguities, and missing information
+
+**Analysis Checklist**:
+- ✅ Steps well-defined with file paths?
+- ✅ Sufficient context gathered?
+- ✅ Dependencies clear?
+- ✅ Validation criteria measurable?
+- ❌ Missing information?
+- ❌ Ambiguous requirements?
+
+**Feedback Classification**:
+- **CRITICAL**: Blocks implementation, requires clarification
+- **WARNING**: Should be addressed but not blocking
+- **INFO**: Nice to have, optional
+
+**State Transitions**:
+- Has CRITICAL issues → **Clarification Phase**
+- No critical issues → **Completion Phase**
+
+**Output**:
+- `CriticFeedback[]` array
+- Plan status updated to `'clarifying'` or `'ready'`
+- Plan persisted to disk
+
+### 3. Clarification Phase
+**Responsibility**: Ask ONE specific, context-rich question to the user
+
+**Process**:
+1. Check if user provided answer to previous question
+2. If yes: Record answer, update plan, transition to Critic
+3. If no: Ask ONE question based on most critical feedback
+4. Add clarification to plan with `answer: undefined`
+5. Wait for user's next message
+
+**Question Protocol**:
+```
+✅ GOOD Question:
+"I found you have src/services/ and src/lib/ directories.
+ For the JWT service, should I create it in:
+ a) src/services/auth/jwt-service.ts (with other services)
+ b) src/lib/auth.ts (as a utility)
+ 
+ What's your preference?"
+
+❌ BAD Question:
+"Where should I put the JWT service?"
+```
+
+**Output**:
+- ONE question to user
+- `PlanClarification` added to plan
+- State transitions back to **Critic Phase** after answer
+
+### 4. Completion Phase
+**Responsibility**: Finalize plan and present to user
+
+**Actions**:
+- Set plan status to `'ready'`
+- Update `version` and `updatedAt`
+- Persist final plan to disk
+- Generate completion summary
+
+**Output**:
+```
+✅ Development Plan Complete!
+
+📄 Plan saved at: `.cappy/plans/plan-{id}.json`
+
+The plan includes:
+- 5 actionable steps
+- 3 clarifications resolved
+- 2 risks identified
+- 4 success criteria
+
+Would you like to:
+1. Review the plan (I can open it in the editor)
+2. Make adjustments
+3. Send it to the development agent
+```
+
+## 📊 Data Structures
+
+### DevelopmentPlan
+```typescript
+interface DevelopmentPlan {
+  id: string                    // plan-{timestamp}-{random}
+  title: string                 // Extracted from LLM response
+  goal: string                  // Original user request
+  context: PlanContext          // Files, patterns, dependencies
+  steps: PlanStep[]             // Ordered implementation steps
+  clarifications: PlanClarification[]  // Q&A with user
+  risks: PlanRisk[]             // Identified risks & mitigations
+  successCriteria: string[]     // How to validate completion
+  createdAt: string             // ISO-8601 timestamp
+  updatedAt: string             // ISO-8601 timestamp
+  status: 'draft' | 'clarifying' | 'ready' | 'in-progress' | 'completed'
+  version: number               // Increments on each update
+}
+```
+
+### PlanStep
+```typescript
+interface PlanStep {
+  id: string                    // step-1, step-2, etc.
+  title: string                 // Short description
+  description: string           // Detailed what/why/how
+  file?: string                 // Target file path
+  lineStart?: number            // Line range (optional)
+  lineEnd?: number
+  dependencies: string[]        // IDs of prerequisite steps
+  validation: string            // How to verify completion
+  rationale: string             // Why this approach
+  status: 'pending' | 'clarifying' | 'ready' | 'completed'
+}
+```
+
+### CriticFeedback
+```typescript
+interface CriticFeedback {
+  stepId?: string               // Related step (optional)
+  issue: string                 // What's wrong/missing
+  severity: 'info' | 'warning' | 'critical'
+  suggestion: string            // How to fix
+  requiresClarification: boolean  // Need user input?
+}
+```
+
+### PlanClarification
+```typescript
+interface PlanClarification {
+  id: string                    // clarif-1, clarif-2, etc.
+  question: string              // Question asked to user
+  answer?: string               // User's response
+  critical: boolean             // Blocks progress?
+  relatedSteps: string[]        // Step IDs affected
+}
+```
+
+## 🔄 Complete Flow Example
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -101,54 +256,243 @@ Sistema de planejamento colaborativo com múltiplos agentes especializados que t
 │   Onde devo criar o JWT service?"                           │
 └─────────────────────────────────────────────────────────────┘
                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ Usuário responde: "Em src/services/auth/"                  │
-└─────────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│ Clarification Agent:                                        │
-│  Atualiza plan-abc123.json:                                 │
-│  {                                                           │
-│    "clarifications": [                                       │
-│      {                                                       │
-│        "id": "c1",                                           │
-│        "question": "Onde criar JWT service?",                │
-│        "answer": "Em src/services/auth/",                    │
-│        "critical": true                                      │
-│      }                                                       │
-│    ],                                                        │
-│    "steps": [                                                │
-│      {                                                       │
-│        "id": "2",                                            │
-│        "title": "Create JWT service",                        │
-│        "file": "src/services/auth/jwt-service.ts",  ← ATUALIZADO
-│        ...                                                   │
-│      }                                                       │
-│    ]                                                         │
-│  }                                                           │
-└─────────────────────────────────────────────────────────────┘
-                         ↓
-                  Volta para Critic
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│ Critic Agent (2ª rodada):                                   │
-│  Analisa plan-abc123.json novamente                         │
-│                                                              │
-│  Feedback:                                                   │
-│  ✅ Step 2: Agora tem caminho definido                      │
-│  ❌ Step 3: Ainda não define quais rotas proteger           │
-│                                                              │
-│  Nova clarification:                                         │
-│  {                                                           │
-│    "id": "c2",                                               │
-│    "question": "Quais rotas proteger?"                       │
-│  }                                                           │
-└─────────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│ Clarification Agent (2ª rodada):                            │
-│  Pergunta ao usuário:                                        │
-│  "Encontrei estas rotas em src/routes/:                     │
+                  User answers → Critic re-reviews → Done
+```
+
+## 💻 API Usage
+
+### Via VS Code Commands
+
+```typescript
+// 1. Create New Plan (Command Palette)
+// CMD+Shift+P → "Cappy: Create Development Plan"
+// User is prompted for request, plan is created automatically
+
+// 2. List All Plans
+// CMD+Shift+P → "Cappy: List All Plans"
+// Shows quick pick with all saved plans
+
+// 3. Open Plan in Editor
+// CMD+Shift+P → "Cappy: Open Plan"
+// Opens selected plan JSON in editor
+
+// 4. Delete Plan
+// CMD+Shift+P → "Cappy: Delete Plan"
+// Removes plan file from .cappy/plans/
+```
+
+### Programmatic API
+
+```typescript
+import { LangGraphPlanningAgent } from '../planning-agent'
+
+// Initialize agent
+const agent = new LangGraphPlanningAgent()
+await agent.initialize()
+
+// Run planning session
+const response = await agent.runTurn({
+  prompt: 'Add JWT authentication to the API',
+  sessionId: 'session-123',
+  token: cancellationToken,  // Optional
+  onToken: (chunk) => {      // Optional streaming
+    console.log(chunk)
+  }
+})
+
+// Agent internally:
+// 1. Creates plan with extensive tool usage
+// 2. Critic reviews plan
+// 3. Asks clarifying questions (one at a time)
+// 4. Persists plan to disk
+// 5. Returns final response
+```
+
+### Plan Persistence API
+
+```typescript
+import { PlanPersistence } from '../plan-persistence'
+
+// Save plan
+const planPath = await PlanPersistence.savePlan(plan)
+// → /workspace/.cappy/plans/plan-abc123.json
+
+// Load plan
+const plan = await PlanPersistence.loadPlan('abc123')
+
+// Update plan
+const updated = await PlanPersistence.updatePlan('abc123', {
+  status: 'in-progress',
+  steps: [...newSteps]
+})
+
+// List all plans
+const plans = await PlanPersistence.listPlans()
+// → [DevelopmentPlan, DevelopmentPlan, ...]
+
+// Delete plan
+await PlanPersistence.deletePlan('abc123')
+
+// Open in editor
+await PlanPersistence.openPlanInEditor('abc123')
+```
+
+## 🎨 Session State Management
+
+Each user conversation has its own session state:
+
+```typescript
+interface InternalAgentState {
+  currentPlan: DevelopmentPlan | null
+  criticFeedback: CriticFeedback[]
+  planFilePath: string | null
+  agentPhase: 'planning' | 'critic' | 'clarifying' | 'done'
+}
+
+// Stored in memory as:
+// Map<sessionId, InternalAgentState>
+```
+
+**Session Lifecycle**:
+1. User starts conversation → New session ID
+2. Agent creates state entry in Map
+3. Phase transitions tracked per session
+4. Plan persisted to disk after each update
+5. Session state cleared on completion (plan remains on disk)
+
+## 🔍 Tool Filtering Strategy
+
+Planning agent can ONLY use analysis tools:
+
+```typescript
+const planningTools = toolsArray.filter(tool => {
+  const name = tool.name
+  
+  // ✅ Include analysis and context tools
+  if (name.startsWith('cappy_')) return true
+  if (['read_file', 'grep_search', 'list_dir', 'semantic_search', 'file_search'].includes(name)) 
+    return true
+  
+  // ❌ Exclude code generation/editing tools
+  if (['create_file', 'replace_string_in_file', 'run_in_terminal', 'run_task'].includes(name)) 
+    return false
+  
+  return false
+})
+```
+
+**Why?**
+- Planning agent focuses on **analysis and design**
+- Implementation is handled by separate **development agents**
+- Prevents accidental code changes during planning phase
+- Enforces separation of concerns
+
+## 📂 File Structure
+
+```
+.cappy/
+ └─ plans/
+     ├─ plan-1731600000000-abc123.json
+     ├─ plan-1731600123456-def456.json
+     └─ plan-1731600234567-ghi789.json
+
+src/nivel2/infrastructure/agents/
+ ├─ langgraph/
+ │   └─ planning-agent.ts          # LangGraphPlanningAgent (PRODUCTION)
+ └─ planning/
+     ├─ types.ts                    # Type definitions
+     ├─ plan-persistence.ts         # Save/load/update utilities
+     ├─ langgraph-skeleton.ts       # Alternative LangGraph implementation
+     └─ README.md                   # Implementation comparison
+
+docs/agents/
+ └─ MULTI_AGENT_PLANNING.md        # This file
+
+test/nivel2/
+ ├─ planning-agent.test.ts         # Agent tests
+ └─ plan-persistence.test.ts       # Persistence tests
+```
+
+## 🚀 Getting Started
+
+### 1. Create a Plan
+
+```bash
+# Via Command Palette
+CMD+Shift+P → "Cappy: Create Development Plan"
+
+# Enter request
+"Add user authentication with JWT tokens"
+
+# Agent will:
+# - Analyze workspace automatically
+# - Ask clarifying questions (one at a time)
+# - Generate comprehensive plan
+# - Save to .cappy/plans/
+```
+
+### 2. Review the Plan
+
+```bash
+# Via Command Palette
+CMD+Shift+P → "Cappy: List All Plans"
+
+# Select plan → Opens in editor
+# JSON structure with all details:
+# - Steps with file paths
+# - Context gathered
+# - Risks identified
+# - Success criteria
+```
+
+### 3. Implement the Plan
+
+```bash
+# Future: Send plan to development agent
+# Development agent will:
+# - Read plan from .cappy/plans/
+# - Execute steps in order
+# - Validate each step
+# - Update plan status
+```
+
+## 🧪 Testing
+
+```bash
+# Run tests
+npm test test/nivel2/planning-agent.test.ts
+npm test test/nivel2/plan-persistence.test.ts
+
+# Coverage includes:
+# ✅ Plan parsing (markdown → JSON)
+# ✅ Phase transitions
+# ✅ Critic feedback parsing
+# ✅ Clarification management
+# ✅ Tool filtering
+# ✅ Persistence operations
+```
+
+## 🔮 Future Enhancements
+
+1. **LangGraph Integration**: Use LangGraph checkpointer for state persistence
+2. **Plan Templates**: Pre-defined templates for common tasks
+3. **Plan Diff**: Compare plan versions, track changes
+4. **Execution Mode**: Direct integration with development agent
+5. **Collaborative Planning**: Multiple users contribute to same plan
+6. **Plan Analytics**: Metrics on planning effectiveness
+
+## 📚 Related Documentation
+
+- **Architecture**: `/docs/architecture/ARCHITECTURE_OVERVIEW.md`
+- **Task Workflow**: `/docs/TASK_WORKFLOW.md`
+- **Context Enrichment**: `/docs/features/CONTEXT_ENRICHMENT.md`
+- **Implementation Comparison**: `/src/nivel2/infrastructure/agents/planning/README.md`
+
+---
+
+**Status**: ✅ Production Ready  
+**Version**: 1.0.0  
+**Last Updated**: November 14, 2025                     │
 │   - /api/users (user.ts)                                    │
 │   - /api/posts (posts.ts)                                   │
 │   - /api/auth (auth.ts)                                     │

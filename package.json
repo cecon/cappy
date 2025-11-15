@@ -61,6 +61,26 @@
         "category": "Cappy"
       },
       {
+        "command": "cappy.planning.newPlan",
+        "title": "📝 Cappy: Create Development Plan",
+        "category": "Cappy Planning"
+      },
+      {
+        "command": "cappy.planning.listPlans",
+        "title": "📋 Cappy: List All Plans",
+        "category": "Cappy Planning"
+      },
+      {
+        "command": "cappy.planning.openPlan",
+        "title": "📂 Cappy: Open Plan",
+        "category": "Cappy Planning"
+      },
+      {
+        "command": "cappy.planning.deletePlan",
+        "title": "🗑️ Cappy: Delete Plan",
+        "category": "Cappy Planning"
+      },
+      {
         "command": "cappy.processSingleFile",
         "title": "🧪 Cappy: Process Single File (Test)",
         "category": "Cappy"
