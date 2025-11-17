@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { CreateFileTool } from '../../../../nivel2/infrastructure/tools/create-file-tool';
 import { FetchWebTool } from '../../../../nivel2/infrastructure/tools/fetch-web-tool';
-import { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
+import { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
 
 /**
  * Registers all Language Model Tools for GitHub Copilot integration

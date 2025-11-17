@@ -3,7 +3,7 @@
  * @module tests/planning-agent
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import type { DevelopmentPlan, CriticFeedback } from '../../../src/nivel2/infrastructure/agents/planning/types'
 
 describe('LangGraphPlanningAgent', () => {
@@ -225,7 +225,13 @@ INFO: Documentation should be updated`
 
   describe('Clarification Management', () => {
     it('should record user answers', () => {
-      const clarifications = [
+      const clarifications: Array<{
+        id: string
+        question: string
+        answer: string | undefined
+        critical: boolean
+        relatedSteps: string[]
+      }> = [
         {
           id: 'c1',
           question: 'Where to create JWT service?',

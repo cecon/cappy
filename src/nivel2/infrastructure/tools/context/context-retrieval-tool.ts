@@ -7,10 +7,14 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { ToolCategory } from '../types';
-import { HybridRetriever, type HybridRetrieverOptions, type RetrievedContext } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
-import { GraphService } from '../../../../nivel2/infrastructure/services/graph-service';
+import { HybridRetriever, type HybridRetrieverOptions, type RetrievedContext } from '../../services/hybrid-retriever';
+import { GraphService } from '../../services/graph-service';
 import type { GraphData } from '../../../../domains/dashboard/types';
+
+// Tool category constant for metadata
+const ToolCategory = {
+  CONTEXT: 'context'
+} as const;
 
 interface ContextRetrievalInput {
   /**

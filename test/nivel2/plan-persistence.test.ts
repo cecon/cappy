@@ -3,7 +3,7 @@
  * @module tests/plan-persistence
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import type { DevelopmentPlan } from '../../../src/nivel2/infrastructure/agents/planning/types'
 
 describe('PlanPersistence', () => {
@@ -20,16 +20,23 @@ describe('PlanPersistence', () => {
       const plan: DevelopmentPlan = {
         id: 'plan-test',
         title: 'Test Plan',
-        goal: 'Test',
         context: {
+          problem: 'Test problem',
+          objective: 'Test objective',
           filesAnalyzed: [],
           patternsFound: [],
-          dependencies: [],
-          assumptions: []
+          externalDependencies: []
         },
-        steps: [],
-        clarifications: [],
+        functionalRequirements: [],
+        nonFunctionalRequirements: [],
+        components: [],
+        userFlows: [],
+        decisions: [],
+        questions: [],
+        assumptions: [],
+        glossary: [],
         risks: [],
+        atomicTasks: [],
         successCriteria: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -48,6 +55,28 @@ describe('PlanPersistence', () => {
       const existingPlan: DevelopmentPlan = {
         id: 'plan-test',
         title: 'Test',
+        context: {
+          problem: 'Test',
+          objective: 'Test',
+          filesAnalyzed: [],
+          patternsFound: [],
+          externalDependencies: []
+        },
+        functionalRequirements: [],
+        nonFunctionalRequirements: [],
+        components: [],
+        userFlows: [],
+        decisions: [],
+        questions: [],
+        assumptions: [],
+        glossary: [],
+        risks: [],
+        atomicTasks: [],
+        successCriteria: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        status: 'draft',
+        version: 1
         goal: 'Test',
         context: { filesAnalyzed: [], patternsFound: [], dependencies: [], assumptions: [] },
         steps: [],

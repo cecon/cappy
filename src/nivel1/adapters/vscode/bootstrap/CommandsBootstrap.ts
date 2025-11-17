@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import { GraphPanel } from '../dashboard/GraphPanel';
 import { isCappyInitialized } from '../../../../shared/utils/workspace-check';
 import { registerScanWorkspaceCommand } from '../commands/scan-workspace';
-import { registerPlanningCommands } from '../commands/planning-agent';
 import {
   registerInitWorkspaceCommand,
   registerProcessSingleFileCommand,
@@ -23,7 +22,7 @@ import {
 import type { FileMetadataDatabase } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 import type { FileProcessingQueue } from '../../../../nivel2/infrastructure/services/file-processing-queue';
 import type { GraphStorePort } from '../../../../domains/dashboard/ports/indexing-port';
-import type { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
+import type { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
 import type { GetFilesPaginatedOptions } from './types';
 
 export interface CommandsBootstrapDependencies {
@@ -70,9 +69,6 @@ export class CommandsBootstrap {
     // Core commands
     this.registerCoreCommands(context);
 
-    // Planning agent commands
-    this.registerPlanningCommands(context);
-
     // Graph commands
     this.registerGraphCommands(context);
 
@@ -105,13 +101,6 @@ export class CommandsBootstrap {
     });
     context.subscriptions.push(openGraphCommand);
     console.log('  ✅ cappy.openGraph');
-  }
-
-  /**
-   * Registers planning agent commands
-   */
-  private registerPlanningCommands(context: vscode.ExtensionContext): void {
-    registerPlanningCommands(context);
   }
 
   /**

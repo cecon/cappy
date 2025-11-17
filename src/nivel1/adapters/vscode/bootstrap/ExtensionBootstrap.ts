@@ -14,10 +14,10 @@ import type { FileProcessingQueue } from '../../../../nivel2/infrastructure/serv
 import type { FileChangeWatcher } from '../../../../nivel2/infrastructure/services/file-change-watcher';
 import type { GraphStorePort } from '../../../../domains/dashboard/ports/indexing-port';
 import type { GraphCleanupService } from '../../../../nivel2/infrastructure/services/graph-cleanup-service';
-import type { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
+import type { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
 import type { HybridRetriever } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 import type { GraphPanel } from '../dashboard/GraphPanel';
-import { LangGraphPlanningAgent } from '../../../../nivel2/infrastructure/agents/langgraph/planning-agent';
+import { MultiAgentPlanningSystem } from '../../../../nivel2/infrastructure/agents/planning/multi-agent-system';
 
 /**
  * Main extension state (internal - mutable)
@@ -72,7 +72,7 @@ export class ExtensionBootstrap {
     hybridRetriever: null,
     graphPanel: null
   };
-  private readonly planningAgent = new LangGraphPlanningAgent();
+  private readonly planningAgent = new MultiAgentPlanningSystem();
 
   /**
    * Activates the extension
@@ -92,7 +92,7 @@ export class ExtensionBootstrap {
     this.state.viewsBootstrap = viewsBootstrap;
 
     // Phase 3: Register Chat Participant
-    this.registerChatParticipant(context);
+    await this.registerChatParticipant(context);
 
     // Phase 4: Register Commands
     const commandsBootstrap = new CommandsBootstrap({
@@ -120,8 +120,11 @@ export class ExtensionBootstrap {
   /**
    * Registers the Cappy chat participant
    */
-  private registerChatParticipant(context: vscode.ExtensionContext): void {
+  private async registerChatParticipant(context: vscode.ExtensionContext): Promise<void> {
     console.log('🤖 Registering @cappy chat participant...');
+
+    // Initialize the MultiAgentPlanningSystem
+    await this.planningAgent.initialize();
 
     const participant = vscode.chat.createChatParticipant(
       'cappy.chat',
@@ -132,19 +135,55 @@ export class ExtensionBootstrap {
         token: vscode.CancellationToken
       ) => {
         try {
-          const sessionId = this.getChatSessionId(request);
-          console.log('[ChatParticipant] Session:', sessionId);
+          console.log('[ChatParticipant] ========================================');
+          console.log('[ChatParticipant] RECEIVED REQUEST:', request.prompt);
+          console.log('[ChatParticipant] Executing MultiAgentPlanningSystem...');
+          console.log('[ChatParticipant] ========================================');
 
-          stream.progress('Analisando contexto e criando plano...');
+          stream.progress('🤖 Iniciando sistema multi-agente...');
 
-          let streamedContent = '';
-          const finalMessage = await this.planningAgent.runTurn({
-            prompt: request.prompt,
-            sessionId,
-            token,
-            onToken: (chunk: string) => {
-              streamedContent += chunk;
-            }
+          // Set progress callback to update chat UI
+          this.planningAgent.setProgressCallback((message) => {
+            stream.progress(message);
+          });
+
+          // Create the LangGraph workflow
+          const graph = this.planningAgent.createGraph();
+          
+          // Initial state
+          const initialState = {
+            userInput: request.prompt,
+            plan: null,
+            messages: [],
+            criticFeedback: [],
+            currentClarification: null,
+            userAnswer: null,
+            maturityScore: 0,
+            nextStep: 'plan' as const,
+            iterationCount: 0
+          };
+
+          stream.progress('📋 Planning Agent gerando esqueleto...');
+
+          // Execute the graph with streaming updates
+          const result = await graph.invoke(initialState, {
+            configurable: {
+              thread_id: `chat-${Date.now()}`
+            },
+            streamMode: 'values'
+          });
+          
+          // Show progress after each step
+          if (result.iterationCount > 0) {
+            stream.progress(`🔄 Iteração ${result.iterationCount}/3 completa (Score: ${result.maturityScore}/100)`);
+          }
+
+          console.log('[ChatParticipant] Result:', {
+            hasResult: !!result,
+            hasPlan: !!result?.plan,
+            maturityScore: result?.maturityScore,
+            iterationCount: result?.iterationCount,
+            nextStep: result?.nextStep
           });
 
           if (token.isCancellationRequested) {
@@ -152,14 +191,73 @@ export class ExtensionBootstrap {
             return { metadata: { command: 'chat', cancelled: true } };
           }
 
-          const responseText = (finalMessage || streamedContent).trim();
-          if (responseText.length > 0) {
-            stream.markdown(responseText + '\n\n');
+          // Stream the results
+          stream.markdown(`# 📊 Plano de Desenvolvimento\n\n`);
+          
+          if (!result.plan) {
+            stream.markdown(`⚠️ **Atenção**: O sistema executou ${result.iterationCount} iterações mas não conseguiu gerar um plano estruturado.\n\n`);
+            stream.markdown(`**Motivo**: A pontuação de maturidade ficou muito baixa (${result.maturityScore}/100).\n\n`);
+            stream.markdown(`**Sugestão**: Tente reformular sua solicitação de forma mais específica ou detalhada.\n\n`);
+            
+            // Show messages history
+            if (result.messages && result.messages.length > 0) {
+              stream.markdown(`## 💬 Histórico de Mensagens\n\n`);
+              const lastMessages = result.messages.slice(-3); // Show last 3 messages
+              for (const msg of lastMessages) {
+                stream.markdown(`**${msg.role}**: ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}\n\n`);
+              }
+            }
+            
+            return { metadata: { command: 'chat' } };
+          }
+          
+          if (result.plan) {
+            stream.markdown(`## 🎯 Objetivo\n${result.plan.context.problem}\n\n`);
+            
+            if (result.maturityScore !== undefined) {
+              stream.markdown(`**Maturidade**: ${result.maturityScore}/100\n\n`);
+            }
+
+            if (result.plan.functionalRequirements.length > 0) {
+              stream.markdown(`## ✅ Requisitos Funcionais\n`);
+              result.plan.functionalRequirements.forEach((req, idx) => {
+                stream.markdown(`${idx + 1}. **${req.description}** (${req.priority})\n`);
+              });
+              stream.markdown('\n');
+            }
+
+            if (result.plan.components.length > 0) {
+              stream.markdown(`## 🏗️ Componentes\n`);
+              result.plan.components.forEach((comp) => {
+                stream.markdown(`- **${comp.name}** (${comp.type}): ${comp.description}\n`);
+              });
+              stream.markdown('\n');
+            }
+
+            if (result.criticFeedback && result.criticFeedback.length > 0) {
+              stream.markdown(`## ⚠️ Feedback Crítico\n`);
+              result.criticFeedback.forEach((feedback) => {
+                const icon = feedback.severity === 'critical' ? '🔴' : feedback.severity === 'warning' ? '⚠️' : 'ℹ️';
+                stream.markdown(`${icon} **[${feedback.category}]** ${feedback.issue}\n`);
+                if (feedback.suggestion) {
+                  stream.markdown(`   → _Sugestão: ${feedback.suggestion}_\n`);
+                }
+              });
+              stream.markdown('\n');
+            }
+
+            if (result.currentClarification) {
+              stream.markdown(`## ❓ Esclarecimento Necessário\n\n${result.currentClarification}\n\n`);
+              stream.markdown('_Responda para continuar o refinamento do plano._\n');
+            }
+
+            // Show plan saved message
+            stream.markdown(`\n---\n\n💾 Plano salvo em: \`.cappy/plans/${result.plan.id}.json\`\n`);
           } else {
-            stream.markdown('_Sem resposta gerada._');
+            stream.markdown('⚠️ Nenhum plano foi gerado. Tente reformular sua solicitação.\n');
           }
 
-          return { metadata: { command: 'chat' } };
+          return { metadata: { command: 'chat', planId: result.plan?.id } };
         } catch (error) {
           if (token.isCancellationRequested) {
             stream.markdown('\n\n_Cancelado pelo usuário_');
@@ -184,20 +282,8 @@ export class ExtensionBootstrap {
     );
 
     context.subscriptions.push(participant);
-    console.log('  ✅ Registered @cappy');
-  }
-
-  private getChatSessionId(request: vscode.ChatRequest): string {
-    const requestWithSession = request as {
-      session?: { id?: string };
-      sessionId?: string;
-    };
-
-    return (
-      requestWithSession.session?.id ??
-      requestWithSession.sessionId ??
-      'chat-session'
-    );
+    console.log('  ✅ Registered @cappy chat participant with ID:', participant.id);
+    console.log('  ✅ Chat participant subscriptions added to context');
   }
 
   /**

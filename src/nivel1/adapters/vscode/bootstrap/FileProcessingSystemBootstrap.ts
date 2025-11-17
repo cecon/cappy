@@ -13,7 +13,7 @@ import { createVectorStore } from '../../../../nivel2/infrastructure/vector/sqli
 import type { GraphStorePort } from '../../../../domains/dashboard/ports/indexing-port';
 import { SQLiteAdapter } from '../../../../nivel2/infrastructure/database/index.js';
 import { GraphCleanupService } from '../../../../nivel2/infrastructure/services/graph-cleanup-service';
-import type { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
+import type { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
 import type {
   FileProcessingSystemResult,
   CoreServices,

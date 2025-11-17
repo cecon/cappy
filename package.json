@@ -38,6 +38,10 @@
     "language-model-tools"
   ],
   "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:*"
+  ],
   "capabilities": {
     "languageModel": {
       "enabled": true
