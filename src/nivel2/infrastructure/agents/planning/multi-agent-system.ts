@@ -408,6 +408,9 @@ Output as structured JSON matching the DevelopmentPlan interface.
       plan.version++
     }
 
+    // Ensure required array fields exist before persisting
+    this.normalizePlan(plan)
+
     // Save plan
     await PlanPersistence.savePlan(plan)
 
@@ -777,6 +780,7 @@ _This will help resolve: ${criticalItem.issue}_`
     // Calculate maturity score
     let maturityScore = 0
     const plan = state.plan
+    this.normalizePlan(plan)
 
     // 1. Context completeness (0-20 points)
     if (plan.context.problem) maturityScore += 5
@@ -978,5 +982,62 @@ _This will help resolve: ${criticalItem.issue}_`
     if (partial.status) {
       plan.status = partial.status
     }
+  }
+
+  private normalizePlan(plan: DevelopmentPlan): void {
+    plan.context.filesAnalyzed = this.ensureArray(plan.context.filesAnalyzed)
+    plan.context.patternsFound = this.ensureArray(plan.context.patternsFound)
+    plan.context.externalDependencies = this.ensureArray(plan.context.externalDependencies)
+
+    plan.functionalRequirements = this.ensureArray(plan.functionalRequirements).map((requirement) => ({
+      ...requirement,
+      acceptanceCriteria: this.ensureArray(requirement.acceptanceCriteria),
+      relatedComponents: this.ensureArray(requirement.relatedComponents)
+    }))
+
+    plan.nonFunctionalRequirements = this.ensureArray(plan.nonFunctionalRequirements)
+
+    plan.components = this.ensureArray(plan.components).map((component) => ({
+      ...component,
+      responsibilities: this.ensureArray(component.responsibilities),
+      dependencies: this.ensureArray(component.dependencies)
+    }))
+
+    plan.userFlows = this.ensureArray(plan.userFlows).map((flow) => ({
+      ...flow,
+      steps: this.ensureArray(flow.steps),
+      alternativePaths: this.ensureArray(flow.alternativePaths),
+      requiredComponents: this.ensureArray(flow.requiredComponents)
+    }))
+
+    plan.decisions = this.ensureArray(plan.decisions).map((decision) => ({
+      ...decision,
+      alternatives: this.ensureArray(decision.alternatives)
+    }))
+
+    plan.questions = this.ensureArray(plan.questions).map((question) => ({
+      ...question,
+      relatedTo: this.ensureArray(question.relatedTo)
+    }))
+
+    plan.assumptions = this.ensureArray(plan.assumptions)
+    plan.glossary = this.ensureArray(plan.glossary).map((entry) => ({
+      ...entry,
+      synonyms: this.ensureArray(entry.synonyms),
+      relatedTerms: this.ensureArray(entry.relatedTerms)
+    }))
+
+    plan.risks = this.ensureArray(plan.risks)
+
+    plan.atomicTasks = this.ensureArray(plan.atomicTasks).map((task) => ({
+      ...task,
+      dependencies: this.ensureArray(task.dependencies)
+    }))
+
+    plan.successCriteria = this.ensureArray(plan.successCriteria)
+  }
+
+  private ensureArray<T>(value: T[] | null | undefined): T[] {
+    return Array.isArray(value) ? value : []
   }
 }
