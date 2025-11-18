@@ -19,6 +19,8 @@ import type { HybridRetriever } from '../../../../nivel2/infrastructure/services
 import type { GraphPanel } from '../dashboard/GraphPanel';
 import { MultiAgentPlanningSystem } from '../../../../nivel2/infrastructure/agents/planning/multi-agent-system';
 
+type PlanningTurnResult = Awaited<ReturnType<MultiAgentPlanningSystem['runSessionTurn']>>['result'];
+
 /**
  * Main extension state (internal - mutable)
  */
@@ -147,43 +149,31 @@ export class ExtensionBootstrap {
             stream.progress(message);
           });
 
-          // Create the LangGraph workflow
-          const graph = this.planningAgent.createGraph();
-          
-          // Initial state
-          const initialState = {
-            userInput: request.prompt,
-            plan: null,
-            messages: [],
-            criticFeedback: [],
-            currentClarification: null,
-            userAnswer: null,
-            maturityScore: 0,
-            nextStep: 'plan' as const,
-            iterationCount: 0
-          };
+          const conversationId = this.resolveConversationId(request);
 
-          stream.progress('📋 Planning Agent gerando esqueleto...');
+          console.log('[ChatParticipant] Conversation ID:', conversationId);
 
-          // Execute the graph with streaming updates
-          const result = await graph.invoke(initialState, {
-            configurable: {
-              thread_id: `chat-${Date.now()}`
-            },
-            streamMode: 'values'
+          stream.progress('Processando fluxo guiado de tarefa...');
+
+          const { result, isContinuation } = await this.planningAgent.runSessionTurn({
+            sessionId: conversationId,
+            message: request.prompt
           });
-          
-          // Show progress after each step
-          if (result.iterationCount > 0) {
-            stream.progress(`🔄 Iteração ${result.iterationCount}/3 completa (Score: ${result.maturityScore}/100)`);
+
+          if (isContinuation) {
+            stream.progress('Continuando a fase atual com a resposta do usuário...');
+          }
+
+          if (result.awaitingUser) {
+            stream.progress('Aguardando resposta do usuário para prosseguir.');
           }
 
           console.log('[ChatParticipant] Result:', {
             hasResult: !!result,
-            hasPlan: !!result?.plan,
-            maturityScore: result?.maturityScore,
-            iterationCount: result?.iterationCount,
-            nextStep: result?.nextStep
+            phase: result?.phase,
+            confirmed: result?.confirmed,
+            readyForExecution: result?.readyForExecution,
+            awaitingUser: result?.awaitingUser
           });
 
           if (token.isCancellationRequested) {
@@ -191,73 +181,15 @@ export class ExtensionBootstrap {
             return { metadata: { command: 'chat', cancelled: true } };
           }
 
-          // Stream the results
-          stream.markdown(`# 📊 Plano de Desenvolvimento\n\n`);
-          
-          if (!result.plan) {
-            stream.markdown(`⚠️ **Atenção**: O sistema executou ${result.iterationCount} iterações mas não conseguiu gerar um plano estruturado.\n\n`);
-            stream.markdown(`**Motivo**: A pontuação de maturidade ficou muito baixa (${result.maturityScore}/100).\n\n`);
-            stream.markdown(`**Sugestão**: Tente reformular sua solicitação de forma mais específica ou detalhada.\n\n`);
-            
-            // Show messages history
-            if (result.messages && result.messages.length > 0) {
-              stream.markdown(`## 💬 Histórico de Mensagens\n\n`);
-              const lastMessages = result.messages.slice(-3); // Show last 3 messages
-              for (const msg of lastMessages) {
-                stream.markdown(`**${msg.role}**: ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}\n\n`);
-              }
-            }
-            
-            return { metadata: { command: 'chat' } };
-          }
-          
-          if (result.plan) {
-            stream.markdown(`## 🎯 Objetivo\n${result.plan.context.problem}\n\n`);
-            
-            if (result.maturityScore !== undefined) {
-              stream.markdown(`**Maturidade**: ${result.maturityScore}/100\n\n`);
-            }
+          this.streamWorkflowResult(stream, result);
 
-            if (result.plan.functionalRequirements.length > 0) {
-              stream.markdown(`## ✅ Requisitos Funcionais\n`);
-              result.plan.functionalRequirements.forEach((req, idx) => {
-                stream.markdown(`${idx + 1}. **${req.description}** (${req.priority})\n`);
-              });
-              stream.markdown('\n');
+          return {
+            metadata: {
+              command: 'chat',
+              phase: result.phase,
+              awaitingUser: result.awaitingUser
             }
-
-            if (result.plan.components.length > 0) {
-              stream.markdown(`## 🏗️ Componentes\n`);
-              result.plan.components.forEach((comp) => {
-                stream.markdown(`- **${comp.name}** (${comp.type}): ${comp.description}\n`);
-              });
-              stream.markdown('\n');
-            }
-
-            if (result.criticFeedback && result.criticFeedback.length > 0) {
-              stream.markdown(`## ⚠️ Feedback Crítico\n`);
-              result.criticFeedback.forEach((feedback) => {
-                const icon = feedback.severity === 'critical' ? '🔴' : feedback.severity === 'warning' ? '⚠️' : 'ℹ️';
-                stream.markdown(`${icon} **[${feedback.category}]** ${feedback.issue}\n`);
-                if (feedback.suggestion) {
-                  stream.markdown(`   → _Sugestão: ${feedback.suggestion}_\n`);
-                }
-              });
-              stream.markdown('\n');
-            }
-
-            if (result.currentClarification) {
-              stream.markdown(`## ❓ Esclarecimento Necessário\n\n${result.currentClarification}\n\n`);
-              stream.markdown('_Responda para continuar o refinamento do plano._\n');
-            }
-
-            // Show plan saved message
-            stream.markdown(`\n---\n\n💾 Plano salvo em: \`.cappy/plans/${result.plan.id}.json\`\n`);
-          } else {
-            stream.markdown('⚠️ Nenhum plano foi gerado. Tente reformular sua solicitação.\n');
-          }
-
-          return { metadata: { command: 'chat', planId: result.plan?.id } };
+          };
         } catch (error) {
           if (token.isCancellationRequested) {
             stream.markdown('\n\n_Cancelado pelo usuário_');
@@ -391,5 +323,86 @@ export class ExtensionBootstrap {
    */
   getState(): Readonly<ExtensionState> {
     return { ...this.state };
+  }
+
+  private streamWorkflowResult(stream: vscode.ChatResponseStream, result: PlanningTurnResult): void {
+    const phaseDescription = this.describePhase(result.phase);
+    const statusLines = [
+      `- Confirmacao do usuario: ${result.confirmed ? 'sim' : 'nao'}`,
+      `- Pronto para execucao: ${result.readyForExecution ? 'sim' : 'nao'}`,
+      `- Aguardando resposta: ${result.awaitingUser ? 'sim' : 'nao'}`
+    ].join('\n');
+
+    stream.markdown(`# Fluxo Guiado de Tarefas\n\n**Fase atual**: ${phaseDescription}\n\n${statusLines}\n`);
+
+    const detailsSummary = this.summarizeDetails(result);
+    if (detailsSummary) {
+      stream.markdown(`\n**Detalhes coletados ate agora:**\n${detailsSummary}\n`);
+    }
+
+    if (result.finalResponse) {
+      stream.markdown(`\n${result.finalResponse}\n`);
+    } else if (result.responseMessage) {
+      stream.markdown(`\n${result.responseMessage}\n`);
+    } else if (result.awaitingUser) {
+      stream.markdown('\nEstou aguardando sua resposta para continuar.\n');
+    } else {
+      stream.markdown('\nSem mensagem adicional nesta etapa.\n');
+    }
+  }
+
+  private describePhase(phase: PlanningTurnResult['phase']): string {
+    switch (phase) {
+      case 'intencao':
+        return 'Intencao';
+      case 'refinamento':
+        return 'Refinamento';
+      case 'execucao':
+        return 'Execucao';
+      default:
+        return 'Desconhecida';
+    }
+  }
+
+  private summarizeDetails(result: PlanningTurnResult): string {
+    const parts: string[] = [];
+    const details = result.details;
+
+    if (!details) {
+      return '';
+    }
+
+    const pushList = (label: string, values: string[]) => {
+      if (values.length > 0) {
+        parts.push(`- ${label}: ${values.join('; ')}`);
+      }
+    };
+
+    pushList('Escopo', details.escopo);
+    pushList('Requisitos', details.requisitos);
+    pushList('Restricoes', details.restricoes);
+    pushList('Tecnologias', details.tecnologias);
+    pushList('Preferencias', details.preferencias);
+
+    if (details.formato) {
+      parts.push(`- Formato desejado: ${details.formato}`);
+    }
+
+    return parts.join('\n');
+  }
+
+  private resolveConversationId(request: vscode.ChatRequest): string {
+    const inferred = request as unknown as {
+      conversation?: { id: string };
+      sessionId?: string;
+      requestId?: string;
+    };
+
+    return (
+      inferred.conversation?.id
+      ?? inferred.sessionId
+      ?? inferred.requestId
+      ?? `conversation-${Date.now()}`
+    );
   }
 }
