@@ -1,7 +1,7 @@
 import type { DevelopmentPlan } from '../types'
 
 export interface LanguageModelPort {
-  complete(prompt: string, options: { justification: string }): Promise<string>
+  complete(prompt: string, options: { justification: string; sessionId?: string }): Promise<string>
 }
 
 export interface PlanRepositoryPort {

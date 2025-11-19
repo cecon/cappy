@@ -157,7 +157,7 @@ describe('PlanPersistence', () => {
       ]
 
       const planFiles = files.filter(f => 
-        f.startsWith('plan-') && f.endsWith('.json') && /^plan-[^-]+\.json$/.test(f)
+        /^plan-(?!backup)[a-zA-Z0-9-]+\.json$/.test(f)
       )
 
       expect(planFiles.length).toBe(2)

@@ -134,7 +134,13 @@ export const PlanningStateAnnotation = Annotation.Root({
         return left
       }
 
-      return left.concat(right)
+      const combined = left.concat(right)
+      // Limit to last 100 entries to prevent memory issues
+      const MAX_LOG_SIZE = 100
+      if (combined.length > MAX_LOG_SIZE) {
+        return combined.slice(-MAX_LOG_SIZE)
+      }
+      return combined
     },
     default: () => []
   }),
@@ -153,6 +159,10 @@ export const PlanningStateAnnotation = Annotation.Root({
   cancellationReason: Annotation<string | null>({
     reducer: (_, right) => right ?? null,
     default: () => null
+  }),
+  sessionId: Annotation<string>({
+    reducer: (_, right) => right ?? '',
+    default: () => ''
   }),
   phaseHistory: Annotation<PlanningPhase[]>({
     reducer: (left, right) => {

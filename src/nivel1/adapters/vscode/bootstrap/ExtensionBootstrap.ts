@@ -149,7 +149,7 @@ export class ExtensionBootstrap {
             stream.progress(message);
           });
 
-          const conversationId = this.resolveConversationId(request);
+          const conversationId = this.resolveConversationId();
 
           console.log('[ChatParticipant] Conversation ID:', conversationId);
           console.log('[ChatParticipant] Request:', {
@@ -332,18 +332,23 @@ export class ExtensionBootstrap {
   }
 
   private streamWorkflowResult(stream: vscode.ChatResponseStream, result: PlanningTurnResult): void {
-    const phaseDescription = this.describePhase(result.phase);
-    const statusLines = [
-      `- Confirmacao do usuario: ${result.confirmed ? 'sim' : 'nao'}`,
-      `- Pronto para execucao: ${result.readyForExecution ? 'sim' : 'nao'}`,
-      `- Aguardando resposta: ${result.awaitingUser ? 'sim' : 'nao'}`
-    ].join('\n');
+    // Para smalltalk puro, não mostrar o cabeçalho de "Fluxo Guiado"
+    const isSmallTalk = result.routerIntent === 'smalltalk' && !result.intentionSummary;
+    
+    if (!isSmallTalk) {
+      const phaseDescription = this.describePhase(result.phase);
+      const statusLines = [
+        `- Confirmacao do usuario: ${result.confirmed ? 'sim' : 'nao'}`,
+        `- Pronto para execucao: ${result.readyForExecution ? 'sim' : 'nao'}`,
+        `- Aguardando resposta: ${result.awaitingUser ? 'sim' : 'nao'}`
+      ].join('\n');
 
-    stream.markdown(`# Fluxo Guiado de Tarefas\n\n**Fase atual**: ${phaseDescription}\n\n${statusLines}\n`);
+      stream.markdown(`# Fluxo Guiado de Tarefas\n\n**Fase atual**: ${phaseDescription}\n\n${statusLines}\n`);
 
-    const detailsSummary = this.summarizeDetails(result);
-    if (detailsSummary) {
-      stream.markdown(`\n**Detalhes coletados ate agora:**\n${detailsSummary}\n`);
+      const detailsSummary = this.summarizeDetails(result);
+      if (detailsSummary) {
+        stream.markdown(`\n**Detalhes coletados ate agora:**\n${detailsSummary}\n`);
+      }
     }
 
     if (result.finalResponse) {
@@ -352,7 +357,7 @@ export class ExtensionBootstrap {
       stream.markdown(`\n${result.responseMessage}\n`);
     } else if (result.awaitingUser) {
       stream.markdown('\nEstou aguardando sua resposta para continuar.\n');
-    } else {
+    } else if (!isSmallTalk) {
       stream.markdown('\nSem mensagem adicional nesta etapa.\n');
     }
   }
@@ -397,7 +402,7 @@ export class ExtensionBootstrap {
     return parts.join('\n');
   }
 
-  private resolveConversationId(_request: vscode.ChatRequest): string {
+  private resolveConversationId(): string {
     // Always use the same conversation ID for this workspace to maintain context
     const workspaceHash = this.getWorkspaceHash();
     return `cappy-chat-${workspaceHash}`;

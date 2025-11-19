@@ -108,7 +108,7 @@ export class PlanningWorkflowOrchestrator {
     let initialState: PlanningGraphState
 
         if (!currentState || this.shouldStartFreshConversation(currentState, sanitizedInput)) {
-          initialState = this.createInitialState(sanitizedInput)
+          initialState = this.createInitialState(sanitizedInput, params.sessionId)
         } else if (currentState.awaitingUser) {
       // Continue existing conversation
           initialState = this.createContinuationState(currentState, sanitizedInput)
@@ -184,7 +184,7 @@ export class PlanningWorkflowOrchestrator {
     return this.compiledGraph
   }
 
-  private createInitialState(userMessage: string): PlanningGraphState {
+  private createInitialState(userMessage: string, sessionId?: string): PlanningGraphState {
     const sanitized = this.sanitize(userMessage)
     return {
       phase: 'intencao',
@@ -207,6 +207,7 @@ export class PlanningWorkflowOrchestrator {
       finalResponse: null,
       cancelled: false,
       cancellationReason: null,
+      sessionId: sessionId || '',
       phaseHistory: ['intencao']
     }
   }
@@ -215,7 +216,7 @@ export class PlanningWorkflowOrchestrator {
     const sanitized = this.sanitize(userMessage)
 
     if (this.isNewTaskRequest(sanitized)) {
-      return this.createInitialState(sanitized)
+      return this.createInitialState(sanitized, previousState.sessionId)
     }
 
     return {
@@ -252,7 +253,7 @@ export class PlanningWorkflowOrchestrator {
       }
     }
 
-    const shortcutResult = this.handleRouterShortcuts(state, latestMessage)
+    const shortcutResult = await this.handleRouterShortcuts(state, latestMessage)
     if (shortcutResult) {
       return shortcutResult
     }
@@ -263,7 +264,7 @@ export class PlanningWorkflowOrchestrator {
       routerIntent
     }
 
-    return this.routeByIntent(baseState, routerIntent, latestMessage)
+    return await this.routeByIntent(baseState, routerIntent, latestMessage)
   }
 
   private async intentionNode(state: PlanningGraphState): Promise<PlanningGraphState> {
@@ -306,6 +307,23 @@ export class PlanningWorkflowOrchestrator {
     }
 
     if (userAnswer) {
+      // Se o usuário elaborou a resposta (mais de 15 caracteres), tratar como confirmação implícita e adicionar contexto
+      if (userAnswer.length > 15) {
+        const response = 'Entendi! Vamos refinar os detalhes.'
+        const phased = this.applyPhase(state, 'refinamento')
+        return {
+          ...phased,
+          confirmed: true,
+          awaitingUser: false,
+          responseMessage: response,
+          rawIntention: `${state.rawIntention}\n\nContexto adicional: ${userAnswer}`,
+          conversationLog: state.conversationLog.concat(`Sistema: ${response}`),
+          userAnswer: null,
+          nextStep: 'refinamento'
+        }
+      }
+      
+      // Respostas curtas ambíguas pedem clarificação
       const clarification = 'Nao entendi se voce quer seguir com essa tarefa. Pode responder com "sim" ou "nao"?'
       return {
         ...state,
@@ -692,6 +710,7 @@ export class PlanningWorkflowOrchestrator {
       finalResponse: null,
       cancelled: false,
       cancellationReason: null,
+      sessionId: state.sessionId || '',
       phaseHistory: ['intencao']
     }
   }
@@ -724,7 +743,7 @@ export class PlanningWorkflowOrchestrator {
     }
   }
 
-  private handleRouterShortcuts(state: PlanningGraphState, latestMessage: string): PlanningGraphState | null {
+  private async handleRouterShortcuts(state: PlanningGraphState, latestMessage: string): Promise<PlanningGraphState | null> {
     if (this.isNewTaskRequest(latestMessage)) {
       const resetState = this.createInitialState(latestMessage)
       return {
@@ -741,7 +760,7 @@ export class PlanningWorkflowOrchestrator {
     }
 
     if (!state.intentionSummary && this.isSmallTalk(latestMessage)) {
-      const response = this.buildSmallTalkResponse(latestMessage)
+      const response = await this.buildSmallTalkResponse(latestMessage, state.sessionId)
       return {
         ...state,
         routerIntent: 'smalltalk',
@@ -755,10 +774,10 @@ export class PlanningWorkflowOrchestrator {
     return null
   }
 
-  private routeByIntent(state: PlanningGraphState, intent: RouterIntent, latestMessage: string): PlanningGraphState {
+  private async routeByIntent(state: PlanningGraphState, intent: RouterIntent, latestMessage: string): Promise<PlanningGraphState> {
     switch (intent) {
       case 'smalltalk': {
-        const response = this.buildSmallTalkResponse(latestMessage)
+        const response = await this.buildSmallTalkResponse(latestMessage, state.sessionId)
         return {
           ...state,
           responseMessage: response,
@@ -905,28 +924,44 @@ export class PlanningWorkflowOrchestrator {
 
   private isSmallTalk(message: string): boolean {
     const normalized = message.toLowerCase().trim()
-    const greetings = ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e ai', 'hey', 'qual meu nome', 'meu nome é', 'meu nome e']
+    const greetings = ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'e ai', 'hey', 'opa', 'fala']
     return greetings.some((greeting) => normalized.includes(greeting) && normalized.length < 50)
   }
 
-  private buildSmallTalkResponse(message: string): string {
-    const normalized = message.toLowerCase()
-    if (normalized.includes('meu nome')) {
-      return 'Olá! Você me disse que seu nome é cecon. Como posso ajudá-lo hoje?'
+  private async buildSmallTalkResponse(message: string, sessionId?: string): Promise<string> {
+    try {
+      const userName = await this.getUserName()
+      const prompt = [
+        'Você é um assistente amigável chamado Cappy.',
+        userName ? `O nome do usuário é ${userName}.` : '',
+        'Responda de forma breve e natural à mensagem abaixo.',
+        'Se o usuário perguntar sobre tarefas ou trabalho, convide-o gentilmente a criar uma nova tarefa.',
+        '',
+        `Mensagem: ${message}`,
+        '',
+        'Responda em português, de forma concisa (máximo 2 frases):'
+      ].filter(Boolean).join('\n')
+
+      const response = await this.deps.languageModel.complete(prompt, {
+        justification: 'Smalltalk response',
+        sessionId: sessionId || 'default'
+      })
+
+      return response || 'Olá! Como posso ajudá-lo hoje?'
+    } catch (error) {
+      console.error('[SmallTalk] Error generating response:', error)
+      return 'Olá! Como posso ajudá-lo hoje?'
     }
-    if (normalized.includes('qual meu nome')) {
-      return 'Seu nome é cecon. Em que posso ajudá-lo?'
+  }
+
+  private async getUserName(): Promise<string | null> {
+    try {
+      const { execSync } = await import('child_process')
+      const name = execSync('git config user.name', { encoding: 'utf8' }).trim()
+      return name || null
+    } catch {
+      return null
     }
-    if (normalized.includes('bom dia')) {
-      return 'Bom dia, cecon! Como posso ajudar hoje?'
-    }
-    if (normalized.includes('boa tarde')) {
-      return 'Boa tarde, cecon! Em que posso colaborar?'
-    }
-    if (normalized.includes('boa noite')) {
-      return 'Boa noite, cecon! Vamos trabalhar em alguma tarefa?'
-    }
-    return 'Olá, cecon! Pronto para ajudar. Qual tarefa você quer abordar?'
   }
 
   private isAffirmative(message: string): boolean {

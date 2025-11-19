@@ -3,16 +3,31 @@ import { PlanningWorkflowOrchestrator } from './application/planning-workflow-or
 import type { PlanningGraphState } from './application/planning-state'
 import { PlanPersistence } from './plan-persistence'
 
+interface ConversationTurn {
+  userMessage: string
+  assistantResponse: string
+  timestamp: Date
+  state?: PlanningGraphState
+}
+
+interface Session {
+  id: string
+  history: ConversationTurn[]
+  createdAt: Date
+  lastAccessAt: Date
+}
+
 export class MultiAgentPlanningSystem {
   private model: vscode.LanguageModelChat | null = null
   private initialized = false
   private progressCallback?: (message: string) => void
   private readonly workflow: PlanningWorkflowOrchestrator
+  private readonly sessions = new Map<string, Session>()
 
   constructor() {
     this.workflow = new PlanningWorkflowOrchestrator({
       languageModel: {
-        complete: (prompt, options) => this.completeWithModel(prompt, options.justification)
+        complete: (prompt, options) => this.completeWithModel(prompt, options.justification, options.sessionId)
       },
       planRepository: {
         save: async (plan) => {
@@ -45,16 +60,53 @@ export class MultiAgentPlanningSystem {
     this.progressCallback = callback
   }
 
+  private getOrCreateSession(sessionId: string): Session {
+    if (!this.sessions.has(sessionId)) {
+      this.sessions.set(sessionId, {
+        id: sessionId,
+        history: [],
+        createdAt: new Date(),
+        lastAccessAt: new Date()
+      })
+    }
+
+    const session = this.sessions.get(sessionId)!
+    session.lastAccessAt = new Date()
+    return session
+  }
+
   async runSessionTurn(params: { sessionId: string; message: string }): Promise<{
     result: PlanningGraphState
     isContinuation: boolean
   }> {
     await this.ensureModel()
-    return this.workflow.runSessionTurn(params)
+    
+    const session = this.getOrCreateSession(params.sessionId)
+    const { result, isContinuation } = await this.workflow.runSessionTurn(params)
+
+    // Armazenar turno no histórico
+    session.history.push({
+      userMessage: params.message,
+      assistantResponse: result.finalResponse || result.responseMessage || '',
+      timestamp: new Date(),
+      state: result
+    })
+
+    // Limitar histórico a 50 turnos
+    if (session.history.length > 50) {
+      session.history.shift()
+    }
+
+    return { result, isContinuation }
   }
 
   resetSession(sessionId: string): void {
+    this.sessions.delete(sessionId)
     this.workflow.reset(sessionId)
+  }
+
+  getSessionHistory(sessionId: string): ConversationTurn[] {
+    return this.getOrCreateSession(sessionId).history
   }
 
   async runTurn(params: { prompt: string; sessionId: string }): Promise<string> {
@@ -80,9 +132,30 @@ export class MultiAgentPlanningSystem {
     this.progressCallback?.(message)
   }
 
-  private async completeWithModel(prompt: string, justification: string): Promise<string> {
+  private buildContextualPrompt(sessionId: string, currentPrompt: string): string {
+    const session = this.sessions.get(sessionId)
+    if (!session || session.history.length === 0) {
+      return currentPrompt
+    }
+
+    // Últimos 5 turnos para contexto
+    const recentHistory = session.history.slice(-5)
+    const context = recentHistory
+      .map(turn => `User: ${turn.userMessage}\nAssistant: ${turn.assistantResponse}`)
+      .join('\n\n')
+
+    return `Previous conversation:\n${context}\n\nCurrent message:\n${currentPrompt}`
+  }
+
+  private async completeWithModel(prompt: string, justification: string, sessionId?: string): Promise<string> {
     const model = await this.ensureModel()
-    const messages = [vscode.LanguageModelChatMessage.User(prompt)]
+    
+    // Adicionar contexto da sessão ao prompt
+    const contextualPrompt = sessionId 
+      ? this.buildContextualPrompt(sessionId, prompt)
+      : prompt
+
+    const messages = [vscode.LanguageModelChatMessage.User(contextualPrompt)]
     const response = await model.sendRequest(messages, { justification })
 
     let combined = ''
