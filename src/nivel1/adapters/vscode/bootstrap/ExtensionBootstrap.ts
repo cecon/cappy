@@ -391,6 +391,8 @@ export class ExtensionBootstrap {
     return parts.join('\n');
   }
 
+  private readonly conversationIdCache = new Map<string, string>();
+
   private resolveConversationId(request: vscode.ChatRequest): string {
     const inferred = request as unknown as {
       conversation?: { id: string };
@@ -398,11 +400,25 @@ export class ExtensionBootstrap {
       requestId?: string;
     };
 
-    return (
-      inferred.conversation?.id
-      ?? inferred.sessionId
-      ?? inferred.requestId
-      ?? `conversation-${Date.now()}`
-    );
+    // Try to get existing conversation ID
+    const directId = inferred.conversation?.id ?? inferred.sessionId ?? inferred.requestId;
+    
+    if (directId) {
+      return directId;
+    }
+
+    // Create stable conversation ID based on request context
+    const stableKey = `${request.command ?? 'chat'}_${this.getWorkspaceHash()}`;
+    
+    if (!this.conversationIdCache.has(stableKey)) {
+      this.conversationIdCache.set(stableKey, `conversation-${Date.now()}`);
+    }
+    
+    return this.conversationIdCache.get(stableKey)!;
+  }
+
+  private getWorkspaceHash(): string {
+    const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? 'no-workspace';
+    return Buffer.from(workspacePath).toString('base64').slice(0, 8);
   }
 }

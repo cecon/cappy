@@ -23,12 +23,6 @@ type PlanningCompiledGraph = CompiledStateGraph<
   WorkflowNodeName
 >
 
-interface PlanningSessionSnapshot {
-  id: string
-  threadId: string
-  state: PlanningGraphState
-}
-
 interface PlanningWorkflowDependencies {
   languageModel: LanguageModelPort
   planRepository: PlanRepositoryPort
@@ -41,7 +35,7 @@ interface PlanningWorkflowOptions {
 
 export class PlanningWorkflowOrchestrator {
   private readonly checkpointer = new MemorySaver()
-  private readonly sessions = new Map<string, PlanningSessionSnapshot>()
+  private readonly stableThreads = new Map<string, string>()
   private compiledGraph: PlanningCompiledGraph | null = null
   private readonly deps: PlanningWorkflowDependencies
   private readonly refinementQuestionLimit: number
@@ -56,40 +50,33 @@ export class PlanningWorkflowOrchestrator {
     isContinuation: boolean
   }> {
     const graph = this.ensureGraph()
-    const session = this.sessions.get(params.sessionId)
-    const isContinuation = Boolean(session?.state.awaitingUser)
-
-    let threadId = session?.threadId ?? this.createThreadId(params.sessionId)
+    
+    // Use stable thread ID for consistent LangGraph memory
+    const threadId = this.getStableThreadId(params.sessionId)
+    
+    // Get current state from LangGraph checkpointer
+    const config = { configurable: { thread_id: threadId } }
+    const currentState = await this.getCurrentState(config)
+    
+    const isContinuation = Boolean(currentState?.awaitingUser)
     let initialState: PlanningGraphState
 
-    if (session && session.state.awaitingUser) {
-      initialState = this.createContinuationState(session, params.message)
-    } else {
-      threadId = this.createThreadId(params.sessionId)
+    if (currentState?.awaitingUser) {
+      // Continue existing conversation
+      initialState = this.createContinuationState(currentState, params.message)
+    } else if (this.isNewTaskRequest(params.message) || !currentState) {
+      // Start new conversation or reset if needed
       initialState = this.createInitialState(params.message)
-      this.sessions.delete(params.sessionId)
-    }
-
-    const result = (await graph.invoke(initialState, {
-      configurable: {
-        thread_id: threadId
-      },
-      streamMode: 'values'
-    })) as PlanningGraphState
-
-    if (result.awaitingUser) {
-      this.sessions.set(params.sessionId, {
-        id: params.sessionId,
-        threadId,
-        state: {
-          ...result,
-          userAnswer: null,
-          nextStep: 'router'
-        }
-      })
     } else {
-      this.sessions.delete(params.sessionId)
+      // Continue non-awaiting state
+      initialState = {
+        ...currentState,
+        userInput: this.sanitize(params.message),
+        nextStep: 'router'
+      }
     }
+
+    const result = (await graph.invoke(initialState, config)) as PlanningGraphState
 
     return {
       result,
@@ -98,7 +85,26 @@ export class PlanningWorkflowOrchestrator {
   }
 
   reset(sessionId: string): void {
-    this.sessions.delete(sessionId)
+    // Simply clear the stable thread mapping
+    // LangGraph will handle memory cleanup automatically
+    this.stableThreads.delete(sessionId)
+  }
+
+  private getStableThreadId(sessionId: string): string {
+    if (!this.stableThreads.has(sessionId)) {
+      this.stableThreads.set(sessionId, `chat-${sessionId}-stable`)
+    }
+    return this.stableThreads.get(sessionId)!
+  }
+
+  private async getCurrentState(config: any): Promise<PlanningGraphState | null> {
+    try {
+      const checkpoint = await this.checkpointer.get(config)
+      return (checkpoint?.channel_values as PlanningGraphState) || null
+    } catch (error) {
+      console.warn('Failed to get current state:', error)
+      return null
+    }
   }
 
   private ensureGraph(): PlanningCompiledGraph {
@@ -147,29 +153,26 @@ export class PlanningWorkflowOrchestrator {
     }
   }
 
-  private createContinuationState(session: PlanningSessionSnapshot, userMessage: string): PlanningGraphState {
+  private createContinuationState(previousState: PlanningGraphState, userMessage: string): PlanningGraphState {
     const sanitized = this.sanitize(userMessage)
 
     if (this.isNewTaskRequest(sanitized)) {
       return this.createInitialState(sanitized)
     }
 
-    const previous = session.state
     return {
-      ...previous,
+      ...previousState,
       userAnswer: sanitized,
       awaitingUser: false,
       responseMessage: null,
       nextStep: 'router',
       conversationLog: sanitized
-        ? previous.conversationLog.concat(`Usuario: ${sanitized}`)
-        : previous.conversationLog
+        ? previousState.conversationLog.concat(`Usuario: ${sanitized}`)
+        : previousState.conversationLog
     }
   }
 
-  private createThreadId(sessionId: string): string {
-    return `chat-${sessionId}-${Date.now()}`
-  }
+
 
   private async routerNode(state: PlanningGraphState): Promise<PlanningGraphState> {
     if (state.awaitingUser && !state.userAnswer) {
@@ -347,23 +350,19 @@ export class PlanningWorkflowOrchestrator {
 
     const deliverable = await this.generateExecutionDeliverable(state)
 
-    const cleanedLog = state.conversationLog.concat(`Sistema: ${deliverable}`)
+    const updatedLog = state.conversationLog.concat(`Sistema: ${deliverable}`)
 
+    // Complete execution but keep conversation context alive
     return {
       ...state,
-      phase: 'intencao',
-      readyForExecution: false,
-      confirmed: false,
+      phase: 'execucao',
+      readyForExecution: true,
+      confirmed: true,
       awaitingUser: false,
       responseMessage: deliverable,
       finalResponse: deliverable,
       executionPlan: deliverable,
-      intentionSummary: null,
-      rawIntention: null,
-      details: createEmptyConversationDetails(),
-      activeQuestion: null,
-      askedTopics: [],
-      conversationLog: cleanedLog,
+      conversationLog: updatedLog,
       nextStep: 'end'
     }
   }
@@ -482,7 +481,7 @@ export class PlanningWorkflowOrchestrator {
       return state.activeQuestion
     }
 
-    if (state.activeQuestion && state.activeQuestion.topic === 'confirmacao' && !state.readyForExecution) {
+    if (state.activeQuestion?.topic === 'confirmacao' && !state.readyForExecution) {
       return state.activeQuestion
     }
 
