@@ -143,8 +143,20 @@ export class PlanPersistence {
       viewColumn: vscode.ViewColumn.Beside
     })
   }
-}
 
-function isBackupName(id: string): boolean {
-  return id.toLowerCase().startsWith('backup')
+  /**
+   * Determines if a file matches the plan naming convention and excludes backups
+   */
+  private static isPlanFileName(name: string): boolean {
+    if (!name.startsWith('plan-') || !name.endsWith('.json')) {
+      return false
+    }
+
+    const planId = name.slice(5, -5)
+    if (!planId) {
+      return false
+    }
+
+    return !planId.toLowerCase().startsWith('backup')
+  }
 }
