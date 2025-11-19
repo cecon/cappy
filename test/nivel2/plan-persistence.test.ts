@@ -77,22 +77,14 @@ describe('PlanPersistence', () => {
         updatedAt: new Date().toISOString(),
         status: 'draft',
         version: 1
-        goal: 'Test',
-        context: { filesAnalyzed: [], patternsFound: [], dependencies: [], assumptions: [] },
-        steps: [],
-        clarifications: [],
-        risks: [],
-        successCriteria: [],
-        createdAt: '2025-01-01T00:00:00Z',
-        updatedAt: '2025-01-01T00:00:00Z',
-        status: 'draft',
-        version: 1
       }
+
+      const nextTimestamp = new Date(Date.now() + 1000).toISOString()
 
       const updated: DevelopmentPlan = {
         ...existingPlan,
         version: existingPlan.version + 1,
-        updatedAt: new Date().toISOString()
+        updatedAt: nextTimestamp
       }
 
       expect(updated.version).toBe(2)
@@ -133,9 +125,7 @@ describe('PlanPersistence', () => {
         }
       ]
 
-      const sorted = plans.sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
+      const sorted = plans.toSorted((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
       expect(sorted[0].id).toBe('plan-2')
       expect(sorted[1].id).toBe('plan-1')
@@ -172,7 +162,7 @@ describe('PlanPersistence', () => {
 
       expect(planFiles.length).toBe(2)
       expect(planFiles).toContain('plan-123.json')
-      expect(planFiles).not.toContain('plan-backup.json')
+      expect(planFiles).toContain('plan-456.json')
     })
   })
 })

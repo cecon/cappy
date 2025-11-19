@@ -152,6 +152,10 @@ export class ExtensionBootstrap {
           const conversationId = this.resolveConversationId(request);
 
           console.log('[ChatParticipant] Conversation ID:', conversationId);
+          console.log('[ChatParticipant] Request:', {
+            prompt: request.prompt.substring(0, 50) + '...',
+            command: request.command
+          });
 
           stream.progress('Processando fluxo guiado de tarefa...');
 
@@ -173,7 +177,9 @@ export class ExtensionBootstrap {
             phase: result?.phase,
             confirmed: result?.confirmed,
             readyForExecution: result?.readyForExecution,
-            awaitingUser: result?.awaitingUser
+            awaitingUser: result?.awaitingUser,
+            isContinuation: isContinuation,
+            conversationLogLength: result?.conversationLog?.length ?? 0
           });
 
           if (token.isCancellationRequested) {
@@ -391,30 +397,10 @@ export class ExtensionBootstrap {
     return parts.join('\n');
   }
 
-  private readonly conversationIdCache = new Map<string, string>();
-
-  private resolveConversationId(request: vscode.ChatRequest): string {
-    const inferred = request as unknown as {
-      conversation?: { id: string };
-      sessionId?: string;
-      requestId?: string;
-    };
-
-    // Try to get existing conversation ID
-    const directId = inferred.conversation?.id ?? inferred.sessionId ?? inferred.requestId;
-    
-    if (directId) {
-      return directId;
-    }
-
-    // Create stable conversation ID based on request context
-    const stableKey = `${request.command ?? 'chat'}_${this.getWorkspaceHash()}`;
-    
-    if (!this.conversationIdCache.has(stableKey)) {
-      this.conversationIdCache.set(stableKey, `conversation-${Date.now()}`);
-    }
-    
-    return this.conversationIdCache.get(stableKey)!;
+  private resolveConversationId(_request: vscode.ChatRequest): string {
+    // Always use the same conversation ID for this workspace to maintain context
+    const workspaceHash = this.getWorkspaceHash();
+    return `cappy-chat-${workspaceHash}`;
   }
 
   private getWorkspaceHash(): string {

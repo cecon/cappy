@@ -2,6 +2,15 @@ import { Annotation, END, START } from '@langchain/langgraph'
 
 export type PlanningPhase = 'intencao' | 'refinamento' | 'execucao'
 
+export type RouterIntent =
+  | 'smalltalk'
+  | 'cancelamento'
+  | 'intencao'
+  | 'refinamento'
+  | 'confirmacao'
+  | 'execucao'
+  | 'desconhecido'
+
 export type RefinementTopic =
   | 'escopo'
   | 'requisitos'
@@ -56,6 +65,10 @@ export const PlanningStateAnnotation = Annotation.Root({
     reducer: (_, right) => right ?? 'intencao',
     default: () => 'intencao'
   }),
+  routerIntent: Annotation<RouterIntent>({
+    reducer: (_, right) => right ?? 'desconhecido',
+    default: () => 'desconhecido'
+  }),
   intentionSummary: Annotation<string | null>({
     reducer: (_, right) => right ?? null,
     default: () => null
@@ -73,6 +86,10 @@ export const PlanningStateAnnotation = Annotation.Root({
     default: () => false
   }),
   readyForExecution: Annotation<boolean>({
+    reducer: (_, right) => right ?? false,
+    default: () => false
+  }),
+  prontoParaExecutar: Annotation<boolean>({
     reducer: (_, right) => right ?? false,
     default: () => false
   }),
@@ -128,6 +145,29 @@ export const PlanningStateAnnotation = Annotation.Root({
   finalResponse: Annotation<string | null>({
     reducer: (_, right) => right ?? null,
     default: () => null
+  }),
+  cancelled: Annotation<boolean>({
+    reducer: (_, right) => right ?? false,
+    default: () => false
+  }),
+  cancellationReason: Annotation<string | null>({
+    reducer: (_, right) => right ?? null,
+    default: () => null
+  }),
+  phaseHistory: Annotation<PlanningPhase[]>({
+    reducer: (left, right) => {
+      if (!right || right.length === 0) {
+        return left
+      }
+      const merged = [...left]
+      for (const phase of right) {
+        if (merged.at(-1) !== phase) {
+          merged.push(phase)
+        }
+      }
+      return merged
+    },
+    default: () => ['intencao']
   })
 })
 

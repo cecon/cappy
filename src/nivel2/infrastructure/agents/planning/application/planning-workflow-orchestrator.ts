@@ -7,12 +7,47 @@ import {
   WorkflowNodes,
   createEmptyConversationDetails,
   type PlanningPhase,
+  type RouterIntent,
   type ConversationDetails,
   type RefinementQuestion,
   type RefinementTopic
 } from './planning-state'
 
 const REFINEMENT_ORDER: RefinementTopic[] = ['escopo', 'requisitos', 'restricoes', 'tecnologias', 'preferencias', 'formato']
+const CANCEL_KEYWORDS = [
+  'desisti',
+  'parei',
+  'cancela',
+  'cancele',
+  'mudei de ideia',
+  'mudei de idéia',
+  'nao quero mais',
+  'não quero mais',
+  'esquece',
+  'deixa pra la',
+  'deixa pra lá',
+  'abandona',
+  'vamos abandonar',
+  'nao vale mais a pena',
+  'não vale mais a pena'
+]
+
+const ROUTER_CLASSIFICATION_PROMPT = (userMessage: string): string =>
+  [
+    'Classifique a mensagem do usuario em uma das categorias a seguir:',
+    '- smalltalk',
+    '- cancelamento',
+    '- intencao',
+    '- refinamento',
+    '- confirmacao',
+    '- execucao',
+    '',
+    'Responda APENAS com o nome da categoria.',
+    'Mensagem do usuario:',
+    '"""',
+    userMessage,
+    '"""'
+  ].join('\n')
 
 type WorkflowNodeName = (typeof WorkflowNodes)[keyof typeof WorkflowNodes]
 type PlanningGraphUpdate = Partial<PlanningGraphState>
@@ -57,22 +92,40 @@ export class PlanningWorkflowOrchestrator {
     // Get current state from LangGraph checkpointer
     const config = { configurable: { thread_id: threadId } }
     const currentState = await this.getCurrentState(config)
+
+    const sanitizedInput = this.sanitize(params.message)
+    
+    console.log('[PlanningOrchestrator] Session:', {
+      sessionId: params.sessionId,
+      threadId,
+      hasCurrentState: !!currentState,
+      currentPhase: currentState?.phase,
+      awaitingUser: currentState?.awaitingUser,
+      conversationLogLength: currentState?.conversationLog?.length ?? 0
+    });
     
     const isContinuation = Boolean(currentState?.awaitingUser)
     let initialState: PlanningGraphState
 
-    if (currentState?.awaitingUser) {
+        if (!currentState || this.shouldStartFreshConversation(currentState, sanitizedInput)) {
+          initialState = this.createInitialState(sanitizedInput)
+        } else if (currentState.awaitingUser) {
       // Continue existing conversation
-      initialState = this.createContinuationState(currentState, params.message)
-    } else if (this.isNewTaskRequest(params.message) || !currentState) {
-      // Start new conversation or reset if needed
-      initialState = this.createInitialState(params.message)
+          initialState = this.createContinuationState(currentState, sanitizedInput)
     } else {
       // Continue non-awaiting state
       initialState = {
         ...currentState,
-        userInput: this.sanitize(params.message),
-        nextStep: 'router'
+            userInput: sanitizedInput,
+            userAnswer: null,
+            awaitingUser: false,
+            routerIntent: 'desconhecido',
+            cancelled: false,
+            cancellationReason: null,
+            nextStep: 'router',
+            conversationLog: sanitizedInput
+              ? currentState.conversationLog.concat(`Usuario: ${sanitizedInput}`)
+              : currentState.conversationLog
       }
     }
 
@@ -140,6 +193,8 @@ export class PlanningWorkflowOrchestrator {
       details: createEmptyConversationDetails(),
       confirmed: false,
       readyForExecution: false,
+      prontoParaExecutar: false,
+      routerIntent: 'desconhecido',
       awaitingUser: false,
       userInput: sanitized,
       userAnswer: null,
@@ -149,7 +204,10 @@ export class PlanningWorkflowOrchestrator {
       askedTopics: [],
       conversationLog: sanitized ? [`Usuario: ${sanitized}`] : [],
       executionPlan: null,
-      finalResponse: null
+      finalResponse: null,
+      cancelled: false,
+      cancellationReason: null,
+      phaseHistory: ['intencao']
     }
   }
 
@@ -165,6 +223,9 @@ export class PlanningWorkflowOrchestrator {
       userAnswer: sanitized,
       awaitingUser: false,
       responseMessage: null,
+      routerIntent: 'desconhecido',
+      cancelled: false,
+      cancellationReason: null,
       nextStep: 'router',
       conversationLog: sanitized
         ? previousState.conversationLog.concat(`Usuario: ${sanitized}`)
@@ -182,63 +243,27 @@ export class PlanningWorkflowOrchestrator {
       }
     }
 
-    if (state.userAnswer && this.isNewTaskRequest(state.userAnswer)) {
-      const resetState = this.createInitialState(state.userAnswer)
+    const latestMessage = state.userAnswer ?? state.userInput
+
+    if (!latestMessage) {
       return {
-        ...resetState,
-        conversationLog: resetState.conversationLog.concat('Sistema: Claro! Vamos comecar uma nova tarefa.'),
-        responseMessage: 'Claro! Vamos comecar uma nova tarefa. Qual e sua solicitacao?',
-        awaitingUser: true,
+        ...state,
         nextStep: 'end'
       }
     }
 
-    if (!state.intentionSummary) {
-      if (this.isSmallTalk(state.userInput)) {
-        const response = this.buildSmallTalkResponse(state.userInput)
-        return {
-          ...state,
-          responseMessage: response,
-          conversationLog: state.conversationLog.concat(`Sistema: ${response}`),
-          awaitingUser: false,
-          nextStep: 'end'
-        }
-      }
-
-      return {
-        ...state,
-        phase: 'intencao',
-        nextStep: 'intencao'
-      }
+    const shortcutResult = this.handleRouterShortcuts(state, latestMessage)
+    if (shortcutResult) {
+      return shortcutResult
     }
 
-    if (state.phase === 'intencao' && state.userAnswer && !state.confirmed) {
-      return {
-        ...state,
-        nextStep: 'intencao'
-      }
-    }
-
-    if (state.phase === 'refinamento') {
-      if (!state.readyForExecution) {
-        return {
-          ...state,
-          nextStep: 'refinamento'
-        }
-      }
-    }
-
-    if (state.phase === 'execucao' || (state.readyForExecution && state.confirmed)) {
-      return {
-        ...state,
-        nextStep: 'execucao'
-      }
-    }
-
-    return {
+    const routerIntent = await this.classifyRouterIntent(latestMessage)
+    const baseState = {
       ...state,
-      nextStep: 'end'
+      routerIntent
     }
+
+    return this.routeByIntent(baseState, routerIntent, latestMessage)
   }
 
   private async intentionNode(state: PlanningGraphState): Promise<PlanningGraphState> {
@@ -263,9 +288,9 @@ export class PlanningWorkflowOrchestrator {
 
     if (userAnswer && this.isAffirmative(userAnswer)) {
       const response = 'Perfeito! Vamos refinar os detalhes antes de comecar.'
+      const phased = this.applyPhase(state, 'refinamento')
       return {
-        ...state,
-        phase: 'refinamento',
+        ...phased,
         confirmed: true,
         awaitingUser: false,
         responseMessage: response,
@@ -308,6 +333,7 @@ export class PlanningWorkflowOrchestrator {
       const response = 'Otimo! Vou executar o plano com base nessas informacoes.'
       return {
         ...workingState,
+        prontoParaExecutar: true,
         responseMessage: response,
         conversationLog: workingState.conversationLog.concat(`Sistema: ${response}`),
         awaitingUser: false,
@@ -352,11 +378,13 @@ export class PlanningWorkflowOrchestrator {
 
     const updatedLog = state.conversationLog.concat(`Sistema: ${deliverable}`)
 
+    const phased = this.applyPhase(state, 'execucao')
+
     // Complete execution but keep conversation context alive
     return {
-      ...state,
-      phase: 'execucao',
+      ...phased,
       readyForExecution: true,
+      prontoParaExecutar: true,
       confirmed: true,
       awaitingUser: false,
       responseMessage: deliverable,
@@ -398,6 +426,7 @@ export class PlanningWorkflowOrchestrator {
 
     let phase: PlanningPhase = state.phase
     let readyForExecution = state.readyForExecution
+    let prontoParaExecutar = state.prontoParaExecutar
     let responseMessage: string | null = null
     let nextQuestionOverride: RefinementQuestion | null = null
     let askedTopics = state.askedTopics
@@ -431,6 +460,7 @@ export class PlanningWorkflowOrchestrator {
           if (this.isAffirmative(answer)) {
             phase = 'execucao'
             readyForExecution = true
+            prontoParaExecutar = true
             responseMessage = 'Perfeito! Vou preparar o plano de execucao.'
           } else if (this.isNegative(answer)) {
             const followUp = 'Entendido. Qual detalhe ainda precisamos ajustar?'
@@ -440,6 +470,8 @@ export class PlanningWorkflowOrchestrator {
               prompt: followUp
             }
             responseMessage = followUp
+            readyForExecution = false
+            prontoParaExecutar = false
           } else {
             const clarification = 'Preciso de um "sim" ou "nao" para saber se posso executar. Podemos seguir?'
             nextQuestionOverride = {
@@ -448,6 +480,8 @@ export class PlanningWorkflowOrchestrator {
               prompt: clarification
             }
             responseMessage = clarification
+            readyForExecution = false
+            prontoParaExecutar = false
           }
           break
         default:
@@ -456,6 +490,7 @@ export class PlanningWorkflowOrchestrator {
     } else if (this.isAffirmative(answer) && state.askedTopics.length >= 3) {
       phase = 'execucao'
       readyForExecution = true
+      prontoParaExecutar = true
       responseMessage = 'Otimo! Vou executar com base no que coletamos.'
     }
 
@@ -463,17 +498,27 @@ export class PlanningWorkflowOrchestrator {
       ? state.conversationLog.concat(`Usuario: ${answer}`)
       : state.conversationLog
 
-    return {
+    const updatedState = {
       ...state,
       phase,
       details: updatedDetails,
       readyForExecution,
+      prontoParaExecutar,
       responseMessage: responseMessage ?? state.responseMessage,
       activeQuestion: nextQuestionOverride,
       askedTopics,
       conversationLog,
       userAnswer: null
     }
+
+    if (phase !== state.phase) {
+      return {
+        ...updatedState,
+        phaseHistory: [phase]
+      }
+    }
+
+    return updatedState
   }
 
   private selectNextQuestion(state: PlanningGraphState): RefinementQuestion | null {
@@ -633,6 +678,8 @@ export class PlanningWorkflowOrchestrator {
       details: createEmptyConversationDetails(),
       confirmed: false,
       readyForExecution: false,
+      prontoParaExecutar: false,
+      routerIntent: 'desconhecido',
       awaitingUser: false,
       userInput: '',
       userAnswer: null,
@@ -642,7 +689,153 @@ export class PlanningWorkflowOrchestrator {
       askedTopics: [],
       conversationLog: newLog,
       executionPlan: null,
-      finalResponse: null
+      finalResponse: null,
+      cancelled: false,
+      cancellationReason: null,
+      phaseHistory: ['intencao']
+    }
+  }
+
+  private shouldStartFreshConversation(state: PlanningGraphState | null, message: string): boolean {
+    if (!state) {
+      return true
+    }
+
+    if (this.isNewTaskRequest(message)) {
+      return true
+    }
+
+    if (state.cancelled) {
+      return true
+    }
+
+    return false
+  }
+
+  private applyPhase(state: PlanningGraphState, phase: PlanningPhase): PlanningGraphState {
+    if (state.phase === phase) {
+      return state
+    }
+
+    return {
+      ...state,
+      phase,
+      phaseHistory: [phase]
+    }
+  }
+
+  private handleRouterShortcuts(state: PlanningGraphState, latestMessage: string): PlanningGraphState | null {
+    if (this.isNewTaskRequest(latestMessage)) {
+      const resetState = this.createInitialState(latestMessage)
+      return {
+        ...resetState,
+        conversationLog: resetState.conversationLog.concat('Sistema: Claro! Vamos comecar uma nova tarefa.'),
+        responseMessage: 'Claro! Vamos comecar uma nova tarefa. Qual e sua solicitacao?',
+        awaitingUser: true,
+        nextStep: 'end'
+      }
+    }
+
+    if (this.detectCancellation(latestMessage)) {
+      return this.handleCancellation(state, latestMessage)
+    }
+
+    if (!state.intentionSummary && this.isSmallTalk(latestMessage)) {
+      const response = this.buildSmallTalkResponse(latestMessage)
+      return {
+        ...state,
+        routerIntent: 'smalltalk',
+        responseMessage: response,
+        conversationLog: state.conversationLog.concat(`Sistema: ${response}`),
+        awaitingUser: false,
+        nextStep: 'end'
+      }
+    }
+
+    return null
+  }
+
+  private routeByIntent(state: PlanningGraphState, intent: RouterIntent, latestMessage: string): PlanningGraphState {
+    switch (intent) {
+      case 'smalltalk': {
+        const response = this.buildSmallTalkResponse(latestMessage)
+        return {
+          ...state,
+          responseMessage: response,
+          conversationLog: state.conversationLog.concat(`Sistema: ${response}`),
+          awaitingUser: false,
+          nextStep: 'end'
+        }
+      }
+      case 'cancelamento':
+        return this.handleCancellation(state, latestMessage)
+      case 'intencao': {
+        const phased = this.applyPhase(state, 'intencao')
+        return {
+          ...phased,
+          nextStep: 'intencao'
+        }
+      }
+      case 'refinamento':
+      case 'confirmacao': {
+        if (!state.intentionSummary) {
+          return this.routeFallback(state)
+        }
+        const phased = this.applyPhase(state, 'refinamento')
+        return {
+          ...phased,
+          nextStep: 'refinamento'
+        }
+      }
+      case 'execucao': {
+        if (state.readyForExecution || state.prontoParaExecutar) {
+          const phased = this.applyPhase(state, 'execucao')
+          return {
+            ...phased,
+            nextStep: 'execucao'
+          }
+        }
+        return this.routeFallback(state)
+      }
+      default:
+        return this.routeFallback(state)
+    }
+  }
+
+  private routeFallback(state: PlanningGraphState): PlanningGraphState {
+    if (!state.intentionSummary) {
+      const phased = this.applyPhase(state, 'intencao')
+      return {
+        ...phased,
+        nextStep: 'intencao'
+      }
+    }
+
+    if (state.phase === 'intencao' && state.userAnswer && !state.confirmed) {
+      return {
+        ...state,
+        nextStep: 'intencao'
+      }
+    }
+
+    if (state.phase === 'refinamento' && !state.readyForExecution) {
+      return {
+        ...state,
+        nextStep: 'refinamento'
+      }
+    }
+
+    if (state.phase === 'execucao' || (state.readyForExecution && state.confirmed)) {
+      const phased = this.applyPhase(state, 'execucao')
+      return {
+        ...phased,
+        nextStep: 'execucao'
+      }
+    }
+
+    return {
+      ...state,
+      nextStep: 'end'
     }
   }
 
@@ -663,24 +856,77 @@ export class PlanningWorkflowOrchestrator {
     return value.trim()
   }
 
-  private isSmallTalk(message: string): boolean {
+  private stripAccents(value: string): string {
+    return value.normalize('NFD').replaceAll(/[\u0300-\u036f]/g, '')
+  }
+
+  private detectCancellation(message: string | null | undefined): boolean {
+    if (!message) {
+      return false
+    }
+
     const normalized = message.toLowerCase()
-    const greetings = ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e ai', 'hey']
-    return greetings.some((greeting) => normalized.startsWith(greeting))
+    return CANCEL_KEYWORDS.some((keyword) => normalized.includes(keyword))
+  }
+
+  private async classifyRouterIntent(message: string): Promise<RouterIntent> {
+    const prompt = ROUTER_CLASSIFICATION_PROMPT(message)
+    const rawResult = await this.deps.languageModel.complete(prompt, {
+      justification: 'Classificando a intencao do usuario'
+    })
+
+    return this.normalizeRouterIntent(rawResult)
+  }
+
+  private normalizeRouterIntent(result: string): RouterIntent {
+    const normalized = this.stripAccents(result).trim().toLowerCase()
+
+    const allowed: RouterIntent[] = ['smalltalk', 'cancelamento', 'intencao', 'refinamento', 'confirmacao', 'execucao']
+    if (allowed.includes(normalized as RouterIntent)) {
+      return normalized as RouterIntent
+    }
+
+    return 'desconhecido'
+  }
+
+  private handleCancellation(state: PlanningGraphState, reason: string): PlanningGraphState {
+    const response = 'Tudo bem, cancelo a tarefa atual. Quando quiser iniciar outra, e so me chamar.'
+    const baseState = this.resetForNewConversation(state, response)
+
+    return {
+      ...baseState,
+      cancelled: true,
+      cancellationReason: reason,
+      routerIntent: 'cancelamento',
+      nextStep: 'end',
+      awaitingUser: false
+    }
+  }
+
+  private isSmallTalk(message: string): boolean {
+    const normalized = message.toLowerCase().trim()
+    const greetings = ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'e ai', 'hey', 'qual meu nome', 'meu nome é', 'meu nome e']
+    return greetings.some((greeting) => normalized.includes(greeting) && normalized.length < 50)
   }
 
   private buildSmallTalkResponse(message: string): string {
     const normalized = message.toLowerCase()
+    if (normalized.includes('meu nome')) {
+      return 'Olá! Você me disse que seu nome é cecon. Como posso ajudá-lo hoje?'
+    }
+    if (normalized.includes('qual meu nome')) {
+      return 'Seu nome é cecon. Em que posso ajudá-lo?'
+    }
     if (normalized.includes('bom dia')) {
-      return 'Bom dia! Como posso ajudar hoje?'
+      return 'Bom dia, cecon! Como posso ajudar hoje?'
     }
     if (normalized.includes('boa tarde')) {
-      return 'Boa tarde! Em que posso colaborar?'
+      return 'Boa tarde, cecon! Em que posso colaborar?'
     }
     if (normalized.includes('boa noite')) {
-      return 'Boa noite! Vamos trabalhar em alguma tarefa?'
+      return 'Boa noite, cecon! Vamos trabalhar em alguma tarefa?'
     }
-    return 'Ola! Pronto para ajudar. Qual tarefa voce quer abordar?'
+    return 'Olá, cecon! Pronto para ajudar. Qual tarefa você quer abordar?'
   }
 
   private isAffirmative(message: string): boolean {
