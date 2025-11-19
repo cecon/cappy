@@ -85,7 +85,7 @@ export class PlanPersistence {
     try {
       const entries = await vscode.workspace.fs.readDirectory(plansDirUri)
       const planIds = entries
-        .filter(([name]) => name.startsWith('plan-') && name.endsWith('.json'))
+        .filter(([name]) => this.isPlanFileName(name))
         .map(([name]) => name.replace('plan-', '').replace('.json', ''))
       
       const plans: DevelopmentPlan[] = []
@@ -143,4 +143,8 @@ export class PlanPersistence {
       viewColumn: vscode.ViewColumn.Beside
     })
   }
+}
+
+function isBackupName(id: string): boolean {
+  return id.toLowerCase().startsWith('backup')
 }
