@@ -129,7 +129,23 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _token: vscode.CancellationToken
   ): Promise<vscode.LanguageModelToolResult> {
+    // Validate input exists
+    if (!options.input) {
+      console.error('[ContextRetrievalTool] Missing input parameters');
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart('❌ Error: Missing tool parameters. Please provide a "query" parameter.')
+      ]);
+    }
+
     const { query, maxResults, minScore, sources, category, includeRelated } = options.input;
+
+    // Validate required query parameter
+    if (!query) {
+      console.error('[ContextRetrievalTool] Missing required "query" parameter');
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart('❌ Error: Missing required "query" parameter. Example: {"query": "authentication patterns"}')
+      ]);
+    }
 
     console.log(`[ContextRetrievalTool] ═══════════════════════════════════════════════`);
     console.log(`[ContextRetrievalTool] INVOKE CALLED`);
@@ -267,7 +283,22 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _token: vscode.CancellationToken
   ): Promise<vscode.PreparedToolInvocation> {
+    // Validate input exists
+    if (!options.input) {
+      return {
+        invocationMessage: 'Error: Missing tool parameters',
+      };
+    }
+
     const { query, sources } = options.input;
+    
+    // Validate required query parameter
+    if (!query) {
+      return {
+        invocationMessage: 'Error: Missing required "query" parameter',
+      };
+    }
+
     const sourcesText = sources?.join(', ') || 'all sources';
     
     return {

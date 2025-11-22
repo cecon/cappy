@@ -17,9 +17,8 @@ import type { GraphCleanupService } from '../../../../nivel2/infrastructure/serv
 import type { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
 import type { HybridRetriever } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 import type { GraphPanel } from '../dashboard/GraphPanel';
-import { MultiAgentPlanningSystem } from '../../../../nivel2/infrastructure/agents/planning/multi-agent-system';
-
-type PlanningTurnResult = Awaited<ReturnType<MultiAgentPlanningSystem['runSessionTurn']>>['result'];
+import { IntelligentAgent } from '../../../../nivel2/infrastructure/agents';
+import type { PlanningTurnResult } from '../../../../nivel2/infrastructure/agents/common/types';
 
 /**
  * Main extension state (internal - mutable)
@@ -74,7 +73,7 @@ export class ExtensionBootstrap {
     hybridRetriever: null,
     graphPanel: null
   };
-  private readonly planningAgent = new MultiAgentPlanningSystem();
+  private readonly planningAgent = new IntelligentAgent();
 
   /**
    * Activates the extension
@@ -125,7 +124,7 @@ export class ExtensionBootstrap {
   private async registerChatParticipant(context: vscode.ExtensionContext): Promise<void> {
     console.log('🤖 Registering @cappy chat participant...');
 
-    // Initialize the MultiAgentPlanningSystem
+    // Initialize the IntelligentAgent
     await this.planningAgent.initialize();
 
     const participant = vscode.chat.createChatParticipant(
@@ -139,14 +138,32 @@ export class ExtensionBootstrap {
         try {
           console.log('[ChatParticipant] ========================================');
           console.log('[ChatParticipant] RECEIVED REQUEST:', request.prompt);
-          console.log('[ChatParticipant] Executing MultiAgentPlanningSystem...');
+          console.log('[ChatParticipant] Executing IntelligentAgent...');
           console.log('[ChatParticipant] ========================================');
 
           stream.progress('🤖 Iniciando sistema multi-agente...');
 
-          // Set progress callback to update chat UI
-          this.planningAgent.setProgressCallback((message) => {
-            stream.progress(message);
+          // Set progress callback to update chat UI with rich agent information
+          this.planningAgent.setProgressCallback((message: string | import('../../../../nivel2/infrastructure/agents/types/progress-events').AgentProgressEvent) => {
+            if (typeof message === 'string') {
+              stream.progress(message);
+            } else {
+              // Format AgentProgressEvent for better visibility
+              const icon = this.getAgentIcon(message.agent, message.status);
+              const formattedMessage = `${icon} **${this.getAgentName(message.agent)}**: ${message.message}`;
+              stream.progress(formattedMessage);
+              
+              // If there are details, show them
+              if (message.details && Object.keys(message.details).length > 0) {
+                const detailsStr = Object.entries(message.details)
+                  .filter(([_, value]) => value !== undefined)
+                  .map(([key, value]) => `${key}: ${value}`)
+                  .join(', ');
+                if (detailsStr) {
+                  stream.progress(`  ↳ ${detailsStr}`);
+                }
+              }
+            }
           });
 
           const conversationId = this.resolveConversationId();
@@ -325,6 +342,42 @@ export class ExtensionBootstrap {
   }
 
   /**
+   * Gets icon for agent and status combination
+   */
+  private getAgentIcon(agent: string, status: string): string {
+    const icons: Record<string, Record<string, string>> = {
+      intention: { started: '🎯', thinking: '🤔', completed: '✅', failed: '❌' },
+      researcher: { started: '🔬', searching: '🔍', analyzing: '📊', thinking: '💭', completed: '✅', failed: '❌' },
+      summarizer: { started: '📝', thinking: '💡', completed: '✅', failed: '❌' },
+      debater: { started: '💬', thinking: '🤔', analyzing: '⚖️', completed: '✅', failed: '❌' },
+      planner: { started: '📋', thinking: '🧠', completed: '✅', failed: '❌' },
+      critic: { started: '👁️', thinking: '🔍', analyzing: '📐', completed: '✅', failed: '❌' },
+      refiner: { started: '✨', thinking: '🔧', completed: '✅', failed: '❌' },
+      executor: { started: '⚡', thinking: '🛠️', completed: '✅', failed: '❌' }
+    };
+
+    return icons[agent]?.[status] || '🤖';
+  }
+
+  /**
+   * Gets human-readable agent name
+   */
+  private getAgentName(agent: string): string {
+    const names: Record<string, string> = {
+      intention: 'Analisador de Intenção',
+      researcher: 'Pesquisador',
+      summarizer: 'Resumidor',
+      debater: 'Debatedor',
+      planner: 'Planejador',
+      critic: 'Crítico',
+      refiner: 'Refinador',
+      executor: 'Executor'
+    };
+
+    return names[agent] || agent;
+  }
+
+  /**
    * Gets the current extension state
    */
   getState(): Readonly<ExtensionState> {
@@ -335,71 +388,15 @@ export class ExtensionBootstrap {
     // Para smalltalk puro, não mostrar o cabeçalho de "Fluxo Guiado"
     const isSmallTalk = result.routerIntent === 'smalltalk' && !result.intentionSummary;
     
-    if (!isSmallTalk) {
-      const phaseDescription = this.describePhase(result.phase);
-      const statusLines = [
-        `- Confirmacao do usuario: ${result.confirmed ? 'sim' : 'nao'}`,
-        `- Pronto para execucao: ${result.readyForExecution ? 'sim' : 'nao'}`,
-        `- Aguardando resposta: ${result.awaitingUser ? 'sim' : 'nao'}`
-      ].join('\n');
-
-      stream.markdown(`# Fluxo Guiado de Tarefas\n\n**Fase atual**: ${phaseDescription}\n\n${statusLines}\n`);
-
-      const detailsSummary = this.summarizeDetails(result);
-      if (detailsSummary) {
-        stream.markdown(`\n**Detalhes coletados ate agora:**\n${detailsSummary}\n`);
-      }
-    }
-
     if (result.finalResponse) {
-      stream.markdown(`\n${result.finalResponse}\n`);
+      stream.markdown(`${result.finalResponse}`);
     } else if (result.responseMessage) {
-      stream.markdown(`\n${result.responseMessage}\n`);
+      stream.markdown(`${result.responseMessage}`);
     } else if (result.awaitingUser) {
-      stream.markdown('\nEstou aguardando sua resposta para continuar.\n');
+      stream.markdown('Estou aguardando sua resposta para continuar.');
     } else if (!isSmallTalk) {
-      stream.markdown('\nSem mensagem adicional nesta etapa.\n');
+      stream.markdown('Sem mensagem adicional nesta etapa.');
     }
-  }
-
-  private describePhase(phase: PlanningTurnResult['phase']): string {
-    switch (phase) {
-      case 'intencao':
-        return 'Intencao';
-      case 'refinamento':
-        return 'Refinamento';
-      case 'execucao':
-        return 'Execucao';
-      default:
-        return 'Desconhecida';
-    }
-  }
-
-  private summarizeDetails(result: PlanningTurnResult): string {
-    const parts: string[] = [];
-    const details = result.details;
-
-    if (!details) {
-      return '';
-    }
-
-    const pushList = (label: string, values: string[]) => {
-      if (values.length > 0) {
-        parts.push(`- ${label}: ${values.join('; ')}`);
-      }
-    };
-
-    pushList('Escopo', details.escopo);
-    pushList('Requisitos', details.requisitos);
-    pushList('Restricoes', details.restricoes);
-    pushList('Tecnologias', details.tecnologias);
-    pushList('Preferencias', details.preferencias);
-
-    if (details.formato) {
-      parts.push(`- Formato desejado: ${details.formato}`);
-    }
-
-    return parts.join('\n');
   }
 
   private resolveConversationId(): string {

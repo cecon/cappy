@@ -306,6 +306,110 @@
             "query"
           ]
         }
+      },
+      {
+        "name": "cappy_workspace_search",
+        "displayName": "Workspace Search",
+        "modelDescription": "Search for files in the workspace by glob pattern. Use this to find files matching specific patterns (e.g., '*.test.ts', 'src/**/*.tsx').",
+        "userDescription": "Search for files by pattern",
+        "tags": ["search", "files", "workspace"],
+        "icon": "$(search)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "Glob pattern to match files (e.g., '*.ts', 'src/**/*.test.ts')"
+            },
+            "includeFolders": {
+              "type": "boolean",
+              "description": "Include folders in results (default: false)"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results (default: 100)"
+            }
+          },
+          "required": ["pattern"]
+        }
+      },
+      {
+        "name": "cappy_grep_search",
+        "displayName": "Grep Search",
+        "modelDescription": "Search for text content in workspace files using regex or plain text. Use this to find specific code patterns, function names, or text strings.",
+        "userDescription": "Search file contents",
+        "tags": ["search", "grep", "content"],
+        "icon": "$(search)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Text or regex pattern to search for"
+            },
+            "isRegex": {
+              "type": "boolean",
+              "description": "Whether the query is a regex pattern (default: false)"
+            },
+            "includePattern": {
+              "type": "string",
+              "description": "Glob pattern for files to include (e.g., '*.ts')"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results (default: 100)"
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "cappy_symbol_search",
+        "displayName": "Symbol Search",
+        "modelDescription": "Search for code symbols (classes, functions, interfaces, etc.) in the workspace. Use this to find specific definitions or implementations.",
+        "userDescription": "Search for code symbols",
+        "tags": ["search", "symbols", "code"],
+        "icon": "$(symbol-class)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Symbol name to search for (e.g., 'MyClass', 'calculateTotal')"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results (default: 50)"
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "cappy_read_file",
+        "displayName": "Read File",
+        "modelDescription": "Read the contents of a file in the workspace. Use this after finding files to understand their implementation.",
+        "userDescription": "Read file contents",
+        "tags": ["read", "file", "content"],
+        "icon": "$(file-code)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "type": "string",
+              "description": "Absolute or relative path to the file"
+            },
+            "startLine": {
+              "type": "number",
+              "description": "Starting line number (1-indexed, optional)"
+            },
+            "endLine": {
+              "type": "number",
+              "description": "Ending line number (1-indexed, optional)"
+            }
+          },
+          "required": ["filePath"]
+        }
       }
     ]
   },
