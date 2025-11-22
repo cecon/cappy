@@ -38,7 +38,7 @@ export async function runRefinerAgent(
     });
     
     if (models.length === 0) {
-      return fallbackRefine(state);
+      throw new Error('[Refiner] No LLM models available');
     }
     
     const model = models[0];
@@ -66,17 +66,6 @@ export async function runRefinerAgent(
     };
   } catch (error) {
     console.error('Refiner LLM error:', error);
-    return fallbackRefine(state);
+    throw error;
   }
-}
-
-function fallbackRefine(state: RefinerState): RefinerState {
-  const suggestions = state.suggestions || [];
-  const refinedPlan = `${state.originalPlan || ''}\n\n## Melhorias Aplicadas\n${suggestions.map((s: string) => `- ${s}`).join('\n')}`;
-  
-  return {
-    ...state,
-    refinedPlan,
-    phase: 'execution'
-  };
 }

@@ -79,8 +79,7 @@ async function supervisorDecision(
     });
     
     if (models.length === 0) {
-      console.warn('[Supervisor] No LLM models available, using fallback');
-      return fallbackDecision(lastMessage, state);
+      throw new Error('[Supervisor] No LLM models available');
     }
     
     const model = models[0];
@@ -106,69 +105,21 @@ async function supervisorDecision(
     
     // Parse JSON response
     const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const decision = JSON.parse(jsonMatch[0]);
-      return {
-        action: 'call_agent',
-        agent: decision.agent || 'intention',
-        reasoning: decision.reasoning
-      };
+    if (!jsonMatch) {
+      throw new Error('[Supervisor] Could not parse LLM response');
     }
     
-    console.warn('[Supervisor] Could not parse LLM response, using fallback');
-    return fallbackDecision(lastMessage, state);
+    const decision = JSON.parse(jsonMatch[0]);
+    return {
+      action: 'call_agent',
+      agent: decision.agent || 'intention',
+      reasoning: decision.reasoning
+    };
     
   } catch (error) {
     console.error('[Supervisor] LLM call failed:', error);
-    return fallbackDecision(lastMessage, state);
+    throw error;
   }
-}
-
-/**
- * Fallback decision logic when LLM is unavailable
- */
-function fallbackDecision(message: string, state: SupervisorState): {
-  action: 'call_agent';
-  agent: string;
-  reasoning: string;
-} {
-  const lowerMessage = message.toLowerCase().trim();
-  
-  // Pure greetings/thanks/goodbye go to Brain
-  const isPureSmallTalk = /^(oi|olá|hey|hi|hello|bom dia|boa tarde|boa noite|obrigad|thanks|tchau|bye)\s*[!?.]*$/i;
-  if (isPureSmallTalk.test(lowerMessage)) {
-    return {
-      action: 'call_agent',
-      agent: 'brain',
-      reasoning: 'Pure smalltalk - Brain conversational mode (fallback)'
-    };
-  }
-  
-  // Development keywords → Intention
-  const isDevelopment = /\b(criar|desenvolver|implement|refatorar|analisar|criar|adicionar|modificar|corrigir|fix|build|create|develop|add|tool|feature|funcionalidade|classe|função)\b/i;
-  if (isDevelopment.test(lowerMessage)) {
-    return {
-      action: 'call_agent',
-      agent: 'intention',
-      reasoning: 'Development task detected - Starting with Intention (fallback)'
-    };
-  }
-  
-  // Default: if already in a phase, continue workflow
-  if (state.phase !== 'intention' && state.currentAgent) {
-    return {
-      action: 'call_agent',
-      agent: state.currentAgent,
-      reasoning: `Continuing workflow at phase: ${state.phase} (fallback)`
-    };
-  }
-  
-  // Default: start development workflow
-  return {
-    action: 'call_agent',
-    agent: 'intention',
-    reasoning: 'Default to Intention for task analysis (fallback)'
-  };
 }
 
 /**

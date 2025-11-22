@@ -83,7 +83,7 @@ export async function runDebaterAgent(
         'failed',
         'Modelo LLM não disponível'
       ));
-      return fallbackDebate(state);
+      throw new Error('[Debater] No LLM models available');
     }
     
     const model = models[0];
@@ -113,41 +113,40 @@ export async function runDebaterAgent(
     }
     
     const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      
+    if (!jsonMatch) {
       progressCallback?.(createProgressEvent(
         'debater',
-        'completed',
-        'Contribuição ao brainstorm concluída!',
-        { 
-          hasAlternatives: parsed.analysis?.alternatives?.length > 0,
-          prosCount: parsed.analysis?.pros?.length || 0,
-          consCount: parsed.analysis?.cons?.length || 0
-        }
+        'failed',
+        'Não foi possível parsear resposta do LLM'
       ));
-      
-      // Always proceed with contribution - no blocking
-      return {
-        ...state,
-        analysis: parsed.analysis,
-        recommendation: parsed.recommendation,
-        phase: 'planning',
-        awaitingUser: false,
-        metadata: {
-          ...state.metadata,
-          debaterContribution: parsed.contribution
-        }
-      };
+      throw new Error('[Debater] Could not parse LLM response');
     }
+    
+    const parsed = JSON.parse(jsonMatch[0]);
     
     progressCallback?.(createProgressEvent(
       'debater',
-      'failed',
-      'Não foi possível parsear resposta do LLM'
+      'completed',
+      'Contribuição ao brainstorm concluída!',
+      { 
+        hasAlternatives: parsed.analysis?.alternatives?.length > 0,
+        prosCount: parsed.analysis?.pros?.length || 0,
+        consCount: parsed.analysis?.cons?.length || 0
+      }
     ));
     
-    return fallbackDebate(state);
+    // Always proceed with contribution - no blocking
+    return {
+      ...state,
+      analysis: parsed.analysis,
+      recommendation: parsed.recommendation,
+      phase: 'planning',
+      awaitingUser: false,
+      metadata: {
+        ...state.metadata,
+        debaterContribution: parsed.contribution
+      }
+    };
   } catch (error) {
     console.error('Debater LLM error:', error);
     
@@ -157,20 +156,6 @@ export async function runDebaterAgent(
       `Erro no debate: ${error instanceof Error ? error.message : String(error)}`
     ));
     
-    return fallbackDebate(state);
+    throw error;
   }
-}
-
-function fallbackDebate(state: DebaterState): DebaterState {
-  const analysis = {
-    pros: ['Solução viável'],
-    cons: ['Requer validação']
-  };
-  
-  return {
-    ...state,
-    analysis,
-    recommendation: 'Prosseguir com implementação',
-    phase: 'planning'
-  };
 }

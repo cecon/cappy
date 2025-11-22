@@ -62,8 +62,8 @@ export async function runRefinementAgent(
     });
     
     if (models.length === 0) {
-      console.warn('[Refinement] No LLM available, using fallback');
-      return fallbackRefinement(state);
+      console.warn('[Refinement] No LLM available');
+      throw new Error('[Refinement] No LLM models available');
     }
     
     const model = models[0];
@@ -83,65 +83,32 @@ export async function runRefinementAgent(
     
     // Parse JSON
     const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const decision = JSON.parse(jsonMatch[0]);
-      
-      if (decision.hasEnoughDetail) {
-        return {
-          ...state,
-          requirements: [conversation],
-          questions: [],
-          awaitingUser: false,
-          phase: 'research'
-        };
-      } else {
-        return {
-          ...state,
-          requirements: [],
-          questions: [decision.question || 'Pode detalhar mais?'],
-          awaitingUser: true,
-          phase: 'refinement'
-        };
-      }
+    if (!jsonMatch) {
+      console.warn('[Refinement] Could not parse LLM response');
+      throw new Error('[Refinement] Could not parse LLM response');
     }
     
-    console.warn('[Refinement] Could not parse LLM response, using fallback');
-    return fallbackRefinement(state);
+    const decision = JSON.parse(jsonMatch[0]);
     
+    if (decision.hasEnoughDetail) {
+      return {
+        ...state,
+        requirements: [conversation],
+        questions: [],
+        awaitingUser: false,
+        phase: 'research'
+      };
+    } else {
+      return {
+        ...state,
+        requirements: [],
+        questions: [decision.question || 'Pode detalhar mais?'],
+        awaitingUser: true,
+        phase: 'refinement'
+      };
+    }
   } catch (error) {
     console.error('[Refinement] LLM call failed:', error);
-    return fallbackRefinement(state);
+    throw error;
   }
-}
-
-/**
- * Fallback when LLM unavailable
- */
-function fallbackRefinement(state: RefinementState): RefinementState {
-  const userMessages = state.messages
-    .filter(m => m.role === 'user')
-    .slice(-3)
-    .map(m => m.content)
-    .join(' ');
-  
-  const hasDevelopmentKeywords = /\b(criar|implementar|adicionar|modificar|ferramenta|feature|tool|função|classe|service|component|api|chat|interface|integrar|usar|colocar|novo|nova)\b/i.test(userMessages);
-  const hasContext = /\b(existe|código|projeto|workspace|arquivo|service|class|function|método)\b/i.test(userMessages);
-  
-  if (hasDevelopmentKeywords || hasContext) {
-    return {
-      ...state,
-      requirements: [userMessages],
-      questions: [],
-      awaitingUser: false,
-      phase: 'research'
-    };
-  }
-  
-  return {
-    ...state,
-    requirements: [],
-    questions: ['Pode detalhar mais o que precisa?'],
-    awaitingUser: true,
-    phase: 'refinement'
-  };
 }

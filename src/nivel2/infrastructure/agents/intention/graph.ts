@@ -44,7 +44,7 @@ export async function runIntentionAgent(
     });
     
     if (models.length === 0) {
-      return fallbackIntention(state, lastMessage);
+      throw new Error('[Intention] No LLM models available');
     }
     
     const model = models[0];
@@ -60,45 +60,22 @@ export async function runIntentionAgent(
     }
     
     const jsonMatch = fullText.match(/\{[^}]+\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      const intent = parsed.intent || 'unknown';
-      
-      return {
-        ...state,
-        userRequest: lastMessage,
-        intent: intent as IntentionState['intent'],
-        summary: undefined,
-        phase: 'refinement'
-      };
+    if (!jsonMatch) {
+      throw new Error('[Intention] Could not parse LLM response');
     }
     
-    return fallbackIntention(state, lastMessage);
+    const parsed = JSON.parse(jsonMatch[0]);
+    const intent = parsed.intent || 'unknown';
+    
+    return {
+      ...state,
+      userRequest: lastMessage,
+      intent: intent as IntentionState['intent'],
+      summary: undefined,
+      phase: 'refinement'
+    };
   } catch (error) {
     console.error('Intention LLM error:', error);
-    return fallbackIntention(state, lastMessage);
+    throw error;
   }
-}
-
-function fallbackIntention(state: IntentionState, lastMessage: string): IntentionState {
-  let intent: IntentionState['intent'] = 'unknown';
-  
-  const lowerMsg = lastMessage.toLowerCase();
-  if (lowerMsg.match(/\b(criar|implementar|adicionar|desenvolver|modificar|refatorar)\b/)) {
-    intent = 'task';
-  } else if (lastMessage.includes('?')) {
-    intent = 'question';
-  } else if (lowerMsg.match(/\b(oi|olá|ola|hey|hello)\b/)) {
-    intent = 'smalltalk';
-  } else {
-    intent = 'task';
-  }
-  
-  return {
-    ...state,
-    userRequest: lastMessage,
-    intent,
-    summary: undefined,
-    phase: 'refinement'
-  };
 }

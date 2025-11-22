@@ -46,7 +46,7 @@ export async function runSummarizerAgent(
         'failed',
         'Modelo LLM não disponível'
       ));
-      return fallbackSummary(state);
+      throw new Error('[Summarizer] No LLM models available');
     }
     
     const model = models[0];
@@ -91,17 +91,6 @@ export async function runSummarizerAgent(
       `Erro ao resumir: ${error instanceof Error ? error.message : String(error)}`
     ));
     
-    return fallbackSummary(state);
+    throw error;
   }
-}
-
-function fallbackSummary(state: SummarizerState): SummarizerState {
-  const findingsCount = state.findings?.length || 0;
-  const summary = `Identificados ${findingsCount} pontos relevantes no workspace.`;
-  
-  return {
-    ...state,
-    summary,
-    phase: 'debate'
-  };
 }

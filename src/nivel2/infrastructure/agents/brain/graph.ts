@@ -35,7 +35,7 @@ async function isConversational(message: string): Promise<boolean> {
     });
     
     if (models.length === 0) {
-      // Fallback: assume technical if not obvious greeting
+      // No LLM available - cannot classify
       return false;
     }
     
@@ -71,7 +71,7 @@ Respond with ONLY ONE WORD: "conversational" or "technical"`;
     return classification.toLowerCase().includes('conversational');
   } catch (error) {
     console.error('[Brain] Error classifying message:', error);
-    // Fallback: assume technical
+    // No LLM available - assume technical
     return false;
   }
 }

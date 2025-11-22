@@ -10,11 +10,6 @@ import type { BaseAgentState } from '../../../common/state';
  */
 export interface ConversationalState extends BaseAgentState {
   /**
-   * Type of conversation detected
-   */
-  conversationType?: 'greeting' | 'thanks' | 'goodbye' | 'question' | 'general';
-  
-  /**
    * Conversational response
    */
   response?: string;

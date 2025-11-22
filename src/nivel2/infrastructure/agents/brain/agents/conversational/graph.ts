@@ -72,8 +72,8 @@ export async function runConversationalAgent(
     });
     
     if (models.length === 0) {
-      console.warn('[Conversational] No LLM models available, using fallback');
-      return fallbackResponse(lastMessage, state);
+      console.warn('[Conversational] No LLM models available');
+      throw new Error('[Conversational] No LLM models available');
     }
     
     const model = models[0];
@@ -97,75 +97,14 @@ export async function runConversationalAgent(
       fullResponse += chunk;
     }
     
-    // Detect conversation type
-    const conversationType = detectConversationType(lastMessage);
-    
     return {
       ...state,
       response: fullResponse.trim(),
-      conversationType,
       phase: 'completed'
     };
     
   } catch (error) {
     console.error('[Conversational] LLM call failed:', error);
-    return fallbackResponse(lastMessage, state);
+    throw error;
   }
-}
-
-/**
- * Detect type of conversation
- */
-function detectConversationType(message: string): 'greeting' | 'thanks' | 'goodbye' | 'question' | 'general' {
-  const lowerMessage = message.toLowerCase().trim();
-  
-  if (/^(oi|olá|hey|hi|hello|bom dia|boa tarde|boa noite)/.test(lowerMessage)) {
-    return 'greeting';
-  }
-  
-  if (/obrigad|thanks|thank you|valeu/.test(lowerMessage)) {
-    return 'thanks';
-  }
-  
-  if (/tchau|bye|até|falou/.test(lowerMessage)) {
-    return 'goodbye';
-  }
-  
-  if (/\?|como|what|why|quem|qual|o que/.test(lowerMessage)) {
-    return 'question';
-  }
-  
-  return 'general';
-}
-
-/**
- * Fallback responses when LLM is unavailable
- */
-function fallbackResponse(message: string, state: ConversationalState): ConversationalState {
-  const conversationType = detectConversationType(message);
-  let response = '';
-  
-  switch (conversationType) {
-    case 'greeting':
-      response = 'Olá! No que vamos trabalhar hoje?';
-      break;
-    case 'thanks':
-      response = 'De nada! Próximo passo?';
-      break;
-    case 'goodbye':
-      response = 'Até logo! 👋';
-      break;
-    case 'question':
-      response = 'No que posso ajudar?';
-      break;
-    default:
-      response = 'Olá! No que vamos trabalhar hoje?';
-  }
-  
-  return {
-    ...state,
-    response,
-    conversationType,
-    phase: 'completed'
-  };
 }

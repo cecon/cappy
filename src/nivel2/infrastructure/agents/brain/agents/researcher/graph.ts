@@ -73,7 +73,7 @@ export async function runResearcherAgent(
         'failed',
         'Modelo LLM não disponível'
       ));
-      return fallbackResearch(state);
+      throw new Error('[Researcher] No LLM models available');
     }
     
     const model = models[0];
@@ -173,30 +173,29 @@ export async function runResearcherAgent(
     
     // Parse JSON findings
     const jsonMatch = fullText.match(/\[[^\]]+\]/);
-    if (jsonMatch) {
-      const findings = JSON.parse(jsonMatch[0]);
-      
+    if (!jsonMatch) {
       progressCallback?.(createProgressEvent(
         'researcher',
-        'completed',
-        'Pesquisa concluída!',
-        { findingsCount: findings.length }
+        'failed',
+        'Não foi possível parsear findings do LLM'
       ));
-      
-      return {
-        ...state,
-        findings,
-        phase: 'summarize'
-      };
+      throw new Error('[Researcher] Could not parse LLM findings');
     }
+    
+    const findings = JSON.parse(jsonMatch[0]);
     
     progressCallback?.(createProgressEvent(
       'researcher',
       'completed',
-      'Pesquisa concluída (sem findings estruturados)'
+      'Pesquisa concluída!',
+      { findingsCount: findings.length }
     ));
     
-    return fallbackResearch(state);
+    return {
+      ...state,
+      findings,
+      phase: 'summarize'
+    };
   } catch (error) {
     console.error('Researcher LLM error:', error);
     
@@ -206,22 +205,6 @@ export async function runResearcherAgent(
       `Erro na pesquisa: ${error instanceof Error ? error.message : String(error)}`
     ));
     
-    return fallbackResearch(state);
+    throw error;
   }
-}
-
-function fallbackResearch(state: ResearcherState): ResearcherState {
-  const findings = [
-    {
-      source: 'workspace',
-      content: 'Análise do workspace em andamento',
-      relevance: 0.7
-    }
-  ];
-  
-  return {
-    ...state,
-    findings,
-    phase: 'summarize'
-  };
 }

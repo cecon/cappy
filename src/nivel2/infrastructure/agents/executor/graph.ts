@@ -39,7 +39,7 @@ export async function runExecutorAgent(
     });
     
     if (models.length === 0) {
-      return fallbackExecute(state);
+      throw new Error('[Executor] No LLM models available');
     }
     
     const model = models[0];
@@ -57,32 +57,20 @@ export async function runExecutorAgent(
     }
     
     const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      return {
-        ...state,
-        executionResults: parsed.executionResults || [],
-        deliverables: parsed.deliverables || [],
-        phase: 'completed'
-      };
+    if (!jsonMatch) {
+      throw new Error('[Executor] Could not parse LLM response');
     }
     
-    return fallbackExecute(state);
+    const parsed = JSON.parse(jsonMatch[0]);
+    
+    return {
+      ...state,
+      executionResults: parsed.executionResults || [],
+      deliverables: parsed.deliverables || [],
+      phase: 'completed'
+    };
   } catch (error) {
     console.error('Executor LLM error:', error);
-    return fallbackExecute(state);
+    throw error;
   }
-}
-
-function fallbackExecute(state: ExecutionState): ExecutionState {
-  const executionResults = ['Plano analisado', 'Próximos passos identificados'];
-  const deliverables = ['Implementação planejada'];
-  
-  return {
-    ...state,
-    executionResults,
-    deliverables,
-    phase: 'completed'
-  };
 }

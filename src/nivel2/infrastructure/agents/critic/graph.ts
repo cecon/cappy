@@ -50,7 +50,7 @@ export async function runCriticAgent(
         'failed',
         'Modelo LLM não disponível'
       ));
-      return fallbackCritic(state);
+      throw new Error('[Critic] No LLM models available');
     }
     
     progressCallback?.(createProgressEvent(
@@ -74,44 +74,43 @@ export async function runCriticAgent(
     }
     
     const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      const approved = parsed.approved === true;
-      const issuesCount = (parsed.issues || []).length;
-      const suggestionsCount = (parsed.suggestions || []).length;
-      
-      if (approved) {
-        progressCallback?.(createProgressEvent(
-          'critic',
-          'completed',
-          'Plano aprovado!',
-          { approved: true, issuesCount, suggestionsCount }
-        ));
-      } else {
-        progressCallback?.(createProgressEvent(
-          'critic',
-          'completed',
-          'Plano precisa de melhorias',
-          { approved: false, issuesCount, suggestionsCount }
-        ));
-      }
-      
-      return {
-        ...state,
-        issues: parsed.issues || [],
-        suggestions: parsed.suggestions || [],
-        approved,
-        phase: approved ? 'execution' : 'refinement-plan'
-      };
+    if (!jsonMatch) {
+      progressCallback?.(createProgressEvent(
+        'critic',
+        'failed',
+        'Não foi possível parsear resposta do LLM'
+      ));
+      throw new Error('[Critic] Could not parse LLM response');
     }
     
-    progressCallback?.(createProgressEvent(
-      'critic',
-      'failed',
-      'Não foi possível parsear resposta do LLM'
-    ));
+    const parsed = JSON.parse(jsonMatch[0]);
+    const approved = parsed.approved === true;
+    const issuesCount = (parsed.issues || []).length;
+    const suggestionsCount = (parsed.suggestions || []).length;
     
-    return fallbackCritic(state);
+    if (approved) {
+      progressCallback?.(createProgressEvent(
+        'critic',
+        'completed',
+        'Plano aprovado!',
+        { approved: true, issuesCount, suggestionsCount }
+      ));
+    } else {
+      progressCallback?.(createProgressEvent(
+        'critic',
+        'completed',
+        'Plano precisa de melhorias',
+        { approved: false, issuesCount, suggestionsCount }
+      ));
+    }
+    
+    return {
+      ...state,
+      issues: parsed.issues || [],
+      suggestions: parsed.suggestions || [],
+      approved,
+      phase: approved ? 'execution' : 'refinement-plan'
+    };
   } catch (error) {
     console.error('Critic LLM error:', error);
     
@@ -121,20 +120,6 @@ export async function runCriticAgent(
       `Erro na crítica: ${error instanceof Error ? error.message : String(error)}`
     ));
     
-    return fallbackCritic(state);
+    throw error;
   }
-}
-
-function fallbackCritic(state: CriticState): CriticState {
-  const issues: string[] = [];
-  const suggestions = ['Revisar implementação com cuidado'];
-  const approved = true;
-  
-  return {
-    ...state,
-    issues,
-    suggestions,
-    approved,
-    phase: 'execution'
-  };
 }

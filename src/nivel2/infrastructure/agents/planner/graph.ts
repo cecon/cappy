@@ -55,7 +55,7 @@ export async function runPlannerAgent(
         'failed',
         'Modelo LLM não disponível'
       ));
-      return fallbackPlan(state);
+      throw new Error('[Planner] No LLM models available');
     }
     
     progressCallback?.(createProgressEvent(
@@ -99,27 +99,6 @@ export async function runPlannerAgent(
       `Erro ao criar plano: ${error instanceof Error ? error.message : String(error)}`
     ));
     
-    return fallbackPlan(state);
+    throw error;
   }
-}
-
-function fallbackPlan(state: PlanningState): PlanningState {
-  const plan = `## Plano de Desenvolvimento
-
-### Fase 1: Análise
-- [ ] Revisar requisitos
-- [ ] Identificar componentes
-
-### Fase 2: Implementação
-- [ ] Criar estrutura base
-- [ ] Implementar funcionalidades
-
-### Fase 3: Validação
-- [ ] Testar implementação`;
-  
-  return {
-    ...state,
-    plan,
-    phase: 'critique'
-  };
 }
