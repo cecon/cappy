@@ -12,6 +12,7 @@ export type WebviewMessage = {
 export interface UseCaseContext {
   vscode: typeof import('vscode');
   panel: vscode.WebviewPanel | undefined;
+  extensionContext: vscode.ExtensionContext;
   log: (msg: string) => void;
   sendMessage: (message: Record<string, unknown>) => void;
   getIndexingService: () => unknown; // may be undefined at runtime

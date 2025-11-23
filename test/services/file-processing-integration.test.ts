@@ -11,11 +11,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { FileMetadataDatabase } from '@/nivel2/infrastructure/services/file-metadata-database';
-import { FileProcessingQueue } from '@/nivel2/infrastructure/services/file-processing-queue';
-import { FileProcessingWorker } from '@/nivel2/infrastructure/services/file-processing-worker';
-import { ParserService } from '@/nivel2/infrastructure/services/parser-service';
-import { FileHashService } from '@/nivel2/infrastructure/services/file-hash-service';
+import { FileMetadataDatabase } from '../../src/nivel2/infrastructure/services/file-metadata-database';
+import { FileProcessingQueue } from '../../src/nivel2/infrastructure/services/file-processing-queue';
+import { FileProcessingWorker } from '../../src/nivel2/infrastructure/services/file-processing-worker';
+import { ParserService } from '../../src/nivel2/infrastructure/services/parser-service';
+import { FileHashService } from '../../src/nivel2/infrastructure/services/file-hash-service';
 
 /**
  * Test workspace structure
@@ -145,58 +145,58 @@ export function createUserService(): UserService {
 }
 `;
 
+/**
+ * Creates a temporary test workspace
+ */
+function createTestWorkspace(): TestWorkspace {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cappy-test-'));
+  const dbPath = path.join(rootDir, 'metadata.db');
+  const testFilePath = path.join(rootDir, 'user-service.ts');
+
+  // Create test file
+  fs.writeFileSync(testFilePath, SAMPLE_TS_FILE, 'utf-8');
+
+  return { rootDir, dbPath, testFilePath };
+}
+
+/**
+ * Cleans up test workspace
+ */
+function cleanupTestWorkspace(workspace: TestWorkspace): void {
+  try {
+    if (fs.existsSync(workspace.rootDir)) {
+      fs.rmSync(workspace.rootDir, { recursive: true, force: true });
+    }
+  } catch (error) {
+    console.error('Failed to cleanup test workspace:', error);
+  }
+}
+
+/**
+ * Waits for a condition to be true or timeout
+ */
+async function waitFor(
+  condition: () => boolean | Promise<boolean>,
+  timeout: number = 30000,
+  interval: number = 500
+): Promise<void> {
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < timeout) {
+    const result = await condition();
+    if (result) {
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
+  
+  throw new Error(`Timeout waiting for condition after ${timeout}ms`);
+}
+
 describe('File Processing Integration Test (SQLite Only)', () => {
   let workspace: TestWorkspace;
   let database: FileMetadataDatabase;
   let queue: FileProcessingQueue;
-
-  /**
-   * Creates a temporary test workspace
-   */
-  function createTestWorkspace(): TestWorkspace {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cappy-test-'));
-    const dbPath = path.join(rootDir, 'metadata.db');
-    const testFilePath = path.join(rootDir, 'user-service.ts');
-
-    // Create test file
-    fs.writeFileSync(testFilePath, SAMPLE_TS_FILE, 'utf-8');
-
-    return { rootDir, dbPath, testFilePath };
-  }
-
-  /**
-   * Cleans up test workspace
-   */
-  function cleanupTestWorkspace(workspace: TestWorkspace): void {
-    try {
-      if (fs.existsSync(workspace.rootDir)) {
-        fs.rmSync(workspace.rootDir, { recursive: true, force: true });
-      }
-    } catch (error) {
-      console.error('Failed to cleanup test workspace:', error);
-    }
-  }
-
-  /**
-   * Waits for a condition to be true or timeout
-   */
-  async function waitFor(
-    condition: () => boolean | Promise<boolean>,
-    timeout: number = 30000,
-    interval: number = 500
-  ): Promise<void> {
-    const startTime = Date.now();
-    
-    while (Date.now() - startTime < timeout) {
-      const result = await condition();
-      if (result) {
-        return;
-      }
-      await new Promise(resolve => setTimeout(resolve, interval));
-    }
-    
-    throw new Error(`Timeout waiting for condition after ${timeout}ms`);
-  }
 
   beforeAll(() => {
     console.log('🚀 Starting file processing integration test (SQLite only)...');
@@ -282,7 +282,7 @@ describe('File Processing Integration Test (SQLite Only)', () => {
       }
     });
 
-    queue.on('file:complete', (metadata, result) => {
+    queue.on('file:complete', (_metadata, result) => {
       processingCompleted = true;
       console.log(`  ✅ Processing completed!`);
       console.log(`     - Chunks: ${result.chunksCount}`);
@@ -291,7 +291,7 @@ describe('File Processing Integration Test (SQLite Only)', () => {
       console.log(`     - Duration: ${result.duration}ms`);
     });
 
-    queue.on('file:failed', (metadata, error) => {
+    queue.on('file:failed', (_metadata, error) => {
       processingFailed = true;
       console.error(`  ❌ Processing failed: ${error.message}`);
     });
@@ -311,7 +311,11 @@ describe('File Processing Integration Test (SQLite Only)', () => {
     console.log(`  ✓ File hash: ${fileHash}`);
 
     // Verify file is in database (status can be 'pending' or 'processing' depending on timing)
-    const fileMetadata = database.getFile(fileId);
+    await waitFor(async () => {
+      const meta = await database.getFile(fileId);
+      return !!meta;
+    }, 2000, 100);
+    const fileMetadata = await database.getFile(fileId);
     expect(fileMetadata).toBeDefined();
     expect(['pending', 'processing']).toContain(fileMetadata?.status);
     console.log(`  ✓ File metadata saved with status: ${fileMetadata?.status}`);
@@ -328,8 +332,14 @@ describe('File Processing Integration Test (SQLite Only)', () => {
     expect(processingStarted).toBe(true);
     expect(processingCompleted).toBe(true);
 
+    // Wait for database to be fully updated with 100% progress
+    await waitFor(async () => {
+      const meta = await database.getFile(fileId);
+      return meta?.progress === 100;
+    }, 2000, 100);
+
     // Verify final status in database
-    const finalMetadata = database.getFile(fileId);
+  const finalMetadata = await database.getFile(fileId);
     expect(finalMetadata?.status).toBe('completed');
     expect(finalMetadata?.progress).toBe(100);
     expect(finalMetadata?.chunksCount).toBeGreaterThan(0);
@@ -341,7 +351,7 @@ describe('File Processing Integration Test (SQLite Only)', () => {
     // ============================================
     console.log('\n⚙️  Step 5: Verifying queue statistics...');
 
-    const stats = queue.getStats();
+  const stats = await queue.getStats();
     expect(stats.total).toBe(1);
     expect(stats.completed).toBe(1);
     expect(stats.pending).toBe(0);
@@ -385,7 +395,7 @@ describe('File Processing Integration Test (SQLite Only)', () => {
     const invalidPath = path.join(workspace.rootDir, 'non-existent.ts');
     
     let failureDetected = false;
-    queue.on('file:failed', (metadata, error) => {
+    queue.on('file:failed', (_metadata, error) => {
       failureDetected = true;
       console.log(`  ✓ Failure detected: ${error.message}`);
     });
@@ -400,7 +410,7 @@ describe('File Processing Integration Test (SQLite Only)', () => {
     // Wait for retries to complete
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    const finalMetadata = database.getFile(fileId);
+  const finalMetadata = await database.getFile(fileId);
     expect(finalMetadata?.status).toBe('failed');
     expect(finalMetadata?.retryCount).toBeGreaterThan(0);
     

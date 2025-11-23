@@ -84,8 +84,8 @@ export class ParserService {
           return [];
         }
       }
-    } catch (error) {
-      console.error(`❌ Parser service error for ${filePath}:`, error);
+    } catch {
+      // Silent error handling for graceful degradation
       return [];
     }
   }

@@ -45,6 +45,8 @@ Content to analyze:
 
 export class EntityDiscoveryService {
   private readonly llmProvider?: LLMProvider;
+  private lastRequestTime = 0;
+  private readonly minRequestInterval = 1000; // 1 second between requests
   
   constructor(llmProvider?: LLMProvider) {
     this.llmProvider = llmProvider;
@@ -66,6 +68,13 @@ export class EntityDiscoveryService {
     }
 
     try {
+      // Rate limiting: wait if necessary
+      const timeSinceLastRequest = Date.now() - this.lastRequestTime;
+      if (timeSinceLastRequest < this.minRequestInterval) {
+        await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
+      }
+      this.lastRequestTime = Date.now();
+
       const prompt = ENTITY_DISCOVERY_PROMPT.replace("{content}", content);
       const response = await this.llmProvider.generate(prompt);
       const parsed = this.parseJsonResponse(response);

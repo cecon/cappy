@@ -114,7 +114,7 @@ export class FileProcessingQueue extends EventEmitter {
       // ignore
     }
 
-    this.database.insertFile({
+    await this.database.insertFile({
       id: fileId,
       filePath,
       fileName,
@@ -170,7 +170,7 @@ export class FileProcessingQueue extends EventEmitter {
     // Create new entry with embedded content
     const fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
-    this.database.insertFile({
+    await this.database.insertFile({
       id: fileId,
       filePath: virtualPath,
       fileName,
@@ -359,7 +359,7 @@ export class FileProcessingQueue extends EventEmitter {
         }
       } catch { /* ignore */ }
 
-      this.database.updateFile(metadata.id, {
+      await this.database.updateFile(metadata.id, {
         status: 'processing',
         progress: 0,
         processingStartedAt: now,
@@ -397,7 +397,7 @@ export class FileProcessingQueue extends EventEmitter {
       console.log(`[Queue] ✅ Worker completed, updating database...`);
 
       // Update as completed (even with 0 chunks - file may not have JSDoc/documentation)
-      this.database.updateFile(metadata.id, {
+      await this.database.updateFile(metadata.id, {
         status: 'completed',
         progress: 100,
         currentStep: 'Completed',
@@ -431,7 +431,7 @@ export class FileProcessingQueue extends EventEmitter {
 
       if (newRetryCount < this.config.maxRetries) {
         // Mark as pending for retry
-        this.database.updateFile(metadata.id, {
+        await this.database.updateFile(metadata.id, {
           status: 'pending',
           retryCount: newRetryCount,
           errorMessage,

@@ -49,4 +49,22 @@ export interface ASTEntity extends ExtractedEntity {
 
   /** Original module for imported/re-exported entities */
   originalModule?: string;
+
+  /** Function parameters (flattened for convenience in tests) */
+  parameters?: Array<{ name: string; type?: string }>;
+
+  /** Function return type (flattened) */
+  returnType?: string;
+
+  /** Variable initial value description (flattened) */
+  initialValue?: string;
+
+  /** JSX props (flattened) */
+  props?: string[];
+
+  /** Import specifiers for package entities */
+  specifiers?: string[];
+
+  /** Lightweight relationships for assertions */
+  relationships?: Array<{ target: string; type: string }>;
 }

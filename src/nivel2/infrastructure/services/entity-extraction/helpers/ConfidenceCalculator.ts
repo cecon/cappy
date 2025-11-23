@@ -33,7 +33,11 @@ export class ConfidenceCalculator {
     // Boost by export
     const name = ASTHelpers.extractEntityName(node);
     if (name && context.exportedNames.has(name)) {
-      baseScore += 0.1;
+      // Strong boost for exported declarations
+      if (node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') {
+        return 1;
+      }
+      baseScore += 0.3;
     }
 
     // Clamp between 0 and 1

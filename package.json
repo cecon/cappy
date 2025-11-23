@@ -2,7 +2,7 @@
   "name": "cappy",
   "displayName": "Cappy",
   "description": "AI coding companion with Single-Focus Workflow, Hybrid Retriever, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
-  "version": "3.1.0",
+  "version": "3.1.2",
   "publisher": "eduardocecon",
   "icon": "src/assets/icon.png",
   "repository": {
@@ -37,10 +37,11 @@
     "hybrid-retriever",
     "language-model-tools"
   ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
   "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:*"
+  ],
   "capabilities": {
     "languageModel": {
       "enabled": true
@@ -59,14 +60,29 @@
         "category": "Cappy"
       },
       {
-        "command": "cappy.openChat",
-        "title": "💬 Cappy: Open Chat",
-        "category": "Cappy"
-      },
-      {
         "command": "cappy.scanWorkspace",
         "title": "🔍 Cappy: Scan Workspace",
         "category": "Cappy"
+      },
+      {
+        "command": "cappy.planning.newPlan",
+        "title": "📝 Cappy: Create Development Plan",
+        "category": "Cappy Planning"
+      },
+      {
+        "command": "cappy.planning.listPlans",
+        "title": "📋 Cappy: List All Plans",
+        "category": "Cappy Planning"
+      },
+      {
+        "command": "cappy.planning.openPlan",
+        "title": "📂 Cappy: Open Plan",
+        "category": "Cappy Planning"
+      },
+      {
+        "command": "cappy.planning.deletePlan",
+        "title": "🗑️ Cappy: Delete Plan",
+        "category": "Cappy Planning"
       },
       {
         "command": "cappy.processSingleFile",
@@ -130,39 +146,13 @@
       }
     ],
     "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "cappy",
-          "title": "Cappy",
-          "icon": "src/assets/cappy-activity.svg"
-        }
-      ]
+      "activitybar": []
     },
-    "views": {
-      "cappy": [
-        {
-          "id": "cappy.chatView",
-          "name": "Chat",
-          "type": "webview",
-          "icon": "src/assets/chat.svg"
-        },
-        {
-          "id": "cappy.documentsView",
-          "name": "Documents",
-          "type": "webview",
-          "icon": "src/assets/documents.svg"
-        }
-      ]
-    },
+    "views": {},
     "menus": {
       "commandPalette": [
         {
           "command": "cappy.openGraph",
-          "when": "true",
-          "group": "cappy"
-        },
-        {
-          "command": "cappy.openChat",
           "when": "true",
           "group": "cappy"
         }
@@ -180,6 +170,20 @@
       "title": "Cappy",
       "properties": {}
     },
+    "chatParticipants": [
+      {
+        "id": "cappy.chat",
+        "name": "cappy",
+        "description": "Cappy planning assistant: asks clarifying questions and creates structured task plans (does not execute code directly)",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "help",
+            "description": "Get help on how to use @cappy"
+          }
+        ]
+      }
+    ],
     "languageModelTools": [
       {
         "name": "cappy_create_file",
@@ -302,6 +306,110 @@
             "query"
           ]
         }
+      },
+      {
+        "name": "cappy_workspace_search",
+        "displayName": "Workspace Search",
+        "modelDescription": "Search for files in the workspace by glob pattern. Use this to find files matching specific patterns (e.g., '*.test.ts', 'src/**/*.tsx').",
+        "userDescription": "Search for files by pattern",
+        "tags": ["search", "files", "workspace"],
+        "icon": "$(search)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "Glob pattern to match files (e.g., '*.ts', 'src/**/*.test.ts')"
+            },
+            "includeFolders": {
+              "type": "boolean",
+              "description": "Include folders in results (default: false)"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results (default: 100)"
+            }
+          },
+          "required": ["pattern"]
+        }
+      },
+      {
+        "name": "cappy_grep_search",
+        "displayName": "Grep Search",
+        "modelDescription": "Search for text content in workspace files using regex or plain text. Use this to find specific code patterns, function names, or text strings.",
+        "userDescription": "Search file contents",
+        "tags": ["search", "grep", "content"],
+        "icon": "$(search)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Text or regex pattern to search for"
+            },
+            "isRegex": {
+              "type": "boolean",
+              "description": "Whether the query is a regex pattern (default: false)"
+            },
+            "includePattern": {
+              "type": "string",
+              "description": "Glob pattern for files to include (e.g., '*.ts')"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results (default: 100)"
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "cappy_symbol_search",
+        "displayName": "Symbol Search",
+        "modelDescription": "Search for code symbols (classes, functions, interfaces, etc.) in the workspace. Use this to find specific definitions or implementations.",
+        "userDescription": "Search for code symbols",
+        "tags": ["search", "symbols", "code"],
+        "icon": "$(symbol-class)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Symbol name to search for (e.g., 'MyClass', 'calculateTotal')"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results (default: 50)"
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "cappy_read_file",
+        "displayName": "Read File",
+        "modelDescription": "Read the contents of a file in the workspace. Use this after finding files to understand their implementation.",
+        "userDescription": "Read file contents",
+        "tags": ["read", "file", "content"],
+        "icon": "$(file-code)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "type": "string",
+              "description": "Absolute or relative path to the file"
+            },
+            "startLine": {
+              "type": "number",
+              "description": "Starting line number (1-indexed, optional)"
+            },
+            "endLine": {
+              "type": "number",
+              "description": "Ending line number (1-indexed, optional)"
+            }
+          },
+          "required": ["filePath"]
+        }
       }
     ]
   },
@@ -321,12 +429,19 @@
     "compile-extension": "tsc --project tsconfig.extension.json",
     "watch": "tsc -watch -p ./",
     "package": "npm version patch && npm run compile-extension && vsce package --dependencies",
-    "package:win32": "node scripts/package-platform.js win32-x64",
-    "package:darwin": "node scripts/package-platform.js darwin-x64 && node scripts/package-platform.js darwin-arm64",
-    "package:darwin-arm64": "node scripts/package-platform.js darwin-arm64",
-    "package:linux": "node scripts/package-platform.js linux-x64",
+    "package:win32": "npm run rebuild:native && node scripts/package-platform.js win32-x64",
+    "package:darwin": "npm run rebuild:native && node scripts/package-platform.js darwin-x64 && node scripts/package-platform.js darwin-arm64",
+    "package:darwin-arm64": "npm run rebuild:native && node scripts/package-platform.js darwin-arm64",
+    "package:linux": "npm run rebuild:native && node scripts/package-platform.js linux-x64",
     "package:all": "npm run build && npm run compile-extension && node scripts/build-cross-platform.js --all",
     "build:cross": "node scripts/build-cross-platform.js",
+    "rebuild:native": "npm run rebuild:sqlite3 && npm run rebuild:sharp",
+    "rebuild:sqlite3": "npm rebuild sqlite3 @vscode/sqlite3 --silent || echo 'SQLite3 rebuild completed with warnings'",
+    "rebuild:sharp": "npm rebuild sharp --silent || echo 'Sharp rebuild completed with warnings'",
+    "setup:native": "node scripts/setup-native-modules.js",
+    "postinstall": "npm run setup:native",
+    "clean:native": "rimraf node_modules/sqlite3/build node_modules/@vscode/sqlite3/build node_modules/sharp/build",
+    "install:extension": "node scripts/install-extension.js",
     "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix",
     "publish:win32": "vsce publish --packagePath cappy-*-win32-x64.vsix",
     "publish:darwin": "vsce publish --packagePath cappy-*-darwin-x64.vsix cappy-*-darwin-arm64.vsix",
@@ -394,6 +509,7 @@
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
     "postcss": "^8.5.6",
+    "rimraf": "^6.0.1",
     "tailwindcss": "^3.4.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.45.0",

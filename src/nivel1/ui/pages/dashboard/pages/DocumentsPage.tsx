@@ -287,7 +287,7 @@ const DocumentsPage: React.FC = () => {
     return undefined;
   }, []);
 
-  const postMessage = (type: string, payload: Record<string, unknown> = {}) => {
+  const postMessage = useCallback((type: string, payload: Record<string, unknown> = {}) => {
     console.log(`[DocumentsPage] 📤 Posting message to extension: ${type}`, { type, payload });
     console.log(`[DocumentsPage] vscodeApi available:`, !!vscodeApi);
     console.log(`[DocumentsPage] vscodeApi object:`, vscodeApi);
@@ -305,7 +305,7 @@ const DocumentsPage: React.FC = () => {
     } catch (error) {
       console.error('[DocumentsPage] ❌ Error calling postMessage:', error);
     }
-  };
+  }, [vscodeApi]);
 
   // Small helpers to avoid deep nested callbacks inside setState
   // Legacy upload helpers removed with HTTP service deprecation
@@ -441,8 +441,13 @@ const DocumentsPage: React.FC = () => {
           break;
         }
         case 'document/list': {
+          console.log('[DocumentsPage] 📥 RECEIVED document/list message');
           const payload = message.payload;
+          console.log('[DocumentsPage] 📥 Payload:', payload);
           const docs = payload.documents || [];
+          console.log('[DocumentsPage] 📥 Documents count:', docs.length);
+          console.log('[DocumentsPage] 📥 First doc:', docs[0]);
+          
           setDocuments(docs.map((d: Document) => ({ ...d, selected: false })));
           
           // Update pagination info from server
@@ -452,7 +457,7 @@ const DocumentsPage: React.FC = () => {
           setTotalDocuments(total);
           setTotalPages(pages);
           
-          console.log('[DocumentsPage] Received paginated documents:', {
+          console.log('[DocumentsPage] ✅ Updated state - Received paginated documents:', {
             count: docs.length,
             total: payload.total,
             page: payload.page,
@@ -566,6 +571,14 @@ const DocumentsPage: React.FC = () => {
     const failed = documents.filter((d) => d.status === 'failed').length;
     return { all, completed, preprocessed, processing, pending, failed };
   }, [documents, totalDocuments]);
+
+  // Notify extension that webview is ready (on mount)
+  useEffect(() => {
+    if (vscodeApi) {
+      console.log('[DocumentsPage] 🚀 Component mounted, sending webview-ready signal');
+      postMessage('webview-ready');
+    }
+  }, [vscodeApi, postMessage]);
 
   // Reset page quando mudar filtro
   useEffect(() => {

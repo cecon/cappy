@@ -24,10 +24,13 @@ type ProgressCallback = (step: string, progress: number) => void;
 /**
  * Internal command that accepts progress callbacks
  */
-export async function processSingleFileInternal(options: {
-  filePath: string;
-  onProgress?: ProgressCallback;
-}): Promise<void> {
+export async function processSingleFileInternal(
+  context: vscode.ExtensionContext,
+  options: {
+    filePath: string;
+    onProgress?: ProgressCallback;
+  }
+): Promise<void> {
   const { filePath, onProgress } = options;
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
@@ -44,7 +47,8 @@ export async function processSingleFileInternal(options: {
     // Initialize services
     onProgress?.('Initializing services...', 10);
     
-    const embeddingService = new EmbeddingService();
+    const modelsCacheDir = path.join(context.globalStorageUri.fsPath, 'models');
+    const embeddingService = new EmbeddingService(modelsCacheDir);
     await embeddingService.initialize();
     
     const configService = new ConfigService(workspaceRoot);
@@ -187,7 +191,7 @@ export async function processSingleFileInternal(options: {
 /**
  * Processes a single file through AST → Chunks → Vector → Graph pipeline
  */
-export async function processSingleFileCommand(): Promise<void> {
+export async function processSingleFileCommand(context: vscode.ExtensionContext): Promise<void> {
   try {
     // 1. Select file to process
     const fileUri = await vscode.window.showOpenDialog({
@@ -217,9 +221,9 @@ export async function processSingleFileCommand(): Promise<void> {
       cancellable: false
     }, async (progress) => {
       
-      await processSingleFileInternal({
+      await processSingleFileInternal(context, {
         filePath,
-        onProgress: (step, percent) => {
+        onProgress: (step: string, percent: number) => {
           progress.report({ message: step, increment: percent });
         }
       });
@@ -242,14 +246,15 @@ export function registerProcessSingleFileCommand(context: vscode.ExtensionContex
   // Public command with file picker
   const disposable = vscode.commands.registerCommand(
     'cappy.processSingleFile',
-    processSingleFileCommand
+    () => processSingleFileCommand(context)
   );
   context.subscriptions.push(disposable);
 
   // Internal command for programmatic use
   const internalDisposable = vscode.commands.registerCommand(
     'cappy.processSingleFileInternal',
-    processSingleFileInternal
+    (options: { filePath: string; onProgress?: ProgressCallback }) => 
+      processSingleFileInternal(context, options)
   );
   context.subscriptions.push(internalDisposable);
 }

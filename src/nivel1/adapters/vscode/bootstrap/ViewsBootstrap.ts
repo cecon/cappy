@@ -5,15 +5,9 @@
 
 import * as vscode from 'vscode';
 import { GraphPanel } from '../dashboard/GraphPanel';
-import { ChatViewProvider } from '../chat/ChatViewProvider';
-import { DocumentsViewProvider } from '../documents/DocumentsViewProvider';
-import { LangGraphChatEngine } from '../../../../nivel2/infrastructure/agents/langgraph-chat-engine';
-import { createChatService } from '../../../../domains/chat/services/chat-service';
 
 export interface ViewsBootstrapResult {
   graphPanel: GraphPanel;
-  chatViewProvider: ChatViewProvider;
-  documentsViewProvider: DocumentsViewProvider;
 }
 
 /**
@@ -30,31 +24,9 @@ export class ViewsBootstrap {
     const graphOutputChannel = vscode.window.createOutputChannel('Cappy Graph');
     context.subscriptions.push(graphOutputChannel);
 
-    // Create graph panel
+    // Create graph panel (includes documents page in dashboard)
     const graphPanel = new GraphPanel(context, graphOutputChannel);
-    console.log('  ✅ Graph Panel created');
-
-    // Create chat service
-    const chatEngine = new LangGraphChatEngine();
-    const chatService = createChatService(chatEngine);
-
-    // Register Chat View Provider
-    const chatViewProvider = new ChatViewProvider(context.extensionUri, chatService);
-    const chatViewDisposable = vscode.window.registerWebviewViewProvider(
-      ChatViewProvider.viewType,
-      chatViewProvider
-    );
-    context.subscriptions.push(chatViewDisposable);
-    console.log('  ✅ Chat View Provider registered');
-
-    // Register Documents View Provider
-    const documentsViewProvider = new DocumentsViewProvider(context.extensionUri);
-    const documentsViewDisposable = vscode.window.registerWebviewViewProvider(
-      DocumentsViewProvider.viewType,
-      documentsViewProvider
-    );
-    context.subscriptions.push(documentsViewDisposable);
-    console.log('  ✅ Documents View Provider registered');
+    console.log('  ✅ Graph Panel created (includes Documents page)');
 
     // Create status bar shortcut
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -66,9 +38,7 @@ export class ViewsBootstrap {
     console.log('  ✅ Status Bar item created');
 
     return {
-      graphPanel,
-      chatViewProvider,
-      documentsViewProvider
+      graphPanel
     };
   }
 }

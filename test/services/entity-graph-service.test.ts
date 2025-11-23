@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { GraphStorePort } from '@/domains/dashboard/ports/indexing-port';
-import type { ExtractedEntity } from '@/types/entity';
+import type { ExtractedEntity } from '@/shared/types/entity';
 import { createEntityGraphService } from '@/nivel2/infrastructure/services/entity-graph-service';
 
 describe('EntityGraphService', () => {
@@ -57,13 +57,12 @@ describe('EntityGraphService', () => {
     expect(createRel).toHaveBeenCalled();
     type Rel = { from: string; to: string; type: string; properties?: Record<string, unknown> };
     const allRels: Rel[] = createRel.mock.calls
-      .map(args => (args[0] as Rel[]))
-      .flat();
+      .flatMap(args => (args[0] as Rel[]));
     const definedIn = allRels.filter(r => r.type === 'defined_in');
     // Two entities matched (Foo and Bar)
     expect(definedIn.length).toBe(2);
     // Ensure mapping to correct chunk ids
-    const targets = definedIn.map(r => r.to).sort();
+    const targets = definedIn.map(r => r.to).sort((a, b) => a.localeCompare(b));
     expect(targets).toEqual(['chunk-1', 'chunk-3']);
   });
 });

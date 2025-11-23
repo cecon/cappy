@@ -9,24 +9,39 @@ export class ImportExtractor {
   static extract(node: ImportDeclarationNode, context: ExtractionContext): ASTEntity[] {
     const entities: ASTEntity[] = [];
     const source = node.source?.value;
-    if (!source || !node.specifiers) return entities;
+    if (!source) return entities;
 
     const isExternal = ASTHelpers.isExternalImport(source);
+    const specifiers = (node.specifiers || [])
+      .map((s) => s.imported?.name || s.local?.name)
+      .filter((n): n is string => !!n);
 
-    for (const spec of node.specifiers) {
-      const name = spec.imported?.name || spec.local?.name;
-      if (!name) continue;
+    // Emit a package-level entity representing the module
+    entities.push({
+      name: source,
+      type: "package",
+      kind: "import",
+      category: isExternal ? "external" : "internal",
+      source: context.relFilePath,
+      line: node.loc?.start?.line || 0,
+      column: node.loc?.start?.column || 0,
+      confidence: 1,
+      specifiers,
+    });
 
+    // Emit individual specifier entities with relationship to the package/module
+    for (const specName of specifiers) {
       entities.push({
-        name,
-        type: TypeInferrer.fromName(name),
-        kind: "import", // AST node kind
+        name: specName,
+        type: TypeInferrer.fromName(specName),
+        kind: "import",
         category: isExternal ? "external" : "internal",
-        source: isExternal ? source : context.relFilePath,
+        source: context.relFilePath,
         line: node.loc?.start?.line || 0,
         column: node.loc?.start?.column || 0,
         confidence: ConfidenceCalculator.calculate(node, "import", context),
         originalModule: source,
+        relationships: [{ target: source, type: "imports" }],
       });
     }
 

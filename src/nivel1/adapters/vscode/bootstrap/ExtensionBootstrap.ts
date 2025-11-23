@@ -14,23 +14,44 @@ import type { FileProcessingQueue } from '../../../../nivel2/infrastructure/serv
 import type { FileChangeWatcher } from '../../../../nivel2/infrastructure/services/file-change-watcher';
 import type { GraphStorePort } from '../../../../domains/dashboard/ports/indexing-port';
 import type { GraphCleanupService } from '../../../../nivel2/infrastructure/services/graph-cleanup-service';
-import type { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
+import type { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
+import type { HybridRetriever } from '../../../../nivel2/infrastructure/services/hybrid-retriever';
 import type { GraphPanel } from '../dashboard/GraphPanel';
-import type { DocumentsViewProvider } from '../documents/DocumentsViewProvider';
+import { IntelligentAgent } from '../../../../nivel2/infrastructure/agents';
+import type { PlanningTurnResult } from '../../../../nivel2/infrastructure/agents/common/types';
 
 /**
- * Main extension state
+ * Main extension state (internal - mutable)
  */
-export interface ExtensionState {
+interface InternalExtensionState {
   fileDatabase: FileMetadataDatabase | null;
   fileQueue: FileProcessingQueue | null;
   fileWatcher: FileChangeWatcher | null;
   graphStore: GraphStorePort | null;
   cleanupService: GraphCleanupService | null;
   contextRetrievalTool: ContextRetrievalTool | null;
+  hybridRetriever: HybridRetriever | null;
   graphPanel: GraphPanel | null;
-  documentsViewProvider: DocumentsViewProvider | null;
+  commandsBootstrap?: InstanceType<typeof CommandsBootstrap>;
+  viewsBootstrap?: ViewsBootstrap;
 }
+
+/**
+ * Main extension state (external - readonly)
+ */
+export interface ExtensionState {
+  readonly fileDatabase: FileMetadataDatabase | null;
+  readonly fileQueue: FileProcessingQueue | null;
+  readonly fileWatcher: FileChangeWatcher | null;
+  readonly graphStore: GraphStorePort | null;
+  readonly cleanupService: GraphCleanupService | null;
+  readonly contextRetrievalTool: ContextRetrievalTool | null;
+  readonly hybridRetriever: HybridRetriever | null;
+  readonly graphPanel: GraphPanel | null;
+  readonly commandsBootstrap?: InstanceType<typeof CommandsBootstrap>;
+  readonly viewsBootstrap?: ViewsBootstrap;
+}
+
 
 /**
  * Main bootstrap orchestrator for the extension
@@ -42,16 +63,17 @@ export interface ExtensionState {
  * - File Processing System (Application Layer)
  */
 export class ExtensionBootstrap {
-  private state: ExtensionState = {
+  private readonly state: InternalExtensionState = {
     fileDatabase: null,
     fileQueue: null,
     fileWatcher: null,
     graphStore: null,
     cleanupService: null,
     contextRetrievalTool: null,
-    graphPanel: null,
-    documentsViewProvider: null
+    hybridRetriever: null,
+    graphPanel: null
   };
+  private readonly planningAgent = new IntelligentAgent();
 
   /**
    * Activates the extension
@@ -64,13 +86,16 @@ export class ExtensionBootstrap {
     const lmToolsBootstrap = new LanguageModelToolsBootstrap();
     this.state.contextRetrievalTool = lmToolsBootstrap.register(context);
 
-    // Phase 2: Register Views (webviews, panels, sidebar)
+        // Phase 2: Register Views (Graph Panel with Documents page integrated)
     const viewsBootstrap = new ViewsBootstrap();
-    const { graphPanel, documentsViewProvider } = viewsBootstrap.register(context);
-    this.state.graphPanel = graphPanel;
-    this.state.documentsViewProvider = documentsViewProvider;
+    const viewsResult = viewsBootstrap.register(context);
+    this.state.graphPanel = viewsResult.graphPanel;
+    this.state.viewsBootstrap = viewsBootstrap;
 
-    // Phase 3: Register Commands
+    // Phase 3: Register Chat Participant
+    await this.registerChatParticipant(context);
+
+    // Phase 4: Register Commands
     const commandsBootstrap = new CommandsBootstrap({
       graphPanel: this.state.graphPanel,
       fileDatabase: this.state.fileDatabase,
@@ -80,11 +105,12 @@ export class ExtensionBootstrap {
       initializeFileProcessingSystem: this.initializeFileProcessingSystem.bind(this)
     });
     commandsBootstrap.register(context);
+    this.state.commandsBootstrap = commandsBootstrap;
 
-    // Phase 4: Auto-start file processing if Cappy is initialized
+    // Phase 5: Auto-start file processing if Cappy is initialized
     await this.autoStartFileProcessing(context);
 
-    // Phase 5: Log available commands
+    // Phase 6: Log available commands
     this.logAvailableCommands();
 
     // Show success message
@@ -93,21 +119,141 @@ export class ExtensionBootstrap {
   }
 
   /**
+   * Registers the Cappy chat participant
+   */
+  private async registerChatParticipant(context: vscode.ExtensionContext): Promise<void> {
+    console.log('🤖 Registering @cappy chat participant...');
+
+    // Initialize the IntelligentAgent
+    await this.planningAgent.initialize();
+
+    const participant = vscode.chat.createChatParticipant(
+      'cappy.chat',
+      async (
+        request: vscode.ChatRequest,
+        _chatContext: vscode.ChatContext,
+        stream: vscode.ChatResponseStream,
+        token: vscode.CancellationToken
+      ) => {
+        try {
+          console.log('[ChatParticipant] ========================================');
+          console.log('[ChatParticipant] RECEIVED REQUEST:', request.prompt);
+          console.log('[ChatParticipant] Executing IntelligentAgent...');
+          console.log('[ChatParticipant] ========================================');
+
+          stream.progress('🤖 Iniciando sistema multi-agente...');
+
+          // Set progress callback to update chat UI with rich agent information
+          this.planningAgent.setProgressCallback((message: string | import('../../../../nivel2/infrastructure/agents/types/progress-events').AgentProgressEvent) => {
+            if (typeof message === 'string') {
+              stream.progress(message);
+            } else {
+              // Format AgentProgressEvent for better visibility
+              const icon = this.getAgentIcon(message.agent, message.status);
+              const formattedMessage = `${icon} **${this.getAgentName(message.agent)}**: ${message.message}`;
+              stream.progress(formattedMessage);
+              
+              // If there are details, show them
+              if (message.details && Object.keys(message.details).length > 0) {
+                const detailsStr = Object.entries(message.details)
+                  .filter(([_, value]) => value !== undefined)
+                  .map(([key, value]) => `${key}: ${value}`)
+                  .join(', ');
+                if (detailsStr) {
+                  stream.progress(`  ↳ ${detailsStr}`);
+                }
+              }
+            }
+          });
+
+          const conversationId = this.resolveConversationId();
+
+          console.log('[ChatParticipant] Conversation ID:', conversationId);
+          console.log('[ChatParticipant] Request:', {
+            prompt: request.prompt.substring(0, 50) + '...',
+            command: request.command
+          });
+
+          stream.progress('Processando fluxo guiado de tarefa...');
+
+          const { result, isContinuation } = await this.planningAgent.runSessionTurn({
+            sessionId: conversationId,
+            message: request.prompt
+          });
+
+          if (isContinuation) {
+            stream.progress('Continuando a fase atual com a resposta do usuário...');
+          }
+
+          if (result.awaitingUser) {
+            stream.progress('Aguardando resposta do usuário para prosseguir.');
+          }
+
+          console.log('[ChatParticipant] Result:', {
+            hasResult: !!result,
+            phase: result?.phase,
+            confirmed: result?.confirmed,
+            readyForExecution: result?.readyForExecution,
+            awaitingUser: result?.awaitingUser,
+            isContinuation: isContinuation,
+            conversationLogLength: result?.conversationLog?.length ?? 0
+          });
+
+          if (token.isCancellationRequested) {
+            stream.markdown('\n\n_Cancelado pelo usuário_');
+            return { metadata: { command: 'chat', cancelled: true } };
+          }
+
+          this.streamWorkflowResult(stream, result);
+
+          return {
+            metadata: {
+              command: 'chat',
+              phase: result.phase,
+              awaitingUser: result.awaitingUser
+            }
+          };
+        } catch (error) {
+          if (token.isCancellationRequested) {
+            stream.markdown('\n\n_Cancelado pelo usuário_');
+            console.warn('[ChatParticipant] Request cancelled');
+            return { metadata: { command: 'chat', cancelled: true } };
+          }
+
+          const errMsg = error instanceof Error ? error.message : String(error);
+          stream.markdown(`\n\n⚠️ **Error**: ${errMsg}`);
+          console.error('[ChatParticipant] Error:', error);
+          return { metadata: { command: 'chat', error: errMsg } };
+        }
+      }
+    );
+
+    // Set icon
+    participant.iconPath = vscode.Uri.joinPath(
+      context.extensionUri,
+      'src',
+      'assets',
+      'icon.png'
+    );
+
+    context.subscriptions.push(participant);
+    console.log('  ✅ Registered @cappy chat participant with ID:', participant.id);
+    console.log('  ✅ Chat participant subscriptions added to context');
+  }
+
+  /**
    * Initializes the file processing system
    */
   private async initializeFileProcessingSystem(
-    context: vscode.ExtensionContext,
-    graphPanel: GraphPanel
+    context: vscode.ExtensionContext
   ): Promise<void> {
-    if (!this.state.documentsViewProvider || !this.state.contextRetrievalTool) {
+    if (!this.state.contextRetrievalTool) {
       throw new Error('Extension not fully initialized');
     }
 
     const fileProcessingBootstrap = new FileProcessingSystemBootstrap();
     const result = await fileProcessingBootstrap.initialize(
       context,
-      graphPanel,
-      this.state.documentsViewProvider,
       this.state.contextRetrievalTool
     );
 
@@ -117,6 +263,19 @@ export class ExtensionBootstrap {
     this.state.fileWatcher = result.watcher;
     this.state.graphStore = result.graphStore;
     this.state.cleanupService = result.cleanupService;
+    this.state.hybridRetriever = result.hybridRetriever;
+
+    // Update CommandsBootstrap with the new dependencies
+    if (this.state.commandsBootstrap) {
+      console.log('📡 [ExtensionBootstrap] Updating CommandsBootstrap dependencies');
+      this.state.commandsBootstrap.updateDependencies({
+        fileDatabase: result.fileDatabase,
+        fileQueue: result.queue,
+        graphStore: result.graphStore
+      });
+    }
+    
+    console.log('✅ [ExtensionBootstrap] File processing system initialized successfully');
   }
 
   /**
@@ -129,7 +288,7 @@ export class ExtensionBootstrap {
       console.log('🚀 Cappy is initialized, auto-starting file processing system...');
       
       try {
-        await this.initializeFileProcessingSystem(context, this.state.graphPanel!);
+        await this.initializeFileProcessingSystem(context);
         console.log('✅ File processing system auto-started successfully');
       } catch (error: unknown) {
         const errMsg = error instanceof Error ? error.message : String(error);
@@ -183,9 +342,71 @@ export class ExtensionBootstrap {
   }
 
   /**
+   * Gets icon for agent and status combination
+   */
+  private getAgentIcon(agent: string, status: string): string {
+    const icons: Record<string, Record<string, string>> = {
+      intention: { started: '🎯', thinking: '🤔', completed: '✅', failed: '❌' },
+      researcher: { started: '🔬', searching: '🔍', analyzing: '📊', thinking: '💭', completed: '✅', failed: '❌' },
+      summarizer: { started: '📝', thinking: '💡', completed: '✅', failed: '❌' },
+      debater: { started: '💬', thinking: '🤔', analyzing: '⚖️', completed: '✅', failed: '❌' },
+      planner: { started: '📋', thinking: '🧠', completed: '✅', failed: '❌' },
+      critic: { started: '👁️', thinking: '🔍', analyzing: '📐', completed: '✅', failed: '❌' },
+      refiner: { started: '✨', thinking: '🔧', completed: '✅', failed: '❌' },
+      executor: { started: '⚡', thinking: '🛠️', completed: '✅', failed: '❌' }
+    };
+
+    return icons[agent]?.[status] || '🤖';
+  }
+
+  /**
+   * Gets human-readable agent name
+   */
+  private getAgentName(agent: string): string {
+    const names: Record<string, string> = {
+      intention: 'Analisador de Intenção',
+      researcher: 'Pesquisador',
+      summarizer: 'Resumidor',
+      debater: 'Debatedor',
+      planner: 'Planejador',
+      critic: 'Crítico',
+      refiner: 'Refinador',
+      executor: 'Executor'
+    };
+
+    return names[agent] || agent;
+  }
+
+  /**
    * Gets the current extension state
    */
   getState(): Readonly<ExtensionState> {
     return { ...this.state };
+  }
+
+  private streamWorkflowResult(stream: vscode.ChatResponseStream, result: PlanningTurnResult): void {
+    // Para smalltalk puro, não mostrar o cabeçalho de "Fluxo Guiado"
+    const isSmallTalk = result.routerIntent === 'smalltalk' && !result.intentionSummary;
+    
+    if (result.finalResponse) {
+      stream.markdown(`${result.finalResponse}`);
+    } else if (result.responseMessage) {
+      stream.markdown(`${result.responseMessage}`);
+    } else if (result.awaitingUser) {
+      stream.markdown('Estou aguardando sua resposta para continuar.');
+    } else if (!isSmallTalk) {
+      stream.markdown('Sem mensagem adicional nesta etapa.');
+    }
+  }
+
+  private resolveConversationId(): string {
+    // Always use the same conversation ID for this workspace to maintain context
+    const workspaceHash = this.getWorkspaceHash();
+    return `cappy-chat-${workspaceHash}`;
+  }
+
+  private getWorkspaceHash(): string {
+    const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? 'no-workspace';
+    return Buffer.from(workspacePath).toString('base64').slice(0, 8);
   }
 }

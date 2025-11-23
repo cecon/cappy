@@ -15,6 +15,15 @@ export class EmbeddingService {
   private readonly model = "Xenova/all-MiniLM-L6-v2";
   private readonly dimensions = 384;
   private initialized = false;
+  private readonly cacheDir: string;
+
+  /**
+   * Creates a new EmbeddingService instance
+   * @param cacheDir - Absolute path to cache directory for model files
+   */
+  constructor(cacheDir: string) {
+    this.cacheDir = cacheDir;
+  }
 
   /**
    * Initializes the embedding model
@@ -36,7 +45,7 @@ export class EmbeddingService {
         // Configure environment
         env.allowLocalModels = true; // Allow local cached models
         env.allowRemoteModels = true;
-        env.cacheDir = './.cappy/models'; // Cache models locally
+        env.cacheDir = this.cacheDir; // Use absolute cache path
 
         // Load with timeout
         const pipelinePromise = pipeline("feature-extraction", this.model, {
@@ -150,7 +159,8 @@ export class EmbeddingService {
 
 /**
  * Factory function to create embedding service
+ * @param cacheDir - Absolute path to cache directory for model files
  */
-export function createEmbeddingService(): EmbeddingService {
-  return new EmbeddingService();
+export function createEmbeddingService(cacheDir: string): EmbeddingService {
+  return new EmbeddingService(cacheDir);
 }

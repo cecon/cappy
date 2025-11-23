@@ -420,18 +420,25 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
       const { page, limit, status, sortBy = 'updated_at', sortOrder = 'desc' } = options;
       const offset = (page - 1) * limit;
 
+      console.log('🔍 [SQLiteFileMetadataRepository] getFilesPaginated called with:', { page, limit, status, sortBy, sortOrder });
+
       // Build WHERE clause
       const whereClause = status ? 'WHERE status = ?' : '';
       const whereParams = status ? [status] : [];
+
+      console.log('🔍 [SQLiteFileMetadataRepository] WHERE clause:', whereClause);
+      console.log('🔍 [SQLiteFileMetadataRepository] WHERE params:', whereParams);
 
       // Build ORDER BY clause
       const orderByClause = `ORDER BY ${sortBy} ${sortOrder.toUpperCase()}`;
 
       // Get total count
       const countSql = `SELECT COUNT(*) as total FROM file_metadata ${whereClause}`;
+      console.log('🔍 [SQLiteFileMetadataRepository] Count SQL:', countSql);
       
       this.db.get(countSql, whereParams, (err, countRow: SQLiteCountRow) => {
         if (err) {
+          console.error('❌ [SQLiteFileMetadataRepository] Count query error:', err);
           reject(new Error(`Failed to count files: ${err.message}`));
           return;
         }
@@ -439,14 +446,21 @@ export class SQLiteFileMetadataRepository implements IFileMetadataRepository {
         const total = countRow.total;
         const totalPages = Math.ceil(total / limit);
 
+        console.log('🔍 [SQLiteFileMetadataRepository] Count result:', { total, totalPages });
+
         // Get paginated data
         const dataSql = `SELECT * FROM file_metadata ${whereClause} ${orderByClause} LIMIT ? OFFSET ?`;
         const dataParams = [...whereParams, limit, offset];
 
+        console.log('🔍 [SQLiteFileMetadataRepository] Data SQL:', dataSql);
+        console.log('🔍 [SQLiteFileMetadataRepository] Data params:', dataParams);
+
         this.db!.all(dataSql, dataParams, (err, rows: SQLiteFileRow[]) => {
           if (err) {
+            console.error('❌ [SQLiteFileMetadataRepository] Data query error:', err);
             reject(new Error(`Failed to get paginated files: ${err.message}`));
           } else {
+            console.log('🔍 [SQLiteFileMetadataRepository] Data query result:', { rowsCount: rows.length });
             resolve({
               files: rows.map(row => this.rowToMetadata(row)),
               total,

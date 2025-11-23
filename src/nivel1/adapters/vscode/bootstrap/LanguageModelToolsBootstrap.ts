@@ -6,7 +6,11 @@
 import * as vscode from 'vscode';
 import { CreateFileTool } from '../../../../nivel2/infrastructure/tools/create-file-tool';
 import { FetchWebTool } from '../../../../nivel2/infrastructure/tools/fetch-web-tool';
-import { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
+import { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
+import { WorkspaceSearchTool } from '../../../../nivel2/infrastructure/tools/workspace-search-tool';
+import { GrepSearchTool } from '../../../../nivel2/infrastructure/tools/grep-search-tool';
+import { SymbolSearchTool } from '../../../../nivel2/infrastructure/tools/symbol-search-tool';
+import { ReadFileTool } from '../../../../nivel2/infrastructure/tools/read-file-tool';
 
 /**
  * Registers all Language Model Tools for GitHub Copilot integration
@@ -38,6 +42,26 @@ export class LanguageModelToolsBootstrap {
     );
     context.subscriptions.push(contextRetrievalTool);
     console.log('  ✅ cappy_retrieve_context');
+
+    // Register workspace search tool (file search by pattern)
+    const workspaceSearchTool = vscode.lm.registerTool('cappy_workspace_search', new WorkspaceSearchTool());
+    context.subscriptions.push(workspaceSearchTool);
+    console.log('  ✅ cappy_workspace_search');
+
+    // Register grep search tool (text content search)
+    const grepSearchTool = vscode.lm.registerTool('cappy_grep_search', new GrepSearchTool());
+    context.subscriptions.push(grepSearchTool);
+    console.log('  ✅ cappy_grep_search');
+
+    // Register symbol search tool (classes, functions, etc.)
+    const symbolSearchTool = vscode.lm.registerTool('cappy_symbol_search', new SymbolSearchTool());
+    context.subscriptions.push(symbolSearchTool);
+    console.log('  ✅ cappy_symbol_search');
+
+    // Register read file tool (read file contents)
+    const readFileTool = vscode.lm.registerTool('cappy_read_file', new ReadFileTool());
+    context.subscriptions.push(readFileTool);
+    console.log('  ✅ cappy_read_file');
 
     // Schedule tool validation after LM runtime loads
     this.scheduleToolValidation();

@@ -19,7 +19,7 @@ export interface GraphInitHost {
 }
 
 export class IndexingInitializer {
-  async initialize(_context: vscode.ExtensionContext, host: GraphInitHost): Promise<GraphInitResult> {
+  async initialize(context: vscode.ExtensionContext, host: GraphInitHost): Promise<GraphInitResult> {
     host.log('🔧 Initializing indexing services...');
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -36,7 +36,8 @@ export class IndexingInitializer {
     host.log(`📁 Base data folder exists: ${baseDataDir}`);
 
     // Create embedding service
-    const embeddingService = new EmbeddingService();
+    const modelsCacheDir = path.join(context.globalStorageUri.fsPath, 'models');
+    const embeddingService = new EmbeddingService(modelsCacheDir);
     await embeddingService.initialize();
 
     // Use .cappy/data directly for graph database (no subdirectory)

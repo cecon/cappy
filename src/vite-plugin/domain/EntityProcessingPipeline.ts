@@ -31,7 +31,8 @@ export class EntityProcessingPipeline implements IEntityPipeline {
 
     const dbPath = path.join(this.workspaceRoot, ".cappy", "knowledge-graph.db");
     const graphStore = new SQLiteAdapter(dbPath);
-    const embeddingService = new EmbeddingService();
+    const modelsCacheDir = path.join(this.workspaceRoot, ".cappy", "models");
+    const embeddingService = new EmbeddingService(modelsCacheDir);
 
     const pipeline = new EntityFilterPipeline(
       {

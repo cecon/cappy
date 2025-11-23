@@ -71,8 +71,8 @@ export class TypeScriptParser {
 
       console.log(`📝 TypeScript: Parsed ${chunks.length} JSDoc chunks from ${filePath}`);
       return chunks;
-    } catch (error) {
-      console.error(`❌ TypeScript parser error for ${filePath}:`, error);
+    } catch {
+      // Silent error handling for graceful degradation
       return [];
     }
   }

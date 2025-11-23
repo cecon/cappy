@@ -5,8 +5,6 @@
 
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { GraphPanel } from '../dashboard/GraphPanel';
-import { DocumentsViewProvider } from '../documents/DocumentsViewProvider';
 import { FileMetadataDatabase } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 import { FileProcessingQueue } from '../../../../nivel2/infrastructure/services/file-processing-queue';
 import { FileProcessingWorker } from '../../../../nivel2/infrastructure/services/file-processing-worker';
@@ -15,7 +13,7 @@ import { createVectorStore } from '../../../../nivel2/infrastructure/vector/sqli
 import type { GraphStorePort } from '../../../../domains/dashboard/ports/indexing-port';
 import { SQLiteAdapter } from '../../../../nivel2/infrastructure/database/index.js';
 import { GraphCleanupService } from '../../../../nivel2/infrastructure/services/graph-cleanup-service';
-import type { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
+import type { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
 import type {
   FileProcessingSystemResult,
   CoreServices,
@@ -31,8 +29,6 @@ export class FileProcessingSystemBootstrap {
    */
   async initialize(
     context: vscode.ExtensionContext,
-    graphPanel: GraphPanel,
-    documentsViewProvider: DocumentsViewProvider,
     contextRetrievalTool: ContextRetrievalTool
   ): Promise<FileProcessingSystemResult> {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -44,7 +40,7 @@ export class FileProcessingSystemBootstrap {
 
     try {
       // 1. Initialize database
-      const fileDatabase = await this.initializeDatabase(workspaceRoot, documentsViewProvider);
+      const fileDatabase = await this.initializeDatabase(workspaceRoot);
 
       // 2. Initialize services
       const {
@@ -52,13 +48,12 @@ export class FileProcessingSystemBootstrap {
         hashService,
         embeddingService,
         configService
-      } = await this.initializeServices(workspaceRoot);
+      } = await this.initializeServices(workspaceRoot, context);
 
       // 3. Initialize graph store
       const graphStore = await this.initializeGraphStore(
         workspaceRoot,
-        configService,
-        documentsViewProvider
+        configService
       );
 
       // 4. Initialize cleanup service
@@ -67,10 +62,16 @@ export class FileProcessingSystemBootstrap {
       // 5. Initialize vector store (cast to SQLiteAdapter for createVectorStore)
       const vectorStore = createVectorStore(graphStore as SQLiteAdapter, embeddingService);
 
-      // 6. Initialize context retrieval tool
-      await this.initializeContextRetrievalTool(contextRetrievalTool, graphStore);
+      // 6. Initialize HybridRetriever for unified retrieval
+      const { HybridRetriever } = await import('../../../../nivel2/infrastructure/services/hybrid-retriever.js');
+      const hybridRetriever = new HybridRetriever(undefined, graphStore);
+      console.log('  ✅ HybridRetriever initialized');
 
-      // 7. Initialize indexing service
+      // 7. Initialize context retrieval tool with HybridRetriever
+      contextRetrievalTool.setRetriever(hybridRetriever);
+      console.log('  ✅ Context retrieval tool initialized');
+
+      // 8. Initialize indexing service
       const indexingService = await this.initializeIndexingService(
         vectorStore,
         graphStore,
@@ -97,9 +98,7 @@ export class FileProcessingSystemBootstrap {
       // 10. Initialize queue
       const fileQueue = this.initializeQueue(
         fileDatabase,
-        worker,
-        graphPanel,
-        documentsViewProvider
+        worker
       );
 
       // 11. Register cleanup on deactivation
@@ -115,7 +114,8 @@ export class FileProcessingSystemBootstrap {
         graphStore,
         cleanupService,
         vectorStore,
-        indexingService
+        indexingService,
+        hybridRetriever
       };
     } catch (error) {
       console.error('Failed to initialize file processing system:', error);
@@ -127,16 +127,15 @@ export class FileProcessingSystemBootstrap {
    * Initializes the file metadata database
    */
   private async initializeDatabase(
-    workspaceRoot: string,
-    documentsViewProvider: DocumentsViewProvider
+    workspaceRoot: string
   ): Promise<FileMetadataDatabase> {
     const cappyDataDir = path.join(workspaceRoot, '.cappy', 'data');
     const dbPath = path.join(cappyDataDir, 'file-metadata.db');
     
+    console.log('📦 [FileProcessingSystemBootstrap] Initializing FileMetadataDatabase...');
     const fileDatabase = new FileMetadataDatabase(dbPath);
     await fileDatabase.initialize();
     
-    documentsViewProvider.setFileDatabase(fileDatabase);
     console.log('  ✅ File metadata database initialized');
     
     return fileDatabase;
@@ -145,7 +144,7 @@ export class FileProcessingSystemBootstrap {
   /**
    * Initializes core services
    */
-  private async initializeServices(workspaceRoot: string): Promise<CoreServices> {
+  private async initializeServices(workspaceRoot: string, context: vscode.ExtensionContext): Promise<CoreServices> {
     const { ParserService } = await import('../../../../nivel2/infrastructure/services/parser-service.js');
     const { FileHashService } = await import('../../../../nivel2/infrastructure/services/file-hash-service.js');
     const { EmbeddingService } = await import('../../../../nivel2/infrastructure/services/embedding-service.js');
@@ -155,7 +154,9 @@ export class FileProcessingSystemBootstrap {
     const hashService = new FileHashService();
     const configService = new ConfigService(workspaceRoot);
     
-    const embeddingService = new EmbeddingService();
+    // Use global storage path for embedding model cache
+    const modelsCacheDir = path.join(context.globalStorageUri.fsPath, 'models');
+    const embeddingService = new EmbeddingService(modelsCacheDir);
     try {
       await embeddingService.initialize();
       console.log('  ✅ Embedding service initialized');
@@ -171,14 +172,12 @@ export class FileProcessingSystemBootstrap {
    */
   private async initializeGraphStore(
     workspaceRoot: string,
-    configService: ConfigService,
-    documentsViewProvider: DocumentsViewProvider
+    configService: ConfigService
   ): Promise<GraphStorePort> {
     const sqlitePath = configService.getGraphDataPath(workspaceRoot);
     const graphStore = new SQLiteAdapter(sqlitePath);
     await graphStore.initialize();
     
-    documentsViewProvider.setGraphStore(graphStore);
     console.log('  ✅ Graph store initialized');
     
     return graphStore;
@@ -196,23 +195,6 @@ export class FileProcessingSystemBootstrap {
     console.log('  ✅ Graph cleanup service started');
     
     return cleanupService;
-  }
-
-  /**
-   * Initializes context retrieval tool with graph store
-   */
-  private async initializeContextRetrievalTool(
-    contextRetrievalTool: ContextRetrievalTool,
-    graphStore: GraphStorePort
-  ): Promise<void> {
-    try {
-      const { HybridRetriever } = await import('../../../../nivel2/infrastructure/services/hybrid-retriever.js');
-      const hybridRetriever = new HybridRetriever(undefined, graphStore);
-      contextRetrievalTool.setRetriever(hybridRetriever);
-      console.log('  ✅ Context retrieval tool initialized');
-    } catch (error) {
-      console.error('  ❌ Failed to initialize context retrieval tool:', error);
-    }
   }
 
   /**
@@ -273,85 +255,17 @@ export class FileProcessingSystemBootstrap {
     return fileWatcher;
   }
 
-  /**
+    /**
    * Initializes the file processing queue
    */
   private initializeQueue(
     fileDatabase: FileMetadataDatabase,
-    worker: FileProcessingWorker,
-    graphPanel: GraphPanel,
-    documentsViewProvider: DocumentsViewProvider
+    worker: FileProcessingWorker
   ): FileProcessingQueue {
-    const fileQueue = new FileProcessingQueue(fileDatabase, worker, {
-      concurrency: 2,
-      maxRetries: 3,
-      autoStart: true
-    });
-    
-    // Setup event listeners
-    this.setupQueueEventListeners(fileQueue, graphPanel, documentsViewProvider);
+    const fileQueue = new FileProcessingQueue(fileDatabase, worker);
     
     console.log('  ✅ File processing queue initialized');
-    
     return fileQueue;
-  }
-
-  /**
-   * Setup queue event listeners
-   */
-  private setupQueueEventListeners(
-    fileQueue: FileProcessingQueue,
-    graphPanel: GraphPanel,
-    documentsViewProvider: DocumentsViewProvider
-  ): void {
-    let refreshTimeout: NodeJS.Timeout | null = null;
-
-    // File complete event
-    fileQueue.on('file:complete', (metadata, result) => {
-      documentsViewProvider.notifyFileUpdate({
-        type: 'completed',
-        fileId: metadata.id,
-        filePath: metadata.filePath,
-        progress: 100,
-        currentStep: 'Completed',
-        metrics: {
-          chunksCount: result.chunksCount,
-          nodesCount: result.nodesCount,
-          relationshipsCount: result.relationshipsCount,
-          duration: result.duration
-        }
-      });
-
-      // Debounce graph refresh
-      if (refreshTimeout) clearTimeout(refreshTimeout);
-      refreshTimeout = setTimeout(() => {
-        graphPanel.refreshSubgraph(2).catch((err: unknown) => {
-          console.error('Failed to refresh graph:', err);
-        });
-        refreshTimeout = null;
-      }, 2000);
-    });
-
-    // File start event
-    fileQueue.on('file:start', (metadata) => {
-      documentsViewProvider.notifyFileUpdate({
-        type: 'processing',
-        fileId: metadata.id,
-        filePath: metadata.filePath,
-        progress: 0,
-        currentStep: 'Starting...'
-      });
-    });
-
-    // File failed event
-    fileQueue.on('file:failed', (metadata, error) => {
-      documentsViewProvider.notifyFileUpdate({
-        type: 'error',
-        fileId: metadata.id,
-        filePath: metadata.filePath,
-        error: error.message
-      });
-    });
   }
 
   /**

@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createParserService, ParserService } from '@/nivel2/infrastructure/services/parser-service';
+import { createParserService, ParserService } from '@infra/services/parser-service';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -12,6 +12,7 @@ import * as os from 'node:os';
 describe('ParserService', () => {
   let service: ParserService;
   let tempDir: string;
+  
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parser-service-test-'));
@@ -256,8 +257,8 @@ function Component() {
       const tsChunks = await service.parseFile(tsFile);
 
       // PHP
-      const phpFile = path.join(tempDir, 'test.php');
-      fs.writeFileSync(phpFile, '<?php /** Test */ class Test {}');
+  const phpFile = path.join(tempDir, 'test.php');
+  fs.writeFileSync(phpFile, '<?php\n/** Test */\nclass Test {}');
       const phpChunks = await service.parseFile(phpFile);
 
       // Markdown
@@ -315,7 +316,7 @@ export class UserService {
       const chunks = await service.parseFile(testFile);
 
       expect(chunks.length).toBeGreaterThan(0);
-      const classChunk = chunks.find(c => c.metadata.symbolName === 'UserService');
+  const classChunk = chunks.find((c: import("../../../../src/shared/types/chunk").DocumentChunk) => c.metadata.symbolName === 'UserService');
       expect(classChunk).toBeDefined();
     });
 
@@ -348,8 +349,8 @@ class AuthService
       const chunks = await service.parseFile(testFile);
 
       expect(chunks.length).toBeGreaterThan(0);
-      const classChunk = chunks.find(c => c.metadata.symbolName === 'AuthService');
-      const loginChunk = chunks.find(c => c.metadata.symbolName === 'login');
+  const classChunk = chunks.find((c: import("../../../../src/shared/types/chunk").DocumentChunk) => c.metadata.symbolName === 'AuthService');
+  const loginChunk = chunks.find((c: import("../../../../src/shared/types/chunk").DocumentChunk) => c.metadata.symbolName === 'login');
       
       expect(classChunk).toBeDefined();
       expect(loginChunk).toBeDefined();
@@ -380,9 +381,9 @@ API documentation.`;
 
       expect(chunks.length).toBeGreaterThan(3);
       
-      const installation = chunks.find(c => c.metadata.heading === 'Installation');
-      const usage = chunks.find(c => c.metadata.heading === 'Usage');
-      const api = chunks.find(c => c.metadata.heading === 'API Reference');
+  const installation = chunks.find((c: import("../../../../src/shared/types/chunk").DocumentChunk) => c.metadata.heading === 'Installation');
+  const usage = chunks.find((c: import("../../../../src/shared/types/chunk").DocumentChunk) => c.metadata.heading === 'Usage');
+  const api = chunks.find((c: import("../../../../src/shared/types/chunk").DocumentChunk) => c.metadata.heading === 'API Reference');
 
       expect(installation).toBeDefined();
       expect(usage).toBeDefined();

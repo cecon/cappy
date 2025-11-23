@@ -12,7 +12,7 @@ export class WebviewContentBuilder {
     const cspSource = panel.webview.cspSource;
 
     // Strict: require Vite-built HTML under out/
-    const htmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'out', 'dashboard.html');
+    const htmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'out', 'src', 'nivel1', 'dashboard.html');
     if (!fs.existsSync(htmlPath.fsPath)) {
       throw new Error(`Dashboard HTML not found: ${htmlPath.fsPath}. Run 'npm run build' to generate it.`);
     }
@@ -22,26 +22,30 @@ export class WebviewContentBuilder {
       vscode.Uri.joinPath(this.context.extensionUri, 'out', 'dashboard.js')
     );
     const indexJsUri = panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(this.context.extensionUri, 'out', 'chat.js')
+      vscode.Uri.joinPath(this.context.extensionUri, 'out', 'dashboard.js')
     );
     const graphCssUri = panel.webview.asWebviewUri(
       vscode.Uri.joinPath(this.context.extensionUri, 'out', 'dashboard.css')
     );
     const mainCssUri = panel.webview.asWebviewUri(
-      vscode.Uri.joinPath(this.context.extensionUri, 'out', 'chat.css')
+      vscode.Uri.joinPath(this.context.extensionUri, 'out', 'dashboard.css')
     );
     const faviconUri = panel.webview.asWebviewUri(
       vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'cappy-activity.svg')
     );
 
     htmlContent = htmlContent
+      .replaceAll('../../dashboard.js', graphJsUri.toString())
+      .replaceAll('../../dashboard.js', indexJsUri.toString())
+      .replaceAll('../../dashboard.css', graphCssUri.toString())
+      .replaceAll('../../dashboard.css', mainCssUri.toString())
       .replace('./dashboard.js', graphJsUri.toString())
-      .replace('./chat.js', indexJsUri.toString())
+      .replace('./dashboard.js', indexJsUri.toString())
       .replace('./dashboard.css', graphCssUri.toString())
-      .replace('./chat.css', mainCssUri.toString());
+      .replace('./dashboard.css', mainCssUri.toString());
 
-    const mainCssFsPath = vscode.Uri.joinPath(this.context.extensionUri, 'out', 'chat.css').fsPath;
-    if (!htmlContent.includes('chat.css') && fs.existsSync(mainCssFsPath)) {
+    const mainCssFsPath = vscode.Uri.joinPath(this.context.extensionUri, 'out', 'dashboard.css').fsPath;
+    if (!htmlContent.includes('dashboard.css') && fs.existsSync(mainCssFsPath)) {
       htmlContent = htmlContent.replace('</head>', `  <link rel="stylesheet" href="${mainCssUri}">\n</head>`);
     }
 

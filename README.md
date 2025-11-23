@@ -11,6 +11,28 @@ Stop fighting with AI tools that don't understand your codebase. Cappy builds a 
 
 ---
 
+## 📖 Table of Contents
+
+1. [The Problem](#the-problem)
+2. [The Solution](#the-solution)
+3. [Real-World Impact](#real-world-impact)
+4. [How It Works](#how-it-works)
+5. [Features](#features)
+6. [Installation](#installation)
+7. [Usage](#usage)
+8. [Use Cases](#use-cases)
+9. [Configuration](#configuration)
+10. [Architecture](#architecture)
+11. [Roadmap](#roadmap)
+12. [FAQ](#faq)
+13. [Enterprise / Agent Service](#enterprise--agent-service)
+14. [Contributing](#contributing)
+15. [Tech Stack](#tech-stack)
+16. [License](#license)
+17. [Credits](#credits)
+
+---
+
 ## The Problem
 
 You're building with AI tools but:
@@ -130,13 +152,27 @@ Or search "Cappy" in VSCode Extensions
 
 ## Usage
 
+### Native Chat Participant
+
+You can now interact with `@cappy` directly in the VS Code chat. The participant runs on top of a LangGraph workflow with persistent memory per session, giving you conversational continuity without additional configuration.
+
+### Using the Chat
+
+1. **Access the Chat**: Open the chat interface in VS Code and mention `@cappy`.
+2. **Examples of Prompts**:
+   - `@cappy Implement search pagination in the products list`
+   - `@cappy What did I ask you to do a moment ago?`
+3. **Key Notes**:
+   - The legacy slash commands (/plan, /code) were removed in favor of the new unified participant.
+   - The chat integrates with your codebase context to provide precise and actionable responses.
+
 ### Chat with Your Codebase
 ```
 You: "Where do we validate user emails?"
 Cappy: Found in src/validators/email.ts, used by UserService and AuthController
 
 You: "Add CPF validation following the same pattern"
-Cappy: [generates todo list with exact file locations and relationships]
+@cappy: [asks clarifying questions if needed, then returns a step-by-step plan]
 ```
 
 ### View Knowledge Graph

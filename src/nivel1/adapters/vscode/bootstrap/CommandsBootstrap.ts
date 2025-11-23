@@ -22,7 +22,7 @@ import {
 import type { FileMetadataDatabase } from '../../../../nivel2/infrastructure/services/file-metadata-database';
 import type { FileProcessingQueue } from '../../../../nivel2/infrastructure/services/file-processing-queue';
 import type { GraphStorePort } from '../../../../domains/dashboard/ports/indexing-port';
-import type { ContextRetrievalTool } from '../../../../domains/chat/tools/native/context-retrieval';
+import type { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
 import type { GetFilesPaginatedOptions } from './types';
 
 export interface CommandsBootstrapDependencies {
@@ -45,6 +45,19 @@ export class CommandsBootstrap {
   
   constructor(deps: CommandsBootstrapDependencies) {
     this.deps = deps;
+  }
+
+  /**
+   * Updates dependencies (called after file processing system is initialized)
+   */
+  updateDependencies(deps: Partial<CommandsBootstrapDependencies>): void {
+    console.log('🔄 [CommandsBootstrap] Updating dependencies');
+    this.deps = { ...this.deps, ...deps };
+    console.log('🔄 [CommandsBootstrap] Dependencies updated:', {
+      fileDatabase: !!this.deps.fileDatabase,
+      fileQueue: !!this.deps.fileQueue,
+      graphStore: !!this.deps.graphStore
+    });
   }
 
   /**

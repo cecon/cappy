@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.test.json",
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0",
+    "noEmit": true
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["__mocks__", "node_modules", "out", "dist"]
+}

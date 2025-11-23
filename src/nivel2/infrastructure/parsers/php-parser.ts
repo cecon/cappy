@@ -42,6 +42,7 @@ export interface PHPClass {
   isFinal: boolean;
   lineStart: number;
   lineEnd: number;
+  phpdocStartLine?: number;
   phpdoc?: string;
   properties: PHPProperty[];
   methods: PHPMethod[];
@@ -55,6 +56,7 @@ export interface PHPInterface {
   extends: string[];
   lineStart: number;
   lineEnd: number;
+  phpdocStartLine?: number;
   phpdoc?: string;
   methods: PHPMethod[];
 }
@@ -65,6 +67,7 @@ export interface PHPTrait {
   fullName: string;
   lineStart: number;
   lineEnd: number;
+  phpdocStartLine?: number;
   phpdoc?: string;
   properties: PHPProperty[];
   methods: PHPMethod[];
@@ -80,6 +83,7 @@ export interface PHPMethod {
   returnType?: string;
   lineStart: number;
   lineEnd: number;
+  phpdocStartLine?: number;
   phpdoc?: string;
 }
 
@@ -91,6 +95,7 @@ export interface PHPProperty {
   type?: string;
   defaultValue?: string;
   lineNumber: number;
+  phpdocStartLine?: number;
   phpdoc?: string;
 }
 
@@ -100,6 +105,7 @@ export interface PHPFunction {
   returnType?: string;
   lineStart: number;
   lineEnd: number;
+  phpdocStartLine?: number;
   phpdoc?: string;
 }
 
@@ -116,6 +122,7 @@ export interface PHPConstant {
   value?: string;
   visibility?: 'public' | 'private' | 'protected';
   lineNumber: number;
+  phpdocStartLine?: number;
   phpdoc?: string;
 }
 
@@ -142,40 +149,62 @@ export class PHPParser {
       };
 
       let currentNamespace: string | undefined;
-      let currentPHPDoc: string | null = null;
+  let currentPHPDoc: string | null = null;
+  let currentPHPDocStartLine: number | undefined;
+  let phpdocComplete = false;
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const trimmed = line.trim();
+        // Handle inline PHPDoc on the same line as declarations: '<?php /** ... */ class X {}'
+        let code = trimmed;
+        // Remove leading PHP open tag if present
+        if (code.startsWith('<?php')) {
+          code = code.replace(/^<\?php\s*/, '');
+        }
+        if (trimmed.includes('/**') && trimmed.includes('*/')) {
+          const start = line.indexOf('/**');
+          const end = line.indexOf('*/', start);
+          if (start !== -1 && end !== -1) {
+            currentPHPDoc = line.slice(start, end + 2);
+            currentPHPDocStartLine = i + 1;
+            phpdocComplete = true;
+            // Remove the phpdoc portion to allow matching declarations on the same line
+            const withoutDoc = line.slice(0, start) + line.slice(end + 2);
+            code = withoutDoc.replace(/^<\?php\s*/, '').trim();
+          }
+        }
 
         // Detect PHPDoc start
         if (trimmed.startsWith('/**')) {
           currentPHPDoc = line;
+          currentPHPDocStartLine = i + 1;
+          // Handle single-line PHPDoc /** ... */
+          phpdocComplete = trimmed.includes('*/');
+          if (!phpdocComplete) {
+            // We'll accumulate until we hit the end */
+          }
           continue;
         }
 
-        // Accumulate PHPDoc lines
-        if (currentPHPDoc !== null && !trimmed.endsWith('*/')) {
+        // Accumulate PHPDoc lines until end
+        if (currentPHPDoc !== null && !phpdocComplete) {
           currentPHPDoc += '\n' + line;
-          continue;
-        }
-
-        // Detect PHPDoc end
-        if (currentPHPDoc !== null && trimmed.endsWith('*/')) {
-          currentPHPDoc += '\n' + line;
-          // PHPDoc ready, will be attached to next declaration
+          if (trimmed.endsWith('*/')) {
+            phpdocComplete = true; // Mark ready for next declaration
+          }
           continue;
         }
 
         // Namespace declaration
-        const namespaceMatch = trimmed.match(/^namespace\s+([\w\\]+);/);
+        const namespaceMatch = code.match(/^namespace\s+([\w\\]+);/);
         if (namespaceMatch) {
           currentNamespace = namespaceMatch[1];
           continue;
         }
 
         // Use statement
-        const useMatch = trimmed.match(/^use\s+([\w\\]+)(?:\s+as\s+(\w+))?;/);
+        const useMatch = code.match(/^use\s+([\w\\]+)(?:\s+as\s+(\w+))?;/);
         if (useMatch) {
           const fullName = useMatch[1];
           const alias = useMatch[2] || fullName.split('\\').pop() || fullName;
@@ -184,61 +213,87 @@ export class PHPParser {
         }
 
         // Dynamic imports: require, require_once, include, include_once
-        const dynamicImport = this.extractDynamicImport(trimmed, i + 1);
+        const dynamicImport = this.extractDynamicImport(code, i + 1);
         if (dynamicImport) {
           analysis.dynamicImports.push(dynamicImport);
           continue;
         }
 
         // Class declaration
-        const classMatch = trimmed.match(/^(abstract\s+|final\s+)?class\s+(\w+)(?:\s+extends\s+([\w\\]+))?(?:\s+implements\s+([\w\\,\s]+))?/);
+        const classMatch = code.match(/^(abstract\s+|final\s+)?class\s+(\w+)(?:\s+extends\s+([\w\\]+))?(?:\s+implements\s+([\w\\,\s]+))?/);
         if (classMatch) {
-          const classObj = this.parseClass(lines, i, currentNamespace, currentPHPDoc);
+          const classObj = this.parseClass(lines, i, currentNamespace, currentPHPDoc, currentPHPDocStartLine);
           analysis.classes.push(classObj);
           currentPHPDoc = null;
+          currentPHPDocStartLine = undefined;
+          phpdocComplete = false;
           i = classObj.lineEnd - 1;
           continue;
         }
 
         // Interface declaration
-        const interfaceMatch = trimmed.match(/^interface\s+(\w+)(?:\s+extends\s+([\w\\,\s]+))?/);
+        const interfaceMatch = code.match(/^interface\s+(\w+)(?:\s+extends\s+([\w\\,\s]+))?/);
         if (interfaceMatch) {
-          const interfaceObj = this.parseInterface(lines, i, currentNamespace, currentPHPDoc);
+          const interfaceObj = this.parseInterface(lines, i, currentNamespace, currentPHPDoc, currentPHPDocStartLine);
           analysis.interfaces.push(interfaceObj);
           currentPHPDoc = null;
+          currentPHPDocStartLine = undefined;
+          phpdocComplete = false;
           i = interfaceObj.lineEnd - 1;
           continue;
         }
 
         // Trait declaration
-        const traitMatch = trimmed.match(/^trait\s+(\w+)/);
+        const traitMatch = code.match(/^trait\s+(\w+)/);
         if (traitMatch) {
-          const traitObj = this.parseTrait(lines, i, currentNamespace, currentPHPDoc);
+          const traitObj = this.parseTrait(lines, i, currentNamespace, currentPHPDoc, currentPHPDocStartLine);
           analysis.traits.push(traitObj);
           currentPHPDoc = null;
+          currentPHPDocStartLine = undefined;
+          phpdocComplete = false;
           i = traitObj.lineEnd - 1;
           continue;
         }
 
         // Global function declaration
-        const functionMatch = trimmed.match(/^function\s+(\w+)\s*\(/);
+        const functionMatch = code.match(/^function\s+(\w+)\s*\(/);
         if (functionMatch) {
-          const funcObj = this.parseFunction(lines, i, currentPHPDoc);
+          const funcObj = this.parseFunction(lines, i, currentPHPDoc, currentPHPDocStartLine);
           analysis.functions.push(funcObj);
           currentPHPDoc = null;
+          currentPHPDocStartLine = undefined;
+          phpdocComplete = false;
           i = funcObj.lineEnd - 1;
           continue;
         }
 
         // Global constant
-        const defineMatch = trimmed.match(/^define\s*\(\s*['"](\w+)['"]/);
+        const defineMatch = code.match(/^define\s*\(\s*['"](\w+)['"]/);
         if (defineMatch) {
           analysis.constants.push({
             name: defineMatch[1],
             lineNumber: i + 1,
-            phpdoc: currentPHPDoc || undefined
+            phpdoc: currentPHPDoc || undefined,
+            phpdocStartLine: currentPHPDocStartLine
           });
           currentPHPDoc = null;
+          currentPHPDocStartLine = undefined;
+          phpdocComplete = false;
+          continue;
+        }
+
+        // Global constant using const keyword
+        const globalConstMatch = code.match(/^const\s+(\w+)\s*=\s*.+;/);
+        if (globalConstMatch) {
+          analysis.constants.push({
+            name: globalConstMatch[1],
+            lineNumber: i + 1,
+            phpdoc: currentPHPDoc || undefined,
+            phpdocStartLine: currentPHPDocStartLine
+          });
+          currentPHPDoc = null;
+          currentPHPDocStartLine = undefined;
+          phpdocComplete = false;
           continue;
         }
       }
@@ -260,7 +315,7 @@ export class PHPParser {
     }
   }
 
-  private parseClass(lines: string[], startIndex: number, namespace: string | undefined, phpdoc: string | null): PHPClass {
+  private parseClass(lines: string[], startIndex: number, namespace: string | undefined, phpdoc: string | null, phpdocStartLine?: number): PHPClass {
     const line = lines[startIndex].trim();
     const classMatch = line.match(/^(abstract\s+|final\s+)?class\s+(\w+)(?:\s+extends\s+([\w\\]+))?(?:\s+implements\s+([\w\\,\s]+))?/);
     
@@ -277,7 +332,8 @@ export class PHPParser {
     const methods: PHPMethod[] = [];
     const constants: PHPConstant[] = [];
 
-    let memberPHPDoc: string | null = null;
+  let memberPHPDoc: string | null = null;
+  let memberPHPDocStartLine: number | undefined;
 
     for (let i = startIndex + 1; i < lineEnd; i++) {
       const trimmed = lines[i].trim();
@@ -285,6 +341,7 @@ export class PHPParser {
       // Collect PHPDoc for members
       if (trimmed.startsWith('/**')) {
         memberPHPDoc = lines[i];
+        memberPHPDocStartLine = i + 1;
         for (let j = i + 1; j < lineEnd; j++) {
           memberPHPDoc += '\n' + lines[j];
           if (lines[j].trim().endsWith('*/')) {
@@ -307,18 +364,21 @@ export class PHPParser {
           type: propMatch[4]?.trim(),
           defaultValue: defaultMatch?.[1]?.trim(),
           lineNumber: i + 1,
+          phpdocStartLine: memberPHPDocStartLine,
           phpdoc: memberPHPDoc || undefined
         });
         memberPHPDoc = null;
+        memberPHPDocStartLine = undefined;
         continue;
       }
 
       // Method
       const methodMatch = trimmed.match(/^(abstract\s+|final\s+)?(public|private|protected)\s+(static\s+)?function\s+(\w+)\s*\(/);
       if (methodMatch) {
-        const methodObj = this.parseMethod(lines, i, memberPHPDoc);
+        const methodObj = this.parseMethod(lines, i, memberPHPDoc, memberPHPDocStartLine);
         methods.push(methodObj);
         memberPHPDoc = null;
+        memberPHPDocStartLine = undefined;
         i = methodObj.lineEnd - 1;
         continue;
       }
@@ -331,9 +391,11 @@ export class PHPParser {
           value: constMatch[3],
           visibility: constMatch[1] as 'public' | 'private' | 'protected' | undefined,
           lineNumber: i + 1,
+          phpdocStartLine: memberPHPDocStartLine,
           phpdoc: memberPHPDoc || undefined
         });
         memberPHPDoc = null;
+        memberPHPDocStartLine = undefined;
         continue;
       }
     }
@@ -348,6 +410,7 @@ export class PHPParser {
       isFinal,
       lineStart: startIndex + 1,
       lineEnd,
+      phpdocStartLine: phpdocStartLine,
       phpdoc: phpdoc || undefined,
       properties,
       methods,
@@ -355,7 +418,7 @@ export class PHPParser {
     };
   }
 
-  private parseInterface(lines: string[], startIndex: number, namespace: string | undefined, phpdoc: string | null): PHPInterface {
+  private parseInterface(lines: string[], startIndex: number, namespace: string | undefined, phpdoc: string | null, phpdocStartLine?: number): PHPInterface {
     const line = lines[startIndex].trim();
     const interfaceMatch = line.match(/^interface\s+(\w+)(?:\s+extends\s+([\w\\,\s]+))?/);
     
@@ -365,13 +428,15 @@ export class PHPParser {
     const lineEnd = this.findBlockEnd(lines, startIndex);
 
     const methods: PHPMethod[] = [];
-    let memberPHPDoc: string | null = null;
+  let memberPHPDoc: string | null = null;
+  let memberPHPDocStartLine: number | undefined;
 
     for (let i = startIndex + 1; i < lineEnd; i++) {
       const trimmed = lines[i].trim();
 
       if (trimmed.startsWith('/**')) {
         memberPHPDoc = lines[i];
+        memberPHPDocStartLine = i + 1;
         for (let j = i + 1; j < lineEnd; j++) {
           memberPHPDoc += '\n' + lines[j];
           if (lines[j].trim().endsWith('*/')) {
@@ -384,9 +449,10 @@ export class PHPParser {
 
       const methodMatch = trimmed.match(/^public\s+function\s+(\w+)\s*\(/);
       if (methodMatch) {
-        const methodObj = this.parseMethod(lines, i, memberPHPDoc);
+        const methodObj = this.parseMethod(lines, i, memberPHPDoc, memberPHPDocStartLine);
         methods.push(methodObj);
         memberPHPDoc = null;
+        memberPHPDocStartLine = undefined;
         i = methodObj.lineEnd - 1;
       }
     }
@@ -398,12 +464,13 @@ export class PHPParser {
       extends: extendsList,
       lineStart: startIndex + 1,
       lineEnd,
+      phpdocStartLine: phpdocStartLine,
       phpdoc: phpdoc || undefined,
       methods
     };
   }
 
-  private parseTrait(lines: string[], startIndex: number, namespace: string | undefined, phpdoc: string | null): PHPTrait {
+  private parseTrait(lines: string[], startIndex: number, namespace: string | undefined, phpdoc: string | null, phpdocStartLine?: number): PHPTrait {
     const line = lines[startIndex].trim();
     const traitMatch = line.match(/^trait\s+(\w+)/);
     
@@ -413,13 +480,15 @@ export class PHPParser {
 
     const properties: PHPProperty[] = [];
     const methods: PHPMethod[] = [];
-    let memberPHPDoc: string | null = null;
+  let memberPHPDoc: string | null = null;
+  let memberPHPDocStartLine: number | undefined;
 
     for (let i = startIndex + 1; i < lineEnd; i++) {
       const trimmed = lines[i].trim();
 
       if (trimmed.startsWith('/**')) {
         memberPHPDoc = lines[i];
+        memberPHPDocStartLine = i + 1;
         for (let j = i + 1; j < lineEnd; j++) {
           memberPHPDoc += '\n' + lines[j];
           if (lines[j].trim().endsWith('*/')) {
@@ -439,17 +508,20 @@ export class PHPParser {
           isReadonly: !!propMatch[3],
           type: propMatch[4]?.trim(),
           lineNumber: i + 1,
+          phpdocStartLine: memberPHPDocStartLine,
           phpdoc: memberPHPDoc || undefined
         });
         memberPHPDoc = null;
+        memberPHPDocStartLine = undefined;
         continue;
       }
 
       const methodMatch = trimmed.match(/^(public|private|protected)\s+(static\s+)?function\s+(\w+)\s*\(/);
       if (methodMatch) {
-        const methodObj = this.parseMethod(lines, i, memberPHPDoc);
+        const methodObj = this.parseMethod(lines, i, memberPHPDoc, memberPHPDocStartLine);
         methods.push(methodObj);
         memberPHPDoc = null;
+        memberPHPDocStartLine = undefined;
         i = methodObj.lineEnd - 1;
       }
     }
@@ -460,13 +532,14 @@ export class PHPParser {
       fullName,
       lineStart: startIndex + 1,
       lineEnd,
+      phpdocStartLine: phpdocStartLine,
       phpdoc: phpdoc || undefined,
       properties,
       methods
     };
   }
 
-  private parseMethod(lines: string[], startIndex: number, phpdoc: string | null): PHPMethod {
+  private parseMethod(lines: string[], startIndex: number, phpdoc: string | null, phpdocStartLine?: number): PHPMethod {
     const line = lines[startIndex].trim();
     const methodMatch = line.match(/^(abstract\s+|final\s+)?(public|private|protected)\s+(static\s+)?function\s+(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\??[\w\\|]+))?/);
     
@@ -491,11 +564,12 @@ export class PHPParser {
       returnType,
       lineStart: startIndex + 1,
       lineEnd,
+      phpdocStartLine: phpdocStartLine,
       phpdoc: phpdoc || undefined
     };
   }
 
-  private parseFunction(lines: string[], startIndex: number, phpdoc: string | null): PHPFunction {
+  private parseFunction(lines: string[], startIndex: number, phpdoc: string | null, phpdocStartLine?: number): PHPFunction {
     const line = lines[startIndex].trim();
     const functionMatch = line.match(/^function\s+(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\??[\w\\|]+))?/);
     
@@ -512,6 +586,7 @@ export class PHPParser {
       returnType,
       lineStart: startIndex + 1,
       lineEnd,
+      phpdocStartLine: phpdocStartLine,
       phpdoc: phpdoc || undefined
     };
   }
@@ -560,11 +635,11 @@ export class PHPParser {
       for (const cls of analysis.classes) {
         if (cls.phpdoc) {
           chunks.push({
-            id: this.generateChunkId(filePath, cls.lineStart, cls.lineEnd),
+            id: this.generateChunkId(filePath, cls.phpdocStartLine ?? cls.lineStart, cls.lineEnd),
             content: cls.phpdoc,
             metadata: {
               filePath,
-              lineStart: cls.lineStart,
+              lineStart: cls.phpdocStartLine ?? cls.lineStart,
               lineEnd: cls.lineEnd,
               chunkType: 'phpdoc',
               symbolName: cls.name,
@@ -574,15 +649,34 @@ export class PHPParser {
           });
         }
 
+        // Properties (emit before methods to match test expectations)
+        for (const prop of cls.properties) {
+          if (prop.phpdoc) {
+            chunks.push({
+              id: this.generateChunkId(filePath, prop.phpdocStartLine ?? prop.lineNumber, prop.lineNumber),
+              content: prop.phpdoc,
+              metadata: {
+                filePath,
+                lineStart: prop.phpdocStartLine ?? prop.lineNumber,
+                lineEnd: prop.lineNumber,
+                chunkType: 'phpdoc',
+                symbolName: prop.name,
+                symbolKind: 'property',
+                visibility: prop.visibility
+              }
+            });
+          }
+        }
+
         // Methods
         for (const method of cls.methods) {
           if (method.phpdoc) {
             chunks.push({
-              id: this.generateChunkId(filePath, method.lineStart, method.lineEnd),
+              id: this.generateChunkId(filePath, method.phpdocStartLine ?? method.lineStart, method.lineEnd),
               content: method.phpdoc,
               metadata: {
                 filePath,
-                lineStart: method.lineStart,
+                lineStart: method.phpdocStartLine ?? method.lineStart,
                 lineEnd: method.lineEnd,
                 chunkType: 'phpdoc',
                 symbolName: method.name,
@@ -593,20 +687,20 @@ export class PHPParser {
           }
         }
 
-        // Properties
-        for (const prop of cls.properties) {
-          if (prop.phpdoc) {
+        // Class constants
+        for (const c of cls.constants) {
+          if (c.phpdoc) {
             chunks.push({
-              id: this.generateChunkId(filePath, prop.lineNumber, prop.lineNumber),
-              content: prop.phpdoc,
+              id: this.generateChunkId(filePath, c.phpdocStartLine ?? c.lineNumber, c.lineNumber),
+              content: c.phpdoc,
               metadata: {
                 filePath,
-                lineStart: prop.lineNumber,
-                lineEnd: prop.lineNumber,
+                lineStart: c.phpdocStartLine ?? c.lineNumber,
+                lineEnd: c.lineNumber,
                 chunkType: 'phpdoc',
-                symbolName: prop.name,
-                symbolKind: 'property',
-                visibility: prop.visibility
+                symbolName: c.name,
+                symbolKind: 'constant',
+                visibility: c.visibility ?? 'public'
               }
             });
           }
@@ -617,11 +711,11 @@ export class PHPParser {
       for (const iface of analysis.interfaces) {
         if (iface.phpdoc) {
           chunks.push({
-            id: this.generateChunkId(filePath, iface.lineStart, iface.lineEnd),
+            id: this.generateChunkId(filePath, iface.phpdocStartLine ?? iface.lineStart, iface.lineEnd),
             content: iface.phpdoc,
             metadata: {
               filePath,
-              lineStart: iface.lineStart,
+              lineStart: iface.phpdocStartLine ?? iface.lineStart,
               lineEnd: iface.lineEnd,
               chunkType: 'phpdoc',
               symbolName: iface.name,
@@ -635,11 +729,11 @@ export class PHPParser {
       for (const trait of analysis.traits) {
         if (trait.phpdoc) {
           chunks.push({
-            id: this.generateChunkId(filePath, trait.lineStart, trait.lineEnd),
+            id: this.generateChunkId(filePath, trait.phpdocStartLine ?? trait.lineStart, trait.lineEnd),
             content: trait.phpdoc,
             metadata: {
               filePath,
-              lineStart: trait.lineStart,
+              lineStart: trait.phpdocStartLine ?? trait.lineStart,
               lineEnd: trait.lineEnd,
               chunkType: 'phpdoc',
               symbolName: trait.name,
@@ -653,15 +747,33 @@ export class PHPParser {
       for (const func of analysis.functions) {
         if (func.phpdoc) {
           chunks.push({
-            id: this.generateChunkId(filePath, func.lineStart, func.lineEnd),
+            id: this.generateChunkId(filePath, func.phpdocStartLine ?? func.lineStart, func.lineEnd),
             content: func.phpdoc,
             metadata: {
               filePath,
-              lineStart: func.lineStart,
+              lineStart: func.phpdocStartLine ?? func.lineStart,
               lineEnd: func.lineEnd,
               chunkType: 'phpdoc',
               symbolName: func.name,
               symbolKind: 'function'
+            }
+          });
+        }
+      }
+
+      // Global constants
+      for (const c of analysis.constants) {
+        if (c.phpdoc) {
+          chunks.push({
+            id: this.generateChunkId(filePath, c.phpdocStartLine ?? c.lineNumber, c.lineNumber),
+            content: c.phpdoc,
+            metadata: {
+              filePath,
+              lineStart: c.phpdocStartLine ?? c.lineNumber,
+              lineEnd: c.lineNumber,
+              chunkType: 'phpdoc',
+              symbolName: c.name,
+              symbolKind: 'constant'
             }
           });
         }
