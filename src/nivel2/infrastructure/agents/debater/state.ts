@@ -3,7 +3,7 @@
  * @module agents/debater/state
  */
 
-import type { BaseAgentState } from '../../../common/state';
+import type { BaseAgentState } from '../common/state';
 
 export interface DebaterState extends BaseAgentState {
   /** Research summary */

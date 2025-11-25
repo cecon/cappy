@@ -3,7 +3,7 @@
  * @module agents/researcher/state
  */
 
-import type { BaseAgentState } from '../../../common/state';
+import type { BaseAgentState } from '../common/state';
 
 export interface ResearcherState extends BaseAgentState {
   /** Search queries */

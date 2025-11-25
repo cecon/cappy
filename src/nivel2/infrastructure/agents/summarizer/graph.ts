@@ -5,8 +5,8 @@
 
 import * as vscode from 'vscode';
 import type { SummarizerState } from './state';
-import type { ProgressCallback } from '../../../common/types';
-import { createProgressEvent } from '../../../types/progress-events';
+import type { ProgressCallback } from '../../common/types';
+import { createProgressEvent } from '../../types/progress-events';
 
 const SUMMARIZER_PROMPT = `You are a technical summarizer. Analyze research findings and create a concise summary.
 

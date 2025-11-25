@@ -7,9 +7,10 @@
  * 
  * Architecture:
  * - Supervisor: Orchestrates all agents
- * - Intention: Analyzes user intent
- * - Refinement: Refines requirements
- * - Brain: Deep analysis (researcher -> summarizer -> debater)
+ * - Conversational: Primary entry point for all interactions
+ * - Researcher: Searches workspace for relevant context
+ * - Summarizer: Synthesizes research findings
+ * - Debater: Brainstorms solutions collaboratively
  * - Planner: Creates technical plans
  * - Critic: Validates plans
  * - Refiner: Improves plans based on critiques
@@ -47,8 +48,10 @@ export class IntelligentAgent {
     console.log('🤖 [IntelligentAgent] Initializing multi-agent system...');
     console.log('✅ [IntelligentAgent] All agents ready:');
     console.log('   - Supervisor (orchestrator)');
-    console.log('   - Brain (chat, research, debate with technical refinement)');
-    console.log('   - Intention (intent analysis)');
+    console.log('   - Conversational (primary entry, chat)');
+    console.log('   - Researcher (workspace search)');
+    console.log('   - Summarizer (synthesis)');
+    console.log('   - Debater (collaborative brainstorming)');
     console.log('   - Planner (technical planning)');
     console.log('   - Critic (plan validation)');
     console.log('   - Refiner (plan improvement)');
@@ -139,8 +142,6 @@ export class IntelligentAgent {
       // Build result
       const planningResult: PlanningTurnResult = {
         phase: result.phase as PlanningTurnResult['phase'],
-        routerIntent: result.routerIntent as PlanningTurnResult['routerIntent'],
-        intentionSummary: result.intentionSummary,
         confirmed: result.planConfirmed,
         readyForExecution: result.readyForExecution,
         awaitingUser: result.awaitingUser,
@@ -179,9 +180,11 @@ export class IntelligentAgent {
 export * from './common/types';
 export * from './common/state';
 export * from './supervisor';
-export * from './intention';
+export * from './conversational';
+export * from './researcher';
+export * from './summarizer';
+export * from './debater';
 export * from './refinement';
-export * from './brain';
 export * from './planner';
 export * from './critic';
 export * from './refiner';

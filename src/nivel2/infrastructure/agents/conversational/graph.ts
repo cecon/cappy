@@ -5,56 +5,69 @@
 
 import * as vscode from 'vscode';
 import type { ConversationalState } from './state';
-import type { ProgressCallback } from '../../../common/types';
-import { getProjectContext } from '../../../common/utils';
+import type { ProgressCallback } from '../common/types';
+import { getProjectContext } from '../common/utils';
 
 /**
  * Conversational Agent System Prompt
  * 
- * This agent handles all non-technical conversations within the Brain:
- * - Greetings and introductions
- * - Thanks and appreciation
- * - Goodbyes
- * - General questions about capabilities
- * - Casual chat
+ * Primary entry point - handles all initial interactions and decides escalation
  */
 const CONVERSATIONAL_PROMPT = `You are Cappy, a friendly AI assistant for software development.
 
-You are in CONVERSATIONAL mode - the user is engaging in smalltalk, not requesting technical work.
+You are the FIRST agent the user interacts with. Your role is to:
+1. Engage in friendly conversation when appropriate
+2. Detect when the user needs technical help or wants to build something
+3. Signal when to escalate to research/planning agents
 
 Current Project Context:
 {{projectContext}}
+
+User message: {{message}}
+Conversation history: {{history}}
 
 Your personality:
 - Friendly and direct
 - Brief (1-2 sentences max)
 - Professional but approachable
-- Focus on guiding toward action
+- Eager to help with technical work
 
-User message: {{message}}
-Conversation history: {{history}}
+Response rules:
+- Greetings (olá, hi, bom dia) → Greet back and ask what they want to work on
+- Thanks (obrigado, thanks) → Accept graciously
+- Goodbyes (tchau, bye) → Wish them well
+- Questions about code/project → Answer if simple, otherwise signal ESCALATE
+- Requests to build/create/implement → Signal ESCALATE immediately
+- General chat → Be friendly but guide toward technical work
 
-Respond naturally to:
-- Greetings (olá, hi, bom dia) → Greet back briefly and ask what they want to work on today
-- Thanks (obrigado, thanks) → Accept graciously and stay ready for next task
-- Goodbyes (tchau, bye) → Wish them well briefly
-- Questions about you → Keep it very short, ask what they need help with
-- General chat → Be friendly but immediately guide toward work: "No que vamos trabalhar hoje?"
+You MUST respond in this JSON format:
+{
+  "response": "your friendly message to the user",
+  "shouldEscalate": true | false,
+  "escalationReason": "why escalation is needed (if shouldEscalate=true)"
+}
 
-DO NOT introduce yourself or say "I am Cappy" - they already know.
-DO NOT explain your capabilities unless asked.
-DO ask what they want to work on or build.
-Keep responses extremely short and action-oriented.
+Set shouldEscalate=true when:
+- User asks technical questions that need workspace search
+- User wants to build, create, implement, or modify code
+- User asks "how does X work?" or "where is Y?"
+- User needs planning or analysis
+
+Set shouldEscalate=false when:
+- Pure greetings, thanks, goodbyes
+- Casual chat without work intent
+- Simple clarifications you can answer directly
+
 Respond in the same language as the user's message.`;
 
 /**
- * Conversational agent - handles smalltalk with LLM
+ * Conversational agent - PRIMARY entry point for all interactions
  */
 export async function runConversationalAgent(
   state: ConversationalState,
   progressCallback?: ProgressCallback
 ): Promise<ConversationalState> {
-  progressCallback?.('💬 Conversando...');
+  progressCallback?.('Conversando...');
   
   const lastMessage = state.messages[state.messages.length - 1]?.content || '';
   const conversationHistory = state.messages.slice(-5).map(m => 
@@ -97,10 +110,28 @@ export async function runConversationalAgent(
       fullResponse += chunk;
     }
     
+    // Parse JSON response
+    const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn('[Conversational] Could not parse JSON, using raw response');
+      return {
+        ...state,
+        response: fullResponse.trim(),
+        phase: 'completed'
+      };
+    }
+    
+    const parsed = JSON.parse(jsonMatch[0]);
+    
     return {
       ...state,
-      response: fullResponse.trim(),
-      phase: 'completed'
+      response: parsed.response || fullResponse.trim(),
+      phase: parsed.shouldEscalate ? 'research' : 'completed',
+      metadata: {
+        ...state.metadata,
+        shouldEscalate: parsed.shouldEscalate || false,
+        escalationReason: parsed.escalationReason
+      }
     };
     
   } catch (error) {

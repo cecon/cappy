@@ -32,12 +32,6 @@ export interface SupervisorState extends BaseAgentState {
   /** Current active agent */
   currentAgent: string | null;
   
-  /** Router decision */
-  routerIntent?: string;
-  
-  /** Intention summary */
-  intentionSummary?: string;
-  
   /** Plan confirmed by user */
   planConfirmed?: boolean;
   

@@ -46,8 +46,7 @@ export type RouterIntent = 'task' | 'question' | 'smalltalk' | 'unknown';
  * Planning phase types
  */
 export type PlanningPhase = 
-  | 'intention'
-  | 'refinement'
+  | 'conversational'
   | 'research'
   | 'planning'
   | 'critique'
@@ -76,8 +75,6 @@ export interface SessionTurnResult {
  */
 export interface PlanningTurnResult {
   phase: PlanningPhase;
-  routerIntent?: RouterIntent;
-  intentionSummary?: string;
   confirmed?: boolean;
   readyForExecution?: boolean;
   awaitingUser?: boolean;

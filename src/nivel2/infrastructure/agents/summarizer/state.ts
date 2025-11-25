@@ -3,7 +3,7 @@
  * @module agents/summarizer/state
  */
 
-import type { BaseAgentState } from '../../../common/state';
+import type { BaseAgentState } from '../common/state';
 
 export interface SummarizerState extends BaseAgentState {
   /** Research findings to summarize */

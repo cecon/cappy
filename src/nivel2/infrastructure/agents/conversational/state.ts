@@ -3,7 +3,7 @@
  * @module agents/conversational/state
  */
 
-import type { BaseAgentState } from '../../../common/state';
+import type { BaseAgentState } from '../common/state';
 
 /**
  * State for conversational interactions (greetings, smalltalk)
