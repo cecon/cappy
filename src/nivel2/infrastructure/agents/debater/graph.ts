@@ -5,8 +5,8 @@
 
 import * as vscode from 'vscode';
 import type { DebaterState } from './state';
-import type { ProgressCallback } from '../../common/types';
-import { createProgressEvent } from '../../types/progress-events';
+import type { ProgressCallback } from '../common/types';
+import { createProgressEvent } from '../types/progress-events';
 
 const DEBATER_PROMPT = `You are a COLLABORATIVE brainstorm partner that CONTRIBUTES ideas actively.
 

@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import type { ResearcherState } from './state';
-import type { ProgressCallback } from '../../common/types';
-import { createProgressEvent } from '../../types/progress-events';
-import { getProjectContext } from '../../common/utils';
+import type { ProgressCallback } from '../common/types';
+import { createProgressEvent } from '../types/progress-events';
+import { getProjectContext } from '../common/utils';
 
 const RESEARCHER_PROMPT = `You are a code researcher. You MUST use the available tools to search the workspace.
 

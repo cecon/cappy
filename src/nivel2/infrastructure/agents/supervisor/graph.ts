@@ -179,7 +179,7 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
             { 
               ...currentState, 
               messages: currentState.messages,
-              researchResults: researchResult.findings?.map(f => f.content) || []
+              findings: researchResult.findings || []
             },
             progressCallback
           );
@@ -189,7 +189,7 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
             { 
               ...currentState, 
               messages: currentState.messages,
-              summaries: summaryResult.summary ? [summaryResult.summary] : []
+              summary: summaryResult.summary
             },
             progressCallback
           );
