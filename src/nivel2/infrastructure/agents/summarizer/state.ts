@@ -1,6 +1,6 @@
 /**
  * @fileoverview Summarizer Agent State
- * @module agents/brain/agents/summarizer/state
+ * @module agents/summarizer/state
  */
 
 import type { BaseAgentState } from '../../../common/state';

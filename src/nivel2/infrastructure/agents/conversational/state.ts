@@ -1,6 +1,6 @@
 /**
  * @fileoverview Conversational Agent State
- * @module agents/brain/agents/conversational/state
+ * @module agents/conversational/state
  */
 
 import type { BaseAgentState } from '../../../common/state';

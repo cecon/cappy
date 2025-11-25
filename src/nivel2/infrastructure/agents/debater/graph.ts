@@ -1,6 +1,6 @@
 /**
  * @fileoverview Debater Agent Graph
- * @module agents/brain/agents/debater/graph
+ * @module agents/debater/graph
  */
 
 import * as vscode from 'vscode';

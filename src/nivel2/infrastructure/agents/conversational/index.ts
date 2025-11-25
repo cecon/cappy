@@ -1,6 +1,6 @@
 /**
  * @fileoverview Conversational Agent - Exports
- * @module agents/brain/agents/conversational
+ * @module agents/conversational
  */
 
 export * from './state';

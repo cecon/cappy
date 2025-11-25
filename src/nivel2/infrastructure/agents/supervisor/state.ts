@@ -14,7 +14,7 @@ export function createSupervisorState(sessionId: string): SupervisorState {
   return {
     sessionId,
     messages: [],
-    phase: 'intention',
+    phase: 'conversational', // Start conversational-first
     awaitingUser: false,
     currentAgent: null,
     metadata: {}

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Debater Agent
- * @module agents/brain/agents/debater
+ * @module agents/debater
  */
 
 export { runDebaterAgent } from './graph';

@@ -1,6 +1,6 @@
 /**
- * @fileoverview Conversational Agent Graph - Handles smalltalk within Brain
- * @module agents/brain/agents/conversational/graph
+ * @fileoverview Conversational Agent Graph - Primary entry point for all interactions
+ * @module agents/conversational/graph
  */
 
 import * as vscode from 'vscode';

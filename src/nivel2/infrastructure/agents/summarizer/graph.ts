@@ -1,6 +1,6 @@
 /**
  * @fileoverview Summarizer Agent Graph
- * @module agents/brain/agents/summarizer/graph
+ * @module agents/summarizer/graph
  */
 
 import * as vscode from 'vscode';

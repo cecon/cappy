@@ -1,6 +1,6 @@
 /**
  * @fileoverview Researcher Agent
- * @module agents/brain/agents/researcher
+ * @module agents/researcher
  */
 
 export { runResearcherAgent } from './graph';

@@ -1,13 +1,15 @@
 /**
- * @fileoverview Supervisor graph - LLM-based orchestration
+ * @fileoverview Supervisor graph - Conversational-first orchestration
  * @module agents/supervisor/graph
  */
 
 import * as vscode from 'vscode';
 import type { SupervisorState } from './state';
 import type { ProgressCallback } from '../common/types';
-import { runIntentionAgent } from '../intention';
-import { runBrainAgent } from '../brain';
+import { runConversationalAgent } from '../conversational';
+import { runResearcherAgent } from '../researcher';
+import { runSummarizerAgent } from '../summarizer';
+import { runDebaterAgent } from '../debater';
 import { runPlannerAgent } from '../planner';
 import { runCriticAgent } from '../critic';
 import { runRefinerAgent } from '../refiner';
@@ -16,40 +18,45 @@ import { runExecutorAgent } from '../executor';
 /**
  * Supervisor System Prompt
  * 
- * This LLM decides which specialized agent to invoke next based on:
- * - User message
- * - Current phase
- * - Conversation history
- * 
- * TODO: This will be used when vscode.lm API is integrated
+ * Conversational-first approach:
+ * - ALWAYS starts with conversational agent
+ * - Escalates to research/planning only when user explicitly requests work
+ * - No intent classification needed upfront
  */
 const SUPERVISOR_PROMPT = `You are the Supervisor of a multi-agent development system.
 
-Your job is to analyze the user's message and decide which agent to call next.
+Your job is to analyze the conversation and decide the next agent based on what the user needs.
 
 Available agents:
-- brain: Handles casual chat OR research+debate (with technical refinement questions)
-- intention: Analyzes user intent for ANY development/work task
-- planner: Creates technical development plans
-- critic: Validates and critiques plans
-- refiner: Improves plans based on critiques
-- executor: Executes plans and generates deliverables
+- conversational: Handle friendly chat, questions, clarifications (DEFAULT - always start here)
+- researcher: Search workspace for relevant code/docs when user asks technical questions
+- summarizer: Synthesize research findings into actionable insights
+- debater: Brainstorm solutions and technical approaches collaboratively
+- planner: Create detailed development plans
+- critic: Validate and critique plans
+- refiner: Improve plans based on critiques
+- executor: Execute plans and generate code
 
 Current phase: {{phase}}
 User message: {{message}}
 Conversation history: {{history}}
 
-Decide:
-1. ONLY smalltalk (hi, thanks, bye) → BRAIN agent
-2. ANY work/development task (criar, desenvolver, implementar, refatorar, analisar, etc) → INTENTION agent
-3. Follow development workflow: intention → brain (research+debate with refinement) → planner → critic → refiner → executor
+Decision flow:
+1. NEW conversation OR casual chat → conversational
+2. User asks "how does X work?" OR "where is Y?" → researcher → summarizer
+3. User says "let's build X" OR "I need to implement Y" → researcher → summarizer → debater
+4. After debater approves → planner → critic → (refiner if needed) → executor
 
-IMPORTANT: If user wants to BUILD, CREATE, DEVELOP, IMPLEMENT anything → call INTENTION, NOT brain!
+IMPORTANT: 
+- ALWAYS start with conversational for new messages
+- Let conversational decide if escalation is needed
+- Researcher/summarizer/debater work as a pipeline for technical work
+- Never skip conversational unless already in a workflow phase
 
 Respond in JSON:
 {
   "action": "call_agent",
-  "agent": "conversational" | "intention" | "refinement" | "brain" | "planner" | "critic" | "refiner" | "executor",
+  "agent": "conversational" | "researcher" | "summarizer" | "debater" | "planner" | "critic" | "refiner" | "executor",
   "reasoning": "why you made this decision"
 }`;
 
@@ -123,7 +130,7 @@ async function supervisorDecision(
 }
 
 /**
- * Supervisor orchestrates all agents based on LLM decisions
+ * Supervisor orchestrates all agents in conversational-first flow
  */
 export function createSupervisorGraph(progressCallback?: ProgressCallback) {
   return {
@@ -135,68 +142,87 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
       
       // Execute the chosen agent
       try {
-        // Brain for conversational (smalltalk)
-        if (decision.agent === 'brain' && currentState.phase === 'intention') {
-          progressCallback?.('💬 Brain (Conversational)');
-          const result = await runBrainAgent(
+        // CONVERSATIONAL (default entry point)
+        if (decision.agent === 'conversational' || currentState.phase === 'conversational') {
+          progressCallback?.('💬 Conversational Agent');
+          const result = await runConversationalAgent(
             { ...currentState, messages: currentState.messages },
-            progressCallback
-          );
-          return {
-            ...currentState,
-            phase: 'completed',
-            metadata: {
-              ...currentState.metadata,
-              recommendations: result.debateConclusions || []
-            }
-          };
-        }
-        
-        if (currentState.phase === 'intention' || decision.agent === 'intention') {
-          progressCallback?.('🎯 Intention Agent');
-          const result = await runIntentionAgent(
-            { ...currentState, messages: currentState.messages },
-            progressCallback
-          );
-          currentState.routerIntent = result.intent;
-          currentState.intentionSummary = result.summary;
-          currentState.phase = 'research';
-          currentState.currentAgent = 'brain';
-        }
-        
-        if (currentState.phase === 'research' || currentState.phase === 'debate') {
-          progressCallback?.('🎯 Brain Agent (Research & Debate)');
-          const result = await runBrainAgent(
-            { ...currentState, messages: currentState.messages, phase: currentState.phase },
             progressCallback
           );
           
-          // If debater needs refinement, pause
-          if (result.awaitingUser) {
+          // Check if conversational wants to escalate to research
+          if (result.metadata?.shouldEscalate) {
+            currentState.phase = 'research';
+            currentState.currentAgent = 'researcher';
+          } else {
+            return {
+              ...currentState,
+              phase: 'completed',
+              metadata: {
+                ...currentState.metadata,
+                response: result.response
+              }
+            };
+          }
+        }
+        
+        // RESEARCH pipeline: researcher → summarizer → debater
+        if (currentState.phase === 'research') {
+          progressCallback?.('🔍 Researcher Agent');
+          const researchResult = await runResearcherAgent(
+            { ...currentState, messages: currentState.messages },
+            progressCallback
+          );
+          
+          progressCallback?.('📝 Summarizer Agent');
+          const summaryResult = await runSummarizerAgent(
+            { 
+              ...currentState, 
+              messages: currentState.messages,
+              researchResults: researchResult.findings?.map(f => f.content) || []
+            },
+            progressCallback
+          );
+          
+          progressCallback?.('💡 Debater Agent');
+          const debateResult = await runDebaterAgent(
+            { 
+              ...currentState, 
+              messages: currentState.messages,
+              summaries: summaryResult.summary ? [summaryResult.summary] : []
+            },
+            progressCallback
+          );
+          
+          // If debater needs clarification, pause
+          if (debateResult.awaitingUser) {
             return {
               ...currentState,
               awaitingUser: true,
               phase: 'debate',
               metadata: {
                 ...currentState.metadata,
-                refinementQuestion: result.metadata?.refinementQuestion
+                refinementQuestion: debateResult.metadata?.refinementQuestion,
+                researchFindings: researchResult.findings?.map(f => f.content),
+                summaries: summaryResult.summary ? [summaryResult.summary] : []
               }
             };
           }
           
-          // Ready to proceed
+          // Ready to proceed to planning
           currentState.metadata = {
             ...currentState.metadata,
-            researchFindings: result.researchResults,
-            summaries: result.summaries,
-            recommendations: result.debateConclusions
+            researchFindings: researchResult.findings?.map(f => f.content),
+            summaries: summaryResult.summary ? [summaryResult.summary] : [],
+            recommendations: debateResult.recommendation ? [debateResult.recommendation] : []
           };
           currentState.phase = 'planning';
           currentState.currentAgent = 'planner';
         }
         
+        // PLANNING
         if (currentState.phase === 'planning') {
-          progressCallback?.('🎯 Planner Agent');
+          progressCallback?.('📋 Planner Agent');
           const result = await runPlannerAgent(
             { ...currentState, messages: currentState.messages },
             progressCallback
@@ -209,8 +235,9 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
           currentState.currentAgent = 'critic';
         }
         
+        // CRITIQUE
         if (currentState.phase === 'critique') {
-          progressCallback?.('🎯 Critic Agent');
+          progressCallback?.('🔎 Critic Agent');
           const result = await runCriticAgent(
             { ...currentState, messages: currentState.messages },
             progressCallback
@@ -231,8 +258,9 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
           };
         }
         
+        // REFINEMENT
         if (currentState.phase === 'refinement-plan') {
-          progressCallback?.('🎯 Refiner Agent');
+          progressCallback?.('✨ Refiner Agent');
           const result = await runRefinerAgent(
             { 
               ...currentState, 
@@ -250,8 +278,9 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
           currentState.readyForExecution = true;
         }
         
+        // EXECUTION
         if (currentState.phase === 'execution') {
-          progressCallback?.('🎯 Executor Agent');
+          progressCallback?.('⚡ Executor Agent');
           const result = await runExecutorAgent(
             { ...currentState, messages: currentState.messages },
             progressCallback

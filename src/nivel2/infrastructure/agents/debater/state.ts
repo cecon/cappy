@@ -1,6 +1,6 @@
 /**
  * @fileoverview Debater Agent State
- * @module agents/brain/agents/debater/state
+ * @module agents/debater/state
  */
 
 import type { BaseAgentState } from '../../../common/state';

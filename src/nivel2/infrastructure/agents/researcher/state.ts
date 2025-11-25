@@ -1,6 +1,6 @@
 /**
  * @fileoverview Researcher Agent State
- * @module agents/brain/agents/researcher/state
+ * @module agents/researcher/state
  */
 
 import type { BaseAgentState } from '../../../common/state';

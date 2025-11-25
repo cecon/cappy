@@ -1,6 +1,6 @@
 /**
  * @fileoverview Summarizer Agent
- * @module agents/brain/agents/summarizer
+ * @module agents/summarizer
  */
 
 export { runSummarizerAgent } from './graph';

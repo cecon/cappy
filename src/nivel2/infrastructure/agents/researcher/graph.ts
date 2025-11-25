@@ -1,6 +1,6 @@
 /**
  * @fileoverview Researcher Agent Graph
- * @module agents/brain/agents/researcher/graph
+ * @module agents/researcher/graph
  */
 
 import * as vscode from 'vscode';
