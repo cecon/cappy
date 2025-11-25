@@ -144,7 +144,6 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
       try {
         // CONVERSATIONAL (default entry point)
         if (decision.agent === 'conversational' || currentState.phase === 'conversational') {
-          progressCallback?.('💬 Conversational Agent');
           const result = await runConversationalAgent(
             { ...currentState, messages: currentState.messages },
             progressCallback

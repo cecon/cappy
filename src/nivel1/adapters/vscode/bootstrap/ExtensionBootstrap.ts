@@ -122,7 +122,6 @@ export class ExtensionBootstrap {
    * Registers the Cappy chat participant
    */
   private async registerChatParticipant(context: vscode.ExtensionContext): Promise<void> {
-    console.log('🤖 Registering @cappy chat participant...');
 
     // Initialize the IntelligentAgent
     await this.planningAgent.initialize();
@@ -136,12 +135,6 @@ export class ExtensionBootstrap {
         token: vscode.CancellationToken
       ) => {
         try {
-          console.log('[ChatParticipant] ========================================');
-          console.log('[ChatParticipant] RECEIVED REQUEST:', request.prompt);
-          console.log('[ChatParticipant] Executing IntelligentAgent...');
-          console.log('[ChatParticipant] ========================================');
-
-          stream.progress('🤖 Iniciando sistema multi-agente...');
 
           // Set progress callback to update chat UI with rich agent information
           this.planningAgent.setProgressCallback((message: string | import('../../../../nivel2/infrastructure/agents/types/progress-events').AgentProgressEvent) => {
@@ -156,7 +149,7 @@ export class ExtensionBootstrap {
               // If there are details, show them
               if (message.details && Object.keys(message.details).length > 0) {
                 const detailsStr = Object.entries(message.details)
-                  .filter(([_, value]) => value !== undefined)
+                  .filter(([, value]) => value !== undefined)
                   .map(([key, value]) => `${key}: ${value}`)
                   .join(', ');
                 if (detailsStr) {
@@ -173,8 +166,6 @@ export class ExtensionBootstrap {
             prompt: request.prompt.substring(0, 50) + '...',
             command: request.command
           });
-
-          stream.progress('Processando fluxo guiado de tarefa...');
 
           const { result, isContinuation } = await this.planningAgent.runSessionTurn({
             sessionId: conversationId,

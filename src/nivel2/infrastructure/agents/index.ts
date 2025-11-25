@@ -72,9 +72,6 @@ export class IntelligentAgent {
   async runSessionTurn(request: SessionTurnRequest): Promise<SessionTurnResult> {
     const { sessionId, message } = request;
 
-    console.log(`🔄 [IntelligentAgent] Session ${sessionId}: Processing message`);
-    this.progressCallback?.('🤖 Sistema multi-agente ativado...');
-
     // Get or create session history
     let history = this.sessions.get(sessionId);
     if (!history) {
