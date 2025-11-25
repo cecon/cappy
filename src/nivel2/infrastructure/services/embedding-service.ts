@@ -7,6 +7,21 @@
 
 type FeatureExtractionPipeline = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
+type ConsoleMethod = 'log' | 'error' | 'warn';
+
+function filterConsoleMessage(method: ConsoleMethod, substrings: string[]) {
+  const original = console[method];
+  console[method] = (...args: unknown[]) => {
+    const containsBlockedSubstring = args.some(arg => (
+      typeof arg === 'string' && substrings.some(sub => arg.includes(sub))
+    ));
+    if (!containsBlockedSubstring) {
+      original(...args);
+    }
+  };
+  return () => { console[method] = original; };
+}
+
 /**
  * Embedding service for generating vector embeddings
  */
@@ -52,12 +67,26 @@ export class EmbeddingService {
           quantized: true,
         });
 
+        const suppressedMessages = [
+          'Failed to fetch remote embeddings cache',
+          'Response status: 404'
+        ];
+        const restoreErrorFilter = filterConsoleMessage('error', suppressedMessages);
+        const restoreLogFilter = filterConsoleMessage('log', suppressedMessages);
+        const restoreWarnFilter = filterConsoleMessage('warn', suppressedMessages);
+
         // Add 60 second timeout
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('Model loading timeout (60s)')), 60000);
         });
 
-        this.pipeline = await Promise.race([pipelinePromise, timeoutPromise]) as FeatureExtractionPipeline;
+        try {
+          this.pipeline = await Promise.race([pipelinePromise, timeoutPromise]) as FeatureExtractionPipeline;
+        } finally {
+          restoreErrorFilter();
+          restoreLogFilter();
+          restoreWarnFilter();
+        }
 
         this.initialized = true;
         console.log(`✅ Embedding model loaded (${this.dimensions} dimensions)`);

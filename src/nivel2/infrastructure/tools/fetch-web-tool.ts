@@ -10,12 +10,41 @@ interface FetchWebInput {
  * Supports basic HTML parsing and content extraction
  */
 export class FetchWebTool implements vscode.LanguageModelTool<FetchWebInput> {
+  public inputSchema = {
+    type: 'object',
+    properties: {
+      url: {
+        type: 'string',
+        description: 'HTTP/HTTPS URL to fetch'
+      },
+      selector: {
+        type: 'string',
+        description: 'Optional CSS selector to extract specific content from HTML'
+      }
+    },
+    required: ['url']
+  } as const;
+
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<FetchWebInput>,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _token: vscode.CancellationToken
   ): Promise<vscode.LanguageModelToolResult> {
+    // Validate input
+    if (!options.input) {
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart('❌ Error: Missing tool parameters. Please provide a "url" parameter.')
+      ])
+    }
+
     const { url } = options.input
+
+    // Validate required url parameter
+    if (!url) {
+      return new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart('❌ Error: Missing required "url" parameter. Example: {"url": "https://example.com"}')
+      ])
+    }
 
     try {
       // Validate URL

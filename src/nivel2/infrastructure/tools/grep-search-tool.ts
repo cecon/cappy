@@ -48,10 +48,56 @@ export interface GrepSearchInput {
  * @see https://github.com/microsoft/vscode/blob/main/src/vs/workbench/api/common/extHostWorkspace.ts#L720
  */
 export class GrepSearchTool implements vscode.LanguageModelTool<GrepSearchInput> {
+	public inputSchema = {
+		type: 'object',
+		properties: {
+			query: {
+				type: 'string',
+				description: 'Text pattern to search for. Can be a string or regex pattern.'
+			},
+			isRegex: {
+				type: 'boolean',
+				description: 'Whether the query is a regex pattern',
+				default: false
+			},
+			isCaseSensitive: {
+				type: 'boolean',
+				description: 'Case sensitive search',
+				default: false
+			},
+			isWholeWord: {
+				type: 'boolean',
+				description: 'Match whole words only',
+				default: false
+			},
+			include: {
+				type: 'string',
+				description: 'File patterns to include (glob). Example: "**/*.ts"'
+			},
+			exclude: {
+				type: 'string',
+				description: 'File patterns to exclude (glob). Example: "**/node_modules/**"'
+			},
+			maxResults: {
+				type: 'number',
+				description: 'Maximum number of results',
+				default: 100
+			}
+		},
+		required: ['query']
+	} as const;
+
 	async invoke(
 		options: vscode.LanguageModelToolInvocationOptions<GrepSearchInput>,
 		token: vscode.CancellationToken
 	): Promise<vscode.LanguageModelToolResult> {
+		// Validate input
+		if (!options.input) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart('❌ Error: Missing tool parameters. Please provide a "query" parameter.')
+			]);
+		}
+
 		const {
 			query,
 			isRegex = false,
@@ -61,6 +107,13 @@ export class GrepSearchTool implements vscode.LanguageModelTool<GrepSearchInput>
 			exclude,
 			maxResults = 100
 		} = options.input;
+
+		// Validate required query parameter
+		if (!query) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart('❌ Error: Missing required "query" parameter. Example: {"query": "function"}')
+			]);
+		}
 
 		try {
 			const results: Array<{

@@ -74,6 +74,45 @@ export class ContextRetrievalTool implements vscode.LanguageModelTool<ContextRet
     estimatedDuration: 300
   };
 
+  public inputSchema = {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: 'Search query describing what context you need (e.g., "JWT authentication", "database migration patterns")'
+      },
+      maxResults: {
+        type: 'number',
+        description: 'Maximum number of results to return',
+        default: 10
+      },
+      minScore: {
+        type: 'number',
+        description: 'Minimum relevance score from 0 to 1',
+        default: 0.5
+      },
+      sources: {
+        type: 'array',
+        items: {
+          type: 'string',
+          enum: ['code', 'documentation', 'prevention', 'task']
+        },
+        description: 'Sources to search in',
+        default: ['code', 'documentation', 'prevention']
+      },
+      category: {
+        type: 'string',
+        description: 'Filter results by category (e.g., "auth", "database", "api")'
+      },
+      includeRelated: {
+        type: 'boolean',
+        description: 'Include related context in results',
+        default: true
+      }
+    },
+    required: ['query']
+  } as const;
+
   private retriever: HybridRetriever | null = null;
   private graphService: GraphService | null = null;
 

@@ -33,11 +33,49 @@ export interface ReadFileInput {
  * @see https://github.com/microsoft/vscode/blob/main/src/vs/workbench/api/browser/mainThreadWorkspace.ts
  */
 export class ReadFileTool implements vscode.LanguageModelTool<ReadFileInput> {
+	public inputSchema = {
+		type: 'object',
+		properties: {
+			filePath: {
+				type: 'string',
+				description: 'File path to read (relative to workspace root or absolute)'
+			},
+			startLine: {
+				type: 'number',
+				description: 'Start line number (1-indexed, inclusive)'
+			},
+			endLine: {
+				type: 'number',
+				description: 'End line number (1-indexed, inclusive)'
+			},
+			maxLines: {
+				type: 'number',
+				description: 'Maximum number of lines to read',
+				default: 500
+			}
+		},
+		required: ['filePath']
+	} as const;
+
 	async invoke(
 		options: vscode.LanguageModelToolInvocationOptions<ReadFileInput>,
 		_token: vscode.CancellationToken
 	): Promise<vscode.LanguageModelToolResult> {
+		// Validate input
+		if (!options.input) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart('❌ Error: Missing tool parameters. Please provide a "filePath" parameter.')
+			]);
+		}
+
 		const { filePath, startLine, endLine, maxLines = 500 } = options.input;
+
+		// Validate required filePath parameter
+		if (!filePath) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart('❌ Error: Missing required "filePath" parameter. Example: {"filePath": "src/file.ts"}')
+			]);
+		}
 
 		try {
 			// Resolve file path

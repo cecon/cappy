@@ -28,11 +28,41 @@ export interface SymbolSearchInput {
  * @see https://github.com/microsoft/vscode/blob/main/src/vs/workbench/api/browser/mainThreadLanguageFeatures.ts#L490
  */
 export class SymbolSearchTool implements vscode.LanguageModelTool<SymbolSearchInput> {
+	public inputSchema = {
+		type: 'object',
+		properties: {
+			query: {
+				type: 'string',
+				description: 'Symbol name to search for (class, function, variable, etc.)'
+			},
+			maxResults: {
+				type: 'number',
+				description: 'Maximum number of results',
+				default: 50
+			}
+		},
+		required: ['query']
+	} as const;
+
 	async invoke(
 		options: vscode.LanguageModelToolInvocationOptions<SymbolSearchInput>,
 		token: vscode.CancellationToken
 	): Promise<vscode.LanguageModelToolResult> {
+		// Validate input
+		if (!options.input) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart('❌ Error: Missing tool parameters. Please provide a "query" parameter.')
+			]);
+		}
+
 		const { query, maxResults = 50, symbolKind } = options.input;
+
+		// Validate required query parameter
+		if (!query) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart('❌ Error: Missing required "query" parameter. Example: {"query": "MyClass"}')
+			]);
+		}
 
 		try {
 			// Use VS Code's native workspace symbol provider command

@@ -33,11 +33,51 @@ export interface WorkspaceSearchInput {
  * @see https://github.com/microsoft/vscode/blob/main/src/vs/workbench/services/search/common/fileSearchManager.ts
  */
 export class WorkspaceSearchTool implements vscode.LanguageModelTool<WorkspaceSearchInput> {
+	public inputSchema = {
+		type: 'object',
+		properties: {
+			pattern: {
+				type: 'string',
+				description: 'File pattern to search for (glob pattern). Example: "**/*.ts"'
+			},
+			includeFolders: {
+				type: 'array',
+				items: { type: 'string' },
+				description: 'Optional folders to include in search'
+			},
+			maxResults: {
+				type: 'number',
+				description: 'Maximum number of results',
+				default: 100
+			},
+			followSymlinks: {
+				type: 'boolean',
+				description: 'Whether to follow symbolic links',
+				default: true
+			}
+		},
+		required: ['pattern']
+	} as const;
+
 	async invoke(
 		options: vscode.LanguageModelToolInvocationOptions<WorkspaceSearchInput>,
 		_token: vscode.CancellationToken
 	): Promise<vscode.LanguageModelToolResult> {
+		// Validate input
+		if (!options.input) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart('❌ Error: Missing tool parameters. Please provide a "pattern" parameter.')
+			]);
+		}
+
 		const { pattern, includeFolders, maxResults = 100 } = options.input;
+
+		// Validate required pattern parameter
+		if (!pattern) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart('❌ Error: Missing required "pattern" parameter. Example: {"pattern": "**/*.ts"}')
+			]);
+		}
 
 		try {
 			// Build glob pattern

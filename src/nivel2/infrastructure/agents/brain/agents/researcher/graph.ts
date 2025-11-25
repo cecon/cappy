@@ -171,18 +171,51 @@ export async function runResearcherAgent(
       }
     }
     
-    // Parse JSON findings
-    const jsonMatch = fullText.match(/\[[^\]]+\]/);
-    if (!jsonMatch) {
+    // Parse JSON findings (allow extra text before/after the array)
+    let parsedText = fullText;
+    let findings = parseFindingsArray(parsedText);
+
+    const maxParseAttempts = 2;
+    let attempt = 1;
+
+    while (!findings && attempt < maxParseAttempts) {
+      const snippet = parsedText.trim().slice(0, 400).replace(/\s+/g, ' ');
+      progressCallback?.(createProgressEvent(
+        'researcher',
+        'thinking',
+        'Solicitando resposta no formato esperado...'
+      ));
+
+      messages.push(vscode.LanguageModelChatMessage.User(
+        `Your previous response could not be parsed as the required JSON array of findings. ` +
+        `Respond again using ONLY a JSON array (no prose) with objects like {"source": "code", "content": "...", ` +
+        `"relevance": 0.9, "filePath": "path"}. Previous response snippet: ${snippet}`
+      ));
+
+      const retryResponse = await model.sendRequest(messages, {});
+      parsedText = '';
+      for await (const chunk of retryResponse.text) {
+        parsedText += chunk;
+      }
+
+      findings = parseFindingsArray(parsedText);
+      attempt++;
+    }
+
+    if (!findings) {
+      const snippet = parsedText.trim().slice(0, 400).replace(/\s+/g, ' ');
       progressCallback?.(createProgressEvent(
         'researcher',
         'failed',
         'Não foi possível parsear findings do LLM'
       ));
-      throw new Error('[Researcher] Could not parse LLM findings');
+      console.error('[Researcher] Could not parse LLM findings. Response snippet:', snippet);
+      return {
+        ...state,
+        findings: createFallbackFindings('Response could not be parsed', snippet),
+        phase: 'summarize'
+      };
     }
-    
-    const findings = JSON.parse(jsonMatch[0]);
     
     progressCallback?.(createProgressEvent(
       'researcher',
@@ -199,12 +232,58 @@ export async function runResearcherAgent(
   } catch (error) {
     console.error('Researcher LLM error:', error);
     
+    const reason = error instanceof Error ? error.message : String(error);
     progressCallback?.(createProgressEvent(
       'researcher',
       'failed',
-      `Erro na pesquisa: ${error instanceof Error ? error.message : String(error)}`
+      `Erro na pesquisa: ${reason}`
     ));
     
-    throw error;
+    return {
+      ...state,
+      findings: createFallbackFindings(reason),
+      phase: 'summarize'
+    };
   }
+}
+
+function parseFindingsArray(text: string): ResearcherState['findings'] | null {
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (parseError) {
+      console.error('[Researcher] JSON parse failed:', parseError);
+      return null;
+    }
+  }
+
+  const start = text.indexOf('[');
+  const end = text.lastIndexOf(']');
+  if (start !== -1 && end > start) {
+    try {
+      const parsed = JSON.parse(text.slice(start, end + 1));
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (parseError) {
+      console.error('[Researcher] JSON parse failed on trimmed text:', parseError);
+    }
+  }
+
+  return null;
+}
+
+function createFallbackFindings(reason: string, snippet?: string): ResearcherState['findings'] {
+  const details = snippet ? `${snippet}` : 'sem resposta estruturada';
+  return [
+    {
+      source: 'researcher',
+      content: `LLM response could not be parsed (${reason}). ${details}`,
+      relevance: 0.5
+    }
+  ];
 }
