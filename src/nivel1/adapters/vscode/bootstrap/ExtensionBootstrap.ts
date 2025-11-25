@@ -385,16 +385,13 @@ export class ExtensionBootstrap {
   }
 
   private streamWorkflowResult(stream: vscode.ChatResponseStream, result: PlanningTurnResult): void {
-    // Para smalltalk puro, não mostrar o cabeçalho de "Fluxo Guiado"
-    const isSmallTalk = result.routerIntent === 'smalltalk' && !result.intentionSummary;
-    
     if (result.finalResponse) {
       stream.markdown(`${result.finalResponse}`);
     } else if (result.responseMessage) {
       stream.markdown(`${result.responseMessage}`);
     } else if (result.awaitingUser) {
       stream.markdown('Estou aguardando sua resposta para continuar.');
-    } else if (!isSmallTalk) {
+    } else {
       stream.markdown('Sem mensagem adicional nesta etapa.');
     }
   }
