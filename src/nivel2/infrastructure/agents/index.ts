@@ -119,9 +119,13 @@ export class IntelligentAgent {
       if (result.awaitingUser) {
         // Questions already added above
       } else if (result.phase === 'completed') {
-        // If conversational response from brain
+        // If conversational response from agent
+        const conversationalResponse = result.metadata?.response as string | undefined;
         const recommendations = result.metadata?.recommendations as string[] | undefined;
-        if (recommendations && recommendations.length > 0) {
+        
+        if (conversationalResponse) {
+          responseContent = conversationalResponse;
+        } else if (recommendations && recommendations.length > 0) {
           responseContent = recommendations[0];
         } else {
           responseContent += `\n✅ **Processo concluído com sucesso!**`;

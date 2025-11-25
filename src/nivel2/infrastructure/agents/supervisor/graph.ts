@@ -71,7 +71,7 @@ async function supervisorDecision(
   agent: string;
   reasoning?: string;
 }> {
-  progressCallback?.('🤖 Supervisor decidindo próximo passo...');
+  progressCallback?.('Supervisor decidindo próximo passo...');
   
   const lastMessage = state.messages[state.messages.length - 1]?.content || '';
   const conversationHistory = state.messages.slice(-5).map(m => 
