@@ -3,26 +3,25 @@
  * @module agents/supervisor/graph
  */
 
-import * as vscode from 'vscode';
 import type { SupervisorState } from './state';
 import type { ProgressCallback } from '../common/types';
 import { runConversationalAgent } from '../conversational';
-import { runResearcherAgent } from '../researcher';
-import { runSummarizerAgent } from '../summarizer';
-import { runDebaterAgent } from '../debater';
-import { runPlannerAgent } from '../planner';
-import { runCriticAgent } from '../critic';
-import { runRefinerAgent } from '../refiner';
-import { runExecutorAgent } from '../executor';
+
+// Disabled agents for now - will be re-enabled incrementally
+// import { runResearcherAgent } from '../researcher';
+// import { runSummarizerAgent } from '../summarizer';
+// import { runDebaterAgent } from '../debater';
+// import { runPlannerAgent } from '../planner';
+// import { runCriticAgent } from '../critic';
+// import { runRefinerAgent } from '../refiner';
+// import { runExecutorAgent } from '../executor';
 
 /**
- * Supervisor System Prompt
+ * DISABLED: Supervisor System Prompt (for multi-agent orchestration)
  * 
- * Conversational-first approach:
- * - ALWAYS starts with conversational agent
- * - Escalates to research/planning only when user explicitly requests work
- * - No intent classification needed upfront
+ * Will be re-enabled when we add back the research/planning pipeline
  */
+/*
 const SUPERVISOR_PROMPT = `You are the Supervisor of a multi-agent development system.
 
 Your job is to analyze the conversation and decide the next agent based on what the user needs.
@@ -55,14 +54,18 @@ IMPORTANT:
 
 Respond in JSON:
 {
+Respond in JSON:
+{
   "action": "call_agent",
   "agent": "conversational" | "researcher" | "summarizer" | "debater" | "planner" | "critic" | "refiner" | "executor",
   "reasoning": "why you made this decision"
 }`;
+*/
 
 /**
- * Uses LLM to decide supervisor's next action
+ * DISABLED: LLM-based supervisor decision (for now, just using conversational)
  */
+/*
 async function supervisorDecision(
   state: SupervisorState,
   progressCallback?: ProgressCallback
@@ -128,6 +131,7 @@ async function supervisorDecision(
     throw error;
   }
 }
+*/
 
 /**
  * Supervisor orchestrates all agents in conversational-first flow
@@ -137,35 +141,41 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
     invoke: async (state: SupervisorState): Promise<SupervisorState> => {
       const currentState = { ...state };
       
-      // Let LLM decide what to do
-      const decision = await supervisorDecision(currentState, progressCallback);
-      
       // Execute the chosen agent
       try {
-        // CONVERSATIONAL (default entry point)
-        if (decision.agent === 'conversational' || currentState.phase === 'conversational') {
-          const result = await runConversationalAgent(
-            { ...currentState, messages: currentState.messages },
-            progressCallback
-          );
-          
-          // Check if conversational wants to escalate to research
-          if (result.metadata?.shouldEscalate) {
-            currentState.phase = 'research';
-            currentState.currentAgent = 'researcher';
-          } else {
-            return {
-              ...currentState,
-              phase: 'completed',
-              metadata: {
-                ...currentState.metadata,
-                response: result.response
-              }
-            };
-          }
+        // CONVERSATIONAL (ONLY agent for now - handles everything)
+        const result = await runConversationalAgent(
+          { ...currentState, messages: currentState.messages },
+          progressCallback
+        );
+        
+        // Check if conversational wants to escalate to research
+        if (result.metadata?.shouldEscalate) {
+          // For now, just return with escalation flag
+          // TODO: Implement research pipeline later
+          return {
+            ...currentState,
+            phase: 'completed',
+            awaitingUser: true,
+            metadata: {
+              ...currentState.metadata,
+              response: `Entendi que você quer: ${result.metadata.escalationReason}\n\nPor enquanto, o sistema de research ainda não está ativo. Como posso ajudar de outra forma?`
+            }
+          };
         }
         
-        // RESEARCH pipeline: researcher → summarizer → debater
+        // Conversational handled everything - return completed
+        return {
+          ...currentState,
+          phase: 'completed',
+          metadata: {
+            ...currentState.metadata,
+            response: result.response
+          }
+        };
+        
+        // RESEARCH pipeline: researcher → summarizer → debater (DISABLED FOR NOW)
+        /* 
         if (currentState.phase === 'research') {
           progressCallback?.('🔍 Researcher Agent');
           const researchResult = await runResearcherAgent(
@@ -183,7 +193,7 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
             progressCallback
           );
           
-          progressCallback?.('💡 Debater Agent');
+          progressCallback?.('Debater Agent');
           const debateResult = await runDebaterAgent(
             { 
               ...currentState, 
@@ -294,6 +304,7 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
         }
         
         return currentState;
+        */
         
       } catch (error) {
         console.error('❌ [Supervisor] Error:', error);

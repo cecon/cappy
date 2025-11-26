@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 
 /**
- * Gets basic project context (name and stack)
+ * Gets lightweight project context (name and stack detection only)
+ * Heavy data should be fetched by agents using tools (cappy_read_file, etc.)
  */
 export async function getProjectContext(): Promise<string> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -14,6 +15,7 @@ export async function getProjectContext(): Promise<string> {
     const files = await vscode.workspace.fs.readDirectory(workspaceFolder.uri);
     const fileNames = new Set(files.map(([name]) => name));
 
+    // Detect stack
     if (fileNames.has('package.json')) stack = 'Node.js/TypeScript/JavaScript';
     else if (fileNames.has('requirements.txt') || fileNames.has('pyproject.toml')) stack = 'Python';
     else if (fileNames.has('pom.xml') || fileNames.has('build.gradle')) stack = 'Java';
@@ -25,5 +27,5 @@ export async function getProjectContext(): Promise<string> {
     console.warn('Failed to detect stack', e);
   }
 
-  return `Project: ${name}\nDetected Stack: ${stack}`;
+  return `Project: ${name}\nDetected Stack: ${stack}\n\nNote: Use cappy_read_file to read README.md for detailed project information.`;
 }
