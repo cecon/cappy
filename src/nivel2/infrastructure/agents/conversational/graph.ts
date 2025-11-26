@@ -68,27 +68,39 @@ Response rules:
 
 **Response Format Rules:**
 
-- When you USE a tool → Respond in NATURAL LANGUAGE after the tool returns
-- When you DON'T use a tool → Respond in JSON format:
+**CRITICAL - READ THIS CAREFULLY:**
 
-{
-  "response": "your message",
-  "shouldEscalate": true | false,
-  "escalationReason": "reason (if escalating)"
-}
+**IF YOU USED ANY TOOL (cappy_read_file, cappy_retrieve_context, cappy_grep_search):**
+→ Respond in NATURAL LANGUAGE directly to the user
+→ DO NOT use JSON format
+→ Answer the user's question using the information from the tool
+→ Be helpful and conversational
 
-Set shouldEscalate=true when:
-- User wants to build, create, implement, or modify code
-- User asks WHERE specific code/files are located (needs workspace search)
-- User asks HOW specific implementation works (needs code analysis)
-- User needs planning or detailed technical analysis
+**IF YOU DID NOT USE ANY TOOL:**
+→ Respond in NATURAL LANGUAGE as well
+→ Be conversational and helpful
+→ If user wants to create/implement something, ask clarifying questions or offer to help directly
 
-Set shouldEscalate=false when:
-- Pure greetings, thanks, goodbyes
-- Questions about what the project IS (use tools to read README)
-- Questions about project purpose, features, benefits (use tools to read README)
-- Casual chat without work intent
-- Simple clarifications you can answer with tools
+**Examples:**
+
+User: "what does the vector do?"
+You call: cappy_retrieve_context(query: "vector storage implementation")
+Tool returns: Information about SQLite vector storage
+You respond: "The vector storage in this project uses SQLite with the vec extension to store embeddings. It's located in src/nivel2/infrastructure/vector/ and provides..."
+
+User: "hello"
+You respond: "Hi! What would you like to work on today?"
+
+User: "I want to create a tool to index documentation"
+You respond: "Great idea! Let me help you with that. First, let me understand what you need:
+1. What kind of documentation do you want to index?
+2. Should it update the vector database, the graph, or both?
+3. Do you want this to run automatically or manually triggered?
+
+I can help you create the tool once I understand your requirements better."
+
+**NEVER** respond with "I'm waiting for your response" or similar non-answers.
+**ALWAYS** provide helpful, actionable responses.
 
 Respond in the same language as the user's message.`;
 
@@ -227,39 +239,13 @@ export async function runConversationalAgent(
       console.log(`[Conversational] Final response after tools: ${fullResponse.substring(0, 200)}...`);
     }
     
-    // Parse JSON response (if available)
-    const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.warn('[Conversational] Could not parse JSON, using raw response');
-      
-      // If we used tools, the response is likely natural language, not JSON
-      if (toolCalls.length > 0) {
-        console.log('[Conversational] Tools were used, treating response as natural language');
-        return {
-          ...state,
-          response: fullResponse.trim(),
-          phase: 'completed'
-        };
-      }
-      
-      return {
-        ...state,
-        response: fullResponse.trim(),
-        phase: 'completed'
-      };
-    }
-    
-    const parsed = JSON.parse(jsonMatch[0]);
+    // Always treat response as natural language (no more JSON parsing or escalation)
+    console.log('[Conversational] Response generated, returning to user');
     
     return {
       ...state,
-      response: parsed.response || fullResponse.trim(),
-      phase: parsed.shouldEscalate ? 'research' : 'completed',
-      metadata: {
-        ...state.metadata,
-        shouldEscalate: parsed.shouldEscalate || false,
-        escalationReason: parsed.escalationReason
-      }
+      response: fullResponse.trim(),
+      phase: 'completed'
     };
     
   } catch (error) {
