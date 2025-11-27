@@ -77,7 +77,8 @@ export async function runDebaterAgent(
     const model = models[0];
     const userRequest = state.messages[state.messages.length - 1]?.content || '';
     const summary = state.summary || 'Sem resumo disponível';
-    const conversation = state.messages.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n');
+    // Keep full conversation history - no truncation
+    const conversation = state.messages.map(m => `${m.role}: ${m.content}`).join('\n');
     
     const prompt = DEBATER_PROMPT
       .replace('{{userRequest}}', userRequest)

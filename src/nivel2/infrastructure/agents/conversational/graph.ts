@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import type { ConversationalState } from './state';
 import type { ProgressCallback } from '../common/types';
 import { getProjectContext } from '../common/utils';
+import { TaskFileLoader } from '../common/task-file-loader';
 
 /**
  * Conversational Agent System Prompt
@@ -114,7 +115,8 @@ export async function runConversationalAgent(
   progressCallback?.('Conversando...');
   
   const lastMessage = state.messages[state.messages.length - 1]?.content || '';
-  const conversationHistory = state.messages.slice(-5).map(m => 
+  // Keep full conversation history - no truncation
+  const conversationHistory = state.messages.map(m => 
     `${m.role}: ${m.content}`
   ).join('\n');
   
@@ -123,6 +125,16 @@ export async function runConversationalAgent(
   
   // Get workspace path for tool usage
   const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+
+  // Check for active task file at the start of conversation
+  let activeTaskContext = '';
+  if (state.messages.length <= 2) { // First interaction or early in conversation
+    const taskSummary = await TaskFileLoader.getActiveTaskSummary();
+    if (taskSummary) {
+      activeTaskContext = `\n\n${taskSummary}\n`;
+      console.log('[Conversational] Active task detected and loaded');
+    }
+  }
 
   try {
     // Get available LLM models
@@ -150,7 +162,7 @@ export async function runConversationalAgent(
     const prompt = CONVERSATIONAL_PROMPT
       .replace('{{message}}', lastMessage)
       .replace('{{history}}', conversationHistory)
-      .replace('{{projectContext}}', `${projectContext}\n\nWorkspace Path: ${workspacePath}\nREADME Path: ${workspacePath}/README.md`)
+      .replace('{{projectContext}}', `${projectContext}\n\nWorkspace Path: ${workspacePath}\nREADME Path: ${workspacePath}/README.md${activeTaskContext}`)
       .replace(/\{\{workspacePath\}\}/g, workspacePath);
     
     // Call LLM with tools

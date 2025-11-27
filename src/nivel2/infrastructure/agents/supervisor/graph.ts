@@ -77,7 +77,8 @@ async function supervisorDecision(
   progressCallback?.('Supervisor decidindo próximo passo...');
   
   const lastMessage = state.messages[state.messages.length - 1]?.content || '';
-  const conversationHistory = state.messages.slice(-5).map(m => 
+  // Keep full conversation history - no truncation
+  const conversationHistory = state.messages.map(m => 
     `${m.role}: ${m.content}`
   ).join('\n');
   
