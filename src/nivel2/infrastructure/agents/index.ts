@@ -62,9 +62,8 @@ export class IntelligentAgent {
   async initialize(): Promise<void> {
     console.log('🤖 [IntelligentAgent] Initializing multi-agent system...');
     
-    // Initialize persistence layer
+    // Initialize persistence layer (StateManager will be initialized on first task)
     this.persistenceAdapter = getLangGraphAdapter(this.storagePath);
-    this.stateManager = this.persistenceAdapter.getStateManager();
     
     console.log('✅ [IntelligentAgent] All agents ready:');
     console.log('   - Supervisor (orchestrator)');
@@ -108,6 +107,11 @@ export class IntelligentAgent {
       );
       messageHandler = handler;
       this.messageHandlers.set(sessionId, handler);
+      
+      // Initialize state manager on first task
+      if (!this.stateManager) {
+        this.stateManager = this.persistenceAdapter.getStateManager();
+      }
     }
 
     // Load existing messages

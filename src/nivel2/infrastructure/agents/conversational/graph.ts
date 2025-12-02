@@ -14,74 +14,81 @@ import { TaskFileLoader } from '../common/task-file-loader';
  */
 
 // Step 1: Analysis prompt
-const ANALYSIS_PROMPT = `You are Cappy's analysis system. Carefully analyze this user message and conversation context.
+const ANALYSIS_PROMPT = `You are Cappy's analysis system. Analyze ONLY what the user actually said.
 
 User message: {{message}}
 Conversation history: {{history}}
 Project context: {{projectContext}}
 
-Your task is to analyze:
-1. Intent: What does the user really want?
-2. Complexity: Is this simple (greeting, thanks) or complex (technical question, implementation request)?
-3. Information needed: What information might be required to answer properly?
-4. Tools required: Which tools (cappy_read_file, cappy_grep_search, cappy_retrieve_context) might be useful?
+CRITICAL RULES:
+1. NEVER assume the user mentioned files they didn't mention
+2. NEVER force "README.md" unless explicitly requested
+3. Focus on what the user ACTUALLY wants, not what you think they should want
+4. If the message is simple (greeting, thanks), mark complexity as "simple" and needsProjectInfo as false
 
-Respond with a JSON object:
+Analyze:
+1. Intent: What does the user ACTUALLY want based on their words?
+2. Complexity: simple (chat/greeting) | medium (question) | complex (implementation)
+3. Information needed: ONLY if required to answer their ACTUAL question
+4. Tools: ONLY suggest tools if clearly needed for their ACTUAL request
+
+Respond with JSON:
 {
-  "intent": "brief description of user intent",
+  "intent": "what user actually wants based on their message",
   "complexity": "simple" | "medium" | "complex",
   "needsProjectInfo": boolean,
   "needsCodeAnalysis": boolean,
-  "suggestedTools": ["tool1", "tool2"],
-  "reasoning": "brief explanation of your analysis"
+  "suggestedTools": ["only if clearly needed"],
+  "reasoning": "why based on what they said"
 }`;
 
 // Step 2: Planning prompt
-const PLANNING_PROMPT = `You are Cappy's planning system. Based on the analysis, create a plan to respond to the user.
+const PLANNING_PROMPT = `You are Cappy's planning system. Create a minimal, focused plan.
 
 Analysis: {{analysis}}
 Available tools: {{tools}}
 
-Create a step-by-step plan:
-1. What information to gather first?
-2. Which tools to use and in what order?
-3. How to structure the final response?
+CRITICAL RULES:
+1. ONLY suggest reading files if user explicitly mentioned them or if absolutely necessary
+2. NEVER default to README.md unless user asked about project overview
+3. Prefer cappy_grep_search over cappy_read_file for finding specific things
+4. If analysis.complexity is "simple", plan should be empty (no tools needed)
 
-Respond with a JSON object:
+Create a minimal plan:
 {
   "steps": [
     {
       "step": 1,
-      "action": "gather_info" | "use_tool" | "respond",
-      "tool": "tool_name" | null,
-      "query": "what to search/read",
-      "reasoning": "why this step"
+      "action": "use_tool" | "respond",
+      "tool": "tool_name or null",
+      "query": "specific search term or file path",
+      "reasoning": "why this specific tool is needed"
     }
   ],
-  "responseStrategy": "how to structure the final answer"
+  "responseStrategy": "how to answer based on what we have"
 }`;
 
 // Step 3: Reflection prompt
-const REFLECTION_PROMPT = `You are Cappy's reflection system. Review the gathered information and plan the final response.
+const REFLECTION_PROMPT = `You are Cappy's reflection system. Review ONLY the actual information gathered.
 
 Original user question: {{message}}
 Information gathered: {{gatheredInfo}}
 Tool results: {{toolResults}}
 
-Reflect on:
-1. Do we have enough information to answer well?
-2. What are the key points to include?
-3. What tone/style should the response have?
-4. Are there any gaps or follow-up questions needed?
+CRITICAL RULES:
+1. Base your reflection ONLY on the tool results actually obtained
+2. NEVER mention topics not in the user's message or tool results
+3. If no tools were used, reflection should be minimal
+4. Don't invent context that wasn't gathered
 
-Respond with a JSON object:
+Reflect:
 {
   "hasEnoughInfo": boolean,
-  "keyPoints": ["point1", "point2"],
+  "keyPoints": ["points from ACTUAL tool results or user message"],
   "responseTone": "friendly" | "technical" | "helpful" | "conversational",
-  "missingInfo": ["what's missing"],
+  "missingInfo": ["only if truly needed to answer their question"],
   "shouldAskFollowUp": boolean,
-  "followUpQuestions": ["question1"]
+  "followUpQuestions": ["only if relevant to their actual request"]
 }`;
 
 // Step 4: Final response prompt
@@ -94,11 +101,17 @@ Your analysis: {{analysis}}
 Information gathered: {{gatheredInfo}}
 Your reflection: {{reflection}}
 
+CRITICAL RULES:
+1. Answer ONLY what the user actually asked
+2. NEVER mention tasks, scopes, or contexts the user didn't bring up
+3. If user asked about "graph view UI", talk about graph view UI - not about other topics
+4. Base your response on analysis + tool results, not on assumptions
+
 Respond naturally in the same language as the user. Be:
 - Friendly and direct
 - Informative and helpful  
 - Professional but approachable
-- Eager to help with technical work
+- Focused on their actual question
 
 {{projectContext}}`;
 
@@ -180,9 +193,10 @@ export async function runConversationalAgent(
   const projectContext = await getProjectContext();
   const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
-  // Check for active task context
+  // Active task context will only be loaded if user explicitly mentions task/tarefa
   let activeTaskContext = '';
-  if (state.messages.length <= 2) {
+  const mentionsTask = lastMessage.toLowerCase().match(/\b(task|tarefa|active task|current task)\b/);
+  if (mentionsTask) {
     const taskSummary = await TaskFileLoader.getActiveTaskSummary();
     if (taskSummary) {
       activeTaskContext = `\n\n${taskSummary}\n`;
@@ -258,11 +272,15 @@ export async function runConversationalAgent(
           // Create tool input based on the tool type
           let toolInput: any = {};
           if (step.tool.includes('read_file')) {
-            // For read_file, try to construct a reasonable path
+            // Only read README if explicitly mentioned
             if (step.query?.toLowerCase().includes('readme')) {
               toolInput = { filePath: `${workspacePath}/README.md` };
+            } else if (step.query) {
+              toolInput = { filePath: step.query };
             } else {
-              toolInput = { filePath: step.query || `${workspacePath}/README.md` };
+              // Skip tool if no valid file path
+              console.log('[Conversational] Skipping read_file - no valid path');
+              continue;
             }
           } else if (step.tool.includes('retrieve_context')) {
             toolInput = { query: step.query || lastMessage };
@@ -299,12 +317,18 @@ export async function runConversationalAgent(
 
     // Step 5: Generate final response
     progressCallback?.('✍️ Gerando resposta final...');
+    
+    // Only include task context if it was explicitly loaded
+    const contextInfo = activeTaskContext 
+      ? `${projectContext}\n\nWorkspace Path: ${workspacePath}\n\nActive Task Context:\n${activeTaskContext}`
+      : `${projectContext}\n\nWorkspace Path: ${workspacePath}`;
+    
     const finalPrompt = RESPONSE_PROMPT
       .replace('{{message}}', lastMessage)
       .replace('{{analysis}}', JSON.stringify(analysis, null, 2))
       .replace('{{gatheredInfo}}', gatheredInfo)
       .replace('{{reflection}}', JSON.stringify(reflection, null, 2))
-      .replace('{{projectContext}}', `${projectContext}\n\nWorkspace Path: ${workspacePath}${activeTaskContext}`);
+      .replace('{{projectContext}}', contextInfo);
     
     const finalResponse = await executeThinkingStep(model, finalPrompt, false);
     

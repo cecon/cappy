@@ -27,5 +27,5 @@ export async function getProjectContext(): Promise<string> {
     console.warn('Failed to detect stack', e);
   }
 
-  return `Project: ${name}\nDetected Stack: ${stack}\n\nNote: Use cappy_read_file to read README.md for detailed project information.`;
+  return `Project: ${name}\nDetected Stack: ${stack}`;
 }
