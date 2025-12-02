@@ -25,6 +25,13 @@ import type {
   PlanningTurnResult,
   AgentMessage
 } from './common/types';
+import { 
+  getLangGraphAdapter,
+  MessageStateHandler,
+  StateManager,
+  CheckpointTracker,
+  type LangGraphPersistenceAdapter
+} from '../persistence';
 
 /**
  * Main Intelligent Agent System
@@ -39,13 +46,26 @@ import type {
  */
 export class IntelligentAgent {
   private progressCallback?: ProgressCallback;
-  private sessions: Map<string, AgentMessage[]> = new Map();
+  private persistenceAdapter?: LangGraphPersistenceAdapter;
+  private messageHandlers: Map<string, MessageStateHandler> = new Map();
+  private checkpointTrackers: Map<string, CheckpointTracker> = new Map();
+  private stateManager?: StateManager;
+  private storagePath: string;
+
+  constructor(storagePath: string) {
+    this.storagePath = storagePath;
+  }
 
   /**
    * Initializes the agent system
    */
   async initialize(): Promise<void> {
     console.log('🤖 [IntelligentAgent] Initializing multi-agent system...');
+    
+    // Initialize persistence layer
+    this.persistenceAdapter = getLangGraphAdapter(this.storagePath);
+    this.stateManager = this.persistenceAdapter.getStateManager();
+    
     console.log('✅ [IntelligentAgent] All agents ready:');
     console.log('   - Supervisor (orchestrator)');
     console.log('   - Conversational (primary entry, chat)');
@@ -56,6 +76,7 @@ export class IntelligentAgent {
     console.log('   - Critic (plan validation)');
     console.log('   - Refiner (plan improvement)');
     console.log('   - Executor (deliverable generation)');
+    console.log('✅ [IntelligentAgent] Persistence layer initialized');
     console.log('✅ [IntelligentAgent] System initialized');
   }
 
@@ -72,20 +93,34 @@ export class IntelligentAgent {
   async runSessionTurn(request: SessionTurnRequest): Promise<SessionTurnResult> {
     const { sessionId, message } = request;
 
-    // Get or create session history
-    let history = this.sessions.get(sessionId);
-    if (!history) {
-      history = [];
-      this.sessions.set(sessionId, history);
+    if (!this.persistenceAdapter) {
+      throw new Error('[IntelligentAgent] Not initialized. Call initialize() first.');
     }
 
-    // Add user message to history
+    // Get or create message handler for this session
+    let messageHandler = this.messageHandlers.get(sessionId);
+    if (!messageHandler) {
+      const workspacePath = require('vscode').workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const { messageHandler: handler, checkpointSaver } = await this.persistenceAdapter.initializeForTask(
+        sessionId,
+        Date.now().toString(),
+        workspacePath
+      );
+      messageHandler = handler;
+      this.messageHandlers.set(sessionId, handler);
+    }
+
+    // Load existing messages
+    await messageHandler.loadMessages();
+    const history = messageHandler.getMessages();
+
+    // Add user message to history (atomic operation with mutex)
     const userMessage: AgentMessage = {
       role: 'user',
       content: message,
       timestamp: new Date()
     };
-    history.push(userMessage);
+    await messageHandler.addMessage(userMessage);
 
     // Create supervisor state
     const state = createSupervisorState(sessionId);
@@ -132,13 +167,16 @@ export class IntelligentAgent {
         }
       }
 
-      // Create assistant response
+      // Create assistant response (atomic operation)
       const assistantMessage: AgentMessage = {
         role: 'assistant',
         content: responseContent || 'Processado com sucesso',
         timestamp: new Date()
       };
-      history.push(assistantMessage);
+      await messageHandler.addMessage(assistantMessage);
+      
+      // Update history reference
+      const updatedHistory = messageHandler.getMessages();
 
       // Build result
       const planningResult: PlanningTurnResult = {
@@ -147,12 +185,12 @@ export class IntelligentAgent {
         readyForExecution: result.readyForExecution,
         awaitingUser: result.awaitingUser,
         responseMessage: responseContent,
-        conversationLog: [...history]
+        conversationLog: [...updatedHistory]
       };
 
       return {
         result: planningResult,
-        isContinuation: history.length > 2
+        isContinuation: updatedHistory.length > 2
       };
 
     } catch (error) {
@@ -164,8 +202,24 @@ export class IntelligentAgent {
   /**
    * Clears session history
    */
-  clearSession(sessionId: string): void {
-    this.sessions.delete(sessionId);
+  async clearSession(sessionId: string): Promise<void> {
+    const messageHandler = this.messageHandlers.get(sessionId);
+    if (messageHandler) {
+      await messageHandler.dispose();
+      this.messageHandlers.delete(sessionId);
+    }
+    
+    const checkpointTracker = this.checkpointTrackers.get(sessionId);
+    if (checkpointTracker) {
+      await checkpointTracker.dispose();
+      this.checkpointTrackers.delete(sessionId);
+    }
+    
+    // Delete task from state manager
+    if (this.stateManager) {
+      await this.stateManager.deleteTask(sessionId);
+    }
+    
     console.log(`🗑️ [IntelligentAgent] Session ${sessionId} cleared`);
   }
 
@@ -173,7 +227,73 @@ export class IntelligentAgent {
    * Gets all active sessions
    */
   getActiveSessions(): string[] {
-    return Array.from(this.sessions.keys());
+    if (!this.stateManager) {
+      return [];
+    }
+    const tasks = this.stateManager.getTaskHistory();
+    return tasks.map(t => t.id);
+  }
+  
+  /**
+   * Create a checkpoint for a session
+   */
+  async createCheckpoint(sessionId: string, description?: string): Promise<string | null> {
+    const checkpointTracker = this.checkpointTrackers.get(sessionId);
+    if (!checkpointTracker) {
+      console.warn('[IntelligentAgent] No checkpoint tracker for session:', sessionId);
+      return null;
+    }
+    
+    try {
+      const hash = await checkpointTracker.commit(description);
+      console.log(`✅ [IntelligentAgent] Checkpoint created for ${sessionId}:`, hash);
+      return hash;
+    } catch (error) {
+      console.error('[IntelligentAgent] Failed to create checkpoint:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Restore session to a checkpoint
+   */
+  async restoreCheckpoint(sessionId: string, checkpointHash: string): Promise<void> {
+    const checkpointTracker = this.checkpointTrackers.get(sessionId);
+    if (!checkpointTracker) {
+      throw new Error(`No checkpoint tracker for session: ${sessionId}`);
+    }
+    
+    await checkpointTracker.restore(checkpointHash);
+    
+    // Reload messages after restore
+    const messageHandler = this.messageHandlers.get(sessionId);
+    if (messageHandler) {
+      await messageHandler.loadMessages();
+    }
+    
+    console.log(`✅ [IntelligentAgent] Restored ${sessionId} to checkpoint:`, checkpointHash);
+  }
+  
+  /**
+   * Dispose and cleanup
+   */
+  async dispose(): Promise<void> {
+    // Dispose all message handlers
+    for (const handler of this.messageHandlers.values()) {
+      await handler.dispose();
+    }
+    this.messageHandlers.clear();
+    
+    // Dispose all checkpoint trackers
+    for (const tracker of this.checkpointTrackers.values()) {
+      await tracker.dispose();
+    }
+    this.checkpointTrackers.clear();
+    
+    // Dispose persistence adapter
+    if (this.persistenceAdapter) {
+      await this.persistenceAdapter.dispose();
+    }
   }
 }
 

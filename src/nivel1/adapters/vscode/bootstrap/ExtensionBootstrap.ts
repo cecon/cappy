@@ -73,7 +73,7 @@ export class ExtensionBootstrap {
     hybridRetriever: null,
     graphPanel: null
   };
-  private readonly planningAgent = new IntelligentAgent();
+  private planningAgent?: IntelligentAgent;
 
   /**
    * Activates the extension
@@ -81,6 +81,11 @@ export class ExtensionBootstrap {
   async activate(context: vscode.ExtensionContext): Promise<void> {
     console.log('🚩 [Extension] Cappy activation starting...');
     console.log('🦫 Cappy extension is now active!');
+
+    // Initialize planning agent with storage path
+    const storagePath = context.globalStorageUri.fsPath;
+    this.planningAgent = new IntelligentAgent(storagePath);
+    await this.planningAgent.initialize();
 
     // Phase 1: Register Language Model Tools
     const lmToolsBootstrap = new LanguageModelToolsBootstrap();
@@ -122,6 +127,9 @@ export class ExtensionBootstrap {
    * Registers the Cappy chat participant
    */
   private async registerChatParticipant(context: vscode.ExtensionContext): Promise<void> {
+    if (!this.planningAgent) {
+      throw new Error('Planning agent not initialized');
+    }
 
     // Initialize the IntelligentAgent
     await this.planningAgent.initialize();
@@ -135,6 +143,10 @@ export class ExtensionBootstrap {
         token: vscode.CancellationToken
       ) => {
         try {
+          if (!this.planningAgent) {
+            stream.markdown('⚠️ Planning agent not initialized. Please reload the extension.');
+            return {};
+          }
 
           // Set progress callback to update chat UI with rich agent information
           this.planningAgent.setProgressCallback((message: string | import('../../../../nivel2/infrastructure/agents/types/progress-events').AgentProgressEvent) => {
@@ -313,6 +325,12 @@ export class ExtensionBootstrap {
    */
   async deactivate(): Promise<void> {
     console.log('🦫 Cappy extension deactivating...');
+
+    // Dispose planning agent first
+    if (this.planningAgent) {
+      await this.planningAgent.dispose();
+      console.log('  ✅ Planning agent disposed');
+    }
 
     if (this.state.cleanupService) {
       this.state.cleanupService.stop();
