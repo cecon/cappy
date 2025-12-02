@@ -72,23 +72,26 @@ Create a minimal plan:
 const REFLECTION_PROMPT = `You are Cappy's reflection system. Review ONLY the actual information gathered.
 
 Original user question: {{message}}
+Analysis of user intent: {{analysis}}
+Planning strategy: {{planning}}
 Information gathered: {{gatheredInfo}}
 Tool results: {{toolResults}}
 
 CRITICAL RULES:
-1. Base your reflection ONLY on the tool results actually obtained
-2. NEVER mention topics not in the user's message or tool results
-3. If no tools were used, reflection should be minimal
-4. Don't invent context that wasn't gathered
+1. Base reflection on analysis.intent - what user ACTUALLY asked for
+2. Respect planning.responseStrategy - if it says "simple greeting", don't add complex follow-ups
+3. Use ONLY tool results actually obtained, don't invent context
+4. If planning.steps is empty, keep reflection minimal
+5. NEVER mention topics not in user message, analysis.intent, or tool results
 
 Reflect:
 {
   "hasEnoughInfo": boolean,
-  "keyPoints": ["points from ACTUAL tool results or user message"],
+  "keyPoints": ["points from analysis.intent AND tool results, nothing else"],
   "responseTone": "friendly" | "technical" | "helpful" | "conversational",
-  "missingInfo": ["only if truly needed to answer their question"],
+  "missingInfo": ["only if truly needed for their actual question"],
   "shouldAskFollowUp": boolean,
-  "followUpQuestions": ["only if relevant to their actual request"]
+  "followUpQuestions": ["only if analysis.complexity is complex AND relevant"]
 }`;
 
 // Step 4: Final response prompt
@@ -189,6 +192,10 @@ export async function runConversationalAgent(
     `${m.role}: ${m.content}`
   ).join('\n');
   
+  // DEBUG: Log what we're actually processing
+  console.log('[Conversational] Processing message:', lastMessage.substring(0, 100));
+  console.log('[Conversational] Total messages in state:', state.messages.length);
+  
   // Get project context and workspace path
   const projectContext = await getProjectContext();
   const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
@@ -264,7 +271,12 @@ export async function runConversationalAgent(
     let gatheredInfo = '';
     let toolResults: Record<string, string> = {};
     
-    if (plan.steps && Array.isArray(plan.steps)) {
+    // Skip tool execution for simple intents unless explicitly needed
+    const shouldSkipTools = analysis.complexity === 'simple' && !analysis.needsProjectInfo && !analysis.needsCodeAnalysis;
+    
+    if (shouldSkipTools) {
+      console.log('[Conversational] Skipping tools for simple intent');
+    } else if (plan.steps && Array.isArray(plan.steps)) {
       for (const step of plan.steps) {
         if (step.action === 'use_tool' && step.tool) {
           progressCallback?.(`🔧 Usando ${step.tool}...`);
@@ -283,7 +295,10 @@ export async function runConversationalAgent(
               continue;
             }
           } else if (step.tool.includes('retrieve_context')) {
-            toolInput = { query: step.query || lastMessage };
+            // Create focused query from analysis intent, not full message
+            const focusedQuery = step.query || analysis.intent || lastMessage;
+            console.log('[Conversational] Retrieve context query:', focusedQuery);
+            toolInput = { query: focusedQuery, maxResults: 10, minScore: 0.6 };
           } else if (step.tool.includes('grep_search')) {
             toolInput = { query: step.query || lastMessage, isRegexp: false };
           }
@@ -301,6 +316,8 @@ export async function runConversationalAgent(
     progressCallback?.('💭 Refletindo sobre informações...');
     const reflectionPrompt = REFLECTION_PROMPT
       .replace('{{message}}', lastMessage)
+      .replace('{{analysis}}', JSON.stringify(analysis, null, 2))
+      .replace('{{planning}}', JSON.stringify(plan, null, 2))
       .replace('{{gatheredInfo}}', gatheredInfo)
       .replace('{{toolResults}}', JSON.stringify(toolResults, null, 2));
     

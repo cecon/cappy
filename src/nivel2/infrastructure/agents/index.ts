@@ -92,6 +92,10 @@ export class IntelligentAgent {
   async runSessionTurn(request: SessionTurnRequest): Promise<SessionTurnResult> {
     const { sessionId, message } = request;
 
+    // DEBUG: Log what we received
+    console.log('[IntelligentAgent] Received message:', message.substring(0, 100));
+    console.log('[IntelligentAgent] Session ID:', sessionId);
+
     if (!this.persistenceAdapter) {
       throw new Error('[IntelligentAgent] Not initialized. Call initialize() first.');
     }
