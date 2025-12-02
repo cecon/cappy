@@ -10,129 +10,182 @@ import { getProjectContext } from '../common/utils';
 import { TaskFileLoader } from '../common/task-file-loader';
 
 /**
- * Conversational Agent System Prompt
- * 
- * Primary entry point - handles all initial interactions and decides escalation
+ * System Prompts for the Thinking Loop
  */
-const CONVERSATIONAL_PROMPT = `You are Cappy, a friendly AI assistant for software development.
 
-You are the FIRST agent the user interacts with. Your role is to:
-1. Engage in friendly conversation when appropriate
-2. Answer questions about the project using available tools
-3. Detect when technical work requires deeper code analysis
-4. Signal when to escalate to research/planning agents
-
-Current Project Context (basic detection):
-{{projectContext}}
+// Step 1: Analysis prompt
+const ANALYSIS_PROMPT = `You are Cappy's analysis system. Carefully analyze this user message and conversation context.
 
 User message: {{message}}
 Conversation history: {{history}}
+Project context: {{projectContext}}
 
-Your personality:
+Your task is to analyze:
+1. Intent: What does the user really want?
+2. Complexity: Is this simple (greeting, thanks) or complex (technical question, implementation request)?
+3. Information needed: What information might be required to answer properly?
+4. Tools required: Which tools (cappy_read_file, cappy_grep_search, cappy_retrieve_context) might be useful?
+
+Respond with a JSON object:
+{
+  "intent": "brief description of user intent",
+  "complexity": "simple" | "medium" | "complex",
+  "needsProjectInfo": boolean,
+  "needsCodeAnalysis": boolean,
+  "suggestedTools": ["tool1", "tool2"],
+  "reasoning": "brief explanation of your analysis"
+}`;
+
+// Step 2: Planning prompt
+const PLANNING_PROMPT = `You are Cappy's planning system. Based on the analysis, create a plan to respond to the user.
+
+Analysis: {{analysis}}
+Available tools: {{tools}}
+
+Create a step-by-step plan:
+1. What information to gather first?
+2. Which tools to use and in what order?
+3. How to structure the final response?
+
+Respond with a JSON object:
+{
+  "steps": [
+    {
+      "step": 1,
+      "action": "gather_info" | "use_tool" | "respond",
+      "tool": "tool_name" | null,
+      "query": "what to search/read",
+      "reasoning": "why this step"
+    }
+  ],
+  "responseStrategy": "how to structure the final answer"
+}`;
+
+// Step 3: Reflection prompt
+const REFLECTION_PROMPT = `You are Cappy's reflection system. Review the gathered information and plan the final response.
+
+Original user question: {{message}}
+Information gathered: {{gatheredInfo}}
+Tool results: {{toolResults}}
+
+Reflect on:
+1. Do we have enough information to answer well?
+2. What are the key points to include?
+3. What tone/style should the response have?
+4. Are there any gaps or follow-up questions needed?
+
+Respond with a JSON object:
+{
+  "hasEnoughInfo": boolean,
+  "keyPoints": ["point1", "point2"],
+  "responseTone": "friendly" | "technical" | "helpful" | "conversational",
+  "missingInfo": ["what's missing"],
+  "shouldAskFollowUp": boolean,
+  "followUpQuestions": ["question1"]
+}`;
+
+// Step 4: Final response prompt
+const RESPONSE_PROMPT = `You are Cappy, a friendly AI assistant for software development. 
+
+Based on your internal thinking and research, provide a natural, helpful response.
+
+User message: {{message}}
+Your analysis: {{analysis}}
+Information gathered: {{gatheredInfo}}
+Your reflection: {{reflection}}
+
+Respond naturally in the same language as the user. Be:
 - Friendly and direct
-- Informative and helpful
+- Informative and helpful  
 - Professional but approachable
 - Eager to help with technical work
 
-**IMPORTANT: You have access to tools!**
-- cappy_read_file: Read file contents. ALWAYS use absolute paths like "/Users/eduardomendonca/projetos/cappy/README.md"
-- cappy_grep_search: Search for text patterns in files
-- cappy_retrieve_context: Semantic search across project
-
-**CRITICAL: For cappy_read_file, you MUST provide the FULL absolute path:**
-Example: {"filePath": "/Users/eduardomendonca/projetos/cappy/README.md", "startLine": 1, "endLine": 50}
-
-Response rules:
-- Greetings (olá, hi, bom dia) → Greet back and ask what they want to work on
-- Thanks (obrigado, thanks) → Accept graciously
-- Goodbyes (tchau, bye) → Wish them well
-**CRITICAL: You have access to tools. Use them DIRECTLY without announcing first.**
-
-**Tool Usage Decision Tree:**
-
-1. **Questions ABOUT the project** (what is it, purpose, features, benefits):
-   → IMMEDIATELY call cappy_read_file(filePath: "README.md", startLine: 1, endLine: 100)
-   → Use absolute path: {{workspacePath}}/README.md
-   → After tool returns, respond in natural language with the information
-
-2. **Questions about WHERE specific code/files are:**
-   → Respond in JSON to escalate (needs workspace search)
-
-3. **Questions about HOW specific implementation works:**
-   → Respond in JSON to escalate (needs code analysis)
-
-4. **Requests to build/create/implement:**
-   → Respond in JSON to escalate immediately
-
-5. **General chat/greetings:**
-   → Respond naturally without tools or escalation
-
-**Response Format Rules:**
-
-**CRITICAL - READ THIS CAREFULLY:**
-
-**IF YOU USED ANY TOOL (cappy_read_file, cappy_retrieve_context, cappy_grep_search):**
-→ Respond in NATURAL LANGUAGE directly to the user
-→ DO NOT use JSON format
-→ Answer the user's question using the information from the tool
-→ Be helpful and conversational
-
-**IF YOU DID NOT USE ANY TOOL:**
-→ Respond in NATURAL LANGUAGE as well
-→ Be conversational and helpful
-→ If user wants to create/implement something, ask clarifying questions or offer to help directly
-
-**Examples:**
-
-User: "what does the vector do?"
-You call: cappy_retrieve_context(query: "vector storage implementation")
-Tool returns: Information about SQLite vector storage
-You respond: "The vector storage in this project uses SQLite with the vec extension to store embeddings. It's located in src/nivel2/infrastructure/vector/ and provides..."
-
-User: "hello"
-You respond: "Hi! What would you like to work on today?"
-
-User: "I want to create a tool to index documentation"
-You respond: "Great idea! Let me help you with that. First, let me understand what you need:
-1. What kind of documentation do you want to index?
-2. Should it update the vector database, the graph, or both?
-3. Do you want this to run automatically or manually triggered?
-
-I can help you create the tool once I understand your requirements better."
-
-**NEVER** respond with "I'm waiting for your response" or similar non-answers.
-**ALWAYS** provide helpful, actionable responses.
-
-Respond in the same language as the user's message.`;
+{{projectContext}}`;
 
 /**
- * Conversational agent - PRIMARY entry point for all interactions
+ * Executes a thinking step and returns the result
+ */
+async function executeThinkingStep(
+  model: any,
+  prompt: string,
+  expectJson: boolean = true
+): Promise<string> {
+  const response = await model.sendRequest([
+    vscode.LanguageModelChatMessage.User(prompt)
+  ], {});
+  
+  let result = '';
+  for await (const chunk of response.text) {
+    result += chunk;
+  }
+  
+  if (expectJson) {
+    // Extract JSON from response (in case there's extra text)
+    const jsonMatch = result.match(/\{.*\}/s);
+    return jsonMatch ? jsonMatch[0] : result;
+  }
+  
+  return result;
+}
+
+/**
+ * Executes a tool call during the thinking process
+ */
+async function executeToolInThinking(
+  toolName: string,
+  toolInput: unknown,
+  availableTools: any[]
+): Promise<string> {
+  try {
+    const tool = availableTools.find(t => t.name === toolName);
+    if (!tool) {
+      return `Tool ${toolName} not found`;
+    }
+
+    const toolResult = await vscode.lm.invokeTool(
+      toolName,
+      { input: toolInput } as vscode.LanguageModelToolInvocationOptions<object>,
+      new vscode.CancellationTokenSource().token
+    );
+
+    // Convert tool result to string
+    let resultText = '';
+    for (const part of toolResult.content) {
+      if (part instanceof vscode.LanguageModelTextPart) {
+        resultText += part.value;
+      }
+    }
+    
+    return resultText || 'Tool executed but returned no text content';
+  } catch (error) {
+    return `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/**
+ * Conversational agent with thinking loop - PRIMARY entry point for all interactions
  */
 export async function runConversationalAgent(
   state: ConversationalState,
   progressCallback?: ProgressCallback
 ): Promise<ConversationalState> {
-  progressCallback?.('Conversando...');
+  progressCallback?.('🤔 Pensando...');
   
   const lastMessage = state.messages[state.messages.length - 1]?.content || '';
-  // Keep full conversation history - no truncation
   const conversationHistory = state.messages.map(m => 
     `${m.role}: ${m.content}`
   ).join('\n');
   
-  // Get project context (lightweight - just name and stack detection)
+  // Get project context and workspace path
   const projectContext = await getProjectContext();
-  
-  // Get workspace path for tool usage
   const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
-  // Check for active task file at the start of conversation
+  // Check for active task context
   let activeTaskContext = '';
-  if (state.messages.length <= 2) { // First interaction or early in conversation
+  if (state.messages.length <= 2) {
     const taskSummary = await TaskFileLoader.getActiveTaskSummary();
     if (taskSummary) {
       activeTaskContext = `\n\n${taskSummary}\n`;
-      console.log('[Conversational] Active task detected and loaded');
     }
   }
 
@@ -144,124 +197,127 @@ export async function runConversationalAgent(
     });
     
     if (models.length === 0) {
-      console.warn('[Conversational] No LLM models available');
       throw new Error('[Conversational] No LLM models available');
     }
     
     const model = models[0];
     
-    // Get Cappy tools (read_file, grep_search, retrieve_context)
+    // Get available tools
     const cappyTools = vscode.lm.tools.filter(tool => 
       tool.name.startsWith('cappy_') && 
       (tool.name.includes('read_file') || tool.name.includes('grep') || tool.name.includes('retrieve'))
     );
+
+    const toolNames = cappyTools.map(t => t.name).join(', ');
     
-    console.log(`[Conversational] Available tools: ${cappyTools.map(t => t.name).join(', ')}`);
+    // 🧠 THINKING LOOP
     
-    // Prepare prompt with workspace path
-    const prompt = CONVERSATIONAL_PROMPT
+    // Step 1: Analysis
+    progressCallback?.('🔍 Analisando mensagem...');
+    const analysisPrompt = ANALYSIS_PROMPT
       .replace('{{message}}', lastMessage)
       .replace('{{history}}', conversationHistory)
-      .replace('{{projectContext}}', `${projectContext}\n\nWorkspace Path: ${workspacePath}\nREADME Path: ${workspacePath}/README.md${activeTaskContext}`)
-      .replace(/\{\{workspacePath\}\}/g, workspacePath);
+      .replace('{{projectContext}}', projectContext);
     
-    // Call LLM with tools
-    const messages = [
-      vscode.LanguageModelChatMessage.User(prompt)
-    ];
+    const analysisResult = await executeThinkingStep(model, analysisPrompt, true);
+    console.log('[Conversational] Analysis:', analysisResult);
     
-    const response = await model.sendRequest(messages, { tools: cappyTools });
-    
-    // Collect response and handle tool calls
-    let fullResponse = '';
-    const toolCalls: Array<{ name: string; input: unknown; callId: string }> = [];
-    
-    for await (const chunk of response.stream) {
-      if (chunk instanceof vscode.LanguageModelTextPart) {
-        fullResponse += chunk.value;
-      } else if (chunk instanceof vscode.LanguageModelToolCallPart) {
-        toolCalls.push({
-          name: chunk.name,
-          input: chunk.input,
-          callId: chunk.callId
-        });
-      }
+    let analysis: any = {};
+    try {
+      analysis = JSON.parse(analysisResult);
+    } catch (e) {
+      console.warn('[Conversational] Failed to parse analysis JSON, proceeding with fallback');
+      analysis = { complexity: 'simple', needsProjectInfo: false };
     }
+
+    // Step 2: Planning
+    progressCallback?.('📋 Planejando resposta...');
+    const planningPrompt = PLANNING_PROMPT
+      .replace('{{analysis}}', JSON.stringify(analysis, null, 2))
+      .replace('{{tools}}', toolNames);
     
-    // If LLM used tools, execute them and get final response
-    if (toolCalls.length > 0) {
-      console.log(`[Conversational] Executing ${toolCalls.length} tool call(s)`);
-      
-      for (const toolCall of toolCalls) {
-        console.log(`[Conversational] 🔧 Tool Call Details:`);
-        console.log(`  - Name: ${toolCall.name}`);
-        console.log(`  - Input:`, JSON.stringify(toolCall.input, null, 2));
-        console.log(`  - Call ID: ${toolCall.callId}`);
-        
-        try {
-          const toolResult = await vscode.lm.invokeTool(
-            toolCall.name,
-            { input: toolCall.input } as vscode.LanguageModelToolInvocationOptions<object>,
-            new vscode.CancellationTokenSource().token
-          );
+    const planningResult = await executeThinkingStep(model, planningPrompt, true);
+    console.log('[Conversational] Planning:', planningResult);
+    
+    let plan: any = { steps: [] };
+    try {
+      plan = JSON.parse(planningResult);
+    } catch (e) {
+      console.warn('[Conversational] Failed to parse planning JSON, proceeding with empty plan');
+    }
+
+    // Step 3: Execute planned actions (gather information)
+    let gatheredInfo = '';
+    let toolResults: Record<string, string> = {};
+    
+    if (plan.steps && Array.isArray(plan.steps)) {
+      for (const step of plan.steps) {
+        if (step.action === 'use_tool' && step.tool) {
+          progressCallback?.(`🔧 Usando ${step.tool}...`);
           
-          console.log(`[Conversational] ✅ Tool ${toolCall.name} executed successfully`);
-          console.log(`[Conversational] Result content length: ${toolResult.content.length} parts`);
-          
-          // Log what we're sending back to the LLM
-          if (toolResult.content.length > 0 && toolResult.content[0] instanceof vscode.LanguageModelTextPart) {
-            const textContent = (toolResult.content[0] as vscode.LanguageModelTextPart).value;
-            console.log(`[Conversational] Tool result preview: ${textContent.substring(0, 200)}...`);
+          // Create tool input based on the tool type
+          let toolInput: any = {};
+          if (step.tool.includes('read_file')) {
+            // For read_file, try to construct a reasonable path
+            if (step.query?.toLowerCase().includes('readme')) {
+              toolInput = { filePath: `${workspacePath}/README.md` };
+            } else {
+              toolInput = { filePath: step.query || `${workspacePath}/README.md` };
+            }
+          } else if (step.tool.includes('retrieve_context')) {
+            toolInput = { query: step.query || lastMessage };
+          } else if (step.tool.includes('grep_search')) {
+            toolInput = { query: step.query || lastMessage, isRegexp: false };
           }
           
-          // Add tool result to conversation
-          messages.push(
-            vscode.LanguageModelChatMessage.Assistant([
-              new vscode.LanguageModelToolCallPart(toolCall.callId, toolCall.name, toolCall.input as object)
-            ]),
-            vscode.LanguageModelChatMessage.User([
-              new vscode.LanguageModelToolResultPart(toolCall.callId, toolResult.content)
-            ])
-          );
-        } catch (error) {
-          console.error(`[Conversational] ❌ Tool ${toolCall.name} failed:`, error);
-          console.error(`[Conversational] Failed with input:`, JSON.stringify(toolCall.input, null, 2));
+          const result = await executeToolInThinking(step.tool, toolInput, cappyTools);
+          toolResults[step.tool] = result;
+          gatheredInfo += `\n${step.tool}: ${result.substring(0, 500)}...`;
           
-          // Add error to conversation so LLM knows the tool failed
-          messages.push(
-            vscode.LanguageModelChatMessage.Assistant([
-              new vscode.LanguageModelToolCallPart(toolCall.callId, toolCall.name, toolCall.input as object)
-            ]),
-            vscode.LanguageModelChatMessage.User([
-              new vscode.LanguageModelToolResultPart(toolCall.callId, [
-                new vscode.LanguageModelTextPart(`Error: Tool failed - ${error instanceof Error ? error.message : String(error)}`)
-              ])
-            ])
-          );
+          console.log(`[Conversational] Tool ${step.tool} executed, result length: ${result.length}`);
         }
       }
-      
-      // Get final response after tools
-      const finalResponse = await model.sendRequest(messages, {});
-      fullResponse = '';
-      for await (const chunk of finalResponse.text) {
-        fullResponse += chunk;
-      }
-      
-      console.log(`[Conversational] Final response after tools: ${fullResponse.substring(0, 200)}...`);
     }
+
+    // Step 4: Reflection
+    progressCallback?.('💭 Refletindo sobre informações...');
+    const reflectionPrompt = REFLECTION_PROMPT
+      .replace('{{message}}', lastMessage)
+      .replace('{{gatheredInfo}}', gatheredInfo)
+      .replace('{{toolResults}}', JSON.stringify(toolResults, null, 2));
     
-    // Always treat response as natural language (no more JSON parsing or escalation)
-    console.log('[Conversational] Response generated, returning to user');
+    const reflectionResult = await executeThinkingStep(model, reflectionPrompt, true);
+    console.log('[Conversational] Reflection:', reflectionResult);
+    
+    let reflection: any = {};
+    try {
+      reflection = JSON.parse(reflectionResult);
+    } catch (e) {
+      console.warn('[Conversational] Failed to parse reflection JSON, proceeding with fallback');
+      reflection = { hasEnoughInfo: true, responseTone: 'helpful' };
+    }
+
+    // Step 5: Generate final response
+    progressCallback?.('✍️ Gerando resposta final...');
+    const finalPrompt = RESPONSE_PROMPT
+      .replace('{{message}}', lastMessage)
+      .replace('{{analysis}}', JSON.stringify(analysis, null, 2))
+      .replace('{{gatheredInfo}}', gatheredInfo)
+      .replace('{{reflection}}', JSON.stringify(reflection, null, 2))
+      .replace('{{projectContext}}', `${projectContext}\n\nWorkspace Path: ${workspacePath}${activeTaskContext}`);
+    
+    const finalResponse = await executeThinkingStep(model, finalPrompt, false);
+    
+    console.log('[Conversational] Thinking loop completed, final response ready');
     
     return {
       ...state,
-      response: fullResponse.trim(),
+      response: finalResponse.trim(),
       phase: 'completed'
     };
     
   } catch (error) {
-    console.error('[Conversational] LLM call failed:', error);
+    console.error('[Conversational] Thinking loop failed:', error);
     throw error;
   }
 }
