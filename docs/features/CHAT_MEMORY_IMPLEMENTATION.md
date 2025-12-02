@@ -1,92 +1,191 @@
-# Implementação de Memória no Chat Participant
+# Gerenciamento de Memória do Sistema Multi-Agente
 
-## Problema Identificado
+## Arquitetura Atual
 
-O chat participant original manipulava o histórico manualmente via `AgentController` e estruturas auxiliares (`chatControllers`, normalização de turnos, etc.). Sempre que a sessão era perdida ou um erro acontecia, o contexto voltava ao ponto zero.
+### Sistema de Sessões Volátil
 
-## Nova Arquitetura
-
-### LangGraph + MemorySaver
+O sistema atual utiliza uma abordagem simples baseada em `Map` para armazenar histórico de conversas:
 
 | Componente | Responsabilidade |
 |------------|------------------|
-| `LangGraphChatAgent` | Orquestra a conversa usando LangGraph |
-| `MemorySaver` | Persistência em memória dos estados por sessão |
-| `StateGraph` + `Annotation` | Define o estado (`messages`) com reducer que agrega turnos |
+| `IntelligentAgent` | Orquestra todo o sistema multi-agente |
+| `Map<string, AgentMessage[]>` | Armazena histórico de mensagens por sessão (volátil) |
+| `SupervisorGraph` | Delega para agente conversacional |
+| `ConversationalAgent` | Processa mensagens com thinking loop |
 
 ```mermaid
 flowchart TD
-  U[Usuário envia prompt] -->|invoke| G[StateGraph (LangGraph)]
-  G -->|Atualiza state.messages| C[MemorySaver]
-  G -->|Histórico completo| L[Copilot Model]
-  L -->|Streaming| A[LangGraphChatAgent]
-  A -->|Atualiza state| G
-  A -->|stream.markdown| VSCode[Chat UI]
+  U[Usuário envia prompt] -->|runSessionTurn| IA[IntelligentAgent]
+  IA -->|Get/Create history| M[Map sessions]
+  IA -->|Create state| SG[SupervisorGraph]
+  SG -->|invoke| CA[ConversationalAgent]
+  CA -->|Thinking Loop| LLM[Copilot Model]
+  LLM -->|Response| CA
+  CA -->|Return state| IA
+  IA -->|Save to Map| M
+  IA -->|Return result| VSCode[Chat UI]
 ```
 
-### Código Chave
+### Código Atual
 
 ```typescript
-const ChatStateDefinition = Annotation.Root({
-  messages: Annotation<ChatMemoryMessage[]>({
-    reducer: (left, right) => {
-      const updates = Array.isArray(right) ? right : [right]
-      return left.concat(updates)
-    },
-    default: () => []
-  })
-})
+export class IntelligentAgent {
+  private sessions: Map<string, AgentMessage[]> = new Map();
 
-const graph = new StateGraph(ChatStateDefinition)
-  .addNode('noop', async () => ({}))
-  .addEdge(START, 'noop')
-  .addEdge('noop', END)
-  .compile({ checkpointer: new MemorySaver() })
-```
+  async runSessionTurn(request: SessionTurnRequest): Promise<SessionTurnResult> {
+    const { sessionId, message } = request;
 
-```typescript
-const updatedState = await this.graph.invoke(
-  { messages: [{ role: 'user', content: prompt }] },
-  config
-)
+    // Get or create session history
+    let history = this.sessions.get(sessionId);
+    if (!history) {
+      history = [];
+      this.sessions.set(sessionId, history);
+    }
 
-const response = await this.model.sendRequest(messages, ...)
+    // Add user message to history
+    const userMessage: AgentMessage = {
+      role: 'user',
+      content: message,
+      timestamp: new Date()
+    };
+    history.push(userMessage);
 
-await this.graph.invoke(
-  { messages: [{ role: 'assistant', content: assistantResponse }] },
-  config
-)
+    // Process with supervisor graph...
+    const result = await graph.invoke(state);
+
+    // Add assistant response to history
+    const assistantMessage: AgentMessage = {
+      role: 'assistant',
+      content: responseContent,
+      timestamp: new Date()
+    };
+    history.push(assistantMessage);
+
+    return { result, isContinuation: history.length > 2 };
+  }
+}
 ```
 
 ### Fluxo de Cada Turno
 
-1. Adiciona usuário → `graph.invoke({ messages: user })`
-2. Recupera histórico completo → `MemorySaver`
-3. Gera resposta via `LanguageModelChat`
-4. Armazena resposta → `graph.invoke({ messages: assistant })`
-5. Devolve texto ao VS Code chat (`stream.markdown`)
+1. Usuário envia mensagem → `runSessionTurn()`
+2. Recupera histórico da `Map` (ou cria novo array vazio)
+3. Adiciona mensagem do usuário ao histórico
+4. Supervisor delega para `ConversationalAgent`
+5. Thinking loop processa com LLM
+6. Adiciona resposta do assistente ao histórico
+7. Salva histórico de volta na `Map`
+8. Retorna resultado para VS Code chat
 
-## Por que LangGraph?
+## ⚠️ Limitações Atuais
 
-- ✅ Estado conversacional formalizado (`Annotation` + reducer)
-- ✅ Persistência automática por `sessionId`
-- ✅ Cancelamento fácil (AbortController + `RunnableConfig.signal`)
-- ✅ Preparado para ampliar com nós extras (ferramentas, branching, etc.)
+### 1. **Memória Volátil**
+- ❌ Todo histórico é perdido ao reiniciar a extensão
+- ❌ Sem persistência em disco ou banco de dados
+- ❌ Sessões não sobrevivem a reloads do VS Code
 
-## Testes Recomendados
+### 2. **Sem Gerenciamento de Contexto**
+- ❌ Histórico cresce indefinidamente (risco de estouro de contexto)
+- ❌ Nenhuma estratégia de sliding window ou sumarização
+- ❌ Conversas longas podem quebrar o modelo LLM
 
-- "Olá, meu nome é João" → "Qual é o meu nome?" (mantém memória)
-- Sequência longa de perguntas para validar que o histórico cresce sem duplicações
-- Cancelar requisição no meio para confirmar que nada é salvo indevidamente
+### 3. **Sem Estado Conversacional Rico**
+- ❌ Apenas mensagens brutas (role + content)
+- ❌ Sem tracking de entidades mencionadas
+- ❌ Sem contexto de tópico ou progresso da conversa
 
-## Próximos Passos
+### 4. **Falta de Mecanismo de Recuperação**
+- ❌ Se um erro ocorre, o contexto pode ficar inconsistente
+- ❌ Sem rollback ou checkpoint de estados seguros
 
-- [ ] Checkpoint persistente (SQLite / disco)
-- [ ] Limitar tokens do histórico com resumo automático
-- [ ] Adicionar tool nodes (ex.: recuperar contexto) ao grafo
-- [ ] Cobertura de testes automatizados para o LangGraphChatAgent
+## 🔄 Roadmap de Melhorias
 
-## Referências
+### Fase 1: Persistência Básica (Crítico)
+- [ ] Migrar para LangGraph + MemorySaver
+- [ ] Implementar checkpoint SQLite
+- [ ] Adicionar recuperação de sessões após reload
+- [ ] Sistema de backup automático de conversas
 
-- [@langchain/langgraph](https://github.com/langchain-ai/langgraph)
+### Fase 2: Gerenciamento de Contexto (Alta Prioridade)
+- [ ] Sliding window com limite de tokens (~4000 tokens)
+- [ ] Sumarização automática de histórico antigo
+- [ ] Metadata de progresso conversacional
+- [ ] Detecção de mudança de tópico
+
+### Fase 3: Estado Conversacional Rico (Média Prioridade)
+- [ ] Tracking de entidades (arquivos, funções, conceitos)
+- [ ] Resolução de referências ("isso", "anterior", "aquele arquivo")
+- [ ] Contexto de decisões tomadas na conversa
+- [ ] Memória de longo prazo (aprendizados por projeto)
+
+### Fase 4: Features Avançadas (Baixa Prioridade)
+- [ ] Feedback loop (👍/👎)
+- [ ] Few-shot learning adaptativo
+- [ ] Análise de sentimento e tom conversacional
+- [ ] Sugestões proativas baseadas em histórico
+
+## 🎯 Próximos Passos Imediatos
+
+### 1. Implementar LangGraph (Substitui Map)
+
+```typescript
+import { StateGraph, Annotation, MemorySaver } from '@langchain/langgraph';
+
+const ChatState = Annotation.Root({
+  messages: Annotation<AgentMessage[]>({
+    reducer: (left, right) => left.concat(right),
+    default: () => []
+  }),
+  metadata: Annotation<Record<string, unknown>>({
+    reducer: (left, right) => ({ ...left, ...right }),
+    default: () => ({})
+  })
+});
+
+const graph = new StateGraph(ChatState)
+  .addNode('conversational', runConversationalAgent)
+  .addEdge('__start__', 'conversational')
+  .addEdge('conversational', '__end__')
+  .compile({ checkpointer: new MemorySaver() });
+```
+
+### 2. Adicionar Limite de Contexto
+
+```typescript
+function limitContextWindow(messages: AgentMessage[], maxTokens: number = 4000): AgentMessage[] {
+  // Sempre manter primeira e última mensagem
+  if (messages.length <= 2) return messages;
+  
+  // Calcular tokens aproximados (4 chars = 1 token)
+  let totalTokens = 0;
+  const selected: AgentMessage[] = [];
+  
+  // Adicionar de trás pra frente (mensagens mais recentes)
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msgTokens = Math.ceil(messages[i].content.length / 4);
+    if (totalTokens + msgTokens > maxTokens && selected.length > 2) break;
+    selected.unshift(messages[i]);
+    totalTokens += msgTokens;
+  }
+  
+  return selected;
+}
+```
+
+### 3. Adicionar Metadata Conversacional
+
+```typescript
+interface ConversationMetadata {
+  lastTopic?: string;
+  mentionedFiles: string[];
+  mentionedEntities: string[];
+  conversationStage: 'greeting' | 'discussing' | 'planning' | 'executing' | 'closing';
+  taskContext?: string;
+}
+```
+
+## 📚 Referências
+
 - [VS Code Language Model API](https://code.visualstudio.com/api/extension-guides/language-model)
+- [@langchain/langgraph](https://github.com/langchain-ai/langgraph) (para migração futura)
+- [Token Management Best Practices](https://platform.openai.com/docs/guides/text-generation)
