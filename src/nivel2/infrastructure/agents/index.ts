@@ -122,6 +122,10 @@ export class IntelligentAgent {
     await messageHandler.loadMessages();
     const history = messageHandler.getMessages();
 
+    // DEBUG: Log message flow
+    console.log('[IntelligentAgent] History before adding new message:', history.length);
+    console.log('[IntelligentAgent] Last message in history:', history[history.length - 1]?.content.substring(0, 60));
+
     // Add user message to history (atomic operation with mutex)
     const userMessage: AgentMessage = {
       role: 'user',
@@ -130,9 +134,20 @@ export class IntelligentAgent {
     };
     await messageHandler.addMessage(userMessage);
 
-    // Create supervisor state
+    // CRITICAL: Get updated history AFTER adding new message
+    const updatedHistory = messageHandler.getMessages();
+    
+    // DEBUG: Verify new message was added
+    console.log('[IntelligentAgent] History after adding new message:', updatedHistory.length);
+    console.log('[IntelligentAgent] Last message in updated history:', updatedHistory[updatedHistory.length - 1]?.content.substring(0, 60));
+    console.log('[IntelligentAgent] Messages summary:', updatedHistory.map(m => ({
+      role: m.role,
+      preview: m.content.substring(0, 60)
+    })));
+
+    // Create supervisor state with UPDATED history
     const state = createSupervisorState(sessionId);
-    state.messages = [...history];
+    state.messages = [...updatedHistory];
 
     // Create and run supervisor graph
     const graph = createSupervisorGraph(this.progressCallback);

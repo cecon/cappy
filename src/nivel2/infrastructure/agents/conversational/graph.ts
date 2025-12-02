@@ -193,8 +193,13 @@ export async function runConversationalAgent(
   ).join('\n');
   
   // DEBUG: Log what we're actually processing
-  console.log('[Conversational] Processing message:', lastMessage.substring(0, 100));
-  console.log('[Conversational] Total messages in state:', state.messages.length);
+  console.log('[Conversational] State messages count:', state.messages.length);
+  console.log('[Conversational] Last message from state:', lastMessage.substring(0, 100));
+  console.log('[Conversational] Last message role:', state.messages[state.messages.length - 1]?.role);
+  console.log('[Conversational] Last 3 messages:', state.messages.slice(-3).map(m => ({
+    role: m.role,
+    preview: m.content.substring(0, 60)
+  })));
   
   // Get project context and workspace path
   const projectContext = await getProjectContext();
