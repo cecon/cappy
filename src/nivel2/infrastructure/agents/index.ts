@@ -104,7 +104,7 @@ export class IntelligentAgent {
     let messageHandler = this.messageHandlers.get(sessionId);
     if (!messageHandler) {
       const workspacePath = require('vscode').workspace.workspaceFolders?.[0]?.uri.fsPath;
-      const { messageHandler: handler, checkpointSaver } = await this.persistenceAdapter.initializeForTask(
+      const { messageHandler: handler } = await this.persistenceAdapter.initializeForTask(
         sessionId,
         Date.now().toString(),
         workspacePath

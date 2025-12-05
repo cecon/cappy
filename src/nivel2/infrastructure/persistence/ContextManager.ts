@@ -25,10 +25,12 @@ export interface ContextUpdate {
 /**
  * Edit type for message modifications
  */
-export enum EditType {
-  User = 0,
-  Assistant = 1
-}
+export const EditType = {
+  User: 0,
+  Assistant: 1
+} as const;
+
+export type EditTypeValue = typeof EditType[keyof typeof EditType];
 
 /**
  * Manages context history with temporal tracking
@@ -44,7 +46,7 @@ export class ContextManager {
   // Mapping: outerIndex => [EditType, { innerIndex => [ContextUpdate[]] }]
   private contextHistoryUpdates: Map<number, [number, Map<number, ContextUpdate[]>]> = new Map();
   
-  private taskDirectory?: string;
+
 
   constructor() {}
 
@@ -54,7 +56,7 @@ export class ContextManager {
   addContextUpdate(
     outerIndex: number,
     innerIndex: number,
-    editType: EditType,
+    editType: EditTypeValue,
     updateType: ContextUpdateType,
     data: unknown
   ): void {
@@ -103,12 +105,11 @@ export class ContextManager {
    * Removes all updates after the given timestamp
    */
   async truncateContextHistory(timestamp: number, taskDirectory: string): Promise<void> {
-    this.taskDirectory = taskDirectory;
     
     // Iterate through all outer indices
-    for (const [outerIndex, [editType, innerMap]] of this.contextHistoryUpdates) {
+    for (const [outerIndex, [_editType, innerMap]] of this.contextHistoryUpdates) {
       // Iterate through all inner indices
-      for (const [innerIndex, updates] of innerMap) {
+      for (const [_innerIndex, updates] of innerMap) {
         // Binary search to find cutoff point
         const cutoffIdx = this.findCutoffIndex(updates, timestamp);
         
@@ -119,7 +120,7 @@ export class ContextManager {
 
         // Remove inner index if no updates remain
         if (updates.length === 0) {
-          innerMap.delete(innerIndex);
+          innerMap.delete(_innerIndex);
         }
       }
 
@@ -157,7 +158,7 @@ export class ContextManager {
    * Apply context optimizations (placeholder for future enhancements)
    */
   applyContextOptimizations(
-    apiMessages: any[],
+    _apiMessages: any[],
     startFromIndex: number,
     timestamp: number
   ): [boolean, Set<number>] {
@@ -165,10 +166,10 @@ export class ContextManager {
     let anyChanges = false;
 
     // Apply tracked updates to messages
-    for (const [outerIndex, [editType, innerMap]] of this.contextHistoryUpdates) {
+    for (const [outerIndex, [_editType, innerMap]] of this.contextHistoryUpdates) {
       if (outerIndex < startFromIndex) continue;
 
-      for (const [innerIndex, updates] of innerMap) {
+      for (const [_innerIndex, updates] of innerMap) {
         // Apply only updates up to timestamp
         const relevantUpdates = updates.filter(u => u.timestamp <= timestamp);
         
@@ -187,7 +188,6 @@ export class ContextManager {
    */
   async saveContextHistory(taskDirectory: string): Promise<void> {
     try {
-      this.taskDirectory = taskDirectory;
       
       // Convert Map to serializable format
       const serialized: Record<string, [number, Record<string, ContextUpdate[]>]> = {};
@@ -195,8 +195,8 @@ export class ContextManager {
       for (const [outerIndex, [editType, innerMap]] of this.contextHistoryUpdates) {
         const innerObj: Record<string, ContextUpdate[]> = {};
         
-        for (const [innerIndex, updates] of innerMap) {
-          innerObj[innerIndex.toString()] = updates;
+        for (const [_innerIndex, updates] of innerMap) {
+          innerObj[_innerIndex.toString()] = updates;
         }
         
         serialized[outerIndex.toString()] = [editType, innerObj];
@@ -215,7 +215,6 @@ export class ContextManager {
    */
   async loadContextHistory(taskDirectory: string): Promise<void> {
     try {
-      this.taskDirectory = taskDirectory;
       
       const contextFile = path.join(taskDirectory, 'context_history.json');
       
@@ -232,7 +231,7 @@ export class ContextManager {
       this.contextHistoryUpdates.clear();
       
       for (const [outerIndexStr, entry] of Object.entries(serialized)) {
-        const [editType, innerObj] = entry as [EditType, Record<string, ContextUpdate[]>];
+        const [editType, innerObj] = entry as [EditTypeValue, Record<string, ContextUpdate[]>];
         const outerIndex = parseInt(outerIndexStr);
         const innerMap = new Map<number, ContextUpdate[]>();
         

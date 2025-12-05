@@ -83,13 +83,15 @@ CRITICAL RULES:
 3. Use ONLY tool results actually obtained, don't invent context
 4. If planning.steps is empty, keep reflection minimal
 5. NEVER mention topics not in user message, analysis.intent, or tool results
+6. If tool results contain files/contexts (grep_search, read_file, retrieve_context found data), assume hasEnoughInfo=true
+7. Only mark hasEnoughInfo=false if CRITICAL information is truly missing for the user's question
 
 Reflect:
 {
-  "hasEnoughInfo": boolean,
+  "hasEnoughInfo": boolean (default: true if any tool results exist),
   "keyPoints": ["points from analysis.intent AND tool results, nothing else"],
   "responseTone": "friendly" | "technical" | "helpful" | "conversational",
-  "missingInfo": ["only if truly needed for their actual question"],
+  "missingInfo": ["only if truly CRITICAL information is missing"],
   "shouldAskFollowUp": boolean,
   "followUpQuestions": ["only if analysis.complexity is complex AND relevant"]
 }`;
@@ -303,7 +305,7 @@ export async function runConversationalAgent(
             // Create focused query from analysis intent, not full message
             const focusedQuery = step.query || analysis.intent || lastMessage;
             console.log('[Conversational] Retrieve context query:', focusedQuery);
-            toolInput = { query: focusedQuery, maxResults: 10, minScore: 0.6 };
+            toolInput = { query: focusedQuery, maxResults: 10, minScore: 0.4 };
           } else if (step.tool.includes('grep_search')) {
             toolInput = { query: step.query || lastMessage, isRegexp: false };
           }

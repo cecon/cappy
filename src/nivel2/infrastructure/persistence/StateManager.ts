@@ -45,7 +45,7 @@ export class StateManager {
   private readonly PERSISTENCE_DELAY_MS = 500;
   
   // File watcher
-  private taskHistoryWatcher?: fs.FileHandle;
+
 
   constructor(storagePath: string) {
     this.storagePath = storagePath;

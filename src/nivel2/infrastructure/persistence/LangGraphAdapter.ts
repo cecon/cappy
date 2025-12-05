@@ -5,7 +5,7 @@
  * Integrates our persistence layer with LangGraph's StateGraph system
  */
 
-import type { AgentMessage, TaskState } from './types';
+import type { AgentMessage } from './types';
 import { MessageStateHandler } from './MessageStateHandler';
 import { StateManager } from './StateManager';
 import { CheckpointTracker } from './CheckpointTracker';
