@@ -2,7 +2,7 @@
 ## Como funciona o fluxo de processamento de arquivos no Cappy
 
 **Data:** 30 de outubro de 2025  
-**Atualização:** CronJob foi removido, agora usamos apenas FileProcessingQueue
+**Atualização:** FileProcessingQueue gerencia todo o processamento de arquivos em background
 
 ---
 
@@ -158,7 +158,7 @@ Possíveis causas:
 4. **VectorStore estava null** durante processamento
 5. **Queue estava pausada** durante o scan
 
-### Como Confirmar
+### Como confirmar
 
 ```sql
 -- Ver arquivos que estão 'pending' (não processados ainda)
@@ -209,19 +209,19 @@ WHERE id IN (
 ```
 1. "Cappy: Reset Graph Database"
 2. "Cappy: Scan Workspace"
-3. Aguardar CronJob processar tudo
+3. Aguardar Queue processar tudo
 ```
 
 ---
 
 ## 📊 Monitoramento
 
-### Como verificar se CronJob está rodando
+### Como verificar se a Queue está rodando
 
 ```typescript
 // No código da extensão
-const cronJob = context.globalState.get('fileProcessingCronJob');
-console.log('CronJob running:', cronJob?.isRunning());
+const queue = context.globalState.get('fileProcessingQueue');
+console.log('Queue running:', queue?.isRunning());
 ```
 
 ### Como ver progresso
@@ -254,9 +254,9 @@ LIMIT 10;
 Scan = Descoberta rápida + Metadados + Fila de 'pending'
 ```
 
-### O que o CronJob faz:
+### O que o FileProcessingQueue faz:
 ```
-CronJob = Processar 'pending' → Parse → Embeddings → Vectors → Grafo
+Queue = Processar 'pending' → Parse → Embeddings → Vectors → Grafo
 ```
 
 ### Onde vectors são criados:
@@ -266,17 +266,17 @@ IndexingService.indexFile()
       └─> Insere na tabela 'vectors' com embeddings
 ```
 
-### Por que 839 chunks não têm vectors:
+### Por que chunks podem não ter vectors:
 ```
 Possível causa:
 1. Scan criou chunks no grafo
-2. CronJob não processou (parou, erro, não rodando)
+2. Queue não processou (parou, erro, não rodando)
 3. Resultado: Chunks existem mas sem vectors
 ```
 
 ### Solução:
 ```
-1. Verificar CronJob está rodando
+1. Verificar Queue está rodando
 2. Verificar logs de erro no file_metadata
 3. Reprocessar arquivos 'pending' ou com erro
 4. NÃO rodar scan novamente (não resolve)
@@ -305,14 +305,12 @@ SET status = 'pending'
 WHERE filePath IN ('src/path/to/file.ts');
 ```
 
-### Ver logs do CronJob
+### Ver logs da Queue
 ```
 # No VS Code Developer Tools Console
-# Filtrar por [CronJob]
+# Filtrar por [FileProcessingQueue] ou [IndexingService]
 ```
 
 ---
 
-**Conclusão:** O scan é rápido porque **não processa** os arquivos, apenas os **descobre e marca como pending**. O processamento pesado (embeddings, vectors, AST, relacionamentos) acontece no **CronJob em background**.
-
-Os 839 chunks sem vectors provavelmente foram criados durante um scan, mas o CronJob não os processou ainda ou falhou ao processar.
+**Conclusão:** O scan é rápido porque **não processa** os arquivos, apenas os **descobre e marca como pending**. O processamento pesado (embeddings, vectors, AST, relacionamentos) acontece no **FileProcessingQueue em background**.

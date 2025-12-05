@@ -38,21 +38,9 @@ export interface AgentResult<T = unknown> {
 export type ProgressCallback = (message: string | import('../types/progress-events').AgentProgressEvent) => void;
 
 /**
- * Router intention types
+ * Planning phase types - simplified to conversational only
  */
-export type RouterIntent = 'task' | 'question' | 'smalltalk' | 'unknown';
-
-/**
- * Planning phase types
- */
-export type PlanningPhase = 
-  | 'conversational'
-  | 'research'
-  | 'planning'
-  | 'critique'
-  | 'refinement-plan'
-  | 'execution'
-  | 'completed';
+export type PlanningPhase = 'conversational' | 'completed';
 
 /**
  * Session turn request
@@ -71,14 +59,10 @@ export interface SessionTurnResult {
 }
 
 /**
- * Planning turn result
+ * Planning turn result - simplified for conversational agent
  */
 export interface PlanningTurnResult {
   phase: PlanningPhase;
-  confirmed?: boolean;
-  readyForExecution?: boolean;
-  awaitingUser?: boolean;
   responseMessage?: string;
-  finalResponse?: string;
   conversationLog?: AgentMessage[];
 }

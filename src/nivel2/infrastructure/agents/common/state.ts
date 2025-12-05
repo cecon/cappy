@@ -26,60 +26,9 @@ export interface BaseAgentState {
 }
 
 /**
- * Supervisor state - orchestrates all agents
+ * Supervisor state - simplified for conversational-only mode
  */
 export interface SupervisorState extends BaseAgentState {
-  /** Current active agent */
+  /** Current active agent (always 'conversational') */
   currentAgent: string | null;
-  
-  /** Plan confirmed by user */
-  planConfirmed?: boolean;
-  
-  /** Ready for execution */
-  readyForExecution?: boolean;
-}
-
-/**
- * Brain state - research and analysis
- */
-export interface BrainState extends BaseAgentState {
-  /** Research results */
-  researchResults?: string[];
-  
-  /** Summaries */
-  summaries?: string[];
-  
-  /** Debate conclusions */
-  debateConclusions?: string[];
-}
-
-/**
- * Planning state
- */
-export interface PlanningState extends BaseAgentState {
-  /** Recommended approach */
-  recommendation?: string;
-  
-  /** Generated plan */
-  plan?: string;
-  
-  /** Plan critiques */
-  critiques?: string[];
-  
-  /** Refined plan */
-  refinedPlan?: string;
-}
-
-/**
- * Execution state
- */
-export interface ExecutionState extends BaseAgentState {
-  /** Approved plan */
-  plan?: string;
-  
-  /** Execution results */
-  executionResults?: string[];
-  
-  /** Deliverables */
-  deliverables?: string[];
 }

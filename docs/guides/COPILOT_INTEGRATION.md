@@ -83,18 +83,17 @@ for await (const chunk of response.text) {
 
 Por padrão, Cappy usa `gpt-4o` que é o mais capaz e rápido.
 
-## 🛠️ Configuração Avançada
+## 🛠️ Implementação no Cappy
 
-Para mudar o modelo ou vendor, edite:
+O agente conversacional está implementado em:
+`src/nivel2/infrastructure/agents/conversational/graph.ts`
 
-`src/adapters/secondary/agents/langgraph-chat-engine.ts`
-
-```typescript
-const models = await vscode.lm.selectChatModels({
-  vendor: 'copilot',  // ou outro vendor se disponível
-  family: 'gpt-4'     // ou 'gpt-3.5-turbo', etc.
-})
-```
+Ele utiliza um **thinking loop** de 5 etapas:
+1. **Analysis** - Analisa intenção do usuário
+2. **Planning** - Cria plano de ação com tools
+3. **Execution** - Executa tools (cappy_retrieve_context, cappy_grep_search, cappy_read_file)
+4. **Reflection** - Reflete sobre informações coletadas
+5. **Response** - Gera resposta final
 
 ## ❌ Erros Comuns
 

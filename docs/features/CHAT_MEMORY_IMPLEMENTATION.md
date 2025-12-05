@@ -1,4 +1,4 @@
-# Gerenciamento de Memória do Sistema Multi-Agente
+# Gerenciamento de Memória do Sistema Conversacional
 
 ## Arquitetura Atual
 
@@ -8,7 +8,7 @@ O sistema atual utiliza uma abordagem simples baseada em `Map` para armazenar hi
 
 | Componente | Responsabilidade |
 |------------|------------------|
-| `IntelligentAgent` | Orquestra todo o sistema multi-agente |
+| `IntelligentAgent` | Orquestra o agente conversacional |
 | `Map<string, AgentMessage[]>` | Armazena histórico de mensagens por sessão (volátil) |
 | `SupervisorGraph` | Delega para agente conversacional |
 | `ConversationalAgent` | Processa mensagens com thinking loop |

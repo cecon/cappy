@@ -173,19 +173,12 @@ export class ExtensionBootstrap {
           });
 
           if (isContinuation) {
-            stream.progress('Continuando a fase atual com a resposta do usuário...');
-          }
-
-          if (result.awaitingUser) {
-            stream.progress('Aguardando resposta do usuário para prosseguir.');
+            stream.progress('Continuando conversa...');
           }
 
           console.log('[ChatParticipant] Result:', {
             hasResult: !!result,
             phase: result?.phase,
-            confirmed: result?.confirmed,
-            readyForExecution: result?.readyForExecution,
-            awaitingUser: result?.awaitingUser,
             isContinuation: isContinuation,
             conversationLogLength: result?.conversationLog?.length ?? 0
           });
@@ -200,8 +193,7 @@ export class ExtensionBootstrap {
           return {
             metadata: {
               command: 'chat',
-              phase: result.phase,
-              awaitingUser: result.awaitingUser
+              phase: result.phase
             }
           };
         } catch (error) {
@@ -376,14 +368,10 @@ export class ExtensionBootstrap {
   }
 
   private streamWorkflowResult(stream: vscode.ChatResponseStream, result: PlanningTurnResult): void {
-    if (result.finalResponse) {
-      stream.markdown(`${result.finalResponse}`);
-    } else if (result.responseMessage) {
+    if (result.responseMessage) {
       stream.markdown(`${result.responseMessage}`);
-    } else if (result.awaitingUser) {
-      stream.markdown('Estou aguardando sua resposta para continuar.');
     } else {
-      stream.markdown('Sem mensagem adicional nesta etapa.');
+      stream.markdown('Processado com sucesso.');
     }
   }
 

@@ -87,12 +87,15 @@ src/
 │       ├── vector/                # Vector Store
 │       │   └── sqlite-vector-adapter.ts
 │       │
-│       ├── tools/                 # LM Tools
-│       │   ├── create-file-tool.ts
-│       │   └── fetch-web-tool.ts
+│       ├── tools/                 # LM Tools (Read-only)
+│       │   ├── context-retrieval-tool.ts
+│       │   ├── grep-search-tool.ts
+│       │   └── read-file-tool.ts
 │       │
-│       ├── agents/                # LangGraph Chat Engine
-│       │   └── langgraph-chat-engine.ts
+│       ├── agents/                # Conversational Agent with Thinking Loop
+│       │   ├── supervisor/
+│       │   ├── conversational/
+│       │   └── common/
 │       │
 │       └── history/               # Chat History
 │           └── sqlite-history-adapter.ts
@@ -559,7 +562,7 @@ Para mais detalhes sobre partes específicas da arquitetura, consulte:
 - **Vector Search:** Xenova Transformers (MiniLM-L6-v2)
 - **Embeddings:** @xenova/transformers
 - **LLM:** GitHub Copilot API (via VS Code)
-- **Agents:** LangGraph
+- **Agents:** Conversational Agent with Thinking Loop
 - **Build:** Vite + esbuild + TypeScript
 - **Parsers:** TypeScript AST, Remark (Markdown), Mammoth (DOCX), PDF-parse
 
