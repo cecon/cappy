@@ -8,6 +8,7 @@ import type { ConversationalState } from './state';
 import type { ProgressCallback } from '../common/types';
 import { getProjectContext } from '../common/utils';
 import { TaskFileLoader } from '../common/task-file-loader';
+import { LLMSelector } from '../../services/llm-selector';
 
 /**
  * System Prompts for the Thinking Loop
@@ -190,17 +191,12 @@ export async function runConversationalAgent(
   }
 
   try {
-    // Get available LLM models
-    const models = await vscode.lm.selectChatModels({
-      vendor: 'copilot',
-      family: 'gpt-4o'
-    });
+    // Get best available LLM model (Claude Sonnet 4.5, GPT-4o, etc)
+    const model = await LLMSelector.selectBestModel();
     
-    if (models.length === 0) {
+    if (!model) {
       throw new Error('[Conversational] No LLM models available');
     }
-    
-    const model = models[0];
     
     // Get available tools
     const cappyTools = vscode.lm.tools.filter(tool => 

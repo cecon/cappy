@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
 import { GrepSearchTool } from '../../../../nivel2/infrastructure/tools/grep-search-tool';
 import { ReadFileTool } from '../../../../nivel2/infrastructure/tools/read-file-tool';
+import { CreateTaskTool } from '../../../../nivel2/infrastructure/tools/create-task-tool';
 
 /**
  * Registers all Language Model Tools for GitHub Copilot integration
@@ -39,6 +40,11 @@ export class LanguageModelToolsBootstrap {
     const readFileTool = vscode.lm.registerTool('cappy_read_file', new ReadFileTool());
     context.subscriptions.push(readFileTool);
     console.log('  ✅ cappy_read_file');
+
+    // Register create task tool (create task files)
+    const createTaskTool = vscode.lm.registerTool('cappy_create_task_file', new CreateTaskTool());
+    context.subscriptions.push(createTaskTool);
+    console.log('  ✅ cappy_create_task_file');
 
     // Schedule tool validation after LM runtime loads
     this.scheduleToolValidation();

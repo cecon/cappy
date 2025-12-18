@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { LLMProvider } from './LLMProvider';
+import { LLMSelector } from '../../llm-selector';
 
 /**
  * Adapter that implements LLMProvider using VS Code's Language Model API
@@ -9,31 +10,10 @@ export class VSCodeLLMProvider implements LLMProvider {
 
   async initialize(): Promise<void> {
     try {
-      // Try to get any available Copilot model, preferring gpt-4o but falling back to others
-      let models = await vscode.lm.selectChatModels({
-        vendor: 'copilot',
-        family: 'gpt-4o'
-      });
+      // Use best available model (Claude Sonnet 4.5, GPT-4o, etc)
+      this.model = await LLMSelector.selectBestModel();
 
-      // Fallback to gpt-4 if gpt-4o is not available
-      if (models.length === 0) {
-        console.log('⚠️ gpt-4o not available, trying gpt-4...');
-        models = await vscode.lm.selectChatModels({
-          vendor: 'copilot',
-          family: 'gpt-4'
-        });
-      }
-
-      // Fallback to any Copilot model
-      if (models.length === 0) {
-        console.log('⚠️ gpt-4 not available, trying any Copilot model...');
-        models = await vscode.lm.selectChatModels({
-          vendor: 'copilot'
-        });
-      }
-
-      if (models.length > 0) {
-        this.model = models[0];
+      if (this.model) {
         console.log('✅ VSCodeLLMProvider initialized with model:', this.model.name);
       } else {
         console.warn('⚠️ No suitable language model found');

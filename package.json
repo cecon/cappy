@@ -168,7 +168,25 @@
     ],
     "configuration": {
       "title": "Cappy",
-      "properties": {}
+      "properties": {
+        "cappy.llm.preferredModel": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "claude-sonnet",
+            "gpt-4o",
+            "gpt-4"
+          ],
+          "default": "auto",
+          "description": "Preferred language model for Cappy agents (auto = best available)",
+          "enumDescriptions": [
+            "Automatically select the best available model",
+            "Claude Sonnet 4.5 (if available)",
+            "GPT-4o",
+            "GPT-4"
+          ]
+        }
+      }
     },
     "chatParticipants": [
       {
@@ -409,6 +427,51 @@
             }
           },
           "required": ["filePath"]
+        }
+      },
+      {
+        "name": "cappy_create_task_file",
+        "displayName": "Create Task File",
+        "modelDescription": "Creates a new task file in .cappy/tasks/ with structured XML format. Use this when the user wants to create a task, feature, bugfix, or any type of development work item. The task file includes a checklist, acceptance criteria, and implementation steps.",
+        "userDescription": "Create a new task file for tracking development work",
+        "toolReferenceName": "createTask",
+        "tags": [
+          "task",
+          "create",
+          "planning",
+          "cappy",
+          "workflow"
+        ],
+        "icon": "$(checklist)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Title of the task (e.g., 'Implement JWT authentication', 'Fix login bug')"
+            },
+            "category": {
+              "type": "string",
+              "enum": [
+                "feature",
+                "bugfix",
+                "refactor",
+                "docs",
+                "test",
+                "chore"
+              ],
+              "description": "Type of task: feature (new functionality), bugfix (fix existing issue), refactor (code improvement), docs (documentation), test (testing), chore (maintenance)"
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional detailed description of what needs to be done"
+            }
+          },
+          "required": [
+            "title",
+            "category"
+          ]
         }
       }
     ]

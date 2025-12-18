@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { IHTTPHandler } from "../ports/IHTTPHandler";
+import { LLMSelector } from '../../nivel2/infrastructure/services/llm-selector';
 
 /**
  * Use Case: API de Chat
@@ -28,16 +29,13 @@ export class ChatAPIHandler implements IHTTPHandler {
           try {
             const vscode = await import("vscode");
 
-            const models = await vscode.lm.selectChatModels({
-              vendor: "copilot",
-              family: "gpt-4o",
-            });
+            // Use best available model (Claude Sonnet 4.5, GPT-4o, etc)
+            const model = await LLMSelector.selectBestModel();
 
-            if (models.length === 0) {
-              throw new Error("No Copilot model available");
+            if (!model) {
+              throw new Error("No language model available");
             }
 
-            const model = models[0];
             console.log("🤖 [ChatAPI] Using model:", model.name);
 
             const messages: Array<import("vscode").LanguageModelChatMessage> = [];
