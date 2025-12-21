@@ -1,379 +1,323 @@
-# Cappy 🧠
+# Cappy 🦫
 
-**Context Engine for AI Agents**
+**Simple AI Chat Assistant for VS Code**
 
-Stop fighting with AI tools that don't understand your codebase. Cappy builds a living knowledge graph of your project so AI agents actually know where things are and how they connect.
+A straightforward chat assistant that helps you code, manage todos, and search your codebase. No complexity, no magic—just a helpful AI companion.
 
 [![VSCode Marketplace](https://img.shields.io/visual-studio-marketplace/v/eduardocecon.cappy)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/eduardocecon.cappy)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
-[![Rating](https://img.shields.io/visual-studio-marketplace/r/eduardocecon.cappy)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/eduardocecon.cappy)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
 
 ---
 
-## 📖 Table of Contents
+## Why Cappy?
 
-1. [The Problem](#the-problem)
-2. [The Solution](#the-solution)
-3. [Real-World Impact](#real-world-impact)
-4. [How It Works](#how-it-works)
-5. [Features](#features)
-6. [Installation](#installation)
-7. [Usage](#usage)
-8. [Use Cases](#use-cases)
-9. [Configuration](#configuration)
-10. [Architecture](#architecture)
-11. [Roadmap](#roadmap)
-12. [FAQ](#faq)
-13. [Enterprise / Agent Service](#enterprise--agent-service)
-14. [Contributing](#contributing)
-15. [Tech Stack](#tech-stack)
-16. [License](#license)
-17. [Credits](#credits)
-
----
-
-## The Problem
-
-You're building with AI tools but:
-- 🔄 Constantly copy-pasting code into ChatGPT for context
-- 🤷 AI suggests changes in the wrong files
-- 😤 Copilot doesn't understand how your modules relate
-- ⏰ Spend more time explaining your codebase than coding
-
-**Why?** LLMs are great at code patterns but terrible at understanding YOUR specific project structure.
-
----
-
-## The Solution
-
-Cappy creates two intelligent databases of your codebase:
-
-1. **🕸️ Knowledge Graph** - Maps entities and relationships  
-   *(UserService → UserRepository → Database)*
-
-2. **🔍 Vector Database** - Semantic search across code and docs  
-   *(Find "where we validate emails" instantly)*
-
-When you ask "add CPF validation like we do for email", Cappy knows:
-- ✅ Where email validation lives
-- ✅ Which files import it  
-- ✅ The pattern you use
-- ✅ Where to put the new validation
-
----
-
-## Real-World Impact
-
-Used internally to power autonomous development agents:
-
-| Without Cappy | With Cappy |
-|--------------|-----------|
-| 30% success rate | **70% success rate** |
-| Generic suggestions | Context-aware solutions |
-| Wrong file locations | Knows exact structure |
-| Wastes expensive tokens | Efficient, targeted context |
-
----
-
-## How It Works
-```
-1. 📂 Scans your workspace
-   ↓
-2. 🧩 Extracts entities (classes, functions, modules)
-   ↓
-3. 🔗 Maps relationships (imports, calls, dependencies)
-   ↓
-4. 💾 Builds Graph DB + Vector DB
-   ↓
-5. 🤖 AI tools access rich context via MCP
-```
+- ✅ **Simple**: Just chat. No setup, no configuration hell.
+- ✅ **Smart**: Uses Claude Sonnet 4.5, GPT-4o, or GPT-4 automatically.
+- ✅ **Integrated**: Built-in todo list management.
+- ✅ **Fast**: Instant activation, zero background processing.
+- ✅ **Lightweight**: ~2 MB, minimal memory footprint.
 
 ---
 
 ## Features
 
-### 🗺️ **Interactive Knowledge Graph**
-- Visualize your codebase structure
-- See how components relate
-- Click to navigate code
+### 💬 Chat with @cappy
 
-### 🔍 **Semantic Code Search**
-- Natural language queries
-- Find by intent, not just keywords
-- Search across code + docs
+Ask questions, get help, discuss code:
 
-### 🤖 **AI Agent Integration**
-- MCP (Model Context Protocol) tools
-- Enriched context for LLMs
-- Automatic todo list generation
+```
+@cappy explain how authentication works in this codebase
+@cappy help me fix this bug in src/auth.ts
+@cappy refactor this function to be more readable
+```
 
-### 📚 **Smart Documentation**
-- Auto-chunks markdown with overlap
-- Extracts entities from docs
-- Links docs to code
+### ✅ Todo Management
 
-### ⚡ **Real-Time Updates**
-- Watches file changes
-- Incremental graph updates
-- Always in sync
+Keep track of tasks without leaving VS Code:
+
+```
+@cappy create a todo to implement JWT refresh token
+@cappy show my todos
+@cappy complete todo abc123
+```
+
+### 🔍 Code Search
+
+Search and read files intelligently:
+
+```
+@cappy search for "database" in TypeScript files
+@cappy read src/main.ts and explain what it does
+```
 
 ---
 
 ## Installation
 
-### 1. Install Extension
+### From VS Code Marketplace
+
+1. Open VS Code
+2. Go to Extensions (Cmd+Shift+X / Ctrl+Shift+X)
+3. Search for "Cappy"
+4. Click Install
+
+### From VSIX
+
 ```bash
-# From VSCode Marketplace
-code --install-extension eduardocecon.cappy
+# Download latest release
+# Then install:
+code --install-extension cappy-*.vsix --force
 ```
 
-Or search "Cappy" in VSCode Extensions
+### From Source
 
-### 2. Configure API Key
-```json
-// settings.json
-{
-  "cappy.openaiApiKey": "sk-..."
-}
+```bash
+git clone https://github.com/cecon/cappy
+cd cappy
+npm install
+npm run build
+npm run package
+code --install-extension cappy-*.vsix --force
 ```
-
-### 3. Initialize Workspace
-
-1. Open your project in VSCode
-2. Press `Cmd+Shift+P` (Mac) or `Ctrl+Shift+P` (Windows/Linux)
-3. Type **"Cappy: Initialize Workspace"**
-4. Cappy creates `.cappy/` folder and adds `.cappy/data/` to `.gitignore`
-5. Choose to start file processing or run **"Cappy: Scan Workspace"** later
-
-> 💡 **Note:** Cappy only activates in workspaces where you explicitly initialize it. This prevents automatic folder creation in all your projects.
 
 ---
 
 ## Usage
 
-### Native Chat Participant
+### Quick Start
 
-You can now interact with `@cappy` directly in the VS Code chat. The participant runs on top of a LangGraph workflow with persistent memory per session, giving you conversational continuity without additional configuration.
+1. Open any workspace in VS Code
+2. Open chat panel (Cmd+I / Ctrl+I)
+3. Type `@cappy` followed by your question
+4. That's it! 🎉
 
-### Using the Chat
+### Examples
 
-1. **Access the Chat**: Open the chat interface in VS Code and mention `@cappy`.
-2. **Examples of Prompts**:
-   - `@cappy Implement search pagination in the products list`
-   - `@cappy What did I ask you to do a moment ago?`
-3. **Key Notes**:
-   - The legacy slash commands (/plan, /code) were removed in favor of the new unified participant.
-   - The chat integrates with your codebase context to provide precise and actionable responses.
-
-### Chat with Your Codebase
+**General Chat:**
 ```
-You: "Where do we validate user emails?"
-Cappy: Found in src/validators/email.ts, used by UserService and AuthController
-
-You: "Add CPF validation following the same pattern"
-@cappy: [asks clarifying questions if needed, then returns a step-by-step plan]
+@cappy what does this file do?
+@cappy how can I improve this code?
+@cappy explain TypeScript generics
 ```
 
-### View Knowledge Graph
+**Todo Management:**
+```
+@cappy create todo: Review PR #123
+@cappy list all my todos
+@cappy mark todo xyz as complete
+```
 
-`Cmd+Shift+P` → "Cappy: Show Graph"
-
-Navigate your codebase visually - see imports, dependencies, call chains.
-
-### Semantic Search
-
-`Cmd+Shift+P` → "Cappy: Search Codebase"
-
-Find code by what it DOES, not what it's named.
-
----
-
-## Use Cases
-
-### 🚀 **Onboarding**
-New dev? Ask Cappy "how does authentication work?" - get instant architecture overview with code links.
-
-### 🤖 **Autonomous Agents**  
-Running agents like OpenHands? Give them Cappy's context - watch success rates jump from 30% to 70%.
-
-### 🔍 **Code Review**
-"What files will this change affect?" - Cappy shows the dependency graph.
-
-### 📖 **Documentation**
-Cappy keeps docs linked to code. Change a function? See which docs reference it.
-
-### 🧪 **Refactoring**
-"Where is this function called?" - instant answer with full context.
+**Code Search:**
+```
+@cappy find all uses of "fetchUser"
+@cappy show me the authentication logic
+@cappy read the config file
+```
 
 ---
 
 ## Configuration
+
+Configure your preferred LLM model:
+
 ```json
+// settings.json
 {
-  // Required
-  "cappy.openaiApiKey": "sk-...",
-  
-  // Optional
-  "cappy.model": "gpt-4o-mini",
-  "cappy.chunkSize": 1000,
-  "cappy.chunkOverlap": 200,
-  "cappy.excludePatterns": ["node_modules", "dist", ".git"],
-  "cappy.graphDepth": 3
+  "cappy.llm.preferredModel": "auto" // or "claude-sonnet", "gpt-4o", "gpt-4"
 }
 ```
+
+**Options:**
+- `auto` - Automatically selects best available model (recommended)
+- `claude-sonnet` - Claude Sonnet 4.5 (if available)
+- `gpt-4o` - GPT-4 Omni
+- `gpt-4` - GPT-4
+
+---
+
+## Tools Available
+
+Cappy has access to these tools:
+
+1. **grep_search** - Search text across files
+2. **read_file** - Read file contents
+3. **create_task_file** - Create XML task files
+4. **create_todo** - Create new todo items
+5. **list_todos** - List all todos
+6. **complete_todo** - Mark todos as complete
+
+Cappy uses these automatically when needed—you don't need to invoke them manually.
 
 ---
 
 ## Architecture
+
+Simple and clean:
+
 ```
-┌─────────────────────────────────────────┐
-│           VSCode Extension              │
-├─────────────────────────────────────────┤
-│                                         │
-│  ┌──────────┐      ┌──────────────┐   │
-│  │ File     │─────▶│ Entity       │   │
-│  │ Watcher  │      │ Extractor    │   │
-│  └──────────┘      └──────────────┘   │
-│                           │            │
-│                           ▼            │
-│         ┌─────────────────────────┐   │
-│         │   Graph DB (Local)      │   │
-│         │   - Entities            │   │
-│         │   - Relationships       │   │
-│         └─────────────────────────┘   │
-│                           │            │
-│                           ▼            │
-│         ┌─────────────────────────┐   │
-│         │  Vector DB (Local)      │   │
-│         │   - Code embeddings     │   │
-│         │   - Doc embeddings      │   │
-│         └─────────────────────────┘   │
-│                           │            │
-│                           ▼            │
-│         ┌─────────────────────────┐   │
-│         │   MCP Server            │   │
-│         │   - Expose tools        │   │
-│         │   - Serve context       │   │
-│         └─────────────────────────┘   │
-│                                         │
-└─────────────────────────────────────────┘
-                    │
-                    ▼
-         ┌────────────────────┐
-         │  AI Agent / Chat   │
-         └────────────────────┘
+Cappy
+├── Chat (@cappy)
+│   └── Uses best LLM automatically
+├── Tools (6 total)
+│   ├── grep_search
+│   ├── read_file
+│   ├── create_task_file
+│   └── Todo System (3 tools)
+└── Todo Repository (in-memory)
 ```
 
-**Key Design Decisions:**
-
-- **Local-first**: All data stays on your machine
-- **Incremental updates**: Only processes changed files
-- **Multi-DB**: Graph for structure, Vector for semantics
-- **MCP Standard**: Works with any MCP-compatible AI tool
+See [SIMPLIFIED_ARCHITECTURE.md](SIMPLIFIED_ARCHITECTURE.md) for details.
 
 ---
 
-## Roadmap
+## Performance
 
-### ✅ Done
-- [x] Graph DB with entity extraction
-- [x] Vector DB with semantic search
-- [x] MCP server integration
-- [x] File watcher with incremental updates
-- [x] Chat interface with context
+- **Activation**: < 1 second ⚡
+- **Memory**: 50-100 MB 📉
+- **Storage**: < 1 MB
+- **Background CPU**: Zero 🔋
 
-### 🚧 In Progress
-- [ ] Interactive graph visualization
-- [ ] Multi-language support (currently optimized for JS/TS)
-- [ ] Team sync (share graph across team)
+---
 
-### 🔮 Planned
-- [ ] Cloud-hosted graphs (optional)
-- [ ] Custom entity extractors
-- [ ] Integration with Jira/Linear
-- [ ] Analytics dashboard
-- [ ] Pre-built patterns library
+## Development
+
+### Prerequisites
+
+- Node.js 18+
+- npm 9+
+- VS Code 1.105.0+
+
+### Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Build webview
+npm run build
+
+# Compile extension
+npm run compile-extension
+
+# Run tests
+npm test
+
+# Package
+npm run package
+```
+
+### Project Structure
+
+```
+cappy/
+├── src/
+│   ├── extension.ts                    # Entry point
+│   ├── domains/todo/                   # Todo domain
+│   ├── nivel1/adapters/vscode/         # VS Code adapters
+│   └── nivel2/infrastructure/          # Tools & services
+├── docs/                               # Documentation
+├── test/                               # Tests
+└── package.json                        # Extension manifest
+```
+
+---
+
+## Migration from v3.1.2
+
+If you're upgrading from the previous RAG-based version, see [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
+
+**TL;DR:** We removed all the complexity (RAG, vector stores, graph databases) and kept only what works: simple chat + todos.
 
 ---
 
 ## FAQ
 
-**Q: Does my code leave my machine?**  
-A: Only for LLM API calls (OpenAI). The databases are 100% local. You can use local LLMs if preferred.
+### Why was it simplified?
 
-**Q: How big can my project be?**  
-A: Tested on projects up to 500k LOC. Scan time scales linearly (~1 min per 50k LOC).
+The previous version had a complex RAG system (vector stores, graph databases, hybrid retriever) that added more complexity than value. The new version is faster, more reliable, and easier to maintain.
 
-**Q: Which languages are supported?**  
-A: Currently optimized for JavaScript/TypeScript. Python, Go, Java support coming soon.
+### Are todos persistent?
 
-**Q: Can I use this with Cursor/Copilot?**  
-A: Yes! Cappy exposes MCP tools that any AI assistant can use.
+Currently, todos are stored in memory and cleared on reload. Persistence can be added in a future version if needed.
 
-**Q: Is it free?**  
-A: Extension is free. You pay only for your OpenAI API usage (~$0.01-0.10 per scan depending on project size).
+### Can I use my own LLM?
 
-**Q: Can I run this on CI/CD?**  
-A: Not yet, but planned. Would enable "graph as documentation" in your repo.
+Cappy uses VS Code's Language Model API, which supports GitHub Copilot models. To use other models, you'd need to modify the source code.
+
+### Does it work in Cursor?
+
+Yes! Cappy is compatible with Cursor (VS Code fork). Just install as you would any VS Code extension.
+
+### Is it free?
+
+The extension is free and open-source. However, you need access to LLM models (Claude, GPT) through GitHub Copilot or similar services.
 
 ---
 
-## Enterprise / Agent Service
+## Roadmap
 
-Using Cappy to power autonomous dev agents?  
-
-We offer a **hosted agent service** that uses Cappy's context engine to:
-- Pick up tasks from Jira/Linear
-- Develop, test, and open PRs
-- 70%+ success rate on CRUD/integration tasks
-
-**Interested?** Email: [seu-email@domain.com] or [link to landing page]
+- [ ] Persistent todo storage (JSON/SQLite)
+- [ ] Todo categories and filters
+- [ ] Export/import todos
+- [ ] Better LLM configuration options
+- [ ] Custom tool registration API
+- [ ] Workspace-specific settings
 
 ---
 
 ## Contributing
 
-Contributions welcome! This is a passion project that solves a real problem.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-### Areas needing help:
-- Language parsers (Python, Java, Go, Rust)
-- Graph visualization improvements
-- Documentation
-- Test coverage
+```bash
+# Fork the repo
+# Create a feature branch
+git checkout -b feature/amazing-feature
 
-See [CONTRIBUTING.md](CONTRIBUTING.md)
+# Make your changes
+# Commit
+git commit -m 'Add amazing feature'
+
+# Push
+git push origin feature/amazing-feature
+
+# Open a PR
+```
 
 ---
 
 ## Tech Stack
 
-- **Extension**: TypeScript + VSCode API
-- **Graph DB**: [your choice - Neo4j? Custom?]
-- **Vector DB**: [your choice - ChromaDB? LanceDB?]
-- **LLM**: OpenAI GPT-4o-mini (configurable)
-- **MCP**: Model Context Protocol for tool exposure
+- **Language**: TypeScript
+- **Runtime**: Node.js
+- **Platform**: VS Code Extension API
+- **LLM**: VS Code Language Model API
+- **UI**: VS Code Chat Participant API
+- **Build**: Vite, TSC
 
 ---
 
 ## License
 
-MIT - see [LICENSE](LICENSE)
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
 ## Credits
 
-Built by [@cecon](https://github.com/cecon) to stop copying code into ChatGPT 1000 times a day.
+Created by [Eduardo Cecon](https://github.com/cecon)
 
-If Cappy saves you time, consider:
-- ⭐ Starring the repo
-- 🐛 Reporting bugs
-- 💡 Suggesting features
-- 🔀 Contributing code
+Inspired by the need for simple, effective AI tooling without unnecessary complexity.
 
 ---
 
-**Stop explaining your codebase. Let Cappy do it.**
+## Support
 
-[Install Now](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy) | [Documentation](link) | [Discord](link) | [Twitter](link)
+- 🐛 [Report a bug](https://github.com/cecon/cappy/issues)
+- 💡 [Request a feature](https://github.com/cecon/cappy/issues)
+- 📖 [Read the docs](https://github.com/cecon/cappy/tree/main/docs)
+- 💬 [Ask a question](https://github.com/cecon/cappy/discussions)
+
+---
+
+**Remember:** Simplicity is the ultimate sophistication. 🦫
