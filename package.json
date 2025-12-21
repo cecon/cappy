@@ -1,7 +1,7 @@
 {
   "name": "cappy",
   "displayName": "Cappy",
-  "description": "AI coding companion with Single-Focus Workflow, Hybrid Retriever, and automatic learning from mistakes. Prevents errors, boosts productivity, and orchestrates context for every task. Compatible with VS Code and Cursor.",
+  "description": "Simple AI chat assistant with todo list management. Focused on productivity through straightforward conversation.",
   "version": "3.1.2",
   "publisher": "eduardocecon",
   "icon": "src/assets/icon.png",
@@ -23,19 +23,11 @@
     "ai",
     "copilot",
     "cursor",
-    "learning",
+    "chat",
+    "todo",
     "productivity",
-    "automation",
-    "prevention",
-    "task-management",
-    "cursor-compatible",
-    "hybrid-search",
-    "rag",
-    "vector-search",
-    "graph-database",
-    "semantic-search",
-    "hybrid-retriever",
-    "language-model-tools"
+    "simple",
+    "assistant"
   ],
   "main": "./out/extension.js",
   "activationEvents": [
@@ -48,124 +40,13 @@
     }
   },
   "contributes": {
-    "commands": [
-      {
-        "command": "cappy.init",
-        "title": "🚀 Cappy: Initialize Workspace",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.openGraph",
-        "title": "📊 Cappy: Open Graph",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.scanWorkspace",
-        "title": "🔍 Cappy: Scan Workspace",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.planning.newPlan",
-        "title": "📝 Cappy: Create Development Plan",
-        "category": "Cappy Planning"
-      },
-      {
-        "command": "cappy.planning.listPlans",
-        "title": "📋 Cappy: List All Plans",
-        "category": "Cappy Planning"
-      },
-      {
-        "command": "cappy.planning.openPlan",
-        "title": "📂 Cappy: Open Plan",
-        "category": "Cappy Planning"
-      },
-      {
-        "command": "cappy.planning.deletePlan",
-        "title": "🗑️ Cappy: Delete Plan",
-        "category": "Cappy Planning"
-      },
-      {
-        "command": "cappy.processSingleFile",
-        "title": "🧪 Cappy: Process Single File (Test)",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.debug",
-        "title": "🐛 Cappy: Debug - List Commands",
-        "category": "Cappy Debug"
-      },
-      {
-        "command": "cappy.debugDatabase",
-        "title": "🔍 Cappy: Debug - Inspect Database",
-        "category": "Cappy Debug"
-      },
-      {
-        "command": "cappy.debugAddTestData",
-        "title": "➕ Cappy: Debug - Add Test Data",
-        "category": "Cappy Debug"
-      },
-      {
-        "command": "cappy.reanalyzeRelationships",
-        "title": "🔄 Cappy: Reanalyze All Relationships",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.diagnoseGraph",
-        "title": "🔍 Cappy: Diagnose Graph Structure",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.resetDatabase",
-        "title": "🗑️ Cappy: Reset Graph Database",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.testRetriever",
-        "title": "🧪 Cappy: Test Context Retriever",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.pauseQueue",
-        "title": "⏸️ Cappy: Pause Processing Queue",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.resumeQueue",
-        "title": "▶️ Cappy: Resume Processing Queue",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.queueStatus",
-        "title": "📊 Cappy: Show Queue Status",
-        "category": "Cappy"
-      },
-      {
-        "command": "cappy.debugRetrieval",
-        "title": "🔎 Cappy: Debug - Retrieval Test",
-        "category": "Cappy Debug"
-      }
-    ],
+    "commands": [],
     "viewsContainers": {
       "activitybar": []
     },
     "views": {},
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "cappy.openGraph",
-          "when": "true",
-          "group": "cappy"
-        }
-      ]
-    },
-    "keybindings": [
-      {
-        "command": "cappy.openGraph",
-        "key": "ctrl+alt+g",
-        "mac": "cmd+alt+g",
-        "when": "editorTextFocus"
-      }
-    ],
+    "menus": {},
+    "keybindings": [],
     "configuration": {
       "title": "Cappy",
       "properties": {
@@ -267,90 +148,7 @@
           ]
         }
       },
-      {
-        "name": "cappy_retrieve_context",
-        "displayName": "Retrieve Context",
-        "modelDescription": "Searches for relevant context across code, documentation, prevention rules, and tasks. Use this before answering questions about existing code, best practices, or implementation patterns. Returns comprehensive information with relevance scores.",
-        "userDescription": "Search for relevant context from code, documentation, and prevention rules",
-        "toolReferenceName": "retrieveContext",
-        "tags": [
-          "context",
-          "search",
-          "documentation",
-          "code",
-          "prevention",
-          "cappy"
-        ],
-        "icon": "$(search)",
-        "canBeReferencedInPrompt": true,
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "query": {
-              "type": "string",
-              "description": "Search query describing what context you need (e.g., 'JWT authentication', 'database migration patterns', 'error handling rules')"
-            },
-            "maxResults": {
-              "type": "number",
-              "description": "Maximum number of results to return (default: 10)"
-            },
-            "minScore": {
-              "type": "number",
-              "description": "Minimum relevance score from 0 to 1 (default: 0.5)"
-            },
-            "sources": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "code",
-                  "documentation",
-                  "prevention",
-                  "task"
-                ]
-              },
-              "description": "Sources to search in (default: ['code', 'documentation', 'prevention'])"
-            },
-            "category": {
-              "type": "string",
-              "description": "Filter results by category (e.g., 'auth', 'database', 'api', 'ui')"
-            },
-            "includeRelated": {
-              "type": "boolean",
-              "description": "Include related context in results (default: true)"
-            }
-          },
-          "required": [
-            "query"
-          ]
-        }
-      },
-      {
-        "name": "cappy_workspace_search",
-        "displayName": "Workspace Search",
-        "modelDescription": "Search for files in the workspace by glob pattern. Use this to find files matching specific patterns (e.g., '*.test.ts', 'src/**/*.tsx').",
-        "userDescription": "Search for files by pattern",
-        "tags": ["search", "files", "workspace"],
-        "icon": "$(search)",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "pattern": {
-              "type": "string",
-              "description": "Glob pattern to match files (e.g., '*.ts', 'src/**/*.test.ts')"
-            },
-            "includeFolders": {
-              "type": "boolean",
-              "description": "Include folders in results (default: false)"
-            },
-            "maxResults": {
-              "type": "number",
-              "description": "Maximum number of results (default: 100)"
-            }
-          },
-          "required": ["pattern"]
-        }
-      },
+
       {
         "name": "cappy_grep_search",
         "displayName": "Grep Search",
@@ -381,28 +179,7 @@
           "required": ["query"]
         }
       },
-      {
-        "name": "cappy_symbol_search",
-        "displayName": "Symbol Search",
-        "modelDescription": "Search for code symbols (classes, functions, interfaces, etc.) in the workspace. Use this to find specific definitions or implementations.",
-        "userDescription": "Search for code symbols",
-        "tags": ["search", "symbols", "code"],
-        "icon": "$(symbol-class)",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "query": {
-              "type": "string",
-              "description": "Symbol name to search for (e.g., 'MyClass', 'calculateTotal')"
-            },
-            "maxResults": {
-              "type": "number",
-              "description": "Maximum number of results (default: 50)"
-            }
-          },
-          "required": ["query"]
-        }
-      },
+
       {
         "name": "cappy_read_file",
         "displayName": "Read File",
@@ -471,6 +248,83 @@
           "required": [
             "title",
             "category"
+          ]
+        }
+      },
+      {
+        "name": "cappy_create_todo",
+        "displayName": "Create Todo",
+        "modelDescription": "Creates a new todo item. Use this when the user wants to create a task, add something to their todo list, or remember something to do.",
+        "userDescription": "Create a new todo item",
+        "toolReferenceName": "createTodo",
+        "tags": [
+          "todo",
+          "task",
+          "create",
+          "cappy"
+        ],
+        "icon": "$(add)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Title of the todo (e.g., 'Buy groceries', 'Review PR #123')"
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional detailed description of the todo"
+            }
+          },
+          "required": [
+            "title"
+          ]
+        }
+      },
+      {
+        "name": "cappy_list_todos",
+        "displayName": "List Todos",
+        "modelDescription": "Lists all todo items with their status. Use this when the user asks to see their todos, check what tasks they have, or review their todo list.",
+        "userDescription": "List all todo items",
+        "toolReferenceName": "listTodos",
+        "tags": [
+          "todo",
+          "list",
+          "view",
+          "cappy"
+        ],
+        "icon": "$(checklist)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "cappy_complete_todo",
+        "displayName": "Complete Todo",
+        "modelDescription": "Marks a todo as completed. Use this when the user indicates they finished a task or want to mark something as done.",
+        "userDescription": "Mark a todo as completed",
+        "toolReferenceName": "completeTodo",
+        "tags": [
+          "todo",
+          "complete",
+          "done",
+          "cappy"
+        ],
+        "icon": "$(check)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID of the todo to mark as complete"
+            }
+          },
+          "required": [
+            "id"
           ]
         }
       }

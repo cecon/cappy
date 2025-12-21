@@ -4,32 +4,29 @@
  */
 
 import * as vscode from 'vscode';
-import { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context/context-retrieval-tool';
 import { GrepSearchTool } from '../../../../nivel2/infrastructure/tools/grep-search-tool';
 import { ReadFileTool } from '../../../../nivel2/infrastructure/tools/read-file-tool';
 import { CreateTaskTool } from '../../../../nivel2/infrastructure/tools/create-task-tool';
+import { TodoRepository } from '../../../../domains/todo/repositories/todo-repository';
+import { CreateTodoTool } from '../../../../nivel2/infrastructure/tools/todo/create-todo-tool';
+import { ListTodosTool } from '../../../../nivel2/infrastructure/tools/todo/list-todos-tool';
+import { CompleteTodoTool } from '../../../../nivel2/infrastructure/tools/todo/complete-todo-tool';
 
 /**
  * Registers all Language Model Tools for GitHub Copilot integration
  */
 export class LanguageModelToolsBootstrap {
-  private contextRetrievalToolInstance: ContextRetrievalTool | null = null;
+  private todoRepository: TodoRepository;
+
+  constructor() {
+    this.todoRepository = new TodoRepository();
+  }
 
   /**
    * Registers Language Model tools used by conversational agent
-   * Only registers tools that are actively used in the thinking loop
    */
-  register(context: vscode.ExtensionContext): ContextRetrievalTool {
+  register(context: vscode.ExtensionContext): void {
     console.log('🛠️  Registering Language Model Tools...');
-
-    // Register context retrieval tool (will be initialized later with graph data)
-    this.contextRetrievalToolInstance = new ContextRetrievalTool();
-    const contextRetrievalTool = vscode.lm.registerTool(
-      'cappy_retrieve_context',
-      this.contextRetrievalToolInstance
-    );
-    context.subscriptions.push(contextRetrievalTool);
-    console.log('  ✅ cappy_retrieve_context');
 
     // Register grep search tool (text content search)
     const grepSearchTool = vscode.lm.registerTool('cappy_grep_search', new GrepSearchTool());
@@ -46,10 +43,21 @@ export class LanguageModelToolsBootstrap {
     context.subscriptions.push(createTaskTool);
     console.log('  ✅ cappy_create_task_file');
 
+    // Register todo tools
+    const createTodoTool = vscode.lm.registerTool('cappy_create_todo', new CreateTodoTool(this.todoRepository));
+    context.subscriptions.push(createTodoTool);
+    console.log('  ✅ cappy_create_todo');
+
+    const listTodosTool = vscode.lm.registerTool('cappy_list_todos', new ListTodosTool(this.todoRepository));
+    context.subscriptions.push(listTodosTool);
+    console.log('  ✅ cappy_list_todos');
+
+    const completeTodoTool = vscode.lm.registerTool('cappy_complete_todo', new CompleteTodoTool(this.todoRepository));
+    context.subscriptions.push(completeTodoTool);
+    console.log('  ✅ cappy_complete_todo');
+
     // Schedule tool validation after LM runtime loads
     this.scheduleToolValidation();
-
-    return this.contextRetrievalToolInstance;
   }
 
   /**
@@ -72,9 +80,9 @@ export class LanguageModelToolsBootstrap {
   }
 
   /**
-   * Gets the context retrieval tool instance
+   * Gets the todo repository instance
    */
-  getContextRetrievalTool(): ContextRetrievalTool | null {
-    return this.contextRetrievalToolInstance;
+  getTodoRepository(): TodoRepository {
+    return this.todoRepository;
   }
 }
