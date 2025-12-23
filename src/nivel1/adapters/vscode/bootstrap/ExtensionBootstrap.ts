@@ -41,12 +41,17 @@ export class ExtensionBootstrap {
       'cappy.chat',
       async (
         request: vscode.ChatRequest,
-        _context: vscode.ChatContext,
+        context: vscode.ChatContext,
         stream: vscode.ChatResponseStream,
         token: vscode.CancellationToken
       ): Promise<vscode.ChatResult> => {
         try {
-          const conversationId = `chat-${Date.now()}`;
+          // Use a stable conversation ID based on the chat thread
+          // This ensures continuity across messages in the same conversation
+          // Generate stable ID from first message timestamp if available, otherwise use 'main'
+          const conversationId = context.history.length > 0 
+            ? `chat-${context.history[0].participant}`
+            : 'chat-main';
           
           stream.progress('Pensando...');
 

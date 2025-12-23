@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                        CAPPY TASK CREATION CHECKLIST                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📋 TASK CREATION PROGRESS:
+  [⏳] Phase 1: Basic Information (CURRENT)
+    [ ] 1.1 - Fill in task description
+    [ ] 1.2 - Define acceptance criteria
+    [ ] 1.3 - Review category (feature)
+  
+  [ ] Phase 2: Implementation Planning
+    [ ] 2.1 - Define implementation steps (max 5 main steps)
+    [ ] 2.2 - Add sub-steps where needed
+    [ ] 2.3 - Define validation criteria for each step
+  
+  [ ] Phase 3: Context Setup
+    [ ] 3.1 - Specify required documentation files
+    [ ] 3.2 - Add prevention rules (if applicable)
+    [ ] 3.3 - Link related files and components
+  
+  [ ] Phase 4: Execution
+    [ ] 4.1 - Mark task as ready (remove .ACTIVE, add .DONE when complete)
+    [ ] 4.2 - Execute implementation steps
+    [ ] 4.3 - Validate against acceptance criteria
+
+💡 TIPS:
+- Keep steps atomic and testable
+- Reference specific files and line numbers
+- Use prevention rules to avoid common mistakes
+- Update this checklist as you progress (mark with [x])
+
+╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+<task xmlns="http://cappy.dev/schemas/task/2.0">
+  
+  <metadata>
+    <id>task_2025-12-21_1766285413291_create-tool-for-llm-to-ask-user-questions</id>
+    <category>feature</category>
+    <title>Create tool for LLM to ask user questions</title>
+    <description>
+Develop a tool that enables a language model to interact with users by asking them questions. This tool should facilitate dynamic and context-aware questioning based on user input or predefined scenarios.
+    </description>
+    <createdAt>2025-12-21T02:50:13.292Z</createdAt>
+    <updatedAt>2025-12-21T02:50:13.292Z</updatedAt>
+    <status>draft</status>
+  </metadata>
+
+  <requirements>
+    <acceptanceCriteria>
+      <!-- TODO: Define clear acceptance criteria -->
+      <!-- Example:
+      <criterion id="AC-1">User can successfully authenticate with JWT token</criterion>
+      <criterion id="AC-2">Token expires after 24 hours</criterion>
+      -->
+    </acceptanceCriteria>
+  </requirements>
+
+  <implementation>
+    <steps>
+      <!-- TODO: Define implementation steps (max 5 main steps) -->
+      <!-- Example:
+      <step id="STEP-1">
+        <title>Create authentication service</title>
+        <description>Implement JWT token generation and validation</description>
+        <files>
+          <file>src/services/auth-service.ts</file>
+        </files>
+        <validation>Service passes unit tests</validation>
+      </step>
+      -->
+    </steps>
+  </implementation>
+
+  <context>
+    <documentation>
+      <!-- TODO: Specify required documentation files -->
+      <!-- Example:
+      <doc path="docs/architecture/AUTH.md" relevance="high">Authentication architecture</doc>
+      -->
+    </documentation>
+    
+    <preventionRules>
+      <!-- TODO: Add prevention rules from docs/prevention/ if applicable -->
+      <!-- Example:
+      <rule category="security">Always hash passwords before storing</rule>
+      -->
+    </preventionRules>
+    
+    <relatedFiles>
+      <!-- TODO: Link related files and components -->
+      <!-- Example:
+      <file path="src/middleware/auth.ts" relevance="high">Auth middleware</file>
+      -->
+    </relatedFiles>
+  </context>
+
+  <validation>
+    <criteria>
+      <!-- TODO: Define how to validate completion -->
+      <!-- Example:
+      <criterion>All unit tests pass</criterion>
+      <criterion>Integration tests with real tokens work</criterion>
+      <criterion>Security scan shows no vulnerabilities</criterion>
+      -->
+    </criteria>
+  </validation>
+
+</task>

@@ -5,7 +5,7 @@
 
 import type { SupervisorState } from './state';
 import type { ProgressCallback } from '../common/types';
-import { runConversationalAgent } from '../conversational';
+import { runSimpleConversationalAgent } from '../conversational/simple-agent';
 
 /**
  * Simple supervisor that delegates all work to conversational agent
@@ -16,8 +16,8 @@ export function createSupervisorGraph(progressCallback?: ProgressCallback) {
       const currentState = { ...state };
       
       try {
-        // Run conversational agent (handles all interactions)
-        const result = await runConversationalAgent(
+        // Run simple conversational agent with scope detection
+        const result = await runSimpleConversationalAgent(
           { ...currentState, messages: currentState.messages },
           progressCallback
         );

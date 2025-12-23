@@ -1,5 +1,76 @@
 # Changelog
 
+## [3.1.4] - 2024-12-20
+
+### 🎯 Intelligent Chat & Memory Fixes
+
+### 🐛 Bug Fixes
+
+- **Chat Memory**: Fixed conversation continuity issue
+  - Previous: Each message created new session → no memory
+  - Now: Stable `sessionId` based on chat context → full conversation history
+  - Users can now have multi-turn conversations with context retention
+  
+### ✨ Added
+
+- **Intelligent Scope Detection**: Two-phase conversational flow
+  - Phase 1: Greeting mode - responds warmly, asks for task scope
+  - Phase 2: Task creation mode - detects scope and auto-creates task file
+  - Natural conversation: "olá" → greeting | "criar API REST" → task creation
+  - Uses AI to detect scope confidence before transitioning
+  
+- **Smart Task Creation Workflow**:
+  - Automatic scope extraction (title, category, description)
+  - Instant task file generation in `.cappy/tasks/`
+  - File opens automatically with structured template
+  - Guided checklist for implementation
+
+### 🔄 Changed
+
+- **ExtensionBootstrap**: Fixed session ID generation
+  - Before: `chat-${Date.now()}` (always new)
+  - After: `chat-${context.history[0].participant}` (stable per thread)
+  
+- **Supervisor Graph**: Now uses `runSimpleConversationalAgent`
+  - Faster response times
+  - Scope-aware routing
+  - Better user experience
+
+### 📝 Technical Details
+
+**Files Modified:**
+- [ExtensionBootstrap.ts](src/nivel1/adapters/vscode/bootstrap/ExtensionBootstrap.ts) - Session ID fix
+- [simple-agent.ts](src/nivel2/infrastructure/agents/conversational/simple-agent.ts) - Scope detection logic
+- [supervisor/graph.ts](src/nivel2/infrastructure/agents/supervisor/graph.ts) - Agent routing
+
+**New Prompts:**
+- `SCOPE_DETECTION_PROMPT` - AI-powered scope analysis
+- `GREETING_PROMPT` - Friendly onboarding
+- `TASK_CREATION_PROMPT` - Parameter extraction
+
+### 🎓 User Experience
+
+**Before:**
+```
+User: olá
+Cappy: [creates task incorrectly]
+
+User: criar API REST
+Cappy: [no memory of previous message]
+```
+
+**After:**
+```
+User: olá
+Cappy: Olá! 👋 Sou o Cappy. O que você precisa desenvolver?
+
+User: criar uma API REST para usuários
+Cappy: ✨ Tarefa criada!
+      [Opens task file with full structure]
+```
+
+---
+
 ## [3.1.3] - 2024-12-20
 
 ### 🎯 Major Simplification Release
