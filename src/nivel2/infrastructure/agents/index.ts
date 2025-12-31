@@ -77,15 +77,8 @@ export class IntelligentAgent {
     try {
       const result = await graph.invoke(state);
 
-      // Build response message from conversational agent
-      let responseContent = '';
-      
-      if (result.phase === 'completed') {
-        const conversationalResponse = result.metadata?.response as string | undefined;
-        responseContent = conversationalResponse || 'Processado com sucesso';
-      }
+      const responseContent = result.metadata?.response as string | undefined;
 
-      // Create assistant response
       const assistantMessage: AgentMessage = {
         role: 'assistant',
         content: responseContent || 'Processado com sucesso',
@@ -93,7 +86,6 @@ export class IntelligentAgent {
       };
       history.push(assistantMessage);
 
-      // Build result
       const planningResult: PlanningTurnResult = {
         phase: result.phase as PlanningTurnResult['phase'],
         responseMessage: responseContent,

@@ -7,10 +7,13 @@ import * as vscode from 'vscode';
 import { GrepSearchTool } from '../../../../nivel2/infrastructure/tools/grep-search-tool';
 import { ReadFileTool } from '../../../../nivel2/infrastructure/tools/read-file-tool';
 import { CreateTaskTool } from '../../../../nivel2/infrastructure/tools/create-task-tool';
+import { CheckTaskFileTool } from '../../../../nivel2/infrastructure/tools/check-task-file-tool';
+import { TerminalCommandTool } from '../../../../nivel2/infrastructure/tools/terminal-command-tool';
 import { TodoRepository } from '../../../../domains/todo/repositories/todo-repository';
 import { CreateTodoTool } from '../../../../nivel2/infrastructure/tools/todo/create-todo-tool';
 import { ListTodosTool } from '../../../../nivel2/infrastructure/tools/todo/list-todos-tool';
 import { CompleteTodoTool } from '../../../../nivel2/infrastructure/tools/todo/complete-todo-tool';
+import { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context-retrieval-tool';
 
 /**
  * Registers all Language Model Tools for GitHub Copilot integration
@@ -38,10 +41,25 @@ export class LanguageModelToolsBootstrap {
     context.subscriptions.push(readFileTool);
     console.log('  ✅ cappy_read_file');
 
+    // Register context retrieval tool (hybrid search across workspace)
+    const contextRetrievalTool = vscode.lm.registerTool('cappy_retrieve_context', new ContextRetrievalTool());
+    context.subscriptions.push(contextRetrievalTool);
+    console.log('  ✅ cappy_retrieve_context');
+
     // Register create task tool (create task files)
     const createTaskTool = vscode.lm.registerTool('cappy_create_task_file', new CreateTaskTool());
     context.subscriptions.push(createTaskTool);
     console.log('  ✅ cappy_create_task_file');
+
+    // Register check task file tool
+    const checkTaskFileTool = vscode.lm.registerTool('cappy_check_task_file', new CheckTaskFileTool());
+    context.subscriptions.push(checkTaskFileTool);
+    console.log('  ✅ cappy_check_task_file');
+
+    // Register terminal command tool
+    const terminalCommandTool = vscode.lm.registerTool('cappy_run_terminal_command', new TerminalCommandTool());
+    context.subscriptions.push(terminalCommandTool);
+    console.log('  ✅ cappy_run_terminal_command');
 
     // Register todo tools
     const createTodoTool = vscode.lm.registerTool('cappy_create_todo', new CreateTodoTool(this.todoRepository));

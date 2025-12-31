@@ -262,6 +262,60 @@
         }
       },
       {
+        "name": "cappy_run_terminal_command",
+        "displayName": "Run Terminal Command",
+        "modelDescription": "Executes a shell command in the workspace root. Use this to run commands like 'find', 'grep', 'ls', 'cat' to explore the workspace or search for files. Returns stdout and stderr.",
+        "userDescription": "Run a terminal command",
+        "toolReferenceName": "runCommand",
+        "tags": [
+          "terminal",
+          "shell",
+          "command",
+          "execute"
+        ],
+        "icon": "$(terminal)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to execute (e.g., 'find src -name \"*.ts\"', 'grep -r \"TODO\" .')"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      },
+      {
+        "name": "cappy_check_task_file",
+        "displayName": "Check Task File",
+        "modelDescription": "Checks whether a task file exists under .cappy/tasks. Useful to verify if a task was already created.",
+        "userDescription": "Check if a task file exists",
+        "toolReferenceName": "checkTaskFile",
+        "tags": [
+          "task",
+          "check",
+          "file",
+          "exists"
+        ],
+        "icon": "$(file-symlink-file)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "fileName": {
+              "type": "string",
+              "description": "File name inside .cappy/tasks (e.g., task_2025-12-21_123.ACTIVE.xml). If no extension is provided, .ACTIVE.xml and .xml will be tried."
+            }
+          },
+          "required": [
+            "fileName"
+          ]
+        }
+      },
+      {
         "name": "cappy_create_todo",
         "displayName": "Create Todo",
         "modelDescription": "Creates a new todo item. Use this when the user wants to create a task, add something to their todo list, or remember something to do.",
