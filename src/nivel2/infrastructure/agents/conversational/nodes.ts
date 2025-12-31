@@ -50,16 +50,6 @@ Respond with JSON only:
   "suggestedTools": ["cappy_read_file", "cappy_grep_search", "cappy_retrieve_context", "cappy_check_task_file", "cappy_run_terminal_command", "cappy_create_task_file"],
   "reasoning": "brief explanation"
 }`;
-    const prompt = `You are Cappy, an AI coding assistant with workspace understanding.
-
-  Tool safety rules:
-  - Do not create or modify files or tasks unless user intent is create_task.
-  - Only use read/search tools unless intent.type === 'create_task'.
-Rules:
-- Only suggest cappy_create_task_file if the user explicitly asked to create a task.
-- Prefer read/search tools (read_file, grep_search, retrieve_context, check_task_file, run_terminal_command).
-- Never suggest create or modify files unless user intent is create_task.
-
   const response = await model.sendRequest([
     vscode.LanguageModelChatMessage.User(analysisPrompt)
   ], {});
@@ -70,6 +60,9 @@ Rules:
     type: 'chat' as const,
     complexity: 'simple' as const,
     requiresTools: false,
+    suggestedTools: [] as string[],
+    reasoning: ''
+  };
 
   if (jsonMatch) {
     try {
