@@ -5,7 +5,6 @@ import { LLMSelector } from '../../services/llm-selector';
 const READ_ONLY_TOOLS = [
   'cappy_read_file',
   'cappy_grep_search',
-  'cappy_retrieve_context',
   'cappy_check_task_file',
   'cappy_run_terminal_command'
 ];
@@ -47,7 +46,7 @@ Respond with JSON only:
   "type": "chat" | "code_question" | "create_task" | "search_code",
   "complexity": "simple" | "medium" | "complex",
   "requiresTools": boolean,
-  "suggestedTools": ["cappy_read_file", "cappy_grep_search", "cappy_retrieve_context", "cappy_check_task_file", "cappy_run_terminal_command", "cappy_create_task_file"],
+  "suggestedTools": ["cappy_read_file", "cappy_grep_search", "cappy_check_task_file", "cappy_run_terminal_command", "cappy_create_task_file"],
   "reasoning": "brief explanation"
 }`;
   const response = await model.sendRequest([
@@ -56,20 +55,43 @@ Respond with JSON only:
 
   const raw = await readResponse(response);
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  let intent = {
-    type: 'chat' as const,
-    complexity: 'simple' as const,
+  let intent: NonNullable<ConversationalState['intent']> = {
+    type: 'chat',
+    complexity: 'simple',
     requiresTools: false,
-    suggestedTools: [] as string[],
+    suggestedTools: [],
     reasoning: ''
   };
 
   if (jsonMatch) {
     try {
-      intent = JSON.parse(jsonMatch[0]);
+      intent = {
+        ...intent,
+        ...(JSON.parse(jsonMatch[0]) as Partial<NonNullable<ConversationalState['intent']>>)
+      };
     } catch {
       // fallback uses defaults
     }
+  }
+
+  // Heuristic: questions about the project need workspace context, so force tool usage
+  const messageLower = lastMessage.toLowerCase();
+  const asksWhatProjectDoes = /o que (esse|este) projeto faz|what does this project do|project overview/.test(messageLower);
+  const defaultTools = ['cappy_grep_search', 'cappy_read_file'];
+
+  if (asksWhatProjectDoes) {
+    intent = {
+      ...intent,
+      type: intent.type === 'chat' ? 'search_code' : intent.type,
+      complexity: intent.complexity === 'simple' ? 'medium' : intent.complexity,
+      requiresTools: true,
+      suggestedTools: Array.from(new Set([...(intent.suggestedTools || []), ...defaultTools]))
+    };
+  }
+
+  // Fallback: if tools are required but none suggested, seed with safe read-only defaults
+  if (intent.requiresTools && (!intent.suggestedTools || intent.suggestedTools.length === 0)) {
+    intent = { ...intent, suggestedTools: defaultTools };
   }
 
   return { intent };
@@ -109,8 +131,6 @@ export async function gatherInfo(state: ConversationalState): Promise<Partial<Co
         };
       } else if (toolName.includes('grep_search')) {
         toolInput = { query: lastMessage, isRegexp: false };
-      } else if (toolName.includes('retrieve_context')) {
-        toolInput = { query: lastMessage };
       } else if (toolName.includes('check_task')) {
         toolInput = { fileName: 'task.ACTIVE.xml' };
       } else if (toolName.includes('run_terminal')) {
@@ -224,7 +244,6 @@ Respond naturally in the user's language. Be helpful, technical when needed, fri
   const allowedTools = [
     'cappy_read_file',
     'cappy_grep_search',
-    'cappy_retrieve_context',
     'cappy_check_task_file',
     'cappy_run_terminal_command',
     'cappy_create_task_file',

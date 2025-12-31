@@ -13,7 +13,6 @@ import { TodoRepository } from '../../../../domains/todo/repositories/todo-repos
 import { CreateTodoTool } from '../../../../nivel2/infrastructure/tools/todo/create-todo-tool';
 import { ListTodosTool } from '../../../../nivel2/infrastructure/tools/todo/list-todos-tool';
 import { CompleteTodoTool } from '../../../../nivel2/infrastructure/tools/todo/complete-todo-tool';
-import { ContextRetrievalTool } from '../../../../nivel2/infrastructure/tools/context-retrieval-tool';
 
 /**
  * Registers all Language Model Tools for GitHub Copilot integration
@@ -40,11 +39,6 @@ export class LanguageModelToolsBootstrap {
     const readFileTool = vscode.lm.registerTool('cappy_read_file', new ReadFileTool());
     context.subscriptions.push(readFileTool);
     console.log('  ✅ cappy_read_file');
-
-    // Register context retrieval tool (hybrid search across workspace)
-    const contextRetrievalTool = vscode.lm.registerTool('cappy_retrieve_context', new ContextRetrievalTool());
-    context.subscriptions.push(contextRetrievalTool);
-    console.log('  ✅ cappy_retrieve_context');
 
     // Register create task tool (create task files)
     const createTaskTool = vscode.lm.registerTool('cappy_create_task_file', new CreateTaskTool());

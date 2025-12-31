@@ -100,7 +100,7 @@ export async function getProjectContext(): Promise<string> {
     readme ? `README.md (preview):\n${readme}` : null,
     docsIndex ? `docs/INDEX.md (preview):\n${docsIndex}` : null,
     architecture ? `SIMPLIFIED_ARCHITECTURE.md (preview):\n${architecture}` : null,
-    'Tip: Use cappy_read_file or cappy_retrieve_context for deeper context.'
+    'Tip: Use cappy_read_file for deeper context.'
   ].filter(Boolean);
 
   return parts.join('\n\n');

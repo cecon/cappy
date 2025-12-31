@@ -35,7 +35,7 @@ export class IntelligentAgent {
     console.log('🤖 [IntelligentAgent] Initializing agent system...');
     console.log('✅ [IntelligentAgent] Conversational agent ready');
     console.log('   - Thinking loop enabled (5 steps)');
-    console.log('   - Tools: cappy_retrieve_context, cappy_grep_search, cappy_read_file');
+    console.log('   - Tools: cappy_grep_search, cappy_read_file');
     console.log('✅ [IntelligentAgent] System initialized');
   }
 
