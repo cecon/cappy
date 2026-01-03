@@ -1,16 +1,15 @@
 /**
- * @fileoverview Intelligent Agent System - Conversational Agent Orchestrator
+ * @fileoverview Intelligent Agent System - Planning Agent Orchestrator
  * @module agents
  * 
  * This is the main entry point for the agent system.
- * Currently implements a single conversational agent with thinking loop.
+ * Implements a Planning Agent focused on collecting scope and creating task files.
  * 
  * Architecture:
- * - Supervisor: Simple orchestrator (conversational-only)
- * - Conversational: Primary agent with 5-step thinking loop
+ * - Planning Agent: Collects scope -> Analyzes codebase -> Creates task XML
  */
 
-import { createSupervisorGraph, createSupervisorState } from './supervisor';
+import { runPlanningAgent, type PlanningState } from './planning';
 import type {
   ProgressCallback,
   SessionTurnRequest,
@@ -20,22 +19,31 @@ import type {
 } from './common/types';
 
 /**
+ * Session data including state for continuity
+ */
+interface SessionData {
+  history: AgentMessage[];
+  planningState?: Partial<PlanningState>;
+}
+
+/**
  * Main Intelligent Agent System
  * 
- * Orchestrates the conversational agent with session management
+ * Orchestrates the Planning Agent with session management
  */
 export class IntelligentAgent {
   private progressCallback?: ProgressCallback;
-  private sessions: Map<string, AgentMessage[]> = new Map();
+  private sessions: Map<string, SessionData> = new Map();
 
   /**
    * Initializes the agent system
    */
   async initialize(): Promise<void> {
-    console.log('🤖 [IntelligentAgent] Initializing agent system...');
-    console.log('✅ [IntelligentAgent] Conversational agent ready');
-    console.log('   - Thinking loop enabled (5 steps)');
-    console.log('   - Tools: cappy_grep_search, cappy_read_file');
+    console.log('🤖 [IntelligentAgent] Initializing Planning Agent...');
+    console.log('✅ [IntelligentAgent] Planning Agent ready');
+    console.log('   - Scope collection');
+    console.log('   - Codebase analysis');
+    console.log('   - Task XML generation');
     console.log('✅ [IntelligentAgent] System initialized');
   }
 
@@ -52,11 +60,11 @@ export class IntelligentAgent {
   async runSessionTurn(request: SessionTurnRequest): Promise<SessionTurnResult> {
     const { sessionId, message } = request;
 
-    // Get or create session history
-    let history = this.sessions.get(sessionId);
-    if (!history) {
-      history = [];
-      this.sessions.set(sessionId, history);
+    // Get or create session data
+    let session = this.sessions.get(sessionId);
+    if (!session) {
+      session = { history: [] };
+      this.sessions.set(sessionId, session);
     }
 
     // Add user message to history
@@ -65,36 +73,42 @@ export class IntelligentAgent {
       content: message,
       timestamp: new Date()
     };
-    history.push(userMessage);
-
-    // Create supervisor state
-    const state = createSupervisorState(sessionId);
-    state.messages = [...history];
-
-    // Create and run supervisor graph
-    const graph = createSupervisorGraph(this.progressCallback);
+    session.history.push(userMessage);
 
     try {
-      const result = await graph.invoke(state);
+      // Run planning agent with existing state for continuity
+      const { response, state } = await runPlanningAgent(
+        session.history.map(m => ({ role: m.role, content: m.content })),
+        session.planningState,
+        this.progressCallback
+      );
 
-      const responseContent = result.metadata?.response as string | undefined;
+      // Store state for continuity
+      session.planningState = {
+        phase: state.phase,
+        taskPlan: state.taskPlan,
+        scopeQuestions: state.scopeQuestions,
+        codebaseInfo: state.codebaseInfo,
+        taskCreated: state.taskCreated
+      };
 
+      // Add assistant response to history
       const assistantMessage: AgentMessage = {
         role: 'assistant',
-        content: responseContent || 'Processado com sucesso',
+        content: response,
         timestamp: new Date()
       };
-      history.push(assistantMessage);
+      session.history.push(assistantMessage);
 
       const planningResult: PlanningTurnResult = {
-        phase: result.phase as PlanningTurnResult['phase'],
-        responseMessage: responseContent,
-        conversationLog: [...history]
+        phase: state.phase as PlanningTurnResult['phase'],
+        responseMessage: response,
+        conversationLog: [...session.history]
       };
 
       return {
         result: planningResult,
-        isContinuation: history.length > 2
+        isContinuation: session.history.length > 2
       };
 
     } catch (error) {
@@ -104,7 +118,7 @@ export class IntelligentAgent {
   }
 
   /**
-   * Clears session history
+   * Clears session history and state
    */
   clearSession(sessionId: string): void {
     this.sessions.delete(sessionId);
@@ -119,9 +133,11 @@ export class IntelligentAgent {
   }
 }
 
-// Export types and active agents only
+
+// Export types and planning agent
 export * from './common/types';
 export * from './common/state';
-export * from './supervisor';
+export { runPlanningAgent, createPlanningGraph } from './planning';
+export type { PlanningState, TaskPlan, TaskStep, PlanningPhase, ScopeQuestion } from './planning';
 export * from './conversational';
 export * from './context';

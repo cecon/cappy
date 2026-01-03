@@ -5,10 +5,11 @@
 
 import * as vscode from 'vscode';
 import { GrepSearchTool } from '../../../../nivel2/infrastructure/tools/grep-search-tool';
-import { ReadFileTool } from '../../../../nivel2/infrastructure/tools/read-file-tool';
+import { ReadFileTool, FetchWebTool } from '../../../../nivel2/infrastructure/tools/read-file-tool';
 import { CreateTaskTool } from '../../../../nivel2/infrastructure/tools/create-task-tool';
 import { CheckTaskFileTool } from '../../../../nivel2/infrastructure/tools/check-task-file-tool';
 import { TerminalCommandTool } from '../../../../nivel2/infrastructure/tools/terminal-command-tool';
+import { RefineTaskTool } from '../../../../nivel2/infrastructure/tools/refine-task-tool';
 import { TodoRepository } from '../../../../domains/todo/repositories/todo-repository';
 import { CreateTodoTool } from '../../../../nivel2/infrastructure/tools/todo/create-todo-tool';
 import { ListTodosTool } from '../../../../nivel2/infrastructure/tools/todo/list-todos-tool';
@@ -40,6 +41,11 @@ export class LanguageModelToolsBootstrap {
     context.subscriptions.push(readFileTool);
     console.log('  ✅ cappy_read_file');
 
+    // Register fetch web tool (fetch web content)
+    const fetchWebTool = vscode.lm.registerTool('cappy_fetch_web', new FetchWebTool());
+    context.subscriptions.push(fetchWebTool);
+    console.log('  ✅ cappy_fetch_web');
+
     // Register create task tool (create task files)
     const createTaskTool = vscode.lm.registerTool('cappy_create_task_file', new CreateTaskTool());
     context.subscriptions.push(createTaskTool);
@@ -49,6 +55,11 @@ export class LanguageModelToolsBootstrap {
     const checkTaskFileTool = vscode.lm.registerTool('cappy_check_task_file', new CheckTaskFileTool());
     context.subscriptions.push(checkTaskFileTool);
     console.log('  ✅ cappy_check_task_file');
+
+    // Register refine task tool (improve task files with LLM)
+    const refineTaskTool = vscode.lm.registerTool('cappy_refine_task', new RefineTaskTool());
+    context.subscriptions.push(refineTaskTool);
+    console.log('  ✅ cappy_refine_task');
 
     // Register terminal command tool
     const terminalCommandTool = vscode.lm.registerTool('cappy_run_terminal_command', new TerminalCommandTool());

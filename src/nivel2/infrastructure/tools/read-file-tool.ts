@@ -1,6 +1,172 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
+// ============================================================================
+// Fetch Web Tool
+// ============================================================================
+
+/**
+ * Input schema for fetching web content
+ */
+export interface FetchWebInput {
+	/**
+	 * URL to fetch (HTTP or HTTPS)
+	 */
+	url: string;
+	
+	/**
+	 * Optional: CSS selector to extract specific content
+	 */
+	selector?: string;
+}
+
+/**
+ * Language Model Tool for fetching web content.
+ * Supports HTML, JSON, and text content extraction.
+ */
+export class FetchWebTool implements vscode.LanguageModelTool<FetchWebInput> {
+	public inputSchema = {
+		type: 'object',
+		properties: {
+			url: {
+				type: 'string',
+				description: 'HTTP/HTTPS URL to fetch'
+			},
+			selector: {
+				type: 'string',
+				description: 'Optional CSS selector to extract specific content from HTML'
+			}
+		},
+		required: ['url']
+	} as const;
+
+	async invoke(
+		options: vscode.LanguageModelToolInvocationOptions<FetchWebInput>,
+		_token: vscode.CancellationToken
+	): Promise<vscode.LanguageModelToolResult> {
+		if (!options.input?.url) {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart('❌ Error: Missing required "url" parameter.')
+			]);
+		}
+
+		const { url, selector } = options.input;
+
+		// Validate URL
+		try {
+			const parsedUrl = new URL(url);
+			if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+				return new vscode.LanguageModelToolResult([
+					new vscode.LanguageModelTextPart('❌ Error: URL must use http or https protocol.')
+				]);
+			}
+		} catch {
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart('❌ Error: Invalid URL format.')
+			]);
+		}
+
+		try {
+			const response = await fetch(url, {
+				headers: {
+					'User-Agent': 'Mozilla/5.0 (compatible; CappyBot/1.0)',
+					'Accept': 'text/html,application/json,text/plain,*/*'
+				},
+				signal: AbortSignal.timeout(15000) // 15 second timeout
+			});
+
+			if (!response.ok) {
+				return new vscode.LanguageModelToolResult([
+					new vscode.LanguageModelTextPart(`❌ HTTP Error: ${response.status} ${response.statusText}`)
+				]);
+			}
+
+			const contentType = response.headers.get('content-type') || '';
+			let content = await response.text();
+
+			// For JSON, pretty print
+			if (contentType.includes('application/json')) {
+				try {
+					const json = JSON.parse(content);
+					content = JSON.stringify(json, null, 2);
+				} catch { /* keep as is */ }
+			}
+
+			// For HTML, extract text content (simplified)
+			if (contentType.includes('text/html')) {
+				content = this.extractTextFromHtml(content, selector);
+			}
+
+			// Truncate if too long (max 10KB)
+			const maxLength = 10000;
+			if (content.length > maxLength) {
+				content = content.slice(0, maxLength) + '\n\n[...content truncated...]';
+			}
+
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(`URL: ${url}\nContent-Type: ${contentType}\n\n${content}`)
+			]);
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return new vscode.LanguageModelToolResult([
+				new vscode.LanguageModelTextPart(`❌ Error fetching URL: ${errorMessage}`)
+			]);
+		}
+	}
+
+	/**
+	 * Simple HTML text extraction (without external dependencies)
+	 */
+	private extractTextFromHtml(html: string, selector?: string): string {
+		// Remove script and style tags
+		let text = html
+			.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+			.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+			.replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+			.replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+			.replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '');
+
+		// If selector provided, try to extract that section
+		if (selector) {
+			const selectorRegex = new RegExp(`<${selector}[^>]*>([\\s\\S]*?)<\\/${selector}>`, 'gi');
+			const matches = html.match(selectorRegex);
+			if (matches) {
+				text = matches.join('\n');
+			}
+		}
+
+		// Extract main content areas if present
+		const mainMatch = text.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
+			text.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+			text.match(/<div[^>]*class="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+		
+		if (mainMatch) {
+			text = mainMatch[1];
+		}
+
+		// Remove HTML tags
+		text = text.replace(/<[^>]+>/g, ' ');
+		
+		// Clean up whitespace
+		text = text
+			.replace(/&nbsp;/g, ' ')
+			.replace(/&amp;/g, '&')
+			.replace(/&lt;/g, '<')
+			.replace(/&gt;/g, '>')
+			.replace(/&quot;/g, '"')
+			.replace(/&#\d+;/g, '')
+			.replace(/\s+/g, ' ')
+			.trim();
+
+		return text;
+	}
+}
+
+// ============================================================================
+// Read File Tool
+// ============================================================================
+
 /**
  * Input schema for reading file contents
  */
