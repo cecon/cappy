@@ -72,7 +72,8 @@ export function createPlanningGraph() {
 export async function runPlanningAgent(
   messages: Array<{ role: string; content: string }>,
   existingState?: Partial<PlanningState>,
-  progressCallback?: (msg: string) => void
+  progressCallback?: (msg: string) => void,
+  chatModel?: vscode.LanguageModelChat
 ): Promise<{ response: string; state: PlanningState }> {
   const workspace = vscode.workspace.workspaceFolders?.[0];
 
@@ -96,6 +97,7 @@ export async function runPlanningAgent(
     messages,
     workspaceContext,
     progressCallback,
+    chatModel, // Pass the model from chat participant
     phase: currentPhase
   };
 

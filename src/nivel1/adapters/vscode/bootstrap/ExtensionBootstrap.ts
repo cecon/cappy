@@ -57,7 +57,8 @@ export class ExtensionBootstrap {
 
           const { result } = await this.planningAgent.runSessionTurn({
             sessionId: conversationId,
-            message: request.prompt
+            message: request.prompt,
+            model: request.model // Use the model selected in Copilot Chat
           });
 
           if (token.isCancellationRequested) {

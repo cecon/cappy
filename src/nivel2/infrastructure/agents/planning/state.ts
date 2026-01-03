@@ -103,6 +103,9 @@ export const PlanningGraphState = Annotation.Root({
   // Progress callback
   progressCallback: Annotation<((msg: string) => void) | undefined>(),
 
+  // The LLM model from chat participant (optional)
+  chatModel: Annotation<import('vscode').LanguageModelChat | undefined>(),
+
   // Whether task file was created
   taskCreated: Annotation<boolean>({
     reducer: (_current, update) => update,

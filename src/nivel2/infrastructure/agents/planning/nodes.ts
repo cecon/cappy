@@ -43,6 +43,23 @@ async function readFileContent(filePath: string): Promise<string | null> {
 }
 
 // ============================================================================
+// Helper: Get Model (from chat participant or fallback to LLMSelector)
+// ============================================================================
+
+async function getModel(state: PlanningState): Promise<vscode.LanguageModelChat> {
+  // Prefer model from chat participant (user's selected model)
+  if (state.chatModel) {
+    console.log('🤖 Using model from chat participant:', state.chatModel.name);
+    return state.chatModel;
+  }
+  
+  // Fallback to LLMSelector
+  const model = await LLMSelector.selectBestModel();
+  if (!model) throw new Error('No LLM available');
+  return model;
+}
+
+// ============================================================================
 // Node: Collect Scope
 // ============================================================================
 
@@ -50,8 +67,7 @@ export async function collectScope(state: PlanningState): Promise<Partial<Planni
   state.progressCallback?.('🎯 Entendendo o escopo...');
 
   const lastMessage = getLastMessage(state);
-  const model = await LLMSelector.selectBestModel();
-  if (!model) throw new Error('No LLM available');
+  const model = await getModel(state);
 
   // Check if this is first message or continuing conversation
   const questionCount = state.scopeQuestions?.length || 0;
@@ -212,8 +228,7 @@ export async function analyzeCodebase(state: PlanningState): Promise<Partial<Pla
 export async function draftPlan(state: PlanningState): Promise<Partial<PlanningState>> {
   state.progressCallback?.('📝 Criando plano...');
 
-  const model = await LLMSelector.selectBestModel();
-  if (!model) throw new Error('No LLM available');
+  const model = await getModel(state);
 
   const codeContext = Object.entries(state.codebaseInfo?.codeSnippets || {})
     .map(([file, content]) => `### ${file}\n\`\`\`\n${content.slice(0, 1000)}\n\`\`\``)
@@ -392,14 +407,27 @@ export async function createTaskFile(state: PlanningState): Promise<Partial<Plan
       await vscode.workspace.fs.createDirectory(tasksDir);
     } catch { /* may exist */ }
 
-    // Generate XML content
+    // Generate initial XML content
     const now = new Date().toISOString();
-    const xmlContent = generateTaskXML(taskId, plan, now);
+    const initialXml = generateTaskXML(taskId, plan, now);
 
-    // Write file
+    // Write initial file
     const taskUri = vscode.Uri.joinPath(tasksDir, fileName);
     const encoder = new TextEncoder();
-    await vscode.workspace.fs.writeFile(taskUri, encoder.encode(xmlContent));
+    await vscode.workspace.fs.writeFile(taskUri, encoder.encode(initialXml));
+
+    // Auto-refine the task with workspace context (using chat model if available)
+    state.progressCallback?.('✨ Refinando task com contexto do projeto...');
+    const refinedXml = await refineTaskWithContext(
+      initialXml, 
+      workspaceFolder, 
+      state.progressCallback,
+      state.chatModel
+    );
+    
+    if (refinedXml) {
+      await vscode.workspace.fs.writeFile(taskUri, encoder.encode(refinedXml));
+    }
 
     // Open the file
     const document = await vscode.workspace.openTextDocument(taskUri);
@@ -408,18 +436,20 @@ export async function createTaskFile(state: PlanningState): Promise<Partial<Plan
     return {
       taskCreated: true,
       phase: 'completed',
-      response: `✅ **Task criada com sucesso!**
+      response: `✅ **Task criada e refinada com sucesso!**
 
 📄 Arquivo: \`.cappy/tasks/${fileName}\`
 
-O arquivo foi aberto no editor. Você pode:
-1. Revisar e ajustar os detalhes
-2. Marcar como pronta removendo ".ACTIVE" do nome
-3. Usar como referência para implementação
+O arquivo foi refinado automaticamente com:
+- Arquivos corretos baseados na estrutura do projeto
+- Requisitos técnicos detalhados
+- Estimativas de tempo por step
+- Dependências identificadas
+- Regras de prevenção específicas
 
 **Próximos passos:**
-- Execute \`cappy.workOnCurrentTask\` quando quiser começar a implementar
-- O agente vai usar este plano como guia`
+- Revise o plano no editor
+- Execute \`cappy.workOnCurrentTask\` para começar a implementar`
     };
 
   } catch (error) {
@@ -428,6 +458,142 @@ O arquivo foi aberto no editor. Você pode:
       response: `❌ Erro ao criar arquivo: ${errMsg}`
     };
   }
+}
+
+// ============================================================================
+// Helper: Auto-Refine Task with Workspace Context
+// ============================================================================
+
+async function refineTaskWithContext(
+  taskXml: string, 
+  workspaceFolder: vscode.WorkspaceFolder,
+  progressCallback?: (msg: string) => void,
+  chatModel?: vscode.LanguageModelChat
+): Promise<string | null> {
+  try {
+    // Use chat model if available, otherwise fallback to LLMSelector
+    const model = chatModel || await LLMSelector.selectBestModel();
+    if (!model) return null;
+
+    // Gather workspace context
+    const context = await gatherWorkspaceContext(workspaceFolder);
+    
+    const prompt = `Você é um arquiteto de software sênior. Refine este arquivo de task XML.
+
+CONTEXTO DO PROJETO:
+- Nome: ${context.projectName}
+- Tech Stack: ${context.techStack.join(', ') || 'Unknown'}
+- Estrutura existente (src/):
+${context.structure.slice(0, 40).map(s => '  - ' + s).join('\n')}
+
+TASK ATUAL:
+${taskXml}
+
+REFINE O XML COM:
+1. **Arquivos corretos**: Use caminhos que existam na estrutura mostrada
+2. **Requisitos técnicos**: Adicione <technicalRequirements> com detalhes específicos
+3. **Estimativas**: Adicione <estimatedHours> em cada step (números realistas)
+4. **Dependências**: Adicione <dependencies> com pacotes npm se necessário
+5. **Referências**: Adicione <references> com URLs de documentação úteis
+6. **Steps detalhados**: Expanda descriptions com sub-itens numerados (1. 2. 3.)
+7. **Validações métricas**: Use critérios mensuráveis (ex: "menos de 100ms")
+8. **Prevention rules**: Adicione regras específicas para a stack
+
+REGRAS CRÍTICAS:
+- Mantenha a estrutura XML 100% válida
+- Não invente arquivos - crie novos em diretórios que existem
+- Seja específico com tecnologias
+- Inclua o header do CAPPY TASK FILE
+
+RETORNE APENAS O XML REFINADO, sem explicações antes ou depois.`;
+
+    progressCallback?.('🤖 Usando LLM para refinamento...');
+    
+    const response = await model.sendRequest([
+      vscode.LanguageModelChatMessage.User(prompt)
+    ], {});
+
+    let result = '';
+    for await (const chunk of response.text as AsyncIterable<unknown>) {
+      if (typeof chunk === 'string') {
+        result += chunk;
+      } else if (chunk && typeof chunk === 'object' && 'value' in (chunk as Record<string, unknown>)) {
+        result += (chunk as Record<string, unknown>).value;
+      }
+    }
+
+    // Extract XML from response
+    const xmlMatch = result.match(/<\?xml[\s\S]*<\/task>/);
+    if (xmlMatch) return xmlMatch[0];
+    
+    const taskMatch = result.match(/<task[\s\S]*<\/task>/);
+    if (taskMatch) {
+      return `<?xml version="1.0" encoding="UTF-8"?>\n${taskMatch[0]}`;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[RefineTask] Error:', error);
+    return null;
+  }
+}
+
+async function gatherWorkspaceContext(workspaceFolder: vscode.WorkspaceFolder): Promise<{
+  projectName: string;
+  structure: string[];
+  techStack: string[];
+}> {
+  const context = {
+    projectName: workspaceFolder.name,
+    structure: [] as string[],
+    techStack: [] as string[]
+  };
+
+  // Read package.json for tech stack
+  try {
+    const pkgUri = vscode.Uri.joinPath(workspaceFolder.uri, 'package.json');
+    const pkgContent = await vscode.workspace.fs.readFile(pkgUri);
+    const pkg = JSON.parse(Buffer.from(pkgContent).toString('utf8'));
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    
+    if (deps['react']) context.techStack.push('React');
+    if (deps['vue']) context.techStack.push('Vue');
+    if (deps['@langchain/core'] || deps['@langchain/langgraph']) context.techStack.push('LangChain');
+    if (deps['sqlite3'] || deps['better-sqlite3']) context.techStack.push('SQLite');
+    if (deps['@vscode/sqlite3']) context.techStack.push('VS Code SQLite');
+    if (deps['typescript']) context.techStack.push('TypeScript');
+    if (deps['vscode']) context.techStack.push('VS Code Extension');
+    if (deps['express']) context.techStack.push('Express');
+    if (deps['tailwindcss']) context.techStack.push('Tailwind CSS');
+  } catch { /* ignore */ }
+
+  // Get directory structure
+  try {
+    const srcUri = vscode.Uri.joinPath(workspaceFolder.uri, 'src');
+    context.structure = await getDirectoryTree(srcUri, 3);
+  } catch { /* ignore */ }
+
+  return context;
+}
+
+async function getDirectoryTree(uri: vscode.Uri, depth: number, prefix = ''): Promise<string[]> {
+  if (depth <= 0) return [];
+  const result: string[] = [];
+  try {
+    const entries = await vscode.workspace.fs.readDirectory(uri);
+    for (const [name, type] of entries) {
+      if (name.startsWith('.') || name === 'node_modules') continue;
+      const fullPath = prefix ? `${prefix}/${name}` : name;
+      if (type === vscode.FileType.Directory) {
+        result.push(fullPath + '/');
+        const subUri = vscode.Uri.joinPath(uri, name);
+        result.push(...await getDirectoryTree(subUri, depth - 1, fullPath));
+      } else if (type === vscode.FileType.File && (name.endsWith('.ts') || name.endsWith('.tsx'))) {
+        result.push(fullPath);
+      }
+    }
+  } catch { /* ignore */ }
+  return result;
 }
 
 // ============================================================================

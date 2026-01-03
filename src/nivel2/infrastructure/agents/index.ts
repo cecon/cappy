@@ -58,7 +58,7 @@ export class IntelligentAgent {
    * Runs a session turn with user input
    */
   async runSessionTurn(request: SessionTurnRequest): Promise<SessionTurnResult> {
-    const { sessionId, message } = request;
+    const { sessionId, message, model } = request;
 
     // Get or create session data
     let session = this.sessions.get(sessionId);
@@ -77,10 +77,12 @@ export class IntelligentAgent {
 
     try {
       // Run planning agent with existing state for continuity
+      // Pass the model from chat participant if available
       const { response, state } = await runPlanningAgent(
         session.history.map(m => ({ role: m.role, content: m.content })),
         session.planningState,
-        this.progressCallback
+        this.progressCallback,
+        model
       );
 
       // Store state for continuity

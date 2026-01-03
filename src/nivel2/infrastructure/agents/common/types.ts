@@ -48,6 +48,8 @@ export type PlanningPhase = 'conversational' | 'completed';
 export interface SessionTurnRequest {
   sessionId: string;
   message: string;
+  /** Optional: The model selected in Copilot Chat */
+  model?: import('vscode').LanguageModelChat;
 }
 
 /**
