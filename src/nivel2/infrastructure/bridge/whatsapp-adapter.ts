@@ -5,6 +5,7 @@
 
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import * as vscode from 'vscode';
 import type { WhatsAppStatus } from './types';
 
 // Baileys is ESM-only, so we use dynamic import. Socket type is any.
@@ -20,13 +21,18 @@ export interface WhatsAppAdapterEvents {
 /**
  * WhatsApp adapter using Baileys library.
  * Handles connection, authentication (QR code), sending and receiving messages.
+ * 
+ * Message filtering modes (cappy.bridge.chatFilter):
+ * - "self": Only process messages you send to yourself (safest)
+ * - "group": Only process messages from a specific WhatsApp group
+ * - "allow_all": Process all messages (not recommended)
  */
 export class WhatsAppAdapter {
   private socket: WASocket | null = null;
   private status: WhatsAppStatus = 'disconnected';
   private authDir: string;
   private events: WhatsAppAdapterEvents;
-  private ownerChatId: string | null = null;
+  private ownJid: string | null = null;
 
   constructor(authDir: string, events: WhatsAppAdapterEvents) {
     this.authDir = authDir;
@@ -82,7 +88,9 @@ export class WhatsAppAdapter {
       }
 
       if (connection === 'open') {
-        console.log('🦫 [WhatsApp] Connected successfully!');
+        // Store our own JID for self-chat filtering
+        this.ownJid = sock.user?.id || null;
+        console.log(`🦫 [WhatsApp] Connected! Own JID: ${this.ownJid}`);
         this.setStatus('connected');
       }
     });
@@ -95,8 +103,6 @@ export class WhatsAppAdapter {
       if (type !== 'notify') return;
 
       for (const msg of messages) {
-        if (msg.key.fromMe) continue;
-
         const text =
           msg.message?.conversation ||
           msg.message?.extendedTextMessage?.text ||
@@ -106,16 +112,67 @@ export class WhatsAppAdapter {
 
         const chatId = msg.key.remoteJid || '';
         const pushName = msg.pushName || 'Unknown';
+        const fromMe = msg.key.fromMe === true;
 
-        if (!this.ownerChatId) {
-          this.ownerChatId = chatId;
-          console.log(`🦫 [WhatsApp] Owner set to: ${pushName} (${chatId})`);
+        // Apply message filter based on config
+        if (!this.shouldProcessMessage(chatId, fromMe, msg)) {
+          continue;
         }
 
         console.log(`🦫 [WhatsApp] Message from ${pushName}: ${text}`);
         this.events.onMessage(text, chatId, pushName);
       }
     });
+  }
+
+  /**
+   * Check if a message should be processed based on the chat filter config.
+   * 
+   * Modes:
+   * - "self": Only messages from self-chat (you → you) 
+   * - "group": Only messages from a specific group
+   * - "allow_all": All messages
+   */
+  private shouldProcessMessage(chatId: string, fromMe: boolean, _msg: any): boolean {
+    const config = vscode.workspace.getConfiguration('cappy.bridge');
+    const filter = config.get<string>('chatFilter', 'self');
+
+    switch (filter) {
+      case 'self': {
+        // Self-chat: message must be fromMe AND the chat must be our own JID
+        // In WhatsApp, self-chat remoteJid is your own number
+        if (!fromMe) return false;
+        
+        // Check if chatId matches our own JID (strip :XX suffix from JID)
+        if (this.ownJid) {
+          const ownNumber = this.ownJid.split(':')[0].split('@')[0];
+          const chatNumber = chatId.split('@')[0];
+          return chatNumber === ownNumber;
+        }
+        
+        // Fallback: accept fromMe if we don't know our JID yet
+        return true;
+      }
+
+      case 'group': {
+        // Only process messages from a specific group
+        if (!chatId.endsWith('@g.us')) return false;
+        
+        // Note: group name matching requires fetching group metadata
+        // For now, we accept any group message and the bridge can filter by name
+        return true;
+      }
+
+      case 'allow_all':
+        // Process everything (except our own non-self messages to avoid loops)
+        if (fromMe && !chatId.includes(this.ownJid?.split(':')[0]?.split('@')[0] || '')) {
+          return false; // Skip messages WE send to others
+        }
+        return !fromMe; // Accept messages from others
+
+      default:
+        return false;
+    }
   }
 
   /**
@@ -147,13 +204,6 @@ export class WhatsAppAdapter {
    */
   getStatus(): WhatsAppStatus {
     return this.status;
-  }
-
-  /**
-   * Get the owner's chat ID
-   */
-  getOwnerChatId(): string | null {
-    return this.ownerChatId;
   }
 
   private setStatus(status: WhatsAppStatus): void {

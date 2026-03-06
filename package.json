@@ -90,6 +90,26 @@
             "Relay messages to a VS Code terminal (works with any AI assistant)",
             "Auto-detect: use terminal relay if available, otherwise use built-in agent"
           ]
+        },
+        "cappy.bridge.chatFilter": {
+          "type": "string",
+          "enum": [
+            "self",
+            "group",
+            "allow_all"
+          ],
+          "default": "self",
+          "description": "Which WhatsApp messages Cappy should process. 'self' = only messages you send to yourself, 'group' = only from a specific group, 'allow_all' = any message (not recommended).",
+          "enumDescriptions": [
+            "Only messages you send to yourself (safest — use WhatsApp's 'Message Yourself')",
+            "Only messages from a specific group (set group name in cappy.bridge.allowedGroupName)",
+            "Process all incoming messages (not recommended)"
+          ]
+        },
+        "cappy.bridge.allowedGroupName": {
+          "type": "string",
+          "default": "Cappy Dev",
+          "description": "Name of the WhatsApp group to listen to (only used when chatFilter = 'group')"
         }
       }
     },
