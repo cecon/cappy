@@ -11,7 +11,8 @@
   },
   "engines": {
     "vscode": "^1.105.0",
-    "cursor": ">=0.1.0"
+    "cursor": ">=0.1.0",
+    "antigravity": ">=0.1.0"
   },
   "categories": [
     "Other",
@@ -73,6 +74,21 @@
             "Claude Sonnet 4.5 (if available)",
             "GPT-4o",
             "GPT-4"
+          ]
+        },
+        "cappy.bridge.mode": {
+          "type": "string",
+          "enum": [
+            "agent",
+            "terminal",
+            "auto"
+          ],
+          "default": "auto",
+          "description": "How WhatsApp messages are processed. 'agent' = built-in planning agent, 'terminal' = relay to VS Code terminal (works with Antigravity/Cursor/any AI), 'auto' = terminal if available, else agent.",
+          "enumDescriptions": [
+            "Use Cappy's built-in planning agent",
+            "Relay messages to a VS Code terminal (works with any AI assistant)",
+            "Auto-detect: use terminal relay if available, otherwise use built-in agent"
           ]
         }
       }

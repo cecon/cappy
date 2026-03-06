@@ -44,6 +44,9 @@ export class CappyBridge {
   private whatsappStatus: WhatsAppStatus = 'disconnected';
   private statusBarItem: vscode.StatusBarItem | null = null;
 
+  // Terminal relay
+  private relayTerminal: vscode.Terminal | null = null;
+
   constructor(projectName: string, workspaceRoot: string, agent: IntelligentAgent, config?: Partial<BridgeConfig>) {
     this.projectName = projectName;
     this.workspaceRoot = workspaceRoot;
@@ -261,18 +264,18 @@ export class CappyBridge {
 
   /**
    * Handle a chat message targeting this VS Code instance's project.
-   * Routes to terminal (!) or planning agent.
+   * Routes based on bridge mode config: agent, terminal, or auto.
    */
   private async handleLocalChat(text: string, chatId: string): Promise<void> {
-    // Terminal command: !npm test, !git status, etc.
+    // Terminal command with ! prefix always runs in terminal
     if (text.startsWith('!')) {
       const cmd = text.slice(1).trim();
       await this.executeTerminalCommand(cmd, chatId);
       return;
     }
 
-    // Planning agent conversation
-    await this.runAgentTurn(text, chatId, this.projectName);
+    const response = await this.processMessage(text);
+    this.whatsapp?.sendMessage(chatId, `🦫 [${this.projectName}]\n${response}`);
   }
 
   // ─── CLIENT MODE ──────────────────────────────────────────────────
@@ -333,7 +336,7 @@ export class CappyBridge {
     if (text.startsWith('!')) {
       responseText = await this.runTerminalCommand(text.slice(1).trim());
     } else {
-      responseText = await this.runAgentAndGetResponse(text);
+      responseText = await this.processMessage(text);
     }
 
     // Send response back to server for forwarding to WhatsApp
@@ -347,16 +350,73 @@ export class CappyBridge {
     this.clientSocket?.send(JSON.stringify(response));
   }
 
+  // ─── MESSAGE PROCESSING ───────────────────────────────────────────
+
+  /**
+   * Get the bridge mode from settings
+   */
+  private getBridgeMode(): 'agent' | 'terminal' | 'auto' {
+    const config = vscode.workspace.getConfiguration('cappy.bridge');
+    return config.get<string>('mode', 'auto') as 'agent' | 'terminal' | 'auto';
+  }
+
+  /**
+   * Process a message based on the configured bridge mode.
+   * - agent: use built-in IntelligentAgent
+   * - terminal: relay to a VS Code terminal (works with Antigravity/Cursor/any AI)
+   * - auto: try terminal relay first, fall back to agent
+   */
+  private async processMessage(text: string): Promise<string> {
+    const mode = this.getBridgeMode();
+
+    switch (mode) {
+      case 'terminal':
+        return this.relayToTerminal(text);
+
+      case 'agent':
+        return this.runAgentAndGetResponse(text);
+
+      case 'auto':
+      default: {
+        // Auto: try terminal if there's an active Cappy relay terminal
+        if (this.relayTerminal) {
+          return this.relayToTerminal(text);
+        }
+        return this.runAgentAndGetResponse(text);
+      }
+    }
+  }
+
   // ─── AGENT & TERMINAL ─────────────────────────────────────────────
 
   /**
-   * Run the planning agent and send response to WhatsApp
+   * Relay a message to a VS Code terminal.
+   * Creates a "Cappy Relay" terminal that any AI assistant can monitor.
+   * The message is written as a comment and the output is captured.
    */
-  private async runAgentTurn(text: string, chatId: string, project: string): Promise<void> {
-    this.whatsapp?.sendMessage(chatId, `🦫 [${project}] Processando...`);
+  private async relayToTerminal(text: string): Promise<string> {
+    try {
+      // Create or reuse the relay terminal
+      if (!this.relayTerminal || this.relayTerminal.exitStatus !== undefined) {
+        this.relayTerminal = vscode.window.createTerminal({
+          name: '🦫 Cappy Relay',
+          cwd: this.workspaceRoot,
+          message: '🦫 Cappy WhatsApp Relay — messages from WhatsApp appear here',
+        });
+      }
 
-    const responseText = await this.runAgentAndGetResponse(text);
-    this.whatsapp?.sendMessage(chatId, `🦫 [${project}]\n${responseText}`);
+      // Show the terminal so the active AI assistant can see it
+      this.relayTerminal.show(true);
+
+      // Write the message as a prompt comment + the actual message
+      // This makes it visible to any AI assistant monitoring the terminal
+      this.relayTerminal.sendText(`# 🦫 WhatsApp [${this.projectName}]: ${text}`, true);
+
+      return `📨 Mensagem enviada ao terminal "Cappy Relay":\n"${text}"\n\n_O AI assistant ativo no VS Code pode processar._`;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      return `❌ Erro no relay: ${errMsg}`;
+    }
   }
 
   /**
