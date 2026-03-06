@@ -22,11 +22,6 @@
     "out",
     "dist",
     "test",
-    "src/**/*.tsx",
-    "src/nivel1/main.tsx",
-    "src/nivel1/graph-main.tsx",
-    "src/nivel1/ui/**",
-    "src/domains/dashboard/use-cases/__tests__",
-    "src/lib"
+    "src/**/*.tsx"
   ]
 }

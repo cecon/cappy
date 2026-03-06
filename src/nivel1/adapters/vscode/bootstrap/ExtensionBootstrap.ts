@@ -1,5 +1,5 @@
 /**
- * @fileoverview Main bootstrap orchestrator for Cappy extension (Simplified)
+ * @fileoverview Main bootstrap orchestrator for Cappy extension
  * @module bootstrap/ExtensionBootstrap
  */
 
@@ -7,18 +7,20 @@ import * as vscode from 'vscode';
 import { LanguageModelToolsBootstrap } from './LanguageModelToolsBootstrap';
 import { IntelligentAgent } from '../../../../nivel2/infrastructure/agents';
 import type { PlanningTurnResult } from '../../../../nivel2/infrastructure/agents/common/types';
+import { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-bridge';
 
 /**
- * Main bootstrap orchestrator for the extension (Simplified)
+ * Main bootstrap orchestrator for the extension
  */
 export class ExtensionBootstrap {
   private readonly planningAgent = new IntelligentAgent();
+  private bridge: CappyBridge | null = null;
 
   /**
    * Activates the extension
    */
   async activate(context: vscode.ExtensionContext): Promise<void> {
-    console.log('🚩 [Extension] Cappy activation starting (Simplified Mode)...');
+    console.log('🚩 [Extension] Cappy activation starting...');
     console.log('🦫 Cappy extension is now active!');
 
     // Phase 1: Register Language Model Tools
@@ -28,7 +30,69 @@ export class ExtensionBootstrap {
     // Phase 2: Register Chat Participant
     await this.registerChatParticipant(context);
 
-    console.log('✅ [Extension] Cappy activation completed (Simplified Mode)');
+    // Phase 3: Start Bridge (auto-elects as server or client)
+    await this.startBridge(context);
+
+    // Phase 4: Register WhatsApp commands
+    this.registerBridgeCommands(context);
+
+    console.log('✅ [Extension] Cappy activation completed');
+  }
+
+  /**
+   * Starts the Cappy Bridge for WhatsApp ↔ VS Code communication
+   */
+  private async startBridge(context: vscode.ExtensionContext): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      console.log('🦫 [Bridge] No workspace folder — bridge not started');
+      return;
+    }
+
+    const workspaceRoot = workspaceFolders[0].uri.fsPath;
+    const projectName = workspaceFolders[0].name;
+
+    this.bridge = new CappyBridge(projectName, workspaceRoot, this.planningAgent);
+
+    try {
+      await this.bridge.start();
+      console.log(`🦫 [Bridge] Started for project: ${projectName}`);
+    } catch (err) {
+      console.error('🦫 [Bridge] Failed to start:', err);
+    }
+  }
+
+  /**
+   * Registers VS Code commands for bridge control
+   */
+  private registerBridgeCommands(context: vscode.ExtensionContext): void {
+    // Connect WhatsApp
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.whatsapp.connect', async () => {
+        if (!this.bridge) {
+          vscode.window.showWarningMessage('🦫 Cappy: Bridge not running. Open a workspace first.');
+          return;
+        }
+        await this.bridge.connectWhatsApp();
+      })
+    );
+
+    // Show status
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.whatsapp.status', () => {
+        if (!this.bridge) {
+          vscode.window.showInformationMessage('🦫 Cappy: Bridge not running.');
+          return;
+        }
+        const status = this.bridge.getStatus();
+        vscode.window.showInformationMessage(
+          `🦫 Cappy Bridge\n` +
+          `Role: ${status.role?.toUpperCase()}\n` +
+          `WhatsApp: ${status.whatsapp}\n` +
+          `Projects: ${status.projects.join(', ')}`
+        );
+      })
+    );
   }
 
   /**
@@ -46,9 +110,6 @@ export class ExtensionBootstrap {
         token: vscode.CancellationToken
       ): Promise<vscode.ChatResult> => {
         try {
-          // Use a stable conversation ID based on the chat thread
-          // This ensures continuity across messages in the same conversation
-          // Generate stable ID from first message timestamp if available, otherwise use 'main'
           const conversationId = context.history.length > 0 
             ? `chat-${context.history[0].participant}`
             : 'chat-main';
@@ -58,7 +119,7 @@ export class ExtensionBootstrap {
           const { result } = await this.planningAgent.runSessionTurn({
             sessionId: conversationId,
             message: request.prompt,
-            model: request.model // Use the model selected in Copilot Chat
+            model: request.model
           });
 
           if (token.isCancellationRequested) {
@@ -120,6 +181,7 @@ export class ExtensionBootstrap {
    */
   async deactivate(): Promise<void> {
     console.log('👋 [Extension] Cappy deactivating...');
+    await this.bridge?.stop();
     console.log('✅ [Extension] Cappy deactivated');
   }
 

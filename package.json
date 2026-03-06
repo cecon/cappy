@@ -39,7 +39,16 @@
     }
   },
   "contributes": {
-    "commands": [],
+    "commands": [
+      {
+        "command": "cappy.whatsapp.connect",
+        "title": "Cappy: Connect WhatsApp"
+      },
+      {
+        "command": "cappy.whatsapp.status",
+        "title": "Cappy: WhatsApp Status"
+      }
+    ],
     "viewsContainers": {
       "activitybar": []
     },
@@ -408,12 +417,15 @@
   },
   "dependencies": {
     "@langchain/core": "^0.3.78",
-    "@langchain/langgraph": "^0.4.9"
+    "@langchain/langgraph": "^0.4.9",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
     "@types/node": "^24.9.1",
     "@types/vscode": "^1.105.0",
+    "@types/ws": "^8.18.1",
     "@vitest/ui": "^3.2.4",
     "@vscode/vsce": "^3.6.2",
     "eslint": "^9.36.0",
