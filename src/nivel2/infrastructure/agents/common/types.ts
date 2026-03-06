@@ -35,7 +35,7 @@ export interface AgentResult<T = unknown> {
  * Progress callback for reporting status
  * Can be either a simple string message or a detailed progress event
  */
-export type ProgressCallback = (message: string | import('../types/progress-events').AgentProgressEvent) => void;
+export type ProgressCallback = (message: string) => void;
 
 /**
  * Planning phase types - simplified to conversational only

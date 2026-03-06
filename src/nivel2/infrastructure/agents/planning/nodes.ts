@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import type { PlanningState, TaskPlan, ScopeQuestion } from './state';
-import { LLMSelector } from '../../services/llm-selector';
+import { LLMSelector } from '../../llm-selector';
 
 // ============================================================================
 // Helper Functions

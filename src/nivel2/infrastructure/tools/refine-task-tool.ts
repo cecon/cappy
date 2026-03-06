@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { LLMSelector } from '../services/llm-selector';
+import { LLMSelector } from '../llm-selector';
 
 export interface RefineTaskInput {
   taskFile?: string;

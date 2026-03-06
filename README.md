@@ -1,181 +1,123 @@
 # Cappy 🦫
 
-**Simple AI Chat Assistant for VS Code**
+**Your AI dev companion — in VS Code and on WhatsApp.**
 
-A straightforward chat assistant that helps you code, manage todos, and search your codebase. No complexity, no magic—just a helpful AI companion.
+Cappy is a VS Code extension that acts as your AI planning assistant. It helps you break down tasks, analyze codebases, and create structured task files — all through natural conversation with `@cappy`.
+
+**Coming soon:** WhatsApp bridge — monitor your projects, authorize AI actions, and get notifications directly on your phone. No app to install, just chat.
 
 [![VSCode Marketplace](https://img.shields.io/visual-studio-marketplace/v/eduardocecon.cappy)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/eduardocecon.cappy)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
 
 ---
 
-## Why Cappy?
+## What Cappy Does Today
 
-- ✅ **Simple**: Just chat. No setup, no configuration hell.
-- ✅ **Smart**: Uses Claude Sonnet 4.5, GPT-4o, or GPT-4 automatically.
-- ✅ **Integrated**: Built-in todo list management.
-- ✅ **Fast**: Instant activation, zero background processing.
-- ✅ **Lightweight**: ~2 MB, minimal memory footprint.
+### 💬 AI Planning Agent (`@cappy`)
 
----
-
-## Features
-
-### 💬 Chat with @cappy
-
-Ask questions, get help, discuss code:
+Ask questions, plan tasks, analyze code — Cappy creates structured task files to guide implementation:
 
 ```
-@cappy explain how authentication works in this codebase
-@cappy help me fix this bug in src/auth.ts
-@cappy refactor this function to be more readable
+@cappy implement JWT authentication with refresh tokens
+@cappy refactor the payment module to use the strategy pattern
+@cappy help me fix the flaky tests in src/auth/
 ```
 
-### ✅ Todo Management
+### 🛠️ Built-in Tools
 
-Keep track of tasks without leaving VS Code:
+| Tool | Description |
+|------|-------------|
+| `grep_search` | Search text across workspace files |
+| `read_file` | Read file contents with line ranges |
+| `fetch_web` | Fetch content from web URLs |
+| `create_task_file` | Create structured XML task files |
+| `check_task_file` | Verify if a task file exists |
+| `refine_task` | Improve task files with LLM |
+| `run_terminal_command` | Execute shell commands in workspace |
+| `create_todo` | Create todo items |
+| `list_todos` / `complete_todo` | Manage todo list |
 
-```
-@cappy create a todo to implement JWT refresh token
-@cappy show my todos
-@cappy complete todo abc123
-```
-
-### 🔍 Code Search
-
-Search and read files intelligently:
-
-```
-@cappy search for "database" in TypeScript files
-@cappy read src/main.ts and explain what it does
-```
-
----
-
-## Installation
-
-### From VS Code Marketplace
-
-1. Open VS Code
-2. Go to Extensions (Cmd+Shift+X / Ctrl+Shift+X)
-3. Search for "Cappy"
-4. Click Install
-
-### From VSIX
-
-```bash
-# Download latest release
-# Then install:
-code --install-extension cappy-*.vsix --force
-```
-
-### From Source
-
-```bash
-git clone https://github.com/cecon/cappy
-cd cappy
-npm install
-npm run build
-npm run package
-code --install-extension cappy-*.vsix --force
-```
-
----
-
-## Usage
-
-### Quick Start
-
-1. Open any workspace in VS Code
-2. Open chat panel (Cmd+I / Ctrl+I)
-3. Type `@cappy` followed by your question
-4. That's it! 🎉
-
-### Examples
-
-**General Chat:**
-```
-@cappy what does this file do?
-@cappy how can I improve this code?
-@cappy explain TypeScript generics
-```
-
-**Todo Management:**
-```
-@cappy create todo: Review PR #123
-@cappy list all my todos
-@cappy mark todo xyz as complete
-```
-
-**Code Search:**
-```
-@cappy find all uses of "fetchUser"
-@cappy show me the authentication logic
-@cappy read the config file
-```
-
----
-
-## Configuration
-
-Configure your preferred LLM model:
+### ⚙️ LLM Configuration
 
 ```json
-// settings.json
 {
-  "cappy.llm.preferredModel": "auto" // or "claude-sonnet", "gpt-4o", "gpt-4"
+  "cappy.llm.preferredModel": "auto"
 }
 ```
 
-**Options:**
-- `auto` - Automatically selects best available model (recommended)
-- `claude-sonnet` - Claude Sonnet 4.5 (if available)
-- `gpt-4o` - GPT-4 Omni
-- `gpt-4` - GPT-4
+Options: `auto` (recommended), `claude-sonnet`, `gpt-4o`, `gpt-4`
 
 ---
 
-## Tools Available
+## 🗺️ Roadmap — What's Coming
 
-Cappy has access to these tools:
+### Phase 1: WhatsApp Bridge 📱
+> Talk to your VS Code from anywhere via WhatsApp
 
-1. **grep_search** - Search text across files
-2. **read_file** - Read file contents
-3. **create_task_file** - Create XML task files
-4. **create_todo** - Create new todo items
-5. **list_todos** - List all todos
-6. **complete_todo** - Mark todos as complete
+- Send commands to your IDE from your phone
+- Receive build/test notifications
+- Authorize AI actions remotely (human-in-the-loop)
+- Multi-project support (work across 3-4 projects simultaneously)
 
-Cappy uses these automatically when needed—you don't need to invoke them manually.
+```
+You: @erp run the tests
+🦫 Cappy [erp-dsl]: 🧪 47 passing | ❌ 2 failing
+
+You: @mobile what's the build status?
+🦫 Cappy [mobile-app]: ✅ Build passing
+```
+
+### Phase 2: Code Health Score 🏥
+> Know your project's health at a glance
+
+- Score your codebase (0-100) across multiple dimensions
+- Track file size, test coverage, lint, complexity, documentation
+- Historical trends — is the project getting better or worse?
+- Customizable rules per project (`.cappy/rules.yml`)
+
+```
+🦫 Cappy: Project Health: 71/100
+├── File Size:    58/100  🔴 12 files > 300 lines
+├── Coverage:     45/100  🔴 Only 23% covered
+├── Lint:         81/100  ⚡ 47 warnings
+└── Complexity:   69/100  ⚡ 8 functions > 10 cyclomatic
+```
+
+### Phase 3: Task Automation 🤖
+> Cronjobs, daily digests, and proactive monitoring
+
+- Scheduled health checks
+- GitHub/Jira integration via MCP
+- Daily digest messages on WhatsApp
+- PR notifications and review tracking
 
 ---
 
 ## Architecture
 
-Simple and clean:
-
 ```
-Cappy
-├── Chat (@cappy)
-│   └── Uses best LLM automatically
-├── Tools (6 total)
-│   ├── grep_search
-│   ├── read_file
-│   ├── create_task_file
-│   └── Todo System (3 tools)
-└── Todo Repository (in-memory)
+src/
+├── extension.ts                            # Entry point
+├── domains/todo/                           # Todo domain
+│   ├── types.ts
+│   └── repositories/todo-repository.ts
+├── nivel1/adapters/vscode/bootstrap/       # VS Code bootstrap
+│   ├── ExtensionBootstrap.ts
+│   └── LanguageModelToolsBootstrap.ts
+├── nivel2/infrastructure/
+│   ├── llm-selector.ts                     # LLM model selection
+│   ├── agents/                             # Planning agent (LangGraph)
+│   │   ├── index.ts                        # IntelligentAgent
+│   │   ├── common/                         # Shared types & state
+│   │   └── planning/                       # Planning workflow
+│   └── tools/                              # VS Code Language Model Tools
+│       ├── grep-search-tool.ts
+│       ├── read-file-tool.ts
+│       ├── create-task-tool.ts
+│       ├── terminal-command-tool.ts
+│       └── todo/
+└── shared/                                 # Constants, errors, utils
 ```
-
-See [SIMPLIFIED_ARCHITECTURE.md](SIMPLIFIED_ARCHITECTURE.md) for details.
-
----
-
-## Performance
-
-- **Activation**: < 1 second ⚡
-- **Memory**: 50-100 MB 📉
-- **Storage**: < 1 MB
-- **Background CPU**: Zero 🔋
 
 ---
 
@@ -184,104 +126,15 @@ See [SIMPLIFIED_ARCHITECTURE.md](SIMPLIFIED_ARCHITECTURE.md) for details.
 ### Prerequisites
 
 - Node.js 18+
-- npm 9+
 - VS Code 1.105.0+
 
 ### Setup
 
 ```bash
-# Install dependencies
 npm install
-
-# Build webview
-npm run build
-
-# Compile extension
-npm run compile-extension
-
-# Run tests
-npm test
-
-# Package
-npm run package
-```
-
-### Project Structure
-
-```
-cappy/
-├── src/
-│   ├── extension.ts                    # Entry point
-│   ├── domains/todo/                   # Todo domain
-│   ├── nivel1/adapters/vscode/         # VS Code adapters
-│   └── nivel2/infrastructure/          # Tools & services
-├── docs/                               # Documentation
-├── test/                               # Tests
-└── package.json                        # Extension manifest
-```
-
----
-
-## Migration from v3.1.2
-
-If you're upgrading from the previous RAG-based version, see [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
-
-**TL;DR:** We removed all the complexity (RAG, vector stores, graph databases) and kept only what works: simple chat + todos.
-
----
-
-## FAQ
-
-### Why was it simplified?
-
-The previous version had a complex RAG system (vector stores, graph databases, hybrid retriever) that added more complexity than value. The new version is faster, more reliable, and easier to maintain.
-
-### Are todos persistent?
-
-Currently, todos are stored in memory and cleared on reload. Persistence can be added in a future version if needed.
-
-### Can I use my own LLM?
-
-Cappy uses VS Code's Language Model API, which supports GitHub Copilot models. To use other models, you'd need to modify the source code.
-
-### Does it work in Cursor?
-
-Yes! Cappy is compatible with Cursor (VS Code fork). Just install as you would any VS Code extension.
-
-### Is it free?
-
-The extension is free and open-source. However, you need access to LLM models (Claude, GPT) through GitHub Copilot or similar services.
-
----
-
-## Roadmap
-
-- [ ] Persistent todo storage (JSON/SQLite)
-- [ ] Todo categories and filters
-- [ ] Export/import todos
-- [ ] Better LLM configuration options
-- [ ] Custom tool registration API
-- [ ] Workspace-specific settings
-
----
-
-## Contributing
-
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-```bash
-# Fork the repo
-# Create a feature branch
-git checkout -b feature/amazing-feature
-
-# Make your changes
-# Commit
-git commit -m 'Add amazing feature'
-
-# Push
-git push origin feature/amazing-feature
-
-# Open a PR
+npm run compile-extension    # Compile TypeScript
+npm test                     # Run tests
+npm run package              # Build .vsix
 ```
 
 ---
@@ -289,35 +142,17 @@ git push origin feature/amazing-feature
 ## Tech Stack
 
 - **Language**: TypeScript
-- **Runtime**: Node.js
 - **Platform**: VS Code Extension API
-- **LLM**: VS Code Language Model API
-- **UI**: VS Code Chat Participant API
-- **Build**: Vite, TSC
+- **LLM**: VS Code Language Model API + LangGraph
+- **Build**: TSC
+- **Tests**: Vitest
 
 ---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE)
 
 ---
 
-## Credits
-
-Created by [Eduardo Cecon](https://github.com/cecon)
-
-Inspired by the need for simple, effective AI tooling without unnecessary complexity.
-
----
-
-## Support
-
-- 🐛 [Report a bug](https://github.com/cecon/cappy/issues)
-- 💡 [Request a feature](https://github.com/cecon/cappy/issues)
-- 📖 [Read the docs](https://github.com/cecon/cappy/tree/main/docs)
-- 💬 [Ask a question](https://github.com/cecon/cappy/discussions)
-
----
-
-**Remember:** Simplicity is the ultimate sophistication. 🦫
+Created by [Eduardo Cecon](https://github.com/cecon) 🦫

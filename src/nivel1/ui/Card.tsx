@@ -1,1 +1,0 @@
-export { Card, CardHeader, CardTitle, CardContent } from './primitives/Card';
