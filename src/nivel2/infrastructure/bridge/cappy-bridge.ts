@@ -499,39 +499,59 @@ export class CappyBridge {
    * Relay a message to the IDE's official chat.
    * Saves the pending message and opens the chat with a pre-filled query.
    * The AI assistant follows the whatsapp-reply workflow and calls cappy.whatsapp.reply.
+   * 
+   * Tries multiple approaches for cross-IDE compatibility:
+   * 1. antigravity.sendTextToChat (Antigravity IDE native command)
+   * 2. workbench.action.chat.open with isPartialQuery: false (VS Code)
+   * 3. Fallback to terminal relay
    */
   private async relayToChatIDE(text: string, chatId?: string): Promise<string> {
+    // Save pending message for the reply command
+    this.pendingChatId = chatId || null;
+    this.pendingMessageText = text;
+
+    // Save to inbox file for persistence
+    const inboxDir = path.join(this.workspaceRoot, '.cappy', 'whatsapp-inbox');
+    if (!fs.existsSync(inboxDir)) {
+      fs.mkdirSync(inboxDir, { recursive: true });
+    }
+
+    const msgFile = path.join(inboxDir, `${Date.now()}.json`);
+    fs.writeFileSync(msgFile, JSON.stringify({
+      text,
+      chatId: chatId || null,
+      timestamp: Date.now(),
+      project: this.projectName,
+    }, null, 2));
+
+    const query = `/whatsapp-reply [WhatsApp de ${this.projectName}]: ${text}`;
+
+    // Strategy 1: Antigravity IDE native command
+    // antigravity.sendTextToChat(boolean, query)
+    // - true = sends as @mention style in the chat
+    // - query = the text to send
     try {
-      // Save pending message for the reply command
-      this.pendingChatId = chatId || null;
-      this.pendingMessageText = text;
-
-      // Save to inbox file for persistence
-      const inboxDir = path.join(this.workspaceRoot, '.cappy', 'whatsapp-inbox');
-      if (!fs.existsSync(inboxDir)) {
-        fs.mkdirSync(inboxDir, { recursive: true });
-      }
-
-      const msgFile = path.join(inboxDir, `${Date.now()}.json`);
-      fs.writeFileSync(msgFile, JSON.stringify({
-        text,
-        chatId: chatId || null,
-        timestamp: Date.now(),
-        project: this.projectName,
-      }, null, 2));
-
-      // Open the IDE chat with a pre-filled query referencing the workflow
-      const query = `@cappy [WhatsApp de ${this.projectName}]: ${text}`;
-      await vscode.commands.executeCommand('workbench.action.chat.open', { query });
-
+      await vscode.commands.executeCommand('antigravity.sendTextToChat', true, query);
+      console.log('🦫 [Bridge] Chat relay via antigravity.sendTextToChat — success');
       return `📨 Mensagem encaminhada ao chat do IDE.\n"${text}"\n\n_Aguardando resposta do AI..._`;
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.error('🦫 [Bridge] Chat IDE relay error:', errMsg);
-      // Fallback to terminal relay
-      console.log('🦫 [Bridge] Falling back to terminal relay...');
-      return this.relayToTerminal(text);
+      console.log('🦫 [Bridge] antigravity.sendTextToChat not available, trying VS Code chat.open...');
     }
+
+    // Strategy 2: VS Code chat.open with auto-submit
+    try {
+      await vscode.commands.executeCommand('workbench.action.chat.open', {
+        query,
+        isPartialQuery: false,
+      });
+      console.log('🦫 [Bridge] Chat relay via chat.open (auto-submit) — success');
+      return `📨 Mensagem encaminhada ao chat do IDE.\n"${text}"\n\n_Aguardando resposta do AI..._`;
+    } catch (err) {
+      console.log('🦫 [Bridge] chat.open failed, falling back to terminal relay...');
+    }
+
+    // Strategy 3: Fallback to terminal relay
+    return this.relayToTerminal(text);
   }
 
   /**
