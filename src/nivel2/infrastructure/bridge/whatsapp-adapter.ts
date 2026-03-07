@@ -64,9 +64,9 @@ export class WhatsAppAdapter {
     try {
       const result = await fetchLatestBaileysVersion();
       version = result.version as [number, number, number];
-      console.log('🦫 [WhatsApp] WA version:', version);
+      console.log('[WhatsApp] WA version:', version);
     } catch {
-      console.log('🦫 [WhatsApp] Using default version');
+      console.log('[WhatsApp] Using default version');
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(fullAuthDir);
@@ -96,15 +96,15 @@ export class WhatsAppAdapter {
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
         this.retryCount++;
-        console.log(`🦫 [WhatsApp] Connection closed (attempt ${this.retryCount}/${this.maxRetries}). Reconnect: ${shouldReconnect}`);
+        console.log(`[WhatsApp] Connection closed (attempt ${this.retryCount}/${this.maxRetries}). Reconnect: ${shouldReconnect}`);
         this.setStatus('disconnected');
 
         if (shouldReconnect && this.retryCount < this.maxRetries) {
           const delay = Math.min(3000 * Math.pow(2, this.retryCount - 1), 60000);
-          console.log(`🦫 [WhatsApp] Retrying in ${delay / 1000}s...`);
+          console.log(`[WhatsApp] Retrying in ${delay / 1000}s...`);
           setTimeout(() => this.connect(workspaceRoot), delay);
         } else if (this.retryCount >= this.maxRetries) {
-          console.error('🦫 [WhatsApp] Max retries reached. Use "Cappy: Connect WhatsApp" to try again.');
+          console.error('[WhatsApp] Max retries reached. Use "Cappy: Connect WhatsApp" to try again.');
           this.retryCount = 0;
         }
       }
@@ -113,7 +113,7 @@ export class WhatsAppAdapter {
         // Store our own JID for self-chat filtering
         this.retryCount = 0;
         this.ownJid = sock.user?.id || null;
-        console.log(`🦫 [WhatsApp] Connected! Own JID: ${this.ownJid}`);
+        console.log(`[WhatsApp] Connected! Own JID: ${this.ownJid}`);
         this.setStatus('connected');
       }
     });
@@ -142,7 +142,7 @@ export class WhatsAppAdapter {
           continue;
         }
 
-        console.log(`🦫 [WhatsApp] Message from ${pushName}: ${text}`);
+        console.log(`[WhatsApp] Message from ${pushName}: ${text}`);
         this.events.onMessage(text, chatId, pushName);
       }
     });
@@ -203,7 +203,7 @@ export class WhatsAppAdapter {
    */
   async sendMessage(chatId: string, text: string): Promise<void> {
     if (!this.socket || this.status !== 'connected') {
-      console.warn('🦫 [WhatsApp] Cannot send — not connected');
+      console.warn('[WhatsApp] Cannot send — not connected');
       return;
     }
 
@@ -219,7 +219,7 @@ export class WhatsAppAdapter {
       this.socket = null;
     }
     this.setStatus('disconnected');
-    console.log('🦫 [WhatsApp] Disconnected');
+    console.log('[WhatsApp] Disconnected');
   }
 
   /**

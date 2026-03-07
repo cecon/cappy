@@ -23,7 +23,7 @@ export class ExtensionBootstrap {
    */
   async activate(context: vscode.ExtensionContext): Promise<void> {
     console.log('🚩 [Extension] Cappy activation starting...');
-    console.log('🦫 Cappy extension is now active!');
+    console.log('Cappy extension is now active!');
 
     // Phase 1: Register Language Model Tools
     const lmToolsBootstrap = new LanguageModelToolsBootstrap();
@@ -73,7 +73,7 @@ export class ExtensionBootstrap {
   private async startBridge(context: vscode.ExtensionContext): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
-      console.log('🦫 [Bridge] No workspace folder — bridge not started');
+      console.log('[Bridge] No workspace folder — bridge not started');
       return;
     }
 
@@ -96,7 +96,7 @@ export class ExtensionBootstrap {
           });
           this.webviewProvider?.updateQRCode(dataUri);
         } catch (err) {
-          console.error('🦫 [Bridge] QR code generation failed:', err);
+          console.error('[Bridge] QR code generation failed:', err);
           // Fallback: send raw text
           this.webviewProvider?.updateQRCode(qr);
         }
@@ -116,9 +116,9 @@ export class ExtensionBootstrap {
 
     try {
       await this.bridge.start();
-      console.log(`🦫 [Bridge] Started for project: ${projectName}`);
+      console.log(`[Bridge] Started for project: ${projectName}`);
     } catch (err) {
-      console.error('🦫 [Bridge] Failed to start:', err);
+      console.error('[Bridge] Failed to start:', err);
     }
   }
 
@@ -130,7 +130,7 @@ export class ExtensionBootstrap {
     context.subscriptions.push(
       vscode.commands.registerCommand('cappy.whatsapp.connect', async () => {
         if (!this.bridge) {
-          vscode.window.showWarningMessage('🦫 Cappy: Bridge not running. Open a workspace first.');
+          vscode.window.showWarningMessage('Cappy: Bridge not running. Open a workspace first.');
           return;
         }
         await this.bridge.connectWhatsApp();
@@ -141,12 +141,12 @@ export class ExtensionBootstrap {
     context.subscriptions.push(
       vscode.commands.registerCommand('cappy.whatsapp.status', () => {
         if (!this.bridge) {
-          vscode.window.showInformationMessage('🦫 Cappy: Bridge not running.');
+          vscode.window.showInformationMessage('Cappy: Bridge not running.');
           return;
         }
         const status = this.bridge.getStatus();
         vscode.window.showInformationMessage(
-          `🦫 Cappy Bridge\n` +
+          `Cappy Bridge\n` +
           `Role: ${status.role?.toUpperCase()}\n` +
           `WhatsApp: ${status.whatsapp}\n` +
           `Projects: ${status.projects.join(', ')}`
@@ -158,14 +158,14 @@ export class ExtensionBootstrap {
     context.subscriptions.push(
       vscode.commands.registerCommand('cappy.whatsapp.reply', async (text?: string) => {
         if (!this.bridge) {
-          vscode.window.showWarningMessage('🦫 Cappy: Bridge not running.');
+          vscode.window.showWarningMessage('Cappy: Bridge not running.');
           return;
         }
 
         // If no text provided, ask for input
         if (!text) {
           text = await vscode.window.showInputBox({
-            prompt: '🦫 Resposta para WhatsApp',
+            prompt: 'Resposta para WhatsApp',
             placeHolder: 'Digite a resposta...',
           });
         }
@@ -174,9 +174,9 @@ export class ExtensionBootstrap {
 
         const sent = this.bridge.sendWhatsAppReply(text);
         if (sent) {
-          vscode.window.showInformationMessage(`🦫 Cappy: Resposta enviada ao WhatsApp!`);
+          vscode.window.showInformationMessage(`Cappy: Resposta enviada ao WhatsApp!`);
         } else {
-          vscode.window.showWarningMessage('🦫 Cappy: Nenhuma mensagem pendente do WhatsApp.');
+          vscode.window.showWarningMessage('Cappy: Nenhuma mensagem pendente do WhatsApp.');
         }
       })
     );

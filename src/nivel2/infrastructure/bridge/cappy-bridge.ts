@@ -96,7 +96,7 @@ export class CappyBridge {
       // Try to become the server
       await this.startAsServer();
       this.role = 'server';
-      console.log(`🦫 [Bridge] Started as SERVER on port ${this.config.port}`);
+      console.log(`[Bridge] Started as SERVER on port ${this.config.port}`);
       this.updateStatusBar();
 
       // Register our own project
@@ -107,7 +107,7 @@ export class CappyBridge {
     } catch {
       // Port already in use — become a client
       this.role = 'client';
-      console.log(`🦫 [Bridge] Port ${this.config.port} in use — connecting as CLIENT`);
+      console.log(`[Bridge] Port ${this.config.port} in use — connecting as CLIENT`);
       await this.startAsClient();
       this.updateStatusBar();
     }
@@ -119,24 +119,24 @@ export class CappyBridge {
   async connectWhatsApp(): Promise<void> {
     if (this.role !== 'server') {
       vscode.window.showWarningMessage(
-        '🦫 Cappy: WhatsApp can only be connected from the server instance. ' +
+        'Cappy: WhatsApp can only be connected from the server instance. ' +
         'This VS Code is running as a client.'
       );
       return;
     }
 
     if (!this.whatsapp) {
-      vscode.window.showErrorMessage('🦫 Cappy: Bridge not initialized');
+      vscode.window.showErrorMessage('Cappy: Bridge not initialized');
       return;
     }
 
     try {
-      vscode.window.showInformationMessage('🦫 Cappy: Connecting to WhatsApp...');
+      vscode.window.showInformationMessage('Cappy: Connecting to WhatsApp...');
       await this.whatsapp.connect(this.workspaceRoot);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error('🦫 [Bridge] WhatsApp connect error:', err);
-      vscode.window.showErrorMessage(`🦫 Cappy: WhatsApp connection failed — ${errMsg}`);
+      console.error('[Bridge] WhatsApp connect error:', err);
+      vscode.window.showErrorMessage(`Cappy: WhatsApp connection failed — ${errMsg}`);
     }
   }
 
@@ -149,15 +149,15 @@ export class CappyBridge {
     const credsFile = path.join(authPath, 'creds.json');
 
     if (fs.existsSync(credsFile)) {
-      console.log('🦫 [Bridge] Found saved WhatsApp credentials — auto-connecting...');
+      console.log('[Bridge] Found saved WhatsApp credentials — auto-connecting...');
       try {
         await this.whatsapp?.connect(this.workspaceRoot);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        console.error('🦫 [Bridge] Auto-connect failed:', errMsg);
+        console.error('[Bridge] Auto-connect failed:', errMsg);
       }
     } else {
-      console.log('🦫 [Bridge] No saved credentials — use "Cappy: Connect WhatsApp" to scan QR code.');
+      console.log('[Bridge] No saved credentials — use "Cappy: Connect WhatsApp" to scan QR code.');
     }
   }
 
@@ -198,7 +198,7 @@ export class CappyBridge {
 
     this.statusBarItem?.dispose();
     this.role = null;
-    console.log('🦫 [Bridge] Stopped');
+    console.log('[Bridge] Stopped');
   }
 
   // ─── SERVER MODE ──────────────────────────────────────────────────
@@ -243,14 +243,14 @@ export class CappyBridge {
 
   private setupServerConnections(): void {
     this.wss!.on('connection', (socket) => {
-      console.log('🦫 [Bridge] New client connected');
+      console.log('[Bridge] New client connected');
 
       socket.on('message', (data) => {
         try {
           const msg: BridgeMessage = JSON.parse(data.toString());
           this.handleClientMessage(socket, msg);
         } catch (err) {
-          console.error('🦫 [Bridge] Invalid message from client:', err);
+          console.error('[Bridge] Invalid message from client:', err);
         }
       });
 
@@ -260,7 +260,7 @@ export class CappyBridge {
           if (s === socket) {
             this.router?.unregisterProject(name);
             this.clientSockets.delete(name);
-            console.log(`🦫 [Bridge] Client disconnected: ${name}`);
+            console.log(`[Bridge] Client disconnected: ${name}`);
             break;
           }
         }
@@ -280,7 +280,7 @@ export class CappyBridge {
       case 'response':
         // Client sent a response — forward to WhatsApp
         if (msg.chatId && msg.text) {
-          this.whatsapp?.sendMessage(msg.chatId, `🦫 [${msg.project}]\n${msg.text}`);
+          this.whatsapp?.sendMessage(msg.chatId, `*Cappy*\n${msg.text}`);
         }
         break;
     }
@@ -322,7 +322,7 @@ export class CappyBridge {
         } else {
           this.whatsapp?.sendMessage(
             chatId,
-            `🦫 Projeto "${targetProject}" não está conectado.\nDigite /projetos para ver os disponíveis.`
+            `*Cappy* Projeto "${targetProject}" não está conectado.\nDigite /projetos para ver os disponíveis.`
           );
         }
         break;
@@ -331,7 +331,7 @@ export class CappyBridge {
       case 'error':
         this.whatsapp?.sendMessage(
           chatId,
-          '🦫 Nenhum projeto conectado.\nAbra o VS Code com a extensão Cappy instalada.'
+          '*Cappy* Nenhum projeto conectado.\nAbra o VS Code com a extensão Cappy instalada.'
         );
         break;
     }
@@ -350,7 +350,7 @@ export class CappyBridge {
     }
 
     const response = await this.processMessage(text, chatId);
-    this.whatsapp?.sendMessage(chatId, `🦫 [${this.projectName}]\n${response}`);
+    this.whatsapp?.sendMessage(chatId, `*Cappy*\n${response}`);
 
     // Emit outgoing message to webview
     this.messageCallback?.('Cappy', response, 'out');
@@ -372,7 +372,7 @@ export class CappyBridge {
           timestamp: Date.now(),
         };
         this.clientSocket!.send(JSON.stringify(registerMsg));
-        console.log(`🦫 [Bridge] Registered as client: ${this.projectName}`);
+        console.log(`[Bridge] Registered as client: ${this.projectName}`);
         resolve();
       });
 
@@ -381,18 +381,18 @@ export class CappyBridge {
           const msg: BridgeMessage = JSON.parse(data.toString());
           this.handleServerMessage(msg);
         } catch (err) {
-          console.error('🦫 [Bridge] Invalid message from server:', err);
+          console.error('[Bridge] Invalid message from server:', err);
         }
       });
 
       this.clientSocket.on('close', () => {
-        console.log('🦫 [Bridge] Disconnected from server');
+        console.log('[Bridge] Disconnected from server');
         this.clientSocket = null;
         this.updateStatusBar();
       });
 
       this.clientSocket.on('error', (err) => {
-        console.error('🦫 [Bridge] Client connection error:', err);
+        console.error('[Bridge] Client connection error:', err);
         reject(err);
       });
     });
@@ -475,9 +475,9 @@ export class CappyBridge {
       // Create or reuse the relay terminal
       if (!this.relayTerminal || this.relayTerminal.exitStatus !== undefined) {
         this.relayTerminal = vscode.window.createTerminal({
-          name: '🦫 Cappy Relay',
+          name: 'Cappy Relay',
           cwd: this.workspaceRoot,
-          message: '🦫 Cappy WhatsApp Relay — messages from WhatsApp appear here',
+          message: 'Cappy WhatsApp Relay — messages from WhatsApp appear here',
         });
       }
 
@@ -486,7 +486,7 @@ export class CappyBridge {
 
       // Write the message as a prompt comment + the actual message
       // This makes it visible to any AI assistant monitoring the terminal
-      this.relayTerminal.sendText(`# 🦫 WhatsApp [${this.projectName}]: ${text}`, true);
+      this.relayTerminal.sendText(`# WhatsApp [${this.projectName}]: ${text}`, true);
 
       return `📨 Mensagem enviada ao terminal "Cappy Relay":\n"${text}"\n\n_O AI assistant ativo no VS Code pode processar._`;
     } catch (err) {
@@ -532,10 +532,10 @@ export class CappyBridge {
     // - query = the text to send
     try {
       await vscode.commands.executeCommand('antigravity.sendTextToChat', true, query);
-      console.log('🦫 [Bridge] Chat relay via antigravity.sendTextToChat — success');
+      console.log('[Bridge] Chat relay via antigravity.sendTextToChat — success');
       return `📨 Mensagem encaminhada ao chat do IDE.\n"${text}"\n\n_Aguardando resposta do AI..._`;
     } catch (err) {
-      console.log('🦫 [Bridge] antigravity.sendTextToChat not available, trying VS Code chat.open...');
+      console.log('[Bridge] antigravity.sendTextToChat not available, trying VS Code chat.open...');
     }
 
     // Strategy 2: VS Code chat.open with auto-submit
@@ -544,10 +544,10 @@ export class CappyBridge {
         query,
         isPartialQuery: false,
       });
-      console.log('🦫 [Bridge] Chat relay via chat.open (auto-submit) — success');
+      console.log('[Bridge] Chat relay via chat.open (auto-submit) — success');
       return `📨 Mensagem encaminhada ao chat do IDE.\n"${text}"\n\n_Aguardando resposta do AI..._`;
     } catch (err) {
-      console.log('🦫 [Bridge] chat.open failed, falling back to terminal relay...');
+      console.log('[Bridge] chat.open failed, falling back to terminal relay...');
     }
 
     // Strategy 3: Fallback to terminal relay
@@ -560,12 +560,12 @@ export class CappyBridge {
    */
   sendWhatsAppReply(text: string): boolean {
     if (!this.pendingChatId) {
-      console.warn('🦫 [Bridge] No pending WhatsApp message to reply to');
+      console.warn('[Bridge] No pending WhatsApp message to reply to');
       return false;
     }
 
     const chatId = this.pendingChatId;
-    this.whatsapp?.sendMessage(chatId, `🦫 [${this.projectName}]\n${text}`);
+    this.whatsapp?.sendMessage(chatId, `*Cappy*\n${text}`);
 
     // Emit outgoing message to webview
     this.messageCallback?.('Cappy', text, 'out');
@@ -577,7 +577,7 @@ export class CappyBridge {
     // Clean up inbox files
     this.cleanInbox();
 
-    console.log('🦫 [Bridge] Reply sent to WhatsApp');
+    console.log('[Bridge] Reply sent to WhatsApp');
     return true;
   }
 
@@ -627,12 +627,12 @@ export class CappyBridge {
         : 'Processado, mas sem resposta.';
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error('🦫 [Bridge] Agent error:', errMsg);
+      console.error('[Bridge] Agent error:', errMsg);
 
       // Fallback to echo when no LLM is available
       if (errMsg.includes('No LLM available')) {
-        console.log('🦫 [Bridge] No LLM available — falling back to echo mode');
-        return `🦫 Echo: ${text}`;
+        console.log('[Bridge] No LLM available — falling back to echo mode');
+        return `*Cappy* Echo: ${text}`;
       }
 
       return `❌ Erro: ${errMsg}`;
@@ -643,9 +643,9 @@ export class CappyBridge {
    * Execute a terminal command and send output to WhatsApp
    */
   private async executeTerminalCommand(cmd: string, chatId: string): Promise<void> {
-    this.whatsapp?.sendMessage(chatId, `🦫 [${this.projectName}] Executando: \`${cmd}\`...`);
+    this.whatsapp?.sendMessage(chatId, `*Cappy* Executando: \`${cmd}\`...`);
     const output = await this.runTerminalCommand(cmd);
-    this.whatsapp?.sendMessage(chatId, `🦫 [${this.projectName}]\n${output}`);
+    this.whatsapp?.sendMessage(chatId, `*Cappy*\n${output}`);
   }
 
   /**
@@ -700,14 +700,14 @@ export class CappyBridge {
     if (!this.statusBarItem) return;
 
     if (!this.role) {
-      this.statusBarItem.text = '🦫 Cappy: Off';
+      this.statusBarItem.text = 'Cappy: Off';
       this.statusBarItem.tooltip = 'Cappy bridge is not running';
       return;
     }
 
     const roleIcon = this.role === 'server' ? '🖥️' : '📡';
     const waStatus = this.role === 'server' ? this.getWhatsAppIcon() : '';
-    this.statusBarItem.text = `🦫 ${roleIcon} ${waStatus}`.trim();
+    this.statusBarItem.text = `${roleIcon} ${waStatus}`.trim();
     this.statusBarItem.tooltip = `Cappy Bridge: ${this.role.toUpperCase()}\nWhatsApp: ${this.whatsappStatus}\nProject: ${this.projectName}`;
   }
 
@@ -724,7 +724,7 @@ export class CappyBridge {
     // Show QR code in VS Code output channel
     const outputChannel = vscode.window.createOutputChannel('Cappy WhatsApp');
     outputChannel.clear();
-    outputChannel.appendLine('🦫 Cappy WhatsApp — Scan the QR Code');
+    outputChannel.appendLine('Cappy WhatsApp — Scan the QR Code');
     outputChannel.appendLine('════════════════════════════════════');
     outputChannel.appendLine('');
     outputChannel.appendLine('Open WhatsApp on your phone:');
@@ -738,7 +738,7 @@ export class CappyBridge {
     outputChannel.show();
 
     vscode.window.showInformationMessage(
-      '🦫 Cappy: QR Code pronto! Abra o painel "Cappy WhatsApp" e escaneie com seu celular.'
+      'Cappy: QR Code pronto! Abra o painel "Cappy WhatsApp" e escaneie com seu celular.'
     );
   }
 }

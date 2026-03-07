@@ -30,7 +30,7 @@ export class MessageRouter {
       this.lastActiveProject = name.toLowerCase();
     }
 
-    console.log(`🦫 [Router] Project registered: ${name}`);
+    console.log(`[Router] Project registered: ${name}`);
   }
 
   /**
@@ -43,7 +43,7 @@ export class MessageRouter {
       this.lastActiveProject = this.projects.keys().next().value ?? null;
     }
 
-    console.log(`🦫 [Router] Project unregistered: ${name}`);
+    console.log(`[Router] Project unregistered: ${name}`);
   }
 
   /**
@@ -121,7 +121,7 @@ export class MessageRouter {
       case 'projetos':
       case 'projects': {
         if (this.projects.size === 0) {
-          return '🦫 Nenhum projeto conectado.';
+          return 'Nenhum projeto conectado.';
         }
         const lines = ['📂 *Projetos conectados:*', ''];
         let i = 1;
@@ -140,13 +140,13 @@ export class MessageRouter {
         const active = this.lastActiveProject
           ? this.projects.get(this.lastActiveProject)?.name || '?'
           : 'nenhum';
-        return `🦫 *Cappy Status*\n\n📂 Projetos: ${count}\n🎯 Ativo: ${active}`;
+        return `*Cappy Status*\n\n📂 Projetos: ${count}\n🎯 Ativo: ${active}`;
       }
 
       case 'help':
       case 'ajuda': {
         return [
-          '🦫 *Cappy - Comandos*',
+          '*Cappy - Comandos*',
           '',
           '`@projeto mensagem` — Envia pro projeto específico',
           '`/projetos` — Lista projetos conectados',
@@ -158,7 +158,7 @@ export class MessageRouter {
       }
 
       default:
-        return `🦫 Comando desconhecido: /${command}\nDigite /ajuda para ver os comandos.`;
+        return `Comando desconhecido: /${command}\nDigite /ajuda para ver os comandos.`;
     }
   }
 

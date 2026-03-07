@@ -78,7 +78,7 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [this.extensionUri],
     };
 
-    webviewView.webview.html = this.getHtmlContent();
+    webviewView.webview.html = this.getHtmlContent(webviewView.webview);
 
     // Handle messages from the webview
     webviewView.webview.onDidReceiveMessage((msg) => {
@@ -149,7 +149,11 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
   /**
    * Generate the HTML content for the webview
    */
-  private getHtmlContent(): string {
+  private getHtmlContent(webview: vscode.Webview): string {
+    const iconUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'src', 'assets', 'icon.png'),
+    );
+
     return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -404,8 +408,13 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
 
     .logo {
       text-align: center;
-      font-size: 24px;
       margin-bottom: 4px;
+    }
+
+    .logo img {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
     }
 
     @keyframes pulse {
@@ -417,7 +426,7 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
   </style>
 </head>
 <body>
-  <div class="logo">🦫</div>
+  <div class="logo"><img src="${iconUri}" alt="Cappy" /></div>
 
   <!-- WhatsApp Connection -->
   <div class="section">
