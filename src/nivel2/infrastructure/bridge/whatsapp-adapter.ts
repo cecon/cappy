@@ -33,6 +33,8 @@ export class WhatsAppAdapter {
   private authDir: string;
   private events: WhatsAppAdapterEvents;
   private ownJid: string | null = null;
+  private retryCount = 0;
+  private readonly maxRetries = 5;
 
   constructor(authDir: string, events: WhatsAppAdapterEvents) {
     this.authDir = authDir;
@@ -62,6 +64,8 @@ export class WhatsAppAdapter {
     this.socket = makeWASocket({
       auth: state,
       printQRInTerminal: false,
+      connectTimeoutMs: 30_000,
+      retryRequestDelayMs: 500,
     }) as unknown as WASocket;
 
     const sock = this.socket as any;
@@ -71,6 +75,7 @@ export class WhatsAppAdapter {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
+        this.retryCount = 0; // Reset on QR — connection is progressing
         this.setStatus('qr_ready');
         this.events.onQRCode(qr);
       }
@@ -79,16 +84,23 @@ export class WhatsAppAdapter {
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-        console.log('🦫 [WhatsApp] Connection closed. Reconnect:', shouldReconnect);
+        this.retryCount++;
+        console.log(`🦫 [WhatsApp] Connection closed (attempt ${this.retryCount}/${this.maxRetries}). Reconnect: ${shouldReconnect}`);
         this.setStatus('disconnected');
 
-        if (shouldReconnect) {
-          setTimeout(() => this.connect(workspaceRoot), 3000);
+        if (shouldReconnect && this.retryCount < this.maxRetries) {
+          const delay = Math.min(3000 * Math.pow(2, this.retryCount - 1), 60000);
+          console.log(`🦫 [WhatsApp] Retrying in ${delay / 1000}s...`);
+          setTimeout(() => this.connect(workspaceRoot), delay);
+        } else if (this.retryCount >= this.maxRetries) {
+          console.error('🦫 [WhatsApp] Max retries reached. Use "Cappy: Connect WhatsApp" to try again.');
+          this.retryCount = 0;
         }
       }
 
       if (connection === 'open') {
         // Store our own JID for self-chat filtering
+        this.retryCount = 0;
         this.ownJid = sock.user?.id || null;
         console.log(`🦫 [WhatsApp] Connected! Own JID: ${this.ownJid}`);
         this.setStatus('connected');
