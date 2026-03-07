@@ -2,7 +2,7 @@
   "name": "cappy",
   "displayName": "Cappy",
   "description": "AI planning assistant for VS Code — creates structured task plans through conversation. Future: WhatsApp bridge for remote dev workflows.",
-  "version": "3.1.10",
+  "version": "3.1.12",
   "publisher": "eduardocecon",
   "icon": "src/assets/icon.png",
   "repository": {
@@ -52,6 +52,10 @@
       {
         "command": "cappy.openDashboard",
         "title": "Cappy: Open Dashboard"
+      },
+      {
+        "command": "cappy.whatsapp.reply",
+        "title": "Cappy: Reply to WhatsApp"
       }
     ],
     "viewsContainers": {
@@ -472,11 +476,13 @@
     "@langchain/core": "^0.3.78",
     "@langchain/langgraph": "^0.4.9",
     "@whiskeysockets/baileys": "^6.7.21",
+    "qrcode": "^1.5.4",
     "ws": "^8.19.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
     "@types/node": "^24.9.1",
+    "@types/qrcode": "^1.5.6",
     "@types/vscode": "^1.105.0",
     "@types/ws": "^8.18.1",
     "@vitest/ui": "^3.2.4",

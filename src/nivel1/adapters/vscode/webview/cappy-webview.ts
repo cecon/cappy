@@ -54,6 +54,16 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Add a message to the chat log in the webview
+   */
+  addMessage(from: string, text: string, direction: 'in' | 'out'): void {
+    this.postMessage({
+      type: 'message',
+      data: { from, text, direction, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) },
+    });
+  }
+
+  /**
    * Called when the webview is resolved
    */
   resolveWebviewView(
@@ -249,11 +259,13 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
       gap: 8px;
     }
 
-    .qr-canvas {
+    .qr-img {
       background: white;
       padding: 8px;
       border-radius: 8px;
-      max-width: 200px;
+      max-width: 220px;
+      width: 100%;
+      image-rendering: pixelated;
     }
 
     .qr-hint {
@@ -331,6 +343,65 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
 
     .hidden { display: none !important; }
 
+    .chat-area {
+      max-height: 300px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 4px 0;
+    }
+
+    .chat-area:empty::after {
+      content: 'Nenhuma mensagem ainda...';
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      font-style: italic;
+      text-align: center;
+      padding: 12px;
+    }
+
+    .msg-bubble {
+      max-width: 85%;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .msg-in {
+      align-self: flex-start;
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-widget-border, transparent);
+      border-top-left-radius: 2px;
+    }
+
+    .msg-out {
+      align-self: flex-end;
+      background: rgba(76, 175, 80, 0.15);
+      border: 1px solid rgba(76, 175, 80, 0.25);
+      border-top-right-radius: 2px;
+    }
+
+    .msg-from {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 2px;
+    }
+
+    .msg-time {
+      font-size: 9px;
+      color: var(--vscode-descriptionForeground);
+      text-align: right;
+      margin-top: 2px;
+    }
+
+    .msg-text {
+      white-space: pre-wrap;
+    }
+
     .logo {
       text-align: center;
       font-size: 24px;
@@ -359,7 +430,7 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
 
     <div id="qr-area" class="hidden">
       <div class="qr-container">
-        <canvas id="qr-canvas" class="qr-canvas" width="200" height="200"></canvas>
+        <img id="qr-img" class="qr-img" alt="QR Code WhatsApp" />
         <div class="qr-hint">
           Abra o WhatsApp → Dispositivos Conectados → Conectar Dispositivo
         </div>
@@ -392,6 +463,15 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
       <span id="project-count">0</span>
     </div>
     <ul id="project-list" class="project-list"></ul>
+  </div>
+
+  <!-- Messages -->
+  <div class="section">
+    <div class="section-title">
+      💬 Mensagens
+      <span id="msg-count" style="font-size:10px;color:var(--vscode-descriptionForeground)"></span>
+    </div>
+    <div id="chat-area" class="chat-area"></div>
   </div>
 
   <!-- Settings -->
@@ -467,6 +547,10 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
         case 'settings':
           updateSettings(msg.data);
           break;
+
+        case 'message':
+          addMessage(msg.data);
+          break;
       }
     });
 
@@ -510,38 +594,13 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
       }
     }
 
-    function showQR(qrText) {
+    function showQR(dataUri) {
       document.getElementById('qr-area').classList.remove('hidden');
       setWAStatus('qr_ready');
 
-      // Draw QR code on canvas
-      const canvas = document.getElementById('qr-canvas');
-      drawQR(canvas, qrText);
-    }
-
-    function drawQR(canvas, text) {
-      // Simple QR-like visualization using the text data
-      // In production, use a proper QR library. For now, render text.
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, 200, 200);
-      ctx.fillStyle = 'black';
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'center';
-
-      // The QR string from Baileys is already encoded
-      // We'll render it as a grid pattern
-      const size = Math.ceil(Math.sqrt(text.length));
-      const cellSize = Math.floor(180 / size);
-      const offset = (200 - size * cellSize) / 2;
-
-      for (let i = 0; i < text.length; i++) {
-        const x = (i % size) * cellSize + offset;
-        const y = Math.floor(i / size) * cellSize + offset;
-        if (text.charCodeAt(i) % 2 === 0) {
-          ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
-        }
-      }
+      // Set the QR code image (data URI from Node.js qrcode lib)
+      const img = document.getElementById('qr-img');
+      img.src = dataUri;
     }
 
     function updateStatus(status) {
@@ -570,6 +629,32 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
       document.getElementById('setting-filter').value = settings.chatFilter;
       document.getElementById('setting-group').value = settings.allowedGroupName;
       document.getElementById('group-setting').classList.toggle('hidden', settings.chatFilter !== 'group');
+    }
+
+    let msgCount = 0;
+
+    function addMessage(data) {
+      const area = document.getElementById('chat-area');
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble msg-' + data.direction;
+
+      const arrow = data.direction === 'in' ? '📥' : '📤';
+      bubble.innerHTML =
+        '<div class="msg-from">' + arrow + ' ' + escapeHtml(data.from) + '</div>' +
+        '<div class="msg-text">' + escapeHtml(data.text) + '</div>' +
+        '<div class="msg-time">' + data.time + '</div>';
+
+      area.appendChild(bubble);
+      area.scrollTop = area.scrollHeight;
+
+      msgCount++;
+      document.getElementById('msg-count').textContent = '(' + msgCount + ')';
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
     }
   </script>
 </body>

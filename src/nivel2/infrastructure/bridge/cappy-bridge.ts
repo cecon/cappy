@@ -8,6 +8,8 @@
  * - If the server closes, the next VS Code that opens takes over
  */
 
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { WebSocketServer, WebSocket } from 'ws';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -47,9 +49,14 @@ export class CappyBridge {
   // Terminal relay
   private relayTerminal: vscode.Terminal | null = null;
 
+  // Pending WhatsApp message (waiting for IDE chat response)
+  private pendingChatId: string | null = null;
+  private pendingMessageText: string | null = null;
+
   // Event callbacks for WebView
   private qrCodeCallback: ((qr: string) => void) | null = null;
   private statusChangeCallback: ((status: { role: string | null; whatsapp: string; projects: string[] }) => void) | null = null;
+  private messageCallback: ((from: string, text: string, direction: 'in' | 'out') => void) | null = null;
 
   constructor(projectName: string, workspaceRoot: string, agent: IntelligentAgent, config?: Partial<BridgeConfig>) {
     this.projectName = projectName;
@@ -73,6 +80,13 @@ export class CappyBridge {
   }
 
   /**
+   * Register a callback for message events (used by WebView)
+   */
+  onMessage(callback: (from: string, text: string, direction: 'in' | 'out') => void): void {
+    this.messageCallback = callback;
+  }
+
+  /**
    * Start the bridge — auto-elects as server or client
    */
   async start(): Promise<void> {
@@ -87,6 +101,9 @@ export class CappyBridge {
 
       // Register our own project
       this.router!.registerProject(this.projectName, this.workspaceRoot);
+
+      // Auto-connect WhatsApp if credentials exist from a previous session
+      await this.autoConnectWhatsApp();
     } catch {
       // Port already in use — become a client
       this.role = 'client';
@@ -120,6 +137,27 @@ export class CappyBridge {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('🦫 [Bridge] WhatsApp connect error:', err);
       vscode.window.showErrorMessage(`🦫 Cappy: WhatsApp connection failed — ${errMsg}`);
+    }
+  }
+
+  /**
+   * Auto-connect to WhatsApp if saved credentials exist (from a previous session).
+   * This avoids requiring a new QR code scan every time the extension restarts.
+   */
+  private async autoConnectWhatsApp(): Promise<void> {
+    const authPath = path.join(this.workspaceRoot, this.config.authDir);
+    const credsFile = path.join(authPath, 'creds.json');
+
+    if (fs.existsSync(credsFile)) {
+      console.log('🦫 [Bridge] Found saved WhatsApp credentials — auto-connecting...');
+      try {
+        await this.whatsapp?.connect(this.workspaceRoot);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error('🦫 [Bridge] Auto-connect failed:', errMsg);
+      }
+    } else {
+      console.log('🦫 [Bridge] No saved credentials — use "Cappy: Connect WhatsApp" to scan QR code.');
     }
   }
 
@@ -249,6 +287,9 @@ export class CappyBridge {
   }
 
   private handleWhatsAppMessage(text: string, chatId: string, _pushName: string): void {
+    // Emit incoming message to webview
+    this.messageCallback?.(_pushName || 'WhatsApp', text, 'in');
+
     const parsed = this.router!.parseMessage(text);
 
     switch (parsed.type) {
@@ -308,8 +349,11 @@ export class CappyBridge {
       return;
     }
 
-    const response = await this.processMessage(text);
+    const response = await this.processMessage(text, chatId);
     this.whatsapp?.sendMessage(chatId, `🦫 [${this.projectName}]\n${response}`);
+
+    // Emit outgoing message to webview
+    this.messageCallback?.('Cappy', response, 'out');
   }
 
   // ─── CLIENT MODE ──────────────────────────────────────────────────
@@ -396,27 +440,25 @@ export class CappyBridge {
 
   /**
    * Process a message based on the configured bridge mode.
-   * - agent: use built-in IntelligentAgent
+   * - agent: use built-in IntelligentAgent (requires Copilot)
    * - terminal: relay to a VS Code terminal (works with Antigravity/Cursor/any AI)
-   * - auto: try terminal relay first, fall back to agent
+   * - auto: always relay to terminal (works with any AI assistant)
    */
-  private async processMessage(text: string): Promise<string> {
+  private async processMessage(text: string, chatId?: string): Promise<string> {
     const mode = this.getBridgeMode();
 
     switch (mode) {
-      case 'terminal':
-        return this.relayToTerminal(text);
-
       case 'agent':
         return this.runAgentAndGetResponse(text);
 
+      case 'terminal':
+        return this.relayToTerminal(text);
+
       case 'auto':
       default: {
-        // Auto: try terminal if there's an active Cappy relay terminal
-        if (this.relayTerminal) {
-          return this.relayToTerminal(text);
-        }
-        return this.runAgentAndGetResponse(text);
+        // Auto: relay to IDE chat — works with any AI assistant
+        // (Antigravity, Cursor, Copilot, etc.) without needing vscode.lm API
+        return this.relayToChatIDE(text, chatId);
       }
     }
   }
@@ -454,6 +496,94 @@ export class CappyBridge {
   }
 
   /**
+   * Relay a message to the IDE's official chat.
+   * Saves the pending message and opens the chat with a pre-filled query.
+   * The AI assistant follows the whatsapp-reply workflow and calls cappy.whatsapp.reply.
+   */
+  private async relayToChatIDE(text: string, chatId?: string): Promise<string> {
+    try {
+      // Save pending message for the reply command
+      this.pendingChatId = chatId || null;
+      this.pendingMessageText = text;
+
+      // Save to inbox file for persistence
+      const inboxDir = path.join(this.workspaceRoot, '.cappy', 'whatsapp-inbox');
+      if (!fs.existsSync(inboxDir)) {
+        fs.mkdirSync(inboxDir, { recursive: true });
+      }
+
+      const msgFile = path.join(inboxDir, `${Date.now()}.json`);
+      fs.writeFileSync(msgFile, JSON.stringify({
+        text,
+        chatId: chatId || null,
+        timestamp: Date.now(),
+        project: this.projectName,
+      }, null, 2));
+
+      // Open the IDE chat with a pre-filled query referencing the workflow
+      const query = `@cappy [WhatsApp de ${this.projectName}]: ${text}`;
+      await vscode.commands.executeCommand('workbench.action.chat.open', { query });
+
+      return `📨 Mensagem encaminhada ao chat do IDE.\n"${text}"\n\n_Aguardando resposta do AI..._`;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error('🦫 [Bridge] Chat IDE relay error:', errMsg);
+      // Fallback to terminal relay
+      console.log('🦫 [Bridge] Falling back to terminal relay...');
+      return this.relayToTerminal(text);
+    }
+  }
+
+  /**
+   * Send a reply back to WhatsApp for the pending message.
+   * Called by the cappy.whatsapp.reply command.
+   */
+  sendWhatsAppReply(text: string): boolean {
+    if (!this.pendingChatId) {
+      console.warn('🦫 [Bridge] No pending WhatsApp message to reply to');
+      return false;
+    }
+
+    const chatId = this.pendingChatId;
+    this.whatsapp?.sendMessage(chatId, `🦫 [${this.projectName}]\n${text}`);
+
+    // Emit outgoing message to webview
+    this.messageCallback?.('Cappy', text, 'out');
+
+    // Clear pending state
+    this.pendingChatId = null;
+    this.pendingMessageText = null;
+
+    // Clean up inbox files
+    this.cleanInbox();
+
+    console.log('🦫 [Bridge] Reply sent to WhatsApp');
+    return true;
+  }
+
+  /**
+   * Get the current pending WhatsApp message (if any)
+   */
+  getPendingMessage(): { text: string; chatId: string } | null {
+    if (!this.pendingChatId || !this.pendingMessageText) return null;
+    return { text: this.pendingMessageText, chatId: this.pendingChatId };
+  }
+
+  /**
+   * Clean old inbox files (keep only the latest)
+   */
+  private cleanInbox(): void {
+    try {
+      const inboxDir = path.join(this.workspaceRoot, '.cappy', 'whatsapp-inbox');
+      if (!fs.existsSync(inboxDir)) return;
+      const files = fs.readdirSync(inboxDir).filter(f => f.endsWith('.json'));
+      for (const file of files) {
+        fs.unlinkSync(path.join(inboxDir, file));
+      }
+    } catch { /* ignore cleanup errors */ }
+  }
+
+  /**
    * Run the agent and return the response text
    */
   private async runAgentAndGetResponse(text: string): Promise<string> {
@@ -478,6 +608,13 @@ export class CappyBridge {
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('🦫 [Bridge] Agent error:', errMsg);
+
+      // Fallback to echo when no LLM is available
+      if (errMsg.includes('No LLM available')) {
+        console.log('🦫 [Bridge] No LLM available — falling back to echo mode');
+        return `🦫 Echo: ${text}`;
+      }
+
       return `❌ Erro: ${errMsg}`;
     }
   }

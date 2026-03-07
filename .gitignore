@@ -40,3 +40,9 @@ old/
 .cappy/data/
 .cappy/*.lance
 .cappy/indexes/
+
+# WhatsApp auth & sensitive data
+.cappy/whatsapp-auth/
+.cappy/whatsapp-inbox/
+.cappy/test-auth/
+.cappy/history/

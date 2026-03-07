@@ -86,8 +86,20 @@ export class ExtensionBootstrap {
     if (this.webviewProvider) {
       this.webviewProvider.setBridge(this.bridge);
 
-      this.bridge.onQRCode((qr) => {
-        this.webviewProvider?.updateQRCode(qr);
+      this.bridge.onQRCode(async (qr) => {
+        try {
+          const QRCode = await import('qrcode');
+          const dataUri = await QRCode.toDataURL(qr, {
+            width: 256,
+            margin: 2,
+            color: { dark: '#000000', light: '#ffffff' },
+          });
+          this.webviewProvider?.updateQRCode(dataUri);
+        } catch (err) {
+          console.error('🦫 [Bridge] QR code generation failed:', err);
+          // Fallback: send raw text
+          this.webviewProvider?.updateQRCode(qr);
+        }
       });
 
       this.bridge.onStatusChange((status) => {
@@ -95,6 +107,10 @@ export class ExtensionBootstrap {
         if (status.whatsapp === 'connected') {
           this.webviewProvider?.clearQRCode();
         }
+      });
+
+      this.bridge.onMessage((from, text, direction) => {
+        this.webviewProvider?.addMessage(from, text, direction);
       });
     }
 
@@ -135,6 +151,33 @@ export class ExtensionBootstrap {
           `WhatsApp: ${status.whatsapp}\n` +
           `Projects: ${status.projects.join(', ')}`
         );
+      })
+    );
+
+    // Reply to WhatsApp from IDE chat
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.whatsapp.reply', async (text?: string) => {
+        if (!this.bridge) {
+          vscode.window.showWarningMessage('🦫 Cappy: Bridge not running.');
+          return;
+        }
+
+        // If no text provided, ask for input
+        if (!text) {
+          text = await vscode.window.showInputBox({
+            prompt: '🦫 Resposta para WhatsApp',
+            placeHolder: 'Digite a resposta...',
+          });
+        }
+
+        if (!text) return;
+
+        const sent = this.bridge.sendWhatsAppReply(text);
+        if (sent) {
+          vscode.window.showInformationMessage(`🦫 Cappy: Resposta enviada ao WhatsApp!`);
+        } else {
+          vscode.window.showWarningMessage('🦫 Cappy: Nenhuma mensagem pendente do WhatsApp.');
+        }
       })
     );
   }
