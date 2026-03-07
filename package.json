@@ -59,7 +59,7 @@
         {
           "id": "cappy-sidebar",
           "title": "Cappy",
-          "icon": "src/assets/icon.svg"
+          "icon": "src/assets/sidebar-icon.svg"
         }
       ]
     },
