@@ -8,6 +8,7 @@ import { LanguageModelToolsBootstrap } from './LanguageModelToolsBootstrap';
 import { IntelligentAgent } from '../../../../nivel2/infrastructure/agents';
 import type { PlanningTurnResult } from '../../../../nivel2/infrastructure/agents/common/types';
 import { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-bridge';
+import { CappyWebViewProvider } from '../webview/cappy-webview';
 
 /**
  * Main bootstrap orchestrator for the extension
@@ -15,6 +16,7 @@ import { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-brid
 export class ExtensionBootstrap {
   private readonly planningAgent = new IntelligentAgent();
   private bridge: CappyBridge | null = null;
+  private webviewProvider: CappyWebViewProvider | null = null;
 
   /**
    * Activates the extension
@@ -30,13 +32,39 @@ export class ExtensionBootstrap {
     // Phase 2: Register Chat Participant
     await this.registerChatParticipant(context);
 
-    // Phase 3: Start Bridge (auto-elects as server or client)
+    // Phase 3: Register WebView (sidebar panel)
+    this.registerWebView(context);
+
+    // Phase 4: Start Bridge (auto-elects as server or client)
     await this.startBridge(context);
 
-    // Phase 4: Register WhatsApp commands
+    // Phase 5: Register WhatsApp commands
     this.registerBridgeCommands(context);
 
     console.log('✅ [Extension] Cappy activation completed');
+  }
+
+  /**
+   * Register the Cappy sidebar WebView
+   */
+  private registerWebView(context: vscode.ExtensionContext): void {
+    this.webviewProvider = new CappyWebViewProvider(context.extensionUri);
+
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        CappyWebViewProvider.viewType,
+        this.webviewProvider
+      )
+    );
+
+    // Open dashboard command
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.openDashboard', () => {
+        vscode.commands.executeCommand('cappy.dashboard.focus');
+      })
+    );
+
+    console.log('  ✅ Registered Cappy sidebar WebView');
   }
 
   /**
@@ -53,6 +81,22 @@ export class ExtensionBootstrap {
     const projectName = workspaceFolders[0].name;
 
     this.bridge = new CappyBridge(projectName, workspaceRoot, this.planningAgent);
+
+    // Wire bridge events to webview
+    if (this.webviewProvider) {
+      this.webviewProvider.setBridge(this.bridge);
+
+      this.bridge.onQRCode((qr) => {
+        this.webviewProvider?.updateQRCode(qr);
+      });
+
+      this.bridge.onStatusChange((status) => {
+        this.webviewProvider?.updateStatus(status);
+        if (status.whatsapp === 'connected') {
+          this.webviewProvider?.clearQRCode();
+        }
+      });
+    }
 
     try {
       await this.bridge.start();

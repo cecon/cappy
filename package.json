@@ -48,13 +48,30 @@
       {
         "command": "cappy.whatsapp.status",
         "title": "Cappy: WhatsApp Status"
+      },
+      {
+        "command": "cappy.openDashboard",
+        "title": "Cappy: Open Dashboard"
       }
     ],
     "viewsContainers": {
-      "activitybar": []
+      "activitybar": [
+        {
+          "id": "cappy-sidebar",
+          "title": "Cappy",
+          "icon": "src/assets/icon.svg"
+        }
+      ]
     },
-    "views": {},
-    "menus": {},
+    "views": {
+      "cappy-sidebar": [
+        {
+          "type": "webview",
+          "id": "cappy.dashboard",
+          "name": "Dashboard"
+        }
+      ]
+    },
     "keybindings": [],
     "configuration": {
       "title": "Cappy",

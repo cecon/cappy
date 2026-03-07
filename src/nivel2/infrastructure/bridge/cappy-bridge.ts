@@ -47,11 +47,29 @@ export class CappyBridge {
   // Terminal relay
   private relayTerminal: vscode.Terminal | null = null;
 
+  // Event callbacks for WebView
+  private qrCodeCallback: ((qr: string) => void) | null = null;
+  private statusChangeCallback: ((status: { role: string | null; whatsapp: string; projects: string[] }) => void) | null = null;
+
   constructor(projectName: string, workspaceRoot: string, agent: IntelligentAgent, config?: Partial<BridgeConfig>) {
     this.projectName = projectName;
     this.workspaceRoot = workspaceRoot;
     this.agent = agent;
     this.config = { ...DEFAULT_BRIDGE_CONFIG, ...config };
+  }
+
+  /**
+   * Register a callback for QR code events (used by WebView)
+   */
+  onQRCode(callback: (qr: string) => void): void {
+    this.qrCodeCallback = callback;
+  }
+
+  /**
+   * Register a callback for status change events (used by WebView)
+   */
+  onStatusChange(callback: (status: { role: string | null; whatsapp: string; projects: string[] }) => void): void {
+    this.statusChangeCallback = callback;
   }
 
   /**
@@ -117,6 +135,13 @@ export class CappyBridge {
   }
 
   /**
+   * Emit status change to registered callback (WebView)
+   */
+  private emitStatusChange(): void {
+    this.statusChangeCallback?.(this.getStatus());
+  }
+
+  /**
    * Stop the bridge
    */
   async stop(): Promise<void> {
@@ -169,9 +194,11 @@ export class CappyBridge {
       onStatusChange: (status) => {
         this.whatsappStatus = status;
         this.updateStatusBar();
+        this.emitStatusChange();
       },
       onQRCode: (qr) => {
         this.showQRCode(qr);
+        this.qrCodeCallback?.(qr);
       },
     });
   }
