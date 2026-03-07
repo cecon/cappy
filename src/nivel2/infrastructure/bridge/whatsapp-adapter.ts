@@ -57,15 +57,26 @@ export class WhatsAppAdapter {
     // Dynamic import for ESM module
     const baileys = await import('@whiskeysockets/baileys');
     const makeWASocket = baileys.default;
-    const { useMultiFileAuthState, DisconnectReason } = baileys;
+    const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys;
+
+    // Fetch latest WA version to avoid 405 rejection
+    let version: [number, number, number] | undefined;
+    try {
+      const result = await fetchLatestBaileysVersion();
+      version = result.version as [number, number, number];
+      console.log('🦫 [WhatsApp] WA version:', version);
+    } catch {
+      console.log('🦫 [WhatsApp] Using default version');
+    }
 
     const { state, saveCreds } = await useMultiFileAuthState(fullAuthDir);
 
     this.socket = makeWASocket({
       auth: state,
+      version,
+      browser: ['Cappy', 'Chrome', '120.0.0'],
       printQRInTerminal: false,
       connectTimeoutMs: 30_000,
-      retryRequestDelayMs: 500,
     }) as unknown as WASocket;
 
     const sock = this.socket as any;

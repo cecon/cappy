@@ -471,7 +471,7 @@
   "dependencies": {
     "@langchain/core": "^0.3.78",
     "@langchain/langgraph": "^0.4.9",
-    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "@whiskeysockets/baileys": "^6.7.21",
     "ws": "^8.19.0"
   },
   "devDependencies": {
