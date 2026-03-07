@@ -95,7 +95,14 @@ export class CappyBridge {
       return;
     }
 
-    await this.whatsapp.connect(this.workspaceRoot);
+    try {
+      vscode.window.showInformationMessage('🦫 Cappy: Connecting to WhatsApp...');
+      await this.whatsapp.connect(this.workspaceRoot);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error('🦫 [Bridge] WhatsApp connect error:', err);
+      vscode.window.showErrorMessage(`🦫 Cappy: WhatsApp connection failed — ${errMsg}`);
+    }
   }
 
   /**
