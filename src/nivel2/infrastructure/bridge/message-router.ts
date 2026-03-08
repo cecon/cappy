@@ -104,7 +104,17 @@ export class MessageRouter {
       };
     }
 
-    // No project available
+    // Projects exist but none is active — ask user to pick
+    if (this.projects.size > 0) {
+      return {
+        type: 'workspace_query',
+        command: null,
+        text,
+        targetProject: null,
+      };
+    }
+
+    // No project available at all
     return {
       type: 'error',
       command: null,
@@ -221,7 +231,7 @@ export class MessageRouter {
  * Result of parsing a WhatsApp message
  */
 export interface ParsedMessage {
-  type: 'chat' | 'command' | 'error';
+  type: 'chat' | 'command' | 'error' | 'workspace_query';
   command: string | null;
   text: string;
   targetProject: string | null;

@@ -41,6 +41,7 @@ export class CappyBridge {
 
   // Client-only
   private clientSocket: WebSocket | null = null;
+  private serverInfo: { serverProject: string; whatsappStatus: WhatsAppStatus } | null = null;
 
   // Status
   private whatsappStatus: WhatsAppStatus = 'disconnected';
@@ -51,6 +52,9 @@ export class CappyBridge {
 
   // Pending WhatsApp reply
   private pendingChatId: string | null = null;
+
+  // Pending workspace query (when user needs to pick a workspace)
+  private pendingWorkspaceQuery: { text: string; chatId: string } | null = null;
 
   // Event callbacks for WebView
   private qrCodeCallback: ((qr: string) => void) | null = null;
@@ -163,11 +167,12 @@ export class CappyBridge {
   /**
    * Get current status
    */
-  getStatus(): { role: BridgeRole | null; whatsapp: WhatsAppStatus; projects: string[] } {
+  getStatus(): { role: BridgeRole | null; whatsapp: WhatsAppStatus; projects: string[]; serverInfo?: { serverProject: string; whatsappStatus: WhatsAppStatus } } {
     return {
       role: this.role,
       whatsapp: this.whatsappStatus,
       projects: this.router?.getProjectNames() || [this.projectName],
+      ...(this.role === 'client' && this.serverInfo ? { serverInfo: this.serverInfo } : {}),
     };
   }
 
@@ -232,6 +237,8 @@ export class CappyBridge {
         this.whatsappStatus = status;
         this.updateStatusBar();
         this.emitStatusChange();
+        // Broadcast server_info to all clients so their dashboards update
+        this.broadcastServerInfo();
       },
       onQRCode: (qr) => {
         this.showQRCode(qr);
@@ -243,6 +250,9 @@ export class CappyBridge {
   private setupServerConnections(): void {
     this.wss!.on('connection', (socket) => {
       console.log('[Bridge] New client connected');
+
+      // Send server_info immediately so the client knows who the server is
+      this.sendServerInfo(socket);
 
       socket.on('message', (data) => {
         try {
@@ -265,6 +275,30 @@ export class CappyBridge {
         }
       });
     });
+  }
+
+  /**
+   * Send server_info to a specific client socket
+   */
+  private sendServerInfo(socket: WebSocket): void {
+    const infoMsg: BridgeMessage = {
+      type: 'server_info',
+      project: this.projectName,
+      data: { whatsappStatus: this.whatsappStatus },
+      timestamp: Date.now(),
+    };
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(infoMsg));
+    }
+  }
+
+  /**
+   * Broadcast server_info to all connected clients
+   */
+  private broadcastServerInfo(): void {
+    for (const socket of this.clientSockets.values()) {
+      this.sendServerInfo(socket);
+    }
   }
 
   private handleClientMessage(socket: WebSocket, msg: BridgeMessage): void {
@@ -295,6 +329,25 @@ export class CappyBridge {
   private handleWhatsAppMessage(text: string, chatId: string, _pushName: string): void {
     // Emit incoming message to webview
     this.messageCallback?.(_pushName || 'WhatsApp', text, 'in');
+
+    // Check if this is a response to a pending workspace query (user picking a number)
+    if (this.pendingWorkspaceQuery && /^\d+$/.test(text.trim())) {
+      const num = parseInt(text.trim(), 10);
+      const projects = this.router!.getProjectNames();
+      if (num >= 1 && num <= projects.length) {
+        const selectedProject = projects[num - 1].toLowerCase();
+        // Re-process the original message targeting the selected project
+        // (the @project prefix will set lastActiveProject via parseMessage)
+        const originalText = this.pendingWorkspaceQuery.text;
+        this.pendingWorkspaceQuery = null;
+        this.handleWhatsAppMessage(`@${selectedProject} ${originalText}`, chatId, _pushName);
+        return;
+      } else {
+        this.whatsapp?.sendMessage(chatId, `*Cappy* Número inválido. Escolha entre 1 e ${projects.length}.`);
+        return;
+      }
+    }
+    this.pendingWorkspaceQuery = null;
 
     const parsed = this.router!.parseMessage(text);
 
@@ -331,6 +384,18 @@ export class CappyBridge {
             `*Cappy* Projeto "${targetProject}" não está conectado.\nDigite /projetos para ver os disponíveis.`
           );
         }
+        break;
+      }
+
+      case 'workspace_query': {
+        // Projects exist but no active one — ask user to pick
+        const projects = this.router!.getProjectNames();
+        const list = projects.map((p, i) => `${i + 1}. *${p}*`).join('\n');
+        this.whatsapp?.sendMessage(
+          chatId,
+          `*Cappy* Qual workspace?\n\n${list}\n\nResponda com o número do workspace.`
+        );
+        this.pendingWorkspaceQuery = { text: parsed.text, chatId };
         break;
       }
 
@@ -417,6 +482,17 @@ export class CappyBridge {
     if (msg.type === 'chat' && msg.text && msg.chatId) {
       // Server forwarded a WhatsApp message to us — process it
       this.processClientMessage(msg.text, msg.chatId);
+    }
+
+    if (msg.type === 'server_info' && msg.project) {
+      // Server sent its metadata — store for dashboard display
+      const data = msg.data as { whatsappStatus?: WhatsAppStatus } | undefined;
+      this.serverInfo = {
+        serverProject: msg.project,
+        whatsappStatus: data?.whatsappStatus || 'disconnected',
+      };
+      console.log(`[Bridge] Server info received: ${msg.project} (WhatsApp: ${this.serverInfo.whatsappStatus})`);
+      this.emitStatusChange();
     }
   }
 

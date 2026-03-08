@@ -19,7 +19,8 @@ export type BridgeMessageType =
   | 'status'          // Status update (build, test, etc.)
   | 'command'         // Special commands (/projetos, /status, etc.)
   | 'projects_list'   // List of connected projects
-  | 'media';          // Media message (image/video) from VS Code to WhatsApp
+  | 'media'           // Media message (image/video) from VS Code to WhatsApp
+  | 'server_info';    // Server broadcasts its metadata (project name, WhatsApp status) to clients
 
 /**
  * A message flowing through the bridge

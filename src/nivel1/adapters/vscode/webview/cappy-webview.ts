@@ -41,6 +41,7 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
     role: string | null;
     whatsapp: string;
     projects: string[];
+    serverInfo?: { serverProject: string; whatsappStatus: string };
   }): void {
     this.postMessage({ type: 'status', data: status });
   }
@@ -886,7 +887,7 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
       const roleEl = document.getElementById('role-text');
       const roleIcon = document.getElementById('role-icon');
       if (status.role) {
-        roleEl.textContent = status.role === 'server' ? 'Server' : 'Client';
+        roleEl.textContent = status.role === 'server' ? 'Server' : 'Satellite';
         roleIcon.innerHTML = status.role === 'server'
           ? '<svg viewBox="0 0 16 16"><path d="M3 3h10v4H3V3zm1 1v2h8V4H4zm-1 5h10v4H3V9zm1 1v2h8v-2H4z"/></svg>'
           : '<svg viewBox="0 0 16 16"><path d="M8 1a.5.5 0 0 0-.5.5v3.03a4.5 4.5 0 0 0-4 4.47.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5 4.5 4.5 0 0 0-4-4.47V1.5A.5.5 0 0 0 8 1zm0 5a3.5 3.5 0 0 1 3.43 3H4.57A3.5 3.5 0 0 1 8 6zM1 12h14v1H1v-1zm2 2h10v1H3v-1z"/></svg>';
@@ -894,8 +895,13 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
         roleEl.textContent = '—';
       }
 
-      // WhatsApp
-      setWAStatus(status.whatsapp);
+      // Check if we are a satellite (client with serverInfo)
+      if (status.role === 'client' && status.serverInfo) {
+        setSatelliteStatus(status.serverInfo);
+      } else {
+        // WhatsApp
+        setWAStatus(status.whatsapp);
+      }
 
       // Projects
       document.getElementById('project-count').textContent = status.projects.length;
@@ -903,6 +909,24 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
       tags.innerHTML = status.projects
         .map(p => '<span class="project-tag"><svg style="width:11px;height:11px;fill:currentColor;vertical-align:-1px;margin-right:3px" viewBox="0 0 16 16"><path d="M14.5 3H7.71l-.86-.86A.48.48 0 0 0 6.5 2h-5a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5zM14 13H2V3h4.29l.86.86a.48.48 0 0 0 .35.14H14v9z"/></svg>' + escapeHtml(p) + '</span>')
         .join('');
+    }
+
+    function setSatelliteStatus(serverInfo) {
+      currentState = 'satellite';
+      const ring = document.getElementById('status-ring');
+      const label = document.getElementById('status-label');
+      const hint = document.getElementById('status-hint');
+      const btn = document.getElementById('btn-connect');
+      const infoArea = document.getElementById('info-area');
+
+      ring.className = 'status-ring ring-connected';
+      ring.querySelector('.ring-icon').innerHTML = '<svg viewBox="0 0 16 16"><path d="M8 1a.5.5 0 0 0-.5.5v3.03a4.5 4.5 0 0 0-4 4.47.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5 4.5 4.5 0 0 0-4-4.47V1.5A.5.5 0 0 0 8 1zm0 5a3.5 3.5 0 0 1 3.43 3H4.57A3.5 3.5 0 0 1 8 6zM1 12h14v1H1v-1zm2 2h10v1H3v-1z"/></svg>';
+      label.textContent = 'Conectado como Satellite';
+      hint.innerHTML = 'Server ativo no workspace <b>' + escapeHtml(serverInfo.serverProject) + '</b>';
+      btn.innerHTML = '<svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 16 16"><path d="M8 1a.5.5 0 0 0-.5.5v3.03a4.5 4.5 0 0 0-4 4.47.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5 4.5 4.5 0 0 0-4-4.47V1.5A.5.5 0 0 0 8 1z"/></svg> Server: ' + escapeHtml(serverInfo.serverProject);
+      btn.disabled = true;
+      btn.className = 'btn btn-primary';
+      infoArea.classList.remove('hidden');
     }
 
     function updateSettings(settings) {
