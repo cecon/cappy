@@ -1,63 +1,48 @@
-# Cappy 🦫
+<p align="center">
+  <img src="src/assets/icon.png" alt="Cappy" width="120" />
+</p>
 
-**Your AI dev companion — in VS Code and on WhatsApp.**
+<h1 align="center">Cappy</h1>
 
-Cappy is a VS Code extension that acts as your AI planning assistant. It helps you break down tasks, analyze codebases, and create structured task files — all through natural conversation with `@cappy`.
+<p align="center">
+  <b>Your AI dev companion — in your IDE and on WhatsApp.</b><br/>
+  <i>Code smarter. Ship faster. Stay connected.</i>
+</p>
 
-**Coming soon:** WhatsApp bridge — monitor your projects, authorize AI actions, and get notifications directly on your phone. No app to install, just chat.
-
-[![VSCode Marketplace](https://img.shields.io/visual-studio-marketplace/v/eduardocecon.cappy)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
-[![Downloads](https://img.shields.io/visual-studio-marketplace/d/eduardocecon.cappy)](https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy)
-
----
-
-## What Cappy Does Today
-
-### 💬 AI Planning Agent (`@cappy`)
-
-Ask questions, plan tasks, analyze code — Cappy creates structured task files to guide implementation:
-
-```
-@cappy implement JWT authentication with refresh tokens
-@cappy refactor the payment module to use the strategy pattern
-@cappy help me fix the flaky tests in src/auth/
-```
-
-### 🛠️ Built-in Tools
-
-| Tool | Description |
-|------|-------------|
-| `grep_search` | Search text across workspace files |
-| `read_file` | Read file contents with line ranges |
-| `fetch_web` | Fetch content from web URLs |
-| `create_task_file` | Create structured XML task files |
-| `check_task_file` | Verify if a task file exists |
-| `refine_task` | Improve task files with LLM |
-| `run_terminal_command` | Execute shell commands in workspace |
-| `create_todo` | Create todo items |
-| `list_todos` / `complete_todo` | Manage todo list |
-
-### ⚙️ LLM Configuration
-
-```json
-{
-  "cappy.llm.preferredModel": "auto"
-}
-```
-
-Options: `auto` (recommended), `claude-sonnet`, `gpt-4o`, `gpt-4`
+<p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy">
+    <img src="https://img.shields.io/visual-studio-marketplace/v/eduardocecon.cappy?style=for-the-badge&label=Marketplace&color=007ACC" alt="VS Code Marketplace" />
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy">
+    <img src="https://img.shields.io/visual-studio-marketplace/d/eduardocecon.cappy?style=for-the-badge&label=Downloads&color=4CC61E" alt="Downloads" />
+  </a>
+  <a href="https://github.com/cecon/cappy/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/cecon/cappy?style=for-the-badge&color=yellow" alt="License" />
+  </a>
+</p>
 
 ---
 
-## 🗺️ Roadmap — What's Coming
+## The Problem
 
-### Phase 1: WhatsApp Bridge 📱
-> Talk to your VS Code from anywhere via WhatsApp
+You're deep in a coding session. Your phone buzzes — a bug report. You context-switch to Slack. Then Jira. Then back to the IDE. **You've lost 23 minutes.** Sound familiar?
 
-- Send commands to your IDE from your phone
-- Receive build/test notifications
-- Authorize AI actions remotely (human-in-the-loop)
-- Multi-project support (work across 3-4 projects simultaneously)
+What if your IDE could talk to you on WhatsApp? What if you could triage, plan, and monitor your projects from anywhere — without ever leaving the conversation?
+
+## The Solution: Meet Cappy
+
+**Cappy** is an AI-powered VS Code extension that bridges the gap between your IDE and your life. It's not just another coding assistant — it's a **full dev companion** that lives where you already are: in your editor and on your phone.
+
+> 🦫 *Think of Cappy as a senior developer who never sleeps, never forgets, and is always a WhatsApp message away.*
+
+---
+
+## ✨ Key Features
+
+### 🔗 WhatsApp Dev Bridge
+*Your IDE, in your pocket.*
+
+Connect your WhatsApp to your IDE and interact with your projects from anywhere. No extra apps. No dashboards. Just chat.
 
 ```
 You: @erp run the tests
@@ -67,13 +52,83 @@ You: @mobile what's the build status?
 🦫 Cappy [mobile-app]: ✅ Build passing
 ```
 
-### Phase 2: Code Health Score 🏥
-> Know your project's health at a glance
+- **Bi-directional messaging** — send commands, receive results
+- **Multi-project support** — manage multiple workspaces simultaneously
+- **Human-in-the-loop** — authorize AI actions remotely, stay in control
+- **Zero setup on phone** — if you have WhatsApp, you're ready
 
-- Score your codebase (0-100) across multiple dimensions
-- Track file size, test coverage, lint, complexity, documentation
-- Historical trends — is the project getting better or worse?
-- Customizable rules per project (`.cappy/rules.yml`)
+### 🧠 AI Planning Agent
+*From idea to structured plan in seconds.*
+
+Mention `@cappy` in any AI chat and get intelligent, context-aware planning:
+
+```
+@cappy implement JWT authentication with refresh tokens
+@cappy refactor the payment module to use the strategy pattern
+@cappy help me fix the flaky tests in src/auth/
+```
+
+Cappy analyzes your codebase, asks clarifying questions, and generates **structured task files** with implementation checklists, acceptance criteria, and step-by-step guidance.
+
+### 📊 Live Dashboard
+*Everything at a glance.*
+
+A sleek sidebar dashboard shows you real-time status:
+- WhatsApp connection status with visual indicator
+- Live message feed from your phone
+- Quick settings and configuration
+
+### 🛠️ Powerful Built-in Tools
+
+| Tool | What it does |
+|------|-------------|
+| `grep_search` | Search across your entire workspace |
+| `read_file` | Read any file with smart line ranges |
+| `fetch_web` | Pull content from URLs |
+| `create_task_file` | Generate structured task plans |
+| `run_terminal_command` | Execute commands directly |
+| `create_todo` | Quick task tracking |
+
+---
+
+## 🚀 Getting Started
+
+### Install
+
+Search for **"Cappy"** in the VS Code / Cursor / Antigravity Marketplace, or:
+
+```bash
+code --install-extension eduardocecon.cappy
+```
+
+### Connect WhatsApp
+
+1. Open the Cappy Dashboard (sidebar icon)
+2. Click **Connect WhatsApp**
+3. Scan the QR code with your phone
+4. Start chatting with your IDE 🎉
+
+### Use the AI Agent
+
+Just type `@cappy` followed by your request in any AI chat panel. That's it.
+
+---
+
+## 🗺️ Roadmap
+
+| Phase | Feature | Status |
+|-------|---------|--------|
+| ✅ | AI Planning Agent (`@cappy`) | **Live** |
+| ✅ | WhatsApp Bridge | **Live** |
+| ✅ | Live Dashboard | **Live** |
+| 🔜 | Code Health Score (0-100) | *Coming Soon* |
+| 🔜 | Scheduled Health Checks & Cron Jobs | *Planned* |
+| 🔜 | GitHub/Jira Integration via MCP | *Planned* |
+| 🔜 | Daily Digest on WhatsApp | *Planned* |
+
+### Coming Soon: Code Health Score 🏥
+
+> Know your project's health at a glance — scores across file size, test coverage, lint, complexity, and documentation.
 
 ```
 🦫 Cappy: Project Health: 71/100
@@ -83,76 +138,57 @@ You: @mobile what's the build status?
 └── Complexity:   69/100  ⚡ 8 functions > 10 cyclomatic
 ```
 
-### Phase 3: Task Automation 🤖
-> Cronjobs, daily digests, and proactive monitoring
+---
 
-- Scheduled health checks
-- GitHub/Jira integration via MCP
-- Daily digest messages on WhatsApp
-- PR notifications and review tracking
+## 🏗️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Language | TypeScript |
+| Platform | VS Code Extension API |
+| AI Engine | VS Code Language Model API + LangGraph |
+| WhatsApp | Baileys (Web API) |
+| Realtime | WebSocket (port 9090) |
+| Build | TSC |
+| Tests | Vitest |
 
 ---
 
-## Architecture
+## 🤝 Compatible With
 
-```
-src/
-├── extension.ts                            # Entry point
-├── domains/todo/                           # Todo domain
-│   ├── types.ts
-│   └── repositories/todo-repository.ts
-├── nivel1/adapters/vscode/bootstrap/       # VS Code bootstrap
-│   ├── ExtensionBootstrap.ts
-│   └── LanguageModelToolsBootstrap.ts
-├── nivel2/infrastructure/
-│   ├── llm-selector.ts                     # LLM model selection
-│   ├── agents/                             # Planning agent (LangGraph)
-│   │   ├── index.ts                        # IntelligentAgent
-│   │   ├── common/                         # Shared types & state
-│   │   └── planning/                       # Planning workflow
-│   └── tools/                              # VS Code Language Model Tools
-│       ├── grep-search-tool.ts
-│       ├── read-file-tool.ts
-│       ├── create-task-tool.ts
-│       ├── terminal-command-tool.ts
-│       └── todo/
-└── shared/                                 # Constants, errors, utils
-```
+Cappy works across multiple AI-powered editors:
+
+- **VS Code** (1.105.0+)
+- **Cursor**
+- **Antigravity IDE**
 
 ---
 
-## Development
-
-### Prerequisites
-
-- Node.js 18+
-- VS Code 1.105.0+
-
-### Setup
+## 🧑‍💻 Development
 
 ```bash
+# Install dependencies
 npm install
-npm run compile-extension    # Compile TypeScript
-npm test                     # Run tests
-npm run package              # Build .vsix
+
+# Compile
+npm run compile-extension
+
+# Run tests
+npm test
+
+# Package .vsix
+npm run package
 ```
 
 ---
 
-## Tech Stack
-
-- **Language**: TypeScript
-- **Platform**: VS Code Extension API
-- **LLM**: VS Code Language Model API + LangGraph
-- **Build**: TSC
-- **Tests**: Vitest
-
----
-
-## License
+## 📄 License
 
 MIT — see [LICENSE](LICENSE)
 
 ---
 
-Created by [Eduardo Cecon](https://github.com/cecon) 🦫
+<p align="center">
+  Built with 🧡 by <a href="https://github.com/cecon">Eduardo Cecon</a><br/>
+  <sub>Because developers deserve tools that respect their flow.</sub>
+</p>
