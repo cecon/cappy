@@ -282,6 +282,13 @@ export class CappyBridge {
           this.whatsapp?.sendMessage(msg.chatId, `*Cappy*\n${msg.text}`);
         }
         break;
+
+      case 'media':
+        // Client sent media — forward image/video to WhatsApp
+        if (msg.chatId && msg.mediaPath && msg.mediaType) {
+          this.whatsapp?.sendMedia(msg.chatId, msg.mediaPath, msg.mediaType, msg.caption);
+        }
+        break;
     }
   }
 

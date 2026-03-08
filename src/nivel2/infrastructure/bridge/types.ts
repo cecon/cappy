@@ -18,7 +18,8 @@ export type BridgeMessageType =
   | 'response'        // Response from VS Code back to WhatsApp
   | 'status'          // Status update (build, test, etc.)
   | 'command'         // Special commands (/projetos, /status, etc.)
-  | 'projects_list';  // List of connected projects
+  | 'projects_list'   // List of connected projects
+  | 'media';          // Media message (image/video) from VS Code to WhatsApp
 
 /**
  * A message flowing through the bridge
@@ -31,6 +32,12 @@ export interface BridgeMessage {
   text?: string;
   /** WhatsApp chat ID (for replies) */
   chatId?: string;
+  /** Absolute path to a media file (image/video) to send */
+  mediaPath?: string;
+  /** Type of media being sent */
+  mediaType?: 'image' | 'video';
+  /** Caption for media messages */
+  caption?: string;
   /** Additional data */
   data?: Record<string, unknown>;
   /** Timestamp */

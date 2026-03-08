@@ -211,6 +211,54 @@ export class WhatsAppAdapter {
   }
 
   /**
+   * Send a media file (image or video) to a WhatsApp chat
+   */
+  async sendMedia(chatId: string, filePath: string, mediaType: 'image' | 'video', caption?: string): Promise<void> {
+    if (!this.socket || this.status !== 'connected') {
+      console.warn('[WhatsApp] Cannot send media — not connected');
+      return;
+    }
+
+    if (!fs.existsSync(filePath)) {
+      console.error(`[WhatsApp] Media file not found: ${filePath}`);
+      return;
+    }
+
+    const buffer = fs.readFileSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+
+    // Map extensions to mimetypes
+    const mimeMap: Record<string, string> = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.mp4': 'video/mp4',
+      '.avi': 'video/avi',
+      '.mov': 'video/quicktime',
+      '.mkv': 'video/x-matroska',
+    };
+    const mimetype = mimeMap[ext] || (mediaType === 'image' ? 'image/png' : 'video/mp4');
+
+    if (mediaType === 'image') {
+      await (this.socket as any).sendMessage(chatId, {
+        image: buffer,
+        caption: caption || undefined,
+        mimetype,
+      });
+    } else {
+      await (this.socket as any).sendMessage(chatId, {
+        video: buffer,
+        caption: caption || undefined,
+        mimetype,
+      });
+    }
+
+    console.log(`[WhatsApp] Media sent: ${mediaType} (${filePath})`);
+  }
+
+  /**
    * Disconnect from WhatsApp
    */
   async disconnect(): Promise<void> {
