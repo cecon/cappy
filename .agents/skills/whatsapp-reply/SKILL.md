@@ -46,7 +46,11 @@ O usuário está no WhatsApp e **NÃO VÊ** o chat do IDE. Por isso:
 - Pode enviar **várias mensagens** ao longo da tarefa, reutilizando o mesmo comando acima.
 
 ### Formato da resposta no WhatsApp
-O bridge automaticamente adiciona o prefixo `*Cappy*` antes da mensagem. Não adicione esse prefixo manualmente.
+- O bridge automaticamente adiciona o prefixo `*Cappy*` antes da mensagem. Não adicione esse prefixo manualmente.
+- **Texto plano simples**: NÃO use markdown, bullet points, listas ou formatação rica.
+- **Uma única linha**: NÃO use quebras de linha (`\n`) na mensagem. Mensagens com múltiplas linhas podem travar o envio.
+- **Curta e direta**: Mantenha a mensagem concisa. Mensagens muito longas podem falhar.
+- Use emojis normalmente (👍 ✅ ⏳ etc.).
 
 ## Arquitetura do Fluxo
 
