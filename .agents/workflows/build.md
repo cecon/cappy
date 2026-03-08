@@ -22,10 +22,10 @@ cd /Users/eduardomendonca/projetos/cappy && npx vsce package --dependencies --no
 
 3. Instalar a extensão no IDE:
 ```
-cd /Users/eduardomendonca/projetos/cappy && code --install-extension $(ls -t cappy-*.vsix | head -1) --force
+cd /Users/eduardomendonca/projetos/cappy && antigravity --install-extension $(ls -t cappy-*.vsix | head -1) --force
 ```
 
 4. Recarregar a janela do IDE:
 ```
-cd /Users/eduardomendonca/projetos/cappy && code --command workbench.action.reloadWindow
+cd /Users/eduardomendonca/projetos/cappy && antigravity --command workbench.action.reloadWindow
 ```

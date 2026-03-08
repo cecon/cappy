@@ -9,6 +9,7 @@ import { IntelligentAgent } from '../../../../nivel2/infrastructure/agents';
 import type { PlanningTurnResult } from '../../../../nivel2/infrastructure/agents/common/types';
 import { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-bridge';
 import { CappyWebViewProvider } from '../webview/cappy-webview';
+import { setupAgentSkills } from '../../../../nivel2/infrastructure/agents/AgentSkillsSetup';
 
 /**
  * Main bootstrap orchestrator for the extension
@@ -40,6 +41,9 @@ export class ExtensionBootstrap {
 
     // Phase 5: Register WhatsApp commands
     this.registerBridgeCommands(context);
+
+    // Phase 6: Setup Agent Skills (creates/updates .agents/ in workspace)
+    this.setupAgentSkills();
 
     console.log('✅ [Extension] Cappy activation completed');
   }
@@ -154,30 +158,101 @@ export class ExtensionBootstrap {
       })
     );
 
-    // Reply to WhatsApp from IDE chat
+    // Reply to WhatsApp (used by AI assistant via /whatsapp-reply workflow)
     context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.whatsapp.reply', async (text?: string) => {
+      vscode.commands.registerCommand('cappy.whatsapp.reply', async (...args: any[]) => {
         if (!this.bridge) {
           vscode.window.showWarningMessage('Cappy: Bridge not running.');
           return;
         }
 
-        // If no text provided, ask for input
-        if (!text) {
-          text = await vscode.window.showInputBox({
-            prompt: 'Resposta para WhatsApp',
-            placeHolder: 'Digite a resposta...',
+        // Accept text from command argument or prompt the user
+        let replyText = args[0] as string | undefined;
+
+        if (!replyText) {
+          replyText = await vscode.window.showInputBox({
+            prompt: 'Digite a resposta para o WhatsApp',
+            placeHolder: 'Sua resposta aqui...',
           });
         }
 
-        if (!text) return;
-
-        const sent = this.bridge.sendWhatsAppReply(text);
-        if (sent) {
-          vscode.window.showInformationMessage(`Cappy: Resposta enviada ao WhatsApp!`);
-        } else {
-          vscode.window.showWarningMessage('Cappy: Nenhuma mensagem pendente do WhatsApp.');
+        if (replyText) {
+          await this.bridge.replyToWhatsApp(replyText);
         }
+      })
+    );
+
+    // Diagnostic command — enumerate all available commands and test methods
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.diagnose', async () => {
+        const out = vscode.window.createOutputChannel('Cappy Diagnose');
+        out.clear();
+        out.show();
+
+        out.appendLine('═══ CAPPY DIAGNÓSTICO ═══');
+        out.appendLine(`Timestamp: ${new Date().toISOString()}`);
+        out.appendLine('');
+
+        // 1. List ALL commands matching keywords
+        out.appendLine('── COMANDOS DISPONÍVEIS ──');
+        const allCommands = await vscode.commands.getCommands(true);
+        const keywords = ['chat', 'antigravity', 'send', 'gemini', 'agent', 'copilot', 'ai'];
+        for (const kw of keywords) {
+          const matches = allCommands.filter((c: string) => c.toLowerCase().includes(kw));
+          if (matches.length > 0) {
+            out.appendLine(`\n[${kw}] (${matches.length} comandos):`);
+            for (const cmd of matches.sort()) {
+              out.appendLine(`  • ${cmd}`);
+            }
+          }
+        }
+
+        // 2. Test LLM availability
+        out.appendLine('\n── MODELOS LLM ──');
+        try {
+          const models = await vscode.lm.selectChatModels();
+          if (models && models.length > 0) {
+            for (const m of models) {
+              out.appendLine(`  ✅ ${m.name} (vendor: ${m.vendor}, family: ${m.family})`);
+            }
+          } else {
+            out.appendLine('  ❌ Nenhum modelo disponível via vscode.lm.selectChatModels()');
+          }
+        } catch (err) {
+          out.appendLine(`  ❌ Erro: ${err}`);
+        }
+
+        // 3. Test each injection method
+        out.appendLine('\n── TESTES DE INJEÇÃO ──');
+        const testQuery = '@cappy diagnóstico: esta é uma mensagem de teste do Cappy';
+
+        // Test antigravity.sendTextToChat
+        try {
+          await vscode.commands.executeCommand('antigravity.sendTextToChat', true, testQuery);
+          out.appendLine('  ✅ antigravity.sendTextToChat — executou sem erro');
+        } catch (err) {
+          out.appendLine(`  ❌ antigravity.sendTextToChat — ${err}`);
+        }
+
+        // Test workbench.action.chat.open
+        try {
+          await vscode.commands.executeCommand('workbench.action.chat.open', { query: testQuery });
+          out.appendLine('  ✅ workbench.action.chat.open — executou sem erro');
+        } catch (err) {
+          out.appendLine(`  ❌ workbench.action.chat.open — ${err}`);
+        }
+
+        // Test other potential commands
+        const chatCommands = allCommands.filter((c: string) => 
+          c.includes('chat') && (c.includes('send') || c.includes('open') || c.includes('new') || c.includes('focus'))
+        );
+        out.appendLine(`\n── COMANDOS CHAT POTENCIAIS ──`);
+        for (const cmd of chatCommands) {
+          out.appendLine(`  📋 ${cmd}`);
+        }
+
+        out.appendLine('\n═══ FIM DO DIAGNÓSTICO ═══');
+        vscode.window.showInformationMessage('Cappy: Diagnóstico completo! Veja o painel "Cappy Diagnose".');
       })
     );
   }
@@ -260,6 +335,24 @@ export class ExtensionBootstrap {
       if (lastMessage?.content) {
         stream.markdown(lastMessage.content);
       }
+    }
+  }
+
+  /**
+   * Sets up agent skills in the workspace (.agents/ directory)
+   */
+  private setupAgentSkills(): void {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      console.log('[AgentSkills] No workspace folder — skipped');
+      return;
+    }
+
+    const workspaceRoot = workspaceFolders[0].uri.fsPath;
+    try {
+      setupAgentSkills(workspaceRoot);
+    } catch (err) {
+      console.error('[AgentSkills] Failed to setup:', err);
     }
   }
 
