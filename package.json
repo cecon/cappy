@@ -60,6 +60,10 @@
       {
         "command": "cappy.diagnose",
         "title": "Cappy: Diagnose (list all commands)"
+      },
+      {
+        "command": "cappy.testLLM",
+        "title": "Cappy: Test LLM (envia Olá para a LLM)"
       }
     ],
     "viewsContainers": {
@@ -458,6 +462,71 @@
           },
           "required": [
             "id"
+          ]
+        }
+      },
+      {
+        "name": "cappy_whatsapp_confirmation",
+        "displayName": "WhatsApp Confirmation (HITL)",
+        "modelDescription": "Requests user confirmation for sensitive actions via WhatsApp. Use this BEFORE executing any destructive or important command like: git push, deploy, npm publish, rm, database migrations, or any irreversible action. The tool sends a confirmation message to the user's WhatsApp and waits for their SIM/NÃO response. Returns whether the user approved or denied the action.",
+        "userDescription": "Request user approval via WhatsApp before executing sensitive actions",
+        "toolReferenceName": "whatsappConfirm",
+        "tags": [
+          "whatsapp",
+          "confirmation",
+          "hitl",
+          "approval",
+          "security",
+          "cappy"
+        ],
+        "icon": "$(shield)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "description": "Human-readable description of the action that needs approval (e.g., 'Deploy to production', 'Push changes to main branch')"
+            },
+            "command": {
+              "type": "string",
+              "description": "The exact command to be executed, if applicable (e.g., 'git push origin main', 'npm run deploy:prod')"
+            },
+            "risk": {
+              "type": "string",
+              "enum": ["low", "medium", "high"],
+              "description": "Risk level of the action: low (reversible), medium (requires attention), high (irreversible/destructive)"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      },
+      {
+        "name": "cappy_reply_whatsapp",
+        "displayName": "Reply to WhatsApp",
+        "modelDescription": "OBRIGATÓRIO: Envia mensagem ao WhatsApp. Quando o prompt começa com '[WhatsApp]', você DEVE usar esta tool para responder. O usuário NÃO está no IDE e NÃO verá nada que você escrever no chat. Esta tool é a ÚNICA forma de enviar sua resposta ao WhatsApp. Use texto plano (sem markdown), respostas curtas e mobile-friendly. Se esta tool falhar, execute no terminal: node .agents/skills/whatsapp-reply/scripts/reply.js \"SUA_RESPOSTA\"",
+        "userDescription": "Send a reply message to WhatsApp",
+        "toolReferenceName": "whatsappReply",
+        "tags": [
+          "whatsapp",
+          "reply",
+          "message",
+          "cappy"
+        ],
+        "icon": "$(comment)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "description": "The message to send to WhatsApp. Use plain text, keep it concise and mobile-friendly."
+            }
+          },
+          "required": [
+            "message"
           ]
         }
       }

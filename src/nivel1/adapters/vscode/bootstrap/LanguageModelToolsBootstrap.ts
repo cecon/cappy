@@ -14,6 +14,8 @@ import { TodoRepository } from '../../../../domains/todo/repositories/todo-repos
 import { CreateTodoTool } from '../../../../nivel2/infrastructure/tools/todo/create-todo-tool';
 import { ListTodosTool } from '../../../../nivel2/infrastructure/tools/todo/list-todos-tool';
 import { CompleteTodoTool } from '../../../../nivel2/infrastructure/tools/todo/complete-todo-tool';
+import { WhatsAppConfirmationTool } from '../../../../nivel2/infrastructure/tools/whatsapp-confirmation-tool';
+import { WhatsAppReplyTool } from '../../../../nivel2/infrastructure/tools/whatsapp-reply-tool';
 
 /**
  * Registers all Language Model Tools for GitHub Copilot integration
@@ -78,6 +80,16 @@ export class LanguageModelToolsBootstrap {
     const completeTodoTool = vscode.lm.registerTool('cappy_complete_todo', new CompleteTodoTool(this.todoRepository));
     context.subscriptions.push(completeTodoTool);
     console.log('  ✅ cappy_complete_todo');
+
+    // Register WhatsApp HITL confirmation tool
+    const whatsappConfirmTool = vscode.lm.registerTool('cappy_whatsapp_confirmation', new WhatsAppConfirmationTool());
+    context.subscriptions.push(whatsappConfirmTool);
+    console.log('  ✅ cappy_whatsapp_confirmation (HITL)');
+
+    // Register WhatsApp reply tool (allows Agent to send messages to WhatsApp)
+    const whatsappReplyTool = vscode.lm.registerTool('cappy_reply_whatsapp', new WhatsAppReplyTool());
+    context.subscriptions.push(whatsappReplyTool);
+    console.log('  ✅ cappy_reply_whatsapp');
 
     // Schedule tool validation after LM runtime loads
     this.scheduleToolValidation();

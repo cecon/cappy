@@ -19,6 +19,7 @@ import { DEFAULT_BRIDGE_CONFIG } from './types';
 import { WhatsAppAdapter } from './whatsapp-adapter';
 import { MessageRouter } from './message-router';
 import type { IntelligentAgent } from '../agents';
+import { WhatsAppApprovalManager } from '../tools/whatsapp-confirmation-tool';
 
 const execAsync = promisify(exec);
 
@@ -52,6 +53,14 @@ export class CappyBridge {
 
   // Pending WhatsApp reply
   private pendingChatId: string | null = null;
+
+  // Active WhatsApp conversation tracking (avoid restarting agent on each message)
+  private activeWhatsAppConversation: {
+    chatId: string;
+    startedAt: number;
+    lastMessageAt: number;
+  } | null = null;
+  private static readonly CONVERSATION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   // Pending workspace query (when user needs to pick a workspace)
   private pendingWorkspaceQuery: { text: string; chatId: string } | null = null;
@@ -95,8 +104,11 @@ export class CappyBridge {
   async start(): Promise<void> {
     this.createStatusBar();
 
+    // Register bridge globally so LM tools (like WhatsAppConfirmationTool) can access it
+    (globalThis as any).__cappyBridge = this;
+
     try {
-      // Try to become the server
+      // Try to become the server by binding the port
       await this.startAsServer();
       this.role = 'server';
       console.log(`[Bridge] Started as SERVER on port ${this.config.port}`);
@@ -330,6 +342,25 @@ export class CappyBridge {
     // Emit incoming message to webview
     this.messageCallback?.(_pushName || 'WhatsApp', text, 'in');
 
+    // Check if this is a response to a pending HITL approval (SIM/NÃO)
+    const approvalManager = WhatsAppApprovalManager.getInstance();
+    if (approvalManager.hasPendingApprovals()) {
+      const normalizedText = text.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const isYes = ['sim', 'yes', 's', 'y', 'ok', 'pode', 'autorizo', 'aprovo', '1'].includes(normalizedText);
+      const isNo = ['nao', 'no', 'n', 'nope', 'nega', 'cancela', 'rejeito', '2'].includes(normalizedText);
+
+      if (isYes || isNo) {
+        approvalManager.resolveApproval(isYes);
+        const emoji = isYes ? '✅' : '❌';
+        const status = isYes ? 'AUTORIZADO' : 'NEGADO';
+        this.whatsapp?.sendMessage(chatId, `${emoji} *Cappy* Ação ${status}.`);
+        this.messageCallback?.('Cappy', `HITL: ${status}`, 'out');
+        // Store chatId for future confirmations
+        this.pendingChatId = chatId;
+        return;
+      }
+    }
+
     // Check if this is a response to a pending workspace query (user picking a number)
     if (this.pendingWorkspaceQuery && /^\d+$/.test(text.trim())) {
       const num = parseInt(text.trim(), 10);
@@ -353,6 +384,21 @@ export class CappyBridge {
 
     switch (parsed.type) {
       case 'command': {
+        // /new — reset conversation and optionally start a new one with the remaining text
+        if (parsed.command === 'new' || parsed.command === 'novo') {
+          this.activeWhatsAppConversation = null;
+          const remainingText = parsed.text.trim();
+          if (remainingText) {
+            // /new <message> — start fresh conversation with the message
+            this.whatsapp?.sendMessage(chatId, '🔄 *Cappy* Nova conversa iniciada.');
+            this.handleLocalChat(remainingText, chatId);
+          } else {
+            // /new alone — just reset, next message will start fresh
+            this.whatsapp?.sendMessage(chatId, '🔄 *Cappy* Conversa resetada. A próxima mensagem inicia uma nova conversa.');
+          }
+          return;
+        }
+
         const response = this.router!.handleCommand(parsed.command!);
         this.whatsapp?.sendMessage(chatId, response);
         break;
@@ -587,11 +633,61 @@ export class CappyBridge {
   }
 
   /**
+   * Check if there's an active WhatsApp conversation that hasn't expired.
+   */
+  private isConversationActive(chatId: string): boolean {
+    if (!this.activeWhatsAppConversation) return false;
+    if (this.activeWhatsAppConversation.chatId !== chatId) return false;
+
+    const elapsed = Date.now() - this.activeWhatsAppConversation.lastMessageAt;
+    if (elapsed > CappyBridge.CONVERSATION_TIMEOUT_MS) {
+      console.log(`[Bridge] Conversation expired (${Math.round(elapsed / 1000)}s idle)`);
+      this.activeWhatsAppConversation = null;
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Build the full initial prompt with all rules (used for first message in a conversation).
+   */
+  private buildInitialPrompt(text: string): string {
+    return [
+      `[WhatsApp] Mensagem de ${this.projectName}: "${text}"`,
+      ``,
+      `⚠️ REGRAS OBRIGATÓRIAS (NÃO IGNORE):`,
+      `1. Esta mensagem veio do WhatsApp. O usuário NÃO está no IDE e NÃO verá nada que você escrever aqui.`,
+      `2. Você DEVE enviar resposta ao WhatsApp. Se não fizer, o usuário não receberá nada.`,
+      `3. MÉTODO PRINCIPAL: Use a tool "cappy_reply_whatsapp" com o parâmetro message.`,
+      `4. MÉTODO ALTERNATIVO (se a tool falhar): Execute no terminal:`,
+      `   node .agents/skills/whatsapp-reply/scripts/reply.js "SUA RESPOSTA AQUI"`,
+      `5. Para ações perigosas (deploy, push, rm, etc.), use "cappy_whatsapp_confirmation" ANTES.`,
+      `6. Mantenha respostas CURTAS e em texto plano (sem markdown).`,
+      `7. Tools disponíveis: cappy_reply_whatsapp, cappy_whatsapp_confirmation, cappy_run_terminal_command, cappy_grep_search, cappy_read_file.`,
+      ``,
+      `REGRA DE OURO: Sua resposta SÓ será vista se você usar cappy_reply_whatsapp ou o script reply.js.`,
+    ].join('\n');
+  }
+
+  /**
+   * Build a follow-up prompt (used for subsequent messages in the same conversation).
+   * Simpler since the agent already has the rules from the initial prompt.
+   */
+  private buildFollowUpPrompt(text: string): string {
+    return [
+      `[WhatsApp] Nova mensagem de ${this.projectName}: "${text}"`,
+      ``,
+      `Responda ao WhatsApp usando cappy_reply_whatsapp ou o script reply.js.`,
+    ].join('\n');
+  }
+
+  /**
    * Relay a message to the IDE's AI chat.
-   * Tries multiple methods with fallback:
-   * 1. antigravity.sendPromptToAgentPanel (Antigravity Agent Panel — best)
-   * 2. antigravity.sendTextToChat (Antigravity IDE — tagged @mention)
-   * 3. Terminal relay (passive fallback)
+   * Tracks active conversations to avoid restarting the agent on every message.
+   * - First message from a chatId: starts a new conversation with full rules prompt.
+   * - Follow-up messages: sends directly to the existing conversation with a shorter prompt.
+   * Falls back through multiple injection methods.
    */
   private async relayToChatIDE(text: string, chatId?: string): Promise<string> {
     // Persist inbox for reply cycle
@@ -599,18 +695,60 @@ export class CappyBridge {
       this.persistInbox(text, chatId);
     }
 
-    const prompt = `[WhatsApp de ${this.projectName}]: ${text}\n\nEsta é uma mensagem vinda do WhatsApp. Por favor, use a skill "whatsapp-reply" (em .agents/skills/whatsapp-reply/SKILL.md) e o workflow /whatsapp-reply para processar e responder esta mensagem de volta ao WhatsApp.`;
+    const now = Date.now();
+    const hasActiveConversation = chatId ? this.isConversationActive(chatId) : false;
 
-    // Method 1: Send directly to the Agent Panel (best — processes as a prompt)
+    if (hasActiveConversation) {
+      // ── FOLLOW-UP: send to existing conversation without restarting ──
+      const followUpPrompt = this.buildFollowUpPrompt(text);
+
+      try {
+        await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', followUpPrompt);
+        this.activeWhatsAppConversation!.lastMessageAt = now;
+        console.log('[Bridge] Follow-up sent to existing conversation');
+        return `📤 Mensagem enviada (conversa existente):\n"${text}"\n\n_Processando com IA..._`;
+      } catch (err) {
+        console.log('[Bridge] Follow-up sendPromptToAgentPanel failed, starting new conversation:', err);
+        // Fall through to create a new conversation
+        this.activeWhatsAppConversation = null;
+      }
+    }
+
+    // ── FIRST MESSAGE: start a new conversation with full rules ──
+    const initialPrompt = this.buildInitialPrompt(text);
+
+    // Method 1: Start a new conversation for WhatsApp processing
     try {
-      await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', prompt);
-      console.log('[Bridge] Relayed via antigravity.sendPromptToAgentPanel');
-      return `📤 Mensagem enviada ao Agent Panel:\n"${text}"\n\n_Aguardando resposta do AI..._`;
+      await vscode.commands.executeCommand('antigravity.startNewConversation');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', initialPrompt);
+
+      // Track this as the active conversation
+      if (chatId) {
+        this.activeWhatsAppConversation = { chatId, startedAt: now, lastMessageAt: now };
+      }
+
+      console.log('[Bridge] Started NEW conversation + sendPromptToAgentPanel');
+      return `📤 Nova conversa criada no Agent Panel:\n"${text}"\n\n_Processando com IA..._`;
+    } catch (err) {
+      console.log('[Bridge] startNewConversation+sendPromptToAgentPanel failed:', err);
+    }
+
+    // Method 2: Send directly to the Agent Panel (fallback — no new conversation)
+    try {
+      await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', initialPrompt);
+
+      if (chatId) {
+        this.activeWhatsAppConversation = { chatId, startedAt: now, lastMessageAt: now };
+      }
+
+      console.log('[Bridge] Relayed via antigravity.sendPromptToAgentPanel (no new conversation)');
+      return `📤 Mensagem enviada ao Agent Panel:\n"${text}"\n\n_Processando com IA..._`;
     } catch (err) {
       console.log('[Bridge] antigravity.sendPromptToAgentPanel not available:', err);
     }
 
-    // Method 2: Antigravity chat (tagged @mention — less ideal)
+    // Method 3: Antigravity chat (tagged @mention — less ideal)
     try {
       const query = `@cappy [WhatsApp de ${this.projectName}]: ${text}`;
       await vscode.commands.executeCommand('antigravity.sendTextToChat', true, query);
@@ -620,7 +758,7 @@ export class CappyBridge {
       console.log('[Bridge] antigravity.sendTextToChat not available:', err);
     }
 
-    // Method 3: Passive terminal relay (last resort)
+    // Method 4: Passive terminal relay (last resort)
     console.log('[Bridge] Falling back to terminal relay...');
     return this.relayToTerminal(text);
   }
@@ -709,6 +847,26 @@ export class CappyBridge {
 
     console.log('[Bridge] Reply sent to WhatsApp and inbox cleared');
     vscode.window.showInformationMessage('Cappy: Resposta enviada ao WhatsApp ✅');
+  }
+
+  /**
+   * Send a HITL confirmation request to WhatsApp.
+   * Called by WhatsAppConfirmationTool via the global bridge reference.
+   */
+  sendConfirmationToWhatsApp(message: string): void {
+    if (!this.whatsapp || this.whatsappStatus !== 'connected') {
+      throw new Error('WhatsApp não está conectado');
+    }
+
+    // Use the last known chatId or the owner's chatId
+    const chatId = this.pendingChatId || this.config.ownerChatId;
+    if (!chatId) {
+      throw new Error('Nenhum chatId disponível. Envie uma mensagem pelo WhatsApp primeiro.');
+    }
+
+    this.whatsapp.sendMessage(chatId, message);
+    this.messageCallback?.('Cappy', '[HITL] Confirmação enviada ao WhatsApp', 'out');
+    console.log('[Bridge] HITL confirmation sent to WhatsApp');
   }
 
   /**
