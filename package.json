@@ -1,7 +1,7 @@
 {
   "name": "cappy",
   "displayName": "Cappy",
-  "description": "AI planning assistant for VS Code — creates structured task plans through conversation. Future: WhatsApp bridge for remote dev workflows.",
+  "description": "WhatsApp Dev Bridge for VS Code — control your IDE, approve AI actions, and schedule workflows from your phone. No extra apps needed.",
   "version": "3.1.16",
   "publisher": "eduardocecon",
   "icon": "src/assets/icon.png",
@@ -15,9 +15,8 @@
     "antigravity": ">=0.1.0"
   },
   "categories": [
+    "AI",
     "Other",
-    "Snippets",
-    "Formatters",
     "Machine Learning"
   ],
   "keywords": [

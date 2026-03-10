@@ -1,468 +1,91 @@
 /**
- * @fileoverview Main bootstrap orchestrator for Cappy extension
+ * @fileoverview ExtensionBootstrap — thin activation orchestrator
  * @module bootstrap/ExtensionBootstrap
+ *
+ * Delegates each concern to a focused setup module:
+ * - LanguageModelToolsBootstrap — LM tool registration
+ * - BridgeSetup                — CappyBridge lifecycle
+ * - SchedulerSetup             — CronScheduler lifecycle
+ * - CommandSetup               — VS Code command registration
  */
 
 import * as vscode from 'vscode';
-import { LanguageModelToolsBootstrap } from './LanguageModelToolsBootstrap';
-import { IntelligentAgent } from '../../../../nivel2/infrastructure/agents';
-import type { PlanningTurnResult } from '../../../../nivel2/infrastructure/agents/common/types';
-import { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-bridge';
-import { CappyWebViewProvider } from '../webview/cappy-webview';
-import { setupAgentSkills } from '../../../../nivel2/infrastructure/agents/AgentSkillsSetup';
-import { CronScheduler } from '../../../../nivel2/infrastructure/scheduler/CronScheduler';
+import { LanguageModelToolsBootstrap }  from './LanguageModelToolsBootstrap';
+import { BridgeSetup }                  from './setup/BridgeSetup';
+import { SchedulerSetup }               from './setup/SchedulerSetup';
+import { CommandSetup }                 from './setup/CommandSetup';
+import { IntelligentAgent }             from '../../../../nivel2/infrastructure/agents';
+import type { PlanningTurnResult }      from '../../../../nivel2/infrastructure/agents/common/types';
+import { CappyWebViewProvider }         from '../webview/cappy-webview';
+import { setupAgentSkills }             from '../../../../nivel2/infrastructure/agents/AgentSkillsSetup';
 
-/**
- * Main bootstrap orchestrator for the extension
- */
 export class ExtensionBootstrap {
   private readonly planningAgent = new IntelligentAgent();
-  private bridge: CappyBridge | null = null;
-  private webviewProvider: CappyWebViewProvider | null = null;
-  private scheduler: CronScheduler | null = null;
 
-  /**
-   * Activates the extension
-   */
   async activate(context: vscode.ExtensionContext): Promise<void> {
-    console.log('🚩 [Extension] Cappy activation starting...');
-    console.log('Cappy extension is now active!');
+    console.log('[Extension] Cappy activation starting...');
 
-    // Phase 1: Register Language Model Tools
-    const lmToolsBootstrap = new LanguageModelToolsBootstrap();
-    lmToolsBootstrap.register(context);
+    // 1 — LM tools (sync)
+    new LanguageModelToolsBootstrap().register(context);
 
-    // Phase 2: Register Chat Participant
-    await this.registerChatParticipant(context);
+    // 2 — Chat participant (@cappy)
+    this._registerChatParticipant(context);
 
-    // Phase 3: Register WebView (sidebar panel)
-    this.registerWebView(context);
+    // 3 — Sidebar WebView
+    const webviewProvider = this._registerWebView(context);
 
-    // Phase 4: Start Bridge (auto-elects as server or client)
-    await this.startBridge(context);
+    // 4 — Bridge (async, auto-elects server/client)
+    const bridge = await new BridgeSetup().start(context, this.planningAgent, webviewProvider);
 
-    // Phase 5: Register WhatsApp commands
-    this.registerBridgeCommands(context);
+    // 5 — Scheduler
+    const scheduler = new SchedulerSetup().start(context, bridge, webviewProvider);
 
-    // Phase 6: Setup Agent Skills (creates/updates .agents/ in workspace)
-    this.setupAgentSkills();
+    // 6 — Commands
+    new CommandSetup().register(context, bridge, scheduler);
 
-    // Phase 7: Start Cron Scheduler
-    this.startScheduler();
+    // 7 — Agent skills (.agents/ directory)
+    this._setupAgentSkills();
 
-    console.log('✅ [Extension] Cappy activation completed');
+    console.log('[Extension] Cappy activation completed');
   }
 
-  /**
-   * Register the Cappy sidebar WebView
-   */
-  private registerWebView(context: vscode.ExtensionContext): void {
-    this.webviewProvider = new CappyWebViewProvider(context.extensionUri);
-
-    context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider(
-        CappyWebViewProvider.viewType,
-        this.webviewProvider
-      )
-    );
-
-    // Open dashboard command
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.openDashboard', () => {
-        vscode.commands.executeCommand('cappy.dashboard.focus');
-      })
-    );
-
-    console.log('  ✅ Registered Cappy sidebar WebView');
+  async deactivate(): Promise<void> {
+    console.log('[Extension] Cappy deactivating...');
   }
 
-  /**
-   * Starts the Cappy Bridge for WhatsApp ↔ VS Code communication
-   */
-  private async startBridge(context: vscode.ExtensionContext): Promise<void> {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-      console.log('[Bridge] No workspace folder — bridge not started');
-      return;
-    }
+  // ── WebView ───────────────────────────────────────────────────────
 
-    const workspaceRoot = workspaceFolders[0].uri.fsPath;
-    const projectName = workspaceFolders[0].name;
-
-    this.bridge = new CappyBridge(projectName, workspaceRoot, this.planningAgent);
-
-    // Wire bridge events to webview
-    if (this.webviewProvider) {
-      this.webviewProvider.setBridge(this.bridge);
-
-      this.bridge.onQRCode(async (qr) => {
-        try {
-          const QRCode = await import('qrcode');
-          const dataUri = await QRCode.toDataURL(qr, {
-            width: 256,
-            margin: 2,
-            color: { dark: '#000000', light: '#ffffff' },
-          });
-          this.webviewProvider?.updateQRCode(dataUri);
-        } catch (err) {
-          console.error('[Bridge] QR code generation failed:', err);
-          // Fallback: send raw text
-          this.webviewProvider?.updateQRCode(qr);
-        }
-      });
-
-      this.bridge.onStatusChange((status) => {
-        this.webviewProvider?.updateStatus(status);
-        if (status.whatsapp === 'connected') {
-          this.webviewProvider?.clearQRCode();
-        }
-      });
-
-      this.bridge.onMessage((from, text, direction) => {
-        this.webviewProvider?.addMessage(from, text, direction);
-      });
-    }
-
-    try {
-      await this.bridge.start();
-      console.log(`[Bridge] Started for project: ${projectName}`);
-    } catch (err) {
-      console.error('[Bridge] Failed to start:', err);
-    }
+  private _registerWebView(context: vscode.ExtensionContext): CappyWebViewProvider {
+    const provider = new CappyWebViewProvider(context.extensionUri);
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(CappyWebViewProvider.viewType, provider)
+    );
+    return provider;
   }
 
-  /**
-   * Registers VS Code commands for bridge control
-   */
-  private registerBridgeCommands(context: vscode.ExtensionContext): void {
-    // Connect WhatsApp
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.whatsapp.connect', async () => {
-        if (!this.bridge) {
-          vscode.window.showWarningMessage('Cappy: Bridge not running. Open a workspace first.');
-          return;
-        }
-        await this.bridge.connectWhatsApp();
-      })
-    );
+  // ── Chat participant ──────────────────────────────────────────────
 
-    // Show status
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.whatsapp.status', () => {
-        if (!this.bridge) {
-          vscode.window.showInformationMessage('Cappy: Bridge not running.');
-          return;
-        }
-        const status = this.bridge.getStatus();
-        vscode.window.showInformationMessage(
-          `Cappy Bridge\n` +
-          `Role: ${status.role?.toUpperCase()}\n` +
-          `WhatsApp: ${status.whatsapp}\n` +
-          `Projects: ${status.projects.join(', ')}`
-        );
-      })
-    );
-
-    // Reply to WhatsApp (used by AI assistant via /whatsapp-reply workflow)
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.whatsapp.reply', async (...args: any[]) => {
-        if (!this.bridge) {
-          vscode.window.showWarningMessage('Cappy: Bridge not running.');
-          return;
-        }
-
-        // Accept text from command argument or prompt the user
-        let replyText = args[0] as string | undefined;
-
-        if (!replyText) {
-          replyText = await vscode.window.showInputBox({
-            prompt: 'Digite a resposta para o WhatsApp',
-            placeHolder: 'Sua resposta aqui...',
-          });
-        }
-
-        if (replyText) {
-          await this.bridge.replyToWhatsApp(replyText);
-        }
-      })
-    );
-
-    // Diagnostic command — enumerate all available commands and test methods
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.diagnose', async () => {
-        const out = vscode.window.createOutputChannel('Cappy Diagnose');
-        out.clear();
-        out.show();
-
-        out.appendLine('═══ CAPPY DIAGNÓSTICO ═══');
-        out.appendLine(`Timestamp: ${new Date().toISOString()}`);
-        out.appendLine('');
-
-        // 1. List ALL commands matching keywords
-        out.appendLine('── COMANDOS DISPONÍVEIS ──');
-        const allCommands = await vscode.commands.getCommands(true);
-        const keywords = ['chat', 'antigravity', 'send', 'gemini', 'agent', 'copilot', 'ai'];
-        for (const kw of keywords) {
-          const matches = allCommands.filter((c: string) => c.toLowerCase().includes(kw));
-          if (matches.length > 0) {
-            out.appendLine(`\n[${kw}] (${matches.length} comandos):`);
-            for (const cmd of matches.sort()) {
-              out.appendLine(`  • ${cmd}`);
-            }
-          }
-        }
-
-        // 2. Test LLM availability
-        out.appendLine('\n── MODELOS LLM ──');
-        try {
-          const models = await vscode.lm.selectChatModels();
-          if (models && models.length > 0) {
-            for (const m of models) {
-              out.appendLine(`  ✅ ${m.name} (vendor: ${m.vendor}, family: ${m.family})`);
-            }
-          } else {
-            out.appendLine('  ❌ Nenhum modelo disponível via vscode.lm.selectChatModels()');
-          }
-        } catch (err) {
-          out.appendLine(`  ❌ Erro: ${err}`);
-        }
-
-        // 3. Test each injection method
-        out.appendLine('\n── TESTES DE INJEÇÃO ──');
-        const testQuery = '@cappy diagnóstico: esta é uma mensagem de teste do Cappy';
-
-        // Test antigravity.sendTextToChat
-        try {
-          await vscode.commands.executeCommand('antigravity.sendTextToChat', true, testQuery);
-          out.appendLine('  ✅ antigravity.sendTextToChat — executou sem erro');
-        } catch (err) {
-          out.appendLine(`  ❌ antigravity.sendTextToChat — ${err}`);
-        }
-
-        // Test workbench.action.chat.open
-        try {
-          await vscode.commands.executeCommand('workbench.action.chat.open', { query: testQuery });
-          out.appendLine('  ✅ workbench.action.chat.open — executou sem erro');
-        } catch (err) {
-          out.appendLine(`  ❌ workbench.action.chat.open — ${err}`);
-        }
-
-        // Test other potential commands
-        const chatCommands = allCommands.filter((c: string) => 
-          c.includes('chat') && (c.includes('send') || c.includes('open') || c.includes('new') || c.includes('focus'))
-        );
-        out.appendLine(`\n── COMANDOS CHAT POTENCIAIS ──`);
-        for (const cmd of chatCommands) {
-          out.appendLine(`  📋 ${cmd}`);
-        }
-
-        out.appendLine('\n═══ FIM DO DIAGNÓSTICO ═══');
-        vscode.window.showInformationMessage('Cappy: Diagnóstico completo! Veja o painel "Cappy Diagnose".');
-      })
-    );
-
-    // Test LLM — investigate Antigravity Custom Agents and Plugins
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.testLLM', async () => {
-        const out = vscode.window.createOutputChannel('Cappy Test LLM');
-        out.clear();
-        out.show();
-
-        out.appendLine('═══ CAPPY — CUSTOM AGENTS & PLUGINS ═══');
-        out.appendLine(`Timestamp: ${new Date().toISOString()}`);
-        out.appendLine('');
-
-        // 1. getCascadePluginTemplate
-        out.appendLine('── getCascadePluginTemplate ──');
-        try {
-          const template = await vscode.commands.executeCommand('antigravity.getCascadePluginTemplate');
-          out.appendLine(`  type: ${typeof template}`);
-          if (template) {
-            out.appendLine(`  value: ${JSON.stringify(template, null, 2).substring(0, 2000)}`);
-          } else {
-            out.appendLine(`  value: ${template}`);
-          }
-        } catch (err) {
-          out.appendLine(`  ❌ Error: ${err}`);
-        }
-
-        // 2. registerCustomAgentsProvider
-        out.appendLine('');
-        out.appendLine('── registerCustomAgentsProvider ──');
-        const chat = vscode.chat as any;
-        try {
-          out.appendLine(`  typeof: ${typeof chat.registerCustomAgentsProvider}`);
-          // Try registering with a simple provider
-          const provider = {
-            provideCustomAgents: () => {
-              out.appendLine('  🔔 provideCustomAgents was called!');
-              return [{
-                id: 'cappy',
-                name: 'Cappy',
-                fullName: 'Cappy AI Assistant',
-                description: 'WhatsApp-integrated AI assistant for remote development',
-                isDefault: false,
-                metadata: { isSticky: false }
-              }];
-            }
-          };
-          const disposable = chat.registerCustomAgentsProvider(provider);
-          out.appendLine(`  ✅ Registered! disposable type: ${typeof disposable}`);
-          if (disposable) {
-            context.subscriptions.push(disposable);
-          }
-        } catch (err: any) {
-          out.appendLine(`  ❌ Error: ${err?.message || err}`);
-          // Try with different argument patterns
-          try {
-            const disposable = chat.registerCustomAgentsProvider('cappy', {
-              provideCustomAgents: () => [{
-                id: 'cappy',
-                name: 'Cappy',
-                description: 'AI Assistant via WhatsApp'
-              }]
-            });
-            out.appendLine(`  ✅ Alt pattern worked! ${typeof disposable}`);
-            if (disposable) context.subscriptions.push(disposable);
-          } catch (err2: any) {
-            out.appendLine(`  ❌ Alt pattern error: ${err2?.message || err2}`);
-          }
-        }
-
-        // 3. createDynamicChatParticipant
-        out.appendLine('');
-        out.appendLine('── createDynamicChatParticipant ──');
-        try {
-          out.appendLine(`  typeof: ${typeof chat.createDynamicChatParticipant}`);
-          const dynParticipant = chat.createDynamicChatParticipant(
-            'cappy.dynamic',
-            'Cappy',
-            'WhatsApp AI assistant',
-            async (request: any, context: any, response: any, token: any) => {
-              out.appendLine('  🔔 Dynamic participant handler called!');
-              out.appendLine(`    request type: ${typeof request}`);
-              out.appendLine(`    request.model: ${request?.model ? 'EXISTS!' : 'null'}`);
-              if (request?.model) {
-                out.appendLine(`    model.name: ${request.model.name}`);
-                out.appendLine(`    model.vendor: ${request.model.vendor}`);
-                // Save the model!
-                (globalThis as any).__cappyModel = request.model;
-                out.appendLine('    ✅ MODEL CAPTURED!');
-              }
-              if (response?.markdown) {
-                response.markdown('Olá! Cappy dynamic participant respondendo.');
-              }
-              return { metadata: { command: 'dynamic-test' } };
-            }
-          );
-          out.appendLine(`  ✅ Created! type: ${typeof dynParticipant}`);
-          if (dynParticipant) {
-            if (typeof dynParticipant === 'object') {
-              out.appendLine(`  keys: ${Object.keys(dynParticipant).join(', ')}`);
-            }
-            context.subscriptions.push(dynParticipant);
-          }
-        } catch (err: any) {
-          out.appendLine(`  ❌ Error: ${err?.message || err}`);
-          // Try different signatures
-          try {
-            const dp = chat.createDynamicChatParticipant(
-              { id: 'cappy.dynamic', name: 'Cappy', description: 'AI via WhatsApp' },
-              async (request: any) => {
-                (globalThis as any).__cappyModel = request?.model;
-                return {};
-              }
-            );
-            out.appendLine(`  ✅ Alt pattern: ${typeof dp}`);
-            if (dp) context.subscriptions.push(dp);
-          } catch (err2: any) {
-            out.appendLine(`  ❌ Alt pattern: ${err2?.message || err2}`);
-          }
-        }
-
-        // 4. Check vscode.chat for ALL methods
-        out.appendLine('');
-        out.appendLine('── vscode.chat — ALL methods ──');
-        for (const key of Object.keys(chat)) {
-          out.appendLine(`  chat.${key} = ${typeof chat[key]}`);
-        }
-
-        // 5. Check if captured model exists now
-        out.appendLine('');
-        out.appendLine('── MODEL STATUS ──');
-        const model = (globalThis as any).__cappyModel;
-        out.appendLine(`  __cappyModel: ${model ? `${model.name} (${model.vendor})` : 'not captured yet'}`);
-
-        // 6. Tools count
-        out.appendLine('');
-        out.appendLine('── TOOLS ──');
-        out.appendLine(`  Total: ${vscode.lm.tools?.length ?? 0}`);
-
-        out.appendLine('');
-        out.appendLine('═══ FIM ═══');
-        vscode.window.showInformationMessage('Cappy: Investigação Custom Agents completa!');
-      })
-    );
-
-    // ── Scheduler Commands ──
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.scheduler.add', (data: any) => {
-        if (!this.scheduler) return;
-        const task = this.scheduler.addTask(data);
-        vscode.window.showInformationMessage(`Cappy: Tarefa "${task.name}" agendada a cada ${task.intervalMinutes}min`);
-      })
-    );
-
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.scheduler.toggle', (taskId: string) => {
-        this.scheduler?.toggleTask(taskId);
-      })
-    );
-
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.scheduler.remove', (taskId: string) => {
-        this.scheduler?.removeTask(taskId);
-      })
-    );
-
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.scheduler.run', async (taskId: string) => {
-        if (!this.scheduler) return;
-        vscode.window.showInformationMessage('Cappy: Executando tarefa agendada...');
-        await this.scheduler.runNow(taskId);
-      })
-    );
-  }
-
-  /**
-   * Registers the chat participant
-   */
-  private async registerChatParticipant(context: vscode.ExtensionContext): Promise<void> {
-    console.log('💬 [ChatParticipant] Registering @cappy chat participant...');
-
+  private _registerChatParticipant(context: vscode.ExtensionContext): void {
     const participant = vscode.chat.createChatParticipant(
       'cappy.chat',
       async (
         request: vscode.ChatRequest,
-        context: vscode.ChatContext,
+        ctx: vscode.ChatContext,
         stream: vscode.ChatResponseStream,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
       ): Promise<vscode.ChatResult> => {
         try {
-          const conversationId = context.history.length > 0 
-            ? `chat-${context.history[0].participant}`
+          const sessionId = ctx.history.length > 0
+            ? `chat-${ctx.history[0].participant}`
             : 'chat-main';
-          
-          stream.progress('Pensando...');
 
-          // Capture the model reference for use by the bridge/HITL
-          (globalThis as any).__cappyModel = request.model;
-          console.log(`[ChatParticipant] Model captured: ${request.model.name} (${request.model.vendor})`);
+          stream.progress('Pensando...');
+          (globalThis as Record<string, unknown>)['__cappyModel'] = request.model;
 
           const { result } = await this.planningAgent.runSessionTurn({
-            sessionId: conversationId,
+            sessionId,
             message: request.prompt,
-            model: request.model
+            model: request.model,
           });
 
           if (token.isCancellationRequested) {
@@ -470,127 +93,35 @@ export class ExtensionBootstrap {
             return { metadata: { command: 'chat', cancelled: true } };
           }
 
-          this.streamWorkflowResult(stream, result);
-
-          return {
-            metadata: {
-              command: 'chat',
-              phase: result.phase
-            }
-          };
+          this._streamResult(stream, result);
+          return { metadata: { command: 'chat', phase: result.phase } };
         } catch (error) {
           if (token.isCancellationRequested) {
             stream.markdown('\n\n_Cancelado pelo usuário_');
             return { metadata: { command: 'chat', cancelled: true } };
           }
-
-          const errMsg = error instanceof Error ? error.message : String(error);
-          stream.markdown(`\n\n⚠️ **Error**: ${errMsg}`);
-          console.error('[ChatParticipant] Error:', error);
-          return { metadata: { command: 'chat', error: errMsg } };
+          const msg = error instanceof Error ? error.message : String(error);
+          stream.markdown(`\n\n⚠️ **Error**: ${msg}`);
+          return { metadata: { command: 'chat', error: msg } };
         }
       }
     );
 
-    // Set icon
-    participant.iconPath = vscode.Uri.joinPath(
-      context.extensionUri,
-      'src',
-      'assets',
-      'icon.png'
-    );
-
+    participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'src', 'assets', 'icon.png');
     context.subscriptions.push(participant);
-    console.log('  ✅ Registered @cappy chat participant');
   }
 
-  /**
-   * Streams workflow result to chat
-   */
-  private streamWorkflowResult(
-    stream: vscode.ChatResponseStream,
-    result: PlanningTurnResult
-  ): void {
-    if (result.conversationLog) {
-      const lastMessage = result.conversationLog[result.conversationLog.length - 1];
-      if (lastMessage?.content) {
-        stream.markdown(lastMessage.content);
-      }
-    }
+  private _streamResult(stream: vscode.ChatResponseStream, result: PlanningTurnResult): void {
+    const last = result.conversationLog?.[result.conversationLog.length - 1];
+    if (last?.content) stream.markdown(last.content);
   }
 
-  /**
-   * Sets up agent skills in the workspace (.agents/ directory)
-   */
-  private setupAgentSkills(): void {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-      console.log('[AgentSkills] No workspace folder — skipped');
-      return;
-    }
+  // ── Agent skills ──────────────────────────────────────────────────
 
-    const workspaceRoot = workspaceFolders[0].uri.fsPath;
-    try {
-      setupAgentSkills(workspaceRoot);
-    } catch (err) {
-      console.error('[AgentSkills] Failed to setup:', err);
-    }
-  }
-
-  /**
-   * Start the Cron Scheduler for automated workflow execution
-   */
-  private startScheduler(): void {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-      console.log('[Scheduler] No workspace folder — scheduler not started');
-      return;
-    }
-
-    const workspaceRoot = workspaceFolders[0].uri.fsPath;
-    this.scheduler = new CronScheduler(workspaceRoot);
-
-    // Wire bridge for WhatsApp notifications
-    if (this.bridge) {
-      this.scheduler.setBridge(this.bridge);
-      this.bridge.setScheduler(this.scheduler);
-    }
-
-    // Wire scheduler events to webview
-    if (this.webviewProvider) {
-      this.scheduler.onTasksChanged((tasks) => {
-        this.webviewProvider?.postMessage({ type: 'scheduler-tasks', data: tasks });
-      });
-
-      this.scheduler.onTaskRunning((taskId) => {
-        this.webviewProvider?.postMessage({ type: 'scheduler-running', data: taskId });
-      });
-
-      this.scheduler.onTaskComplete((taskId, status) => {
-        this.webviewProvider?.postMessage({ type: 'scheduler-complete', data: { taskId, status } });
-      });
-    }
-
-    this.scheduler.start();
-    console.log('  ✅ Cron Scheduler started');
-  }
-
-  /**
-   * Deactivates the extension
-   */
-  async deactivate(): Promise<void> {
-    console.log('👋 [Extension] Cappy deactivating...');
-    this.scheduler?.stop();
-    await this.bridge?.stop();
-    console.log('✅ [Extension] Cappy deactivated');
-  }
-
-  /**
-   * Gets internal state (for testing)
-   */
-  getState(): { planningAgent: IntelligentAgent } {
-    return {
-      planningAgent: this.planningAgent
-    };
+  private _setupAgentSkills(): void {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!root) return;
+    try { setupAgentSkills(root); }
+    catch (err) { console.error('[AgentSkills] Failed to setup:', err); }
   }
 }

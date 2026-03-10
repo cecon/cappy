@@ -2,8 +2,7 @@
  * @fileoverview WhatsApp Confirmation Tool — HITL (Human-in-the-Loop) via WhatsApp
  * @module tools/whatsapp-confirmation-tool
  *
- * This tool allows AI assistants (Antigravity, Copilot, etc.) to request
- * user confirmation for sensitive actions via WhatsApp.
+ * Delegates approval state to ApprovalFlow (chatId-validated singleton).
  *
  * Flow:
  * 1. AI calls this tool with a description of what needs approval
@@ -13,121 +12,34 @@
  */
 
 import * as vscode from 'vscode';
+import { ApprovalFlow } from '../bridge/ApprovalFlow';
+import { AuditLog } from '../security/CommandPolicy';
+
+/**
+ * Re-export for backward compatibility — bridge uses ApprovalFlow directly.
+ * @deprecated Use ApprovalFlow.getInstance() instead.
+ */
+export { ApprovalFlow as WhatsAppApprovalManager };
 
 interface WhatsAppConfirmationInput {
-  /** Description of the action that needs approval */
   action: string;
-  /** Optional: the exact command to be executed (shown to user for transparency) */
   command?: string;
-  /** Optional: risk level hint (low, medium, high) */
   risk?: 'low' | 'medium' | 'high';
 }
 
-/**
- * Singleton manager for pending WhatsApp approvals.
- * Shared between the tool and the bridge so WhatsApp responses
- * can resolve pending promises.
- */
-export class WhatsAppApprovalManager {
-  private static instance: WhatsAppApprovalManager;
-
-  /** Map of approval ID → resolver function */
-  private pendingApprovals = new Map<string, {
-    resolve: (approved: boolean) => void;
-    action: string;
-    command?: string;
-    createdAt: number;
-  }>();
-
-  /** Timeout for approvals (5 minutes) */
-  private readonly APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
-
-  static getInstance(): WhatsAppApprovalManager {
-    if (!WhatsAppApprovalManager.instance) {
-      WhatsAppApprovalManager.instance = new WhatsAppApprovalManager();
-    }
-    return WhatsAppApprovalManager.instance;
-  }
-
-  /**
-   * Create a new pending approval and return a promise that resolves 
-   * when the user responds via WhatsApp.
-   */
-  requestApproval(action: string, command?: string): { id: string; promise: Promise<boolean> } {
-    const id = `approval-${Date.now()}`;
-
-    const promise = new Promise<boolean>((resolve) => {
-      this.pendingApprovals.set(id, {
-        resolve,
-        action,
-        command,
-        createdAt: Date.now(),
-      });
-
-      // Auto-reject after timeout
-      setTimeout(() => {
-        if (this.pendingApprovals.has(id)) {
-          this.pendingApprovals.delete(id);
-          resolve(false);
-          console.log(`[HITL] Approval ${id} expired (timeout)`);
-        }
-      }, this.APPROVAL_TIMEOUT_MS);
-    });
-
-    return { id, promise };
-  }
-
-  /**
-   * Called by the bridge when the user responds via WhatsApp.
-   * Returns true if there was a pending approval to resolve.
-   */
-  resolveApproval(approved: boolean): boolean {
-    // Resolve the most recent pending approval
-    const entries = Array.from(this.pendingApprovals.entries());
-    if (entries.length === 0) return false;
-
-    // Get the latest pending approval
-    const [id, approval] = entries[entries.length - 1];
-    approval.resolve(approved);
-    this.pendingApprovals.delete(id);
-    console.log(`[HITL] Approval ${id} resolved: ${approved ? 'APPROVED' : 'REJECTED'}`);
-    return true;
-  }
-
-  /**
-   * Check if there are any pending approvals
-   */
-  hasPendingApprovals(): boolean {
-    return this.pendingApprovals.size > 0;
-  }
-
-  /**
-   * Get info about the current pending approval (for display)
-   */
-  getCurrentApproval(): { action: string; command?: string } | null {
-    const entries = Array.from(this.pendingApprovals.entries());
-    if (entries.length === 0) return null;
-    const [, approval] = entries[entries.length - 1];
-    return { action: approval.action, command: approval.command };
-  }
-}
-
-/**
- * LM Tool that sends confirmation requests to WhatsApp
- * and waits for the user's response.
- */
 export class WhatsAppConfirmationTool implements vscode.LanguageModelTool<WhatsAppConfirmationInput> {
 
   async invoke(
     options: vscode.LanguageModelToolInvocationOptions<WhatsAppConfirmationInput>,
     _token: vscode.CancellationToken
   ): Promise<vscode.LanguageModelToolResult> {
-    const { action, command, risk } = options.input;
+    const { action, command, risk = 'medium' } = options.input;
 
-    const manager = WhatsAppApprovalManager.getInstance();
+    const bridge = (globalThis as Record<string, unknown>)['__cappyBridge'] as {
+      sendConfirmationToWhatsApp(msg: string): void;
+      workspaceRoot?: string;
+    } | undefined;
 
-    // Check if WhatsApp bridge is available
-    const bridge = (globalThis as any).__cappyBridge;
     if (!bridge) {
       return {
         content: [new vscode.LanguageModelTextPart(
@@ -137,22 +49,20 @@ export class WhatsAppConfirmationTool implements vscode.LanguageModelTool<WhatsA
       };
     }
 
-    // Build the WhatsApp message
+    // Build WhatsApp message
     const riskEmoji = risk === 'high' ? '🔴' : risk === 'medium' ? '🟡' : '🟢';
     let message = `${riskEmoji} *AUTORIZAÇÃO NECESSÁRIA*\n\n`;
     message += `📋 *Ação:* ${action}\n`;
-    if (command) {
-      message += `💻 *Comando:* \`${command}\`\n`;
-    }
+    if (command) message += `💻 *Comando:* \`${command}\`\n`;
     message += `\n✅ Responda *SIM* para autorizar\n❌ Responda *NÃO* para negar\n`;
     message += `\n⏳ _Expira em 5 minutos_`;
 
-    // Create the approval request
-    const { promise } = manager.requestApproval(action, command);
-
-    // Send to WhatsApp
+    // Send to WhatsApp — this also sets the chatId in the bridge
+    let chatId: string | undefined;
     try {
       bridge.sendConfirmationToWhatsApp(message);
+      // Retrieve chatId from bridge's session manager (exposed via getter)
+      chatId = (bridge as Record<string, unknown>)['_pendingChatId'] as string | undefined;
     } catch (err) {
       return {
         content: [new vscode.LanguageModelTextPart(
@@ -161,28 +71,25 @@ export class WhatsAppConfirmationTool implements vscode.LanguageModelTool<WhatsA
       };
     }
 
-    // Wait for user response (blocks until user replies or timeout)
+    // Register approval with chatId (fallback to empty string if unavailable)
+    const flow = ApprovalFlow.getInstance();
+    const { promise } = flow.request(action, chatId ?? '', command, risk);
+
+    const workspaceRoot = typeof bridge.workspaceRoot === 'string' ? bridge.workspaceRoot : '.';
+    const audit = new AuditLog(workspaceRoot);
+    audit.write({ type: 'hitl_requested', timestamp: new Date().toISOString(), project: 'unknown', chatId, action, risk });
+
     const approved = await promise;
 
-    if (approved) {
-      return {
-        content: [new vscode.LanguageModelTextPart(
-          `✅ AUTORIZADO pelo usuário via WhatsApp.\n` +
-          `Ação: ${action}\n` +
-          (command ? `Comando: ${command}\n` : '') +
-          `Pode prosseguir com a execução.`
-        )]
-      };
-    } else {
-      return {
-        content: [new vscode.LanguageModelTextPart(
-          `❌ NEGADO pelo usuário via WhatsApp.\n` +
-          `Ação: ${action}\n` +
-          (command ? `Comando: ${command}\n` : '') +
-          `NÃO execute esta ação. Informe ao usuário que a ação foi cancelada.`
-        )]
-      };
-    }
+    audit.write({ type: approved ? 'hitl_approved' : 'hitl_rejected', timestamp: new Date().toISOString(), project: 'unknown', chatId, action });
+
+    return {
+      content: [new vscode.LanguageModelTextPart(
+        approved
+          ? `✅ AUTORIZADO pelo usuário via WhatsApp.\nAção: ${action}\n${command ? `Comando: ${command}\n` : ''}Pode prosseguir com a execução.`
+          : `❌ NEGADO pelo usuário via WhatsApp.\nAção: ${action}\n${command ? `Comando: ${command}\n` : ''}NÃO execute esta ação.`
+      )]
+    };
   }
 
   async prepareInvocation(
