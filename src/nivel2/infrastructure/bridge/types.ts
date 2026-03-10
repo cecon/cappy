@@ -20,7 +20,8 @@ export type BridgeMessageType =
   | 'command'         // Special commands (/projetos, /status, etc.)
   | 'projects_list'   // List of connected projects
   | 'media'           // Media message (image/video) from VS Code to WhatsApp
-  | 'server_info';    // Server broadcasts its metadata (project name, WhatsApp status) to clients
+  | 'server_info'     // Server broadcasts its metadata (project name, WhatsApp status) to clients
+  | 'scheduler_add';  // Add a scheduled task via WebSocket (agent → CronScheduler)
 
 /**
  * A message flowing through the bridge

@@ -10,6 +10,7 @@ import type { PlanningTurnResult } from '../../../../nivel2/infrastructure/agent
 import { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-bridge';
 import { CappyWebViewProvider } from '../webview/cappy-webview';
 import { setupAgentSkills } from '../../../../nivel2/infrastructure/agents/AgentSkillsSetup';
+import { CronScheduler } from '../../../../nivel2/infrastructure/scheduler/CronScheduler';
 
 /**
  * Main bootstrap orchestrator for the extension
@@ -18,6 +19,7 @@ export class ExtensionBootstrap {
   private readonly planningAgent = new IntelligentAgent();
   private bridge: CappyBridge | null = null;
   private webviewProvider: CappyWebViewProvider | null = null;
+  private scheduler: CronScheduler | null = null;
 
   /**
    * Activates the extension
@@ -44,6 +46,9 @@ export class ExtensionBootstrap {
 
     // Phase 6: Setup Agent Skills (creates/updates .agents/ in workspace)
     this.setupAgentSkills();
+
+    // Phase 7: Start Cron Scheduler
+    this.startScheduler();
 
     console.log('✅ [Extension] Cappy activation completed');
   }
@@ -255,6 +260,178 @@ export class ExtensionBootstrap {
         vscode.window.showInformationMessage('Cappy: Diagnóstico completo! Veja o painel "Cappy Diagnose".');
       })
     );
+
+    // Test LLM — investigate Antigravity Custom Agents and Plugins
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.testLLM', async () => {
+        const out = vscode.window.createOutputChannel('Cappy Test LLM');
+        out.clear();
+        out.show();
+
+        out.appendLine('═══ CAPPY — CUSTOM AGENTS & PLUGINS ═══');
+        out.appendLine(`Timestamp: ${new Date().toISOString()}`);
+        out.appendLine('');
+
+        // 1. getCascadePluginTemplate
+        out.appendLine('── getCascadePluginTemplate ──');
+        try {
+          const template = await vscode.commands.executeCommand('antigravity.getCascadePluginTemplate');
+          out.appendLine(`  type: ${typeof template}`);
+          if (template) {
+            out.appendLine(`  value: ${JSON.stringify(template, null, 2).substring(0, 2000)}`);
+          } else {
+            out.appendLine(`  value: ${template}`);
+          }
+        } catch (err) {
+          out.appendLine(`  ❌ Error: ${err}`);
+        }
+
+        // 2. registerCustomAgentsProvider
+        out.appendLine('');
+        out.appendLine('── registerCustomAgentsProvider ──');
+        const chat = vscode.chat as any;
+        try {
+          out.appendLine(`  typeof: ${typeof chat.registerCustomAgentsProvider}`);
+          // Try registering with a simple provider
+          const provider = {
+            provideCustomAgents: () => {
+              out.appendLine('  🔔 provideCustomAgents was called!');
+              return [{
+                id: 'cappy',
+                name: 'Cappy',
+                fullName: 'Cappy AI Assistant',
+                description: 'WhatsApp-integrated AI assistant for remote development',
+                isDefault: false,
+                metadata: { isSticky: false }
+              }];
+            }
+          };
+          const disposable = chat.registerCustomAgentsProvider(provider);
+          out.appendLine(`  ✅ Registered! disposable type: ${typeof disposable}`);
+          if (disposable) {
+            context.subscriptions.push(disposable);
+          }
+        } catch (err: any) {
+          out.appendLine(`  ❌ Error: ${err?.message || err}`);
+          // Try with different argument patterns
+          try {
+            const disposable = chat.registerCustomAgentsProvider('cappy', {
+              provideCustomAgents: () => [{
+                id: 'cappy',
+                name: 'Cappy',
+                description: 'AI Assistant via WhatsApp'
+              }]
+            });
+            out.appendLine(`  ✅ Alt pattern worked! ${typeof disposable}`);
+            if (disposable) context.subscriptions.push(disposable);
+          } catch (err2: any) {
+            out.appendLine(`  ❌ Alt pattern error: ${err2?.message || err2}`);
+          }
+        }
+
+        // 3. createDynamicChatParticipant
+        out.appendLine('');
+        out.appendLine('── createDynamicChatParticipant ──');
+        try {
+          out.appendLine(`  typeof: ${typeof chat.createDynamicChatParticipant}`);
+          const dynParticipant = chat.createDynamicChatParticipant(
+            'cappy.dynamic',
+            'Cappy',
+            'WhatsApp AI assistant',
+            async (request: any, context: any, response: any, token: any) => {
+              out.appendLine('  🔔 Dynamic participant handler called!');
+              out.appendLine(`    request type: ${typeof request}`);
+              out.appendLine(`    request.model: ${request?.model ? 'EXISTS!' : 'null'}`);
+              if (request?.model) {
+                out.appendLine(`    model.name: ${request.model.name}`);
+                out.appendLine(`    model.vendor: ${request.model.vendor}`);
+                // Save the model!
+                (globalThis as any).__cappyModel = request.model;
+                out.appendLine('    ✅ MODEL CAPTURED!');
+              }
+              if (response?.markdown) {
+                response.markdown('Olá! Cappy dynamic participant respondendo.');
+              }
+              return { metadata: { command: 'dynamic-test' } };
+            }
+          );
+          out.appendLine(`  ✅ Created! type: ${typeof dynParticipant}`);
+          if (dynParticipant) {
+            if (typeof dynParticipant === 'object') {
+              out.appendLine(`  keys: ${Object.keys(dynParticipant).join(', ')}`);
+            }
+            context.subscriptions.push(dynParticipant);
+          }
+        } catch (err: any) {
+          out.appendLine(`  ❌ Error: ${err?.message || err}`);
+          // Try different signatures
+          try {
+            const dp = chat.createDynamicChatParticipant(
+              { id: 'cappy.dynamic', name: 'Cappy', description: 'AI via WhatsApp' },
+              async (request: any) => {
+                (globalThis as any).__cappyModel = request?.model;
+                return {};
+              }
+            );
+            out.appendLine(`  ✅ Alt pattern: ${typeof dp}`);
+            if (dp) context.subscriptions.push(dp);
+          } catch (err2: any) {
+            out.appendLine(`  ❌ Alt pattern: ${err2?.message || err2}`);
+          }
+        }
+
+        // 4. Check vscode.chat for ALL methods
+        out.appendLine('');
+        out.appendLine('── vscode.chat — ALL methods ──');
+        for (const key of Object.keys(chat)) {
+          out.appendLine(`  chat.${key} = ${typeof chat[key]}`);
+        }
+
+        // 5. Check if captured model exists now
+        out.appendLine('');
+        out.appendLine('── MODEL STATUS ──');
+        const model = (globalThis as any).__cappyModel;
+        out.appendLine(`  __cappyModel: ${model ? `${model.name} (${model.vendor})` : 'not captured yet'}`);
+
+        // 6. Tools count
+        out.appendLine('');
+        out.appendLine('── TOOLS ──');
+        out.appendLine(`  Total: ${vscode.lm.tools?.length ?? 0}`);
+
+        out.appendLine('');
+        out.appendLine('═══ FIM ═══');
+        vscode.window.showInformationMessage('Cappy: Investigação Custom Agents completa!');
+      })
+    );
+
+    // ── Scheduler Commands ──
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.scheduler.add', (data: any) => {
+        if (!this.scheduler) return;
+        const task = this.scheduler.addTask(data);
+        vscode.window.showInformationMessage(`Cappy: Tarefa "${task.name}" agendada a cada ${task.intervalMinutes}min`);
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.scheduler.toggle', (taskId: string) => {
+        this.scheduler?.toggleTask(taskId);
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.scheduler.remove', (taskId: string) => {
+        this.scheduler?.removeTask(taskId);
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.scheduler.run', async (taskId: string) => {
+        if (!this.scheduler) return;
+        vscode.window.showInformationMessage('Cappy: Executando tarefa agendada...');
+        await this.scheduler.runNow(taskId);
+      })
+    );
   }
 
   /**
@@ -277,6 +454,10 @@ export class ExtensionBootstrap {
             : 'chat-main';
           
           stream.progress('Pensando...');
+
+          // Capture the model reference for use by the bridge/HITL
+          (globalThis as any).__cappyModel = request.model;
+          console.log(`[ChatParticipant] Model captured: ${request.model.name} (${request.model.vendor})`);
 
           const { result } = await this.planningAgent.runSessionTurn({
             sessionId: conversationId,
@@ -357,10 +538,49 @@ export class ExtensionBootstrap {
   }
 
   /**
+   * Start the Cron Scheduler for automated workflow execution
+   */
+  private startScheduler(): void {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      console.log('[Scheduler] No workspace folder — scheduler not started');
+      return;
+    }
+
+    const workspaceRoot = workspaceFolders[0].uri.fsPath;
+    this.scheduler = new CronScheduler(workspaceRoot);
+
+    // Wire bridge for WhatsApp notifications
+    if (this.bridge) {
+      this.scheduler.setBridge(this.bridge);
+      this.bridge.setScheduler(this.scheduler);
+    }
+
+    // Wire scheduler events to webview
+    if (this.webviewProvider) {
+      this.scheduler.onTasksChanged((tasks) => {
+        this.webviewProvider?.postMessage({ type: 'scheduler-tasks', data: tasks });
+      });
+
+      this.scheduler.onTaskRunning((taskId) => {
+        this.webviewProvider?.postMessage({ type: 'scheduler-running', data: taskId });
+      });
+
+      this.scheduler.onTaskComplete((taskId, status) => {
+        this.webviewProvider?.postMessage({ type: 'scheduler-complete', data: { taskId, status } });
+      });
+    }
+
+    this.scheduler.start();
+    console.log('  ✅ Cron Scheduler started');
+  }
+
+  /**
    * Deactivates the extension
    */
   async deactivate(): Promise<void> {
     console.log('👋 [Extension] Cappy deactivating...');
+    this.scheduler?.stop();
     await this.bridge?.stop();
     console.log('✅ [Extension] Cappy deactivated');
   }

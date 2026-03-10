@@ -259,6 +259,19 @@ export class WhatsAppAdapter {
   }
 
   /**
+   * Send "typing..." presence indicator to a WhatsApp chat.
+   * Shows the native "digitando..." feedback in the user's WhatsApp.
+   */
+  async sendTyping(chatId: string): Promise<void> {
+    if (!this.socket || this.status !== 'connected') return;
+    try {
+      await (this.socket as any).sendPresenceUpdate('composing', chatId);
+    } catch (err) {
+      console.warn('[WhatsApp] Failed to send typing indicator:', err);
+    }
+  }
+
+  /**
    * Disconnect from WhatsApp
    */
   async disconnect(): Promise<void> {
