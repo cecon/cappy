@@ -19,6 +19,7 @@ import { DEFAULT_BRIDGE_CONFIG } from './types';
 import { WhatsAppAdapter } from './whatsapp-adapter';
 import { MessageRouter } from './message-router';
 import type { IntelligentAgent } from '../agents';
+import type { CronScheduler } from '../scheduler/CronScheduler';
 import { WhatsAppApprovalManager } from '../tools/whatsapp-confirmation-tool';
 
 const execAsync = promisify(exec);
@@ -50,6 +51,9 @@ export class CappyBridge {
 
   // Terminal relay
   private relayTerminal: vscode.Terminal | null = null;
+
+  // Scheduler reference
+  private scheduler: CronScheduler | null = null;
 
   // Pending WhatsApp reply
   private pendingChatId: string | null = null;
@@ -96,6 +100,13 @@ export class CappyBridge {
    */
   onMessage(callback: (from: string, text: string, direction: 'in' | 'out') => void): void {
     this.messageCallback = callback;
+  }
+
+  /**
+   * Set scheduler reference for creating tasks via WebSocket
+   */
+  setScheduler(scheduler: CronScheduler): void {
+    this.scheduler = scheduler;
   }
 
   /**
@@ -326,6 +337,8 @@ export class CappyBridge {
         // Client sent a response — forward to WhatsApp
         if (msg.chatId && msg.text) {
           this.whatsapp?.sendMessage(msg.chatId, `*Cappy*\n${msg.text}`);
+          // Emit outgoing message to dashboard webview
+          this.messageCallback?.(msg.project || 'Cappy', msg.text, 'out');
         }
         break;
 
@@ -333,6 +346,33 @@ export class CappyBridge {
         // Client sent media — forward image/video to WhatsApp
         if (msg.chatId && msg.mediaPath && msg.mediaType) {
           this.whatsapp?.sendMedia(msg.chatId, msg.mediaPath, msg.mediaType, msg.caption);
+        }
+        break;
+
+      case 'scheduler_add':
+        // Agent wants to create a scheduled task
+        if (this.scheduler && msg.data) {
+          try {
+            const task = this.scheduler.addTask(msg.data as any);
+            console.log(`[Bridge] Scheduler task created via WebSocket: ${task.name}`);
+            // Send confirmation back to the caller
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({
+                type: 'scheduler_add',
+                data: { success: true, task },
+                timestamp: Date.now(),
+              }));
+            }
+          } catch (err) {
+            console.error('[Bridge] Failed to create scheduler task:', err);
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({
+                type: 'scheduler_add',
+                data: { success: false, error: String(err) },
+                timestamp: Date.now(),
+              }));
+            }
+          }
         }
         break;
     }
@@ -416,6 +456,8 @@ export class CappyBridge {
         // Forward to the correct client
         const clientSocket = this.clientSockets.get(targetProject);
         if (clientSocket && clientSocket.readyState === WebSocket.OPEN) {
+          // Show native "typing..." indicator in WhatsApp
+          this.whatsapp?.sendTyping(chatId);
           const bridgeMsg: BridgeMessage = {
             type: 'chat',
             text: parsed.text,
@@ -468,11 +510,11 @@ export class CappyBridge {
 
     const response = await this.processMessage(text, chatId);
 
-    // If relayed to chat IDE, don't send response to WhatsApp yet
-    // (the AI will use cappy.whatsapp.reply when done)
+    // If relayed to chat IDE, don't send anything to WhatsApp.
+    // The typing indicator is already shown, and the AI will use
+    // cappy_reply_whatsapp to send the actual response when done.
     if (response.startsWith('📤')) {
-      this.whatsapp?.sendMessage(chatId, `*Cappy*\n${response}`);
-      this.messageCallback?.('Cappy', response, 'out');
+      // Relay message — don't show in dashboard chat, it's an internal status
       return;
     }
 
@@ -693,6 +735,8 @@ export class CappyBridge {
     // Persist inbox for reply cycle
     if (chatId) {
       this.persistInbox(text, chatId);
+      // Show native "typing..." indicator in WhatsApp
+      this.whatsapp?.sendTyping(chatId);
     }
 
     const now = Date.now();

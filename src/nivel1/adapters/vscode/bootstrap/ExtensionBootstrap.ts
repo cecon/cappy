@@ -10,6 +10,7 @@ import type { PlanningTurnResult } from '../../../../nivel2/infrastructure/agent
 import { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-bridge';
 import { CappyWebViewProvider } from '../webview/cappy-webview';
 import { setupAgentSkills } from '../../../../nivel2/infrastructure/agents/AgentSkillsSetup';
+import { CronScheduler } from '../../../../nivel2/infrastructure/scheduler/CronScheduler';
 
 /**
  * Main bootstrap orchestrator for the extension
@@ -18,6 +19,7 @@ export class ExtensionBootstrap {
   private readonly planningAgent = new IntelligentAgent();
   private bridge: CappyBridge | null = null;
   private webviewProvider: CappyWebViewProvider | null = null;
+  private scheduler: CronScheduler | null = null;
 
   /**
    * Activates the extension
@@ -44,6 +46,9 @@ export class ExtensionBootstrap {
 
     // Phase 6: Setup Agent Skills (creates/updates .agents/ in workspace)
     this.setupAgentSkills();
+
+    // Phase 7: Start Cron Scheduler
+    this.startScheduler();
 
     console.log('✅ [Extension] Cappy activation completed');
   }
@@ -398,6 +403,35 @@ export class ExtensionBootstrap {
         vscode.window.showInformationMessage('Cappy: Investigação Custom Agents completa!');
       })
     );
+
+    // ── Scheduler Commands ──
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.scheduler.add', (data: any) => {
+        if (!this.scheduler) return;
+        const task = this.scheduler.addTask(data);
+        vscode.window.showInformationMessage(`Cappy: Tarefa "${task.name}" agendada a cada ${task.intervalMinutes}min`);
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.scheduler.toggle', (taskId: string) => {
+        this.scheduler?.toggleTask(taskId);
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.scheduler.remove', (taskId: string) => {
+        this.scheduler?.removeTask(taskId);
+      })
+    );
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('cappy.scheduler.run', async (taskId: string) => {
+        if (!this.scheduler) return;
+        vscode.window.showInformationMessage('Cappy: Executando tarefa agendada...');
+        await this.scheduler.runNow(taskId);
+      })
+    );
   }
 
   /**
@@ -504,10 +538,49 @@ export class ExtensionBootstrap {
   }
 
   /**
+   * Start the Cron Scheduler for automated workflow execution
+   */
+  private startScheduler(): void {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      console.log('[Scheduler] No workspace folder — scheduler not started');
+      return;
+    }
+
+    const workspaceRoot = workspaceFolders[0].uri.fsPath;
+    this.scheduler = new CronScheduler(workspaceRoot);
+
+    // Wire bridge for WhatsApp notifications
+    if (this.bridge) {
+      this.scheduler.setBridge(this.bridge);
+      this.bridge.setScheduler(this.scheduler);
+    }
+
+    // Wire scheduler events to webview
+    if (this.webviewProvider) {
+      this.scheduler.onTasksChanged((tasks) => {
+        this.webviewProvider?.postMessage({ type: 'scheduler-tasks', data: tasks });
+      });
+
+      this.scheduler.onTaskRunning((taskId) => {
+        this.webviewProvider?.postMessage({ type: 'scheduler-running', data: taskId });
+      });
+
+      this.scheduler.onTaskComplete((taskId, status) => {
+        this.webviewProvider?.postMessage({ type: 'scheduler-complete', data: { taskId, status } });
+      });
+    }
+
+    this.scheduler.start();
+    console.log('  ✅ Cron Scheduler started');
+  }
+
+  /**
    * Deactivates the extension
    */
   async deactivate(): Promise<void> {
     console.log('👋 [Extension] Cappy deactivating...');
+    this.scheduler?.stop();
     await this.bridge?.stop();
     console.log('✅ [Extension] Cappy deactivated');
   }
