@@ -303,16 +303,31 @@ export function generateDashboardScript(initialStatusJson: string, initialNotebo
       vscode.postMessage({ type: 'notebook-refresh' });
     }
 
+    function addNotebookFile() {
+      setDropZoneIngesting(true);
+      vscode.postMessage({ type: 'notebook-add-file' });
+    }
+
+    function setDropZoneIngesting(ingesting) {
+      var zone = document.getElementById('notebook-drop-zone');
+      var text = document.getElementById('drop-zone-text');
+      if (ingesting) {
+        zone.classList.add('ingesting');
+        text.textContent = 'Processando arquivo...';
+      } else {
+        zone.classList.remove('ingesting');
+        text.textContent = 'Clique para adicionar arquivo ao notebook';
+      }
+    }
+
     function renderNotebooks(notebooks) {
       var list = document.getElementById('notebook-list');
       var countEl = document.getElementById('notebook-count');
       var badge = document.getElementById('tab-badge-notebooks');
 
       if (!notebooks || notebooks.length === 0) {
-        list.innerHTML = '<div class="notebook-empty" id="notebook-empty">'
-          + '<span class="notebook-empty-icon"><svg viewBox="0 0 16 16"><path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm0 1v12h10V2H3zm2 2h6v1H5V4zm0 3h6v1H5V7zm0 3h4v1H5v-1z"/></svg></span>'
-          + '<span class="notebook-empty-text">Nenhum notebook encontrado.<br/>Use <b>@cappy /ingest</b> para criar um.</span>'
-          + '</div>';
+        list.innerHTML = '<div class="notebook-empty"><span class="notebook-empty-icon"><svg viewBox="0 0 16 16"><path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm0 1v12h10V2H3zm2 2h6v1H5V4zm0 3h6v1H5V7zm0 3h4v1H5v-1z"/></svg></span>'
+          + '<span class="notebook-empty-text">Nenhum notebook ainda.<br/>Adicione um arquivo acima para começar.</span></div>';
         countEl.textContent = '';
         badge.textContent = '';
         return;
@@ -349,6 +364,13 @@ export function generateDashboardScript(initialStatusJson: string, initialNotebo
         case 'scheduler-running': updateSchedulerTaskStatus(msg.data, 'running'); break;
         case 'scheduler-complete': updateSchedulerTaskStatus(msg.data.taskId, msg.data.status); break;
         case 'notebooks-list': renderNotebooks(msg.data); break;
+        case 'notebook-ingested':
+          setDropZoneIngesting(false);
+          renderNotebooks(msg.data);
+          break;
+        case 'notebook-ingest-error':
+          setDropZoneIngesting(false);
+          break;
       }
     });
 

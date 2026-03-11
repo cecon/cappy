@@ -218,16 +218,18 @@ export function generateDashboardHtml(params: DashboardParams): string {
         <span id="notebook-count" style="font-size:10px;opacity:0.6;"></span>
       </div>
 
-      <div id="notebook-list" class="notebook-list">
-        <div class="notebook-empty" id="notebook-empty">
-          <span class="notebook-empty-icon"><svg viewBox="0 0 16 16"><path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm0 1v12h10V2H3zm2 2h6v1H5V4zm0 3h6v1H5V7zm0 3h4v1H5v-1z"/></svg></span>
-          <span class="notebook-empty-text">Nenhum notebook encontrado.<br/>Use <b>@cappy /ingest</b> para criar um.</span>
-        </div>
+      <div id="notebook-list" class="notebook-list"></div>
+
+      <div class="drop-zone" id="notebook-drop-zone" onclick="addNotebookFile()">
+        <span class="drop-zone-icon"><svg viewBox="0 0 16 16"><path d="M14 7v1H8v6H7V8H1V7h6V1h1v6h6z"/></svg></span>
+        <span class="drop-zone-text" id="drop-zone-text">Clique para adicionar arquivo ao notebook</span>
       </div>
 
-      <button class="btn btn-ghost" onclick="refreshNotebooks()" style="margin-top:8px;gap:5px;">
-        <svg style="width:12px;height:12px;fill:currentColor" viewBox="0 0 16 16"><path d="M13.5 2A.5.5 0 0 0 13 2.5V5a.5.5 0 0 0 .5.5H16a.5.5 0 0 0 0-1h-1.05A5.98 5.98 0 0 0 8.05 2 6 6 0 0 0 2 8a6 6 0 0 0 6 6 5.97 5.97 0 0 0 4.95-2.63.5.5 0 0 0-.83-.56A4.98 4.98 0 0 1 8 13a5 5 0 0 1-5-5 5 5 0 0 1 5-5 4.98 4.98 0 0 1 4.38 2.5H11a.5.5 0 0 0 0 1h3a.5.5 0 0 0 .5-.5V2.5a.5.5 0 0 0-.5-.5h-.5z"/></svg> Atualizar
-      </button>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-ghost" onclick="refreshNotebooks()" style="flex:1;gap:5px;">
+          <svg style="width:12px;height:12px;fill:currentColor" viewBox="0 0 16 16"><path d="M13.5 2A.5.5 0 0 0 13 2.5V5a.5.5 0 0 0 .5.5H16a.5.5 0 0 0 0-1h-1.05A5.98 5.98 0 0 0 8.05 2 6 6 0 0 0 2 8a6 6 0 0 0 6 6 5.97 5.97 0 0 0 4.95-2.63.5.5 0 0 0-.83-.56A4.98 4.98 0 0 1 8 13a5 5 0 0 1-5-5 5 5 0 0 1 5-5 4.98 4.98 0 0 1 4.38 2.5H11a.5.5 0 0 0 0 1h3a.5.5 0 0 0 .5-.5V2.5a.5.5 0 0 0-.5-.5h-.5z"/></svg> Atualizar
+        </button>
+      </div>
     </div>
 
   </div>

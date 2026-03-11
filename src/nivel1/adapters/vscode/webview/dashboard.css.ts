@@ -239,6 +239,23 @@ body {
 .notebook-empty-icon svg { width: 28px; height: 28px; fill: currentColor; }
 .notebook-empty-text { font-size: 11px; color: var(--vscode-descriptionForeground); line-height: 1.5; }
 
+.drop-zone {
+  border: 2px dashed var(--vscode-widget-border, rgba(255,255,255,0.15));
+  border-radius: var(--cappy-radius);
+  padding: 24px 12px; text-align: center; cursor: pointer;
+  transition: all var(--cappy-transition); margin-top: 8px;
+}
+.drop-zone:hover {
+  border-color: var(--cappy-blue); background: var(--cappy-blue-dim);
+}
+.drop-zone-icon { opacity: 0.4; transition: opacity var(--cappy-transition); }
+.drop-zone:hover .drop-zone-icon { opacity: 0.8; }
+.drop-zone-icon svg { width: 32px; height: 32px; fill: currentColor; display: block; margin: 0 auto 8px; }
+.drop-zone-text { font-size: 11px; color: var(--vscode-descriptionForeground); line-height: 1.5; }
+.drop-zone:hover .drop-zone-text { color: var(--vscode-foreground); }
+.drop-zone.ingesting { border-color: var(--cappy-amber); background: var(--cappy-amber-dim); pointer-events: none; }
+.drop-zone.ingesting .drop-zone-icon svg { animation: ring-spin 1.2s linear infinite; }
+
 /* ── Utility ── */
 .hidden { display: none !important; }
 .footer { display: flex; justify-content: center; padding-top: 6px; }

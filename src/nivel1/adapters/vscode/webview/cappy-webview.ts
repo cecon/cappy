@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-bridge';
+import { NotebookStore } from '../../../../nivel2/infrastructure/notebook/notebook-store';
 import { generateDashboardHtml } from './dashboard.html';
 
 /** Status object shape from the bridge */
@@ -142,6 +143,9 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
         case 'notebook-refresh':
           this.sendNotebooksList();
           break;
+        case 'notebook-add-file':
+          this.handleAddNotebookFile();
+          break;
       }
     });
 
@@ -244,6 +248,44 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
       return results;
     } catch {
       return [];
+    }
+  }
+
+  /** Handle file picker for notebook ingest */
+  private async handleAddNotebookFile(): Promise<void> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      this.postMessage({ type: 'notebook-ingest-error' });
+      vscode.window.showErrorMessage('Nenhum workspace aberto.');
+      return;
+    }
+
+    const uris = await vscode.window.showOpenDialog({
+      canSelectMany: true,
+      canSelectFiles: true,
+      canSelectFolders: false,
+      defaultUri: workspaceFolder.uri,
+      filters: { 'Documentos': ['md', 'txt', 'ts', 'js', 'py', 'json', 'yaml', 'yml', 'csv', 'html', 'css'] },
+      title: 'Selecione arquivo(s) para adicionar ao Notebook',
+    });
+
+    if (!uris || uris.length === 0) {
+      this.postMessage({ type: 'notebook-ingest-error' });
+      return;
+    }
+
+    try {
+      const store = new NotebookStore(workspaceFolder.uri.fsPath);
+
+      for (const uri of uris) {
+        store.addSource('default', uri.fsPath);
+      }
+
+      this.postMessage({ type: 'notebook-ingested', data: this.getNotebooksList() });
+      vscode.window.showInformationMessage(`✅ ${uris.length} arquivo(s) adicionado(s) ao notebook.`);
+    } catch (err) {
+      this.postMessage({ type: 'notebook-ingest-error' });
+      vscode.window.showErrorMessage(`Erro ao ingerir: ${err}`);
     }
   }
 }
