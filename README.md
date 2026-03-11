@@ -12,7 +12,8 @@
   Run commands.<br/>
   Check builds.<br/>
   Approve deploys.<br/><br/>
-  All from WhatsApp.
+  All from WhatsApp.<br/><br/>
+  <i>Your IDE, in your pocket.</i>
 </p>
 
 <p align="center">
