@@ -5,8 +5,14 @@
 <h1 align="center">Cappy</h1>
 
 <p align="center">
-  <b>Your AI dev companion — in your IDE and on WhatsApp.</b><br/>
-  <i>Code smarter. Ship faster. Stay connected.</i>
+  <b>The AI developer that lives in your IDE<br/>and answers on WhatsApp.</b>
+</p>
+
+<p align="center">
+  Run commands.<br/>
+  Check builds.<br/>
+  Approve deploys.<br/><br/>
+  All from WhatsApp.
 </p>
 
 <p align="center">
@@ -21,77 +27,166 @@
   </a>
 </p>
 
----
+<p align="center">
+  <img src="docs/demo.png" alt="Cappy — IDE + WhatsApp" width="600" />
+</p>
 
-## The Problem
-
-You're deep in a coding session. Your phone buzzes — a bug report. You context-switch to Slack. Then Jira. Then back to the IDE. **You've lost 23 minutes.** Sound familiar?
-
-What if your IDE could talk to you on WhatsApp? What if you could triage, plan, and monitor your projects from anywhere — without ever leaving the conversation?
-
-## The Solution: Meet Cappy
-
-**Cappy** is an AI-powered VS Code extension that bridges the gap between your IDE and your life. It's not just another coding assistant — it's a **full dev companion** that lives where you already are: in your editor and on your phone.
-
-> 🦫 *Think of Cappy as a senior developer who never sleeps, never forgets, and is always a WhatsApp message away.*
+<p align="center">
+  <sub>⭐ Star this repo if the idea makes you smile.</sub>
+</p>
 
 ---
 
-## ✨ Key Features
+## 💡 The Scenario
 
-### 🔗 WhatsApp Dev Bridge
-*Your IDE, in your pocket.*
+You're in traffic.
 
-Connect your WhatsApp to your IDE and interact with your projects from anywhere. No extra apps. No dashboards. Just chat.
+Production just broke.
+
+You open WhatsApp:
+
+```
+You: @api run tests
+```
+
+30 seconds later:
+
+```
+🦫 Cappy: ❌ 2 failing — payment.service.ts:42
+```
+
+You reply:
+
+```
+You: approve hotfix deploy
+🦫 Cappy: ✅ Deployed. All green.
+```
+
+**Production fixed before you get home.**
+
+No laptop. No VPN. No context switch. Just a chat.
+
+---
+
+## �️ Human-in-the-Loop AI
+
+This is what makes Cappy different.
+
+Before any destructive action — `git push`, deploy, database migration — Cappy asks **you** for approval. On WhatsApp.
+
+```
+🦫 Cappy: ⚠️ High-risk action requested
+   Action: Deploy to production
+   Command: npm run deploy:prod
+   
+   Reply SIM to approve, NÃO to cancel.
+
+You: SIM
+🦫 Cappy: ✅ Deployed successfully.
+```
+
+**AI that respects your authority — even when you're away from your desk.**
+
+---
+
+## 🔥 Why developers love Cappy
+
+### 1️⃣ Control your projects from WhatsApp
+
+Run commands.<br/>
+Check builds.<br/>
+Approve AI actions.
+
+All from your phone.
 
 ```
 You: @erp run the tests
 🦫 Cappy [erp-dsl]: 🧪 47 passing | ❌ 2 failing
 
-You: @mobile what's the build status?
-🦫 Cappy [mobile-app]: ✅ Build passing
+You: approve deploy to staging
+🦫 Cappy: ✅ Deploying...
 ```
 
-- **Bi-directional messaging** — send commands, receive results
-- **Multi-project support** — manage multiple workspaces simultaneously
-- **Human-in-the-loop** — authorize AI actions remotely, stay in control
-- **Zero setup on phone** — if you have WhatsApp, you're ready
+No extra apps. No dashboards. If you have WhatsApp, you're ready.
 
-### 🧠 AI Planning Agent
-*From idea to structured plan in seconds.*
+### 2️⃣ Turn ideas into executable plans
 
-Mention `@cappy` in any AI chat and get intelligent, context-aware planning:
+Describe a feature. Cappy analyzes your codebase and creates a **structured execution plan** — with checklists, acceptance criteria, and step-by-step guidance.
 
 ```
 @cappy implement JWT authentication with refresh tokens
-@cappy refactor the payment module to use the strategy pattern
-@cappy help me fix the flaky tests in src/auth/
+@cappy refactor payment module to strategy pattern
 ```
 
-Cappy analyzes your codebase, asks clarifying questions, and generates **structured task files** with implementation checklists, acceptance criteria, and step-by-step guidance.
+### 3️⃣ Build a portable knowledge base
 
-### 📊 Live Dashboard
-*Everything at a glance.*
+Drop documents into the dashboard. Query them instantly.
 
-A sleek sidebar dashboard shows you real-time status:
-- WhatsApp connection status with visual indicator
-- Live message feed from your phone
-- Quick settings and configuration
+**Zero-dependency RAG.**
 
-### 🛠️ Powerful Built-in Tools
+No vector databases.<br/>
+No external services.<br/>
+Everything local.
 
-| Tool | What it does |
-|------|-------------|
+Your codebase and docs become searchable knowledge — stored as plain JSON in your project.
+
+---
+
+## � What Cappy actually is
+
+Cappy is a VS Code extension that connects your IDE to a WhatsApp chat via a **secure local bridge**.
+
+Your phone becomes a remote console for your projects.
+
+```
+IDE ←→ WebSocket Bridge ←→ WhatsApp
+         (port 9090)
+```
+
+No cloud relay. No third-party servers. Everything runs on your machine.
+
+---
+
+## ⚡ Features
+
+### 📊 Dashboard with Tabs
+
+A sleek sidebar with three organized views:
+
+| Tab | What's inside |
+|-----|--------------|
+| 💬 **WhatsApp** | Connection status with animated hero ring, live message feed, bridge settings |
+| ⏰ **Tarefas** | Scheduled & one-off tasks, create/pause/delete, execution status |
+| 📓 **Notebooks** | RAG knowledge bases, click-to-add files, chunk & source counts |
+
+### ⏰ Task Scheduler
+
+Automate recurring workflows from the dashboard:
+
+- **Recurring or one-off** execution
+- **New Chat or Terminal** modes
+- **WhatsApp notifications** on completion
+- Pause, resume, run on demand
+
+### 🛠️ 11 Built-in Tools
+
+| Tool | Superpower |
+|------|-----------|
 | `grep_search` | Search across your entire workspace |
 | `read_file` | Read any file with smart line ranges |
+| `create_file` | Create files in the workspace |
 | `fetch_web` | Pull content from URLs |
 | `create_task_file` | Generate structured task plans |
-| `run_terminal_command` | Execute commands directly |
+| `run_terminal_command` | Execute shell commands |
+| `notebook_ingest` | Add documents to RAG |
+| `notebook_search` | Query your knowledge base |
+| `reply_whatsapp` | Send messages to WhatsApp |
+| `whatsapp_confirmation` | Human-in-the-loop approvals |
 | `create_todo` | Quick task tracking |
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Install
 
@@ -103,60 +198,33 @@ code --install-extension eduardocecon.cappy
 
 ### Connect WhatsApp
 
-1. Open the Cappy Dashboard (sidebar icon)
+1. Open the Cappy Dashboard (sidebar icon 🦫)
 2. Click **Connect WhatsApp**
-3. Scan the QR code with your phone
+3. Scan the QR code
 4. Start chatting with your IDE 🎉
 
-### Use the AI Agent
+### Add a Notebook
 
-Just type `@cappy` followed by your request in any AI chat panel. That's it.
-
----
-
-## 🗺️ Roadmap
-
-| Phase | Feature | Status |
-|-------|---------|--------|
-| ✅ | AI Planning Agent (`@cappy`) | **Live** |
-| ✅ | WhatsApp Bridge | **Live** |
-| ✅ | Live Dashboard | **Live** |
-| 🔜 | Code Health Score (0-100) | *Coming Soon* |
-| 🔜 | Scheduled Health Checks & Cron Jobs | *Planned* |
-| 🔜 | GitHub/Jira Integration via MCP | *Planned* |
-| 🔜 | Daily Digest on WhatsApp | *Planned* |
-
-### Coming Soon: Code Health Score 🏥
-
-> Know your project's health at a glance — scores across file size, test coverage, lint, complexity, and documentation.
-
-```
-🦫 Cappy: Project Health: 71/100
-├── File Size:    58/100  🔴 12 files > 300 lines
-├── Coverage:     45/100  🔴 Only 23% covered
-├── Lint:         81/100  ⚡ 47 warnings
-└── Complexity:   69/100  ⚡ 8 functions > 10 cyclomatic
-```
+1. Go to the **📓 Notebooks** tab
+2. Click the **+** drop zone
+3. Select files — they're chunked, embedded, and indexed automatically
+4. Query with `@cappy` — results come from your own knowledge base
 
 ---
 
-## 🏗️ Tech Stack
+## 🏗️ Architecture
 
 | Layer | Technology |
 |-------|-----------|
 | Language | TypeScript |
 | Platform | VS Code Extension API |
-| AI Engine | VS Code Language Model API + LangGraph |
+| AI | VS Code Language Model API |
 | WhatsApp | Baileys (Web API) |
 | Realtime | WebSocket (port 9090) |
-| Build | TSC |
+| RAG | Zero-dependency · Hash Embeddings + Knowledge Graph |
 | Tests | Vitest |
 
----
-
-## 🤝 Compatible With
-
-Cappy works across multiple AI-powered editors:
+### Compatible Editors
 
 - **VS Code** (1.105.0+)
 - **Cursor**
@@ -164,20 +232,29 @@ Cappy works across multiple AI-powered editors:
 
 ---
 
+## 🗺️ Roadmap
+
+| Status | Feature |
+|--------|---------|
+| ✅ Live | WhatsApp Dev Bridge |
+| ✅ Live | AI Planning Agent (`@cappy`) |
+| ✅ Live | Dashboard with Tabs |
+| ✅ Live | Cron Scheduler |
+| ✅ Live | Portable RAG (Notebooks) |
+| ✅ Live | Human-in-the-Loop (HITL) |
+| 🔜 | Code Health Score (0-100) |
+| 🔜 | GitHub/Jira Integration via MCP |
+| 🔜 | Daily Digest on WhatsApp |
+
+---
+
 ## 🧑‍💻 Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Compile
-npm run compile-extension
-
-# Run tests
-npm test
-
-# Package .vsix
-npm run package
+npm install                # Install dependencies
+npm run compile-extension  # Compile
+npm test                   # Run tests
+npm run package            # Package .vsix
 ```
 
 ---
@@ -189,6 +266,10 @@ MIT — see [LICENSE](LICENSE)
 ---
 
 <p align="center">
+  <b>⭐ If Cappy helps you, please star the repo — it makes a difference.</b>
+</p>
+
+<p align="center">
   Built with 🧡 by <a href="https://github.com/cecon">Eduardo Cecon</a><br/>
-  <sub>Because developers deserve tools that respect their flow.</sub>
+  <sub>Designed for developers who hate context switching.</sub>
 </p>
