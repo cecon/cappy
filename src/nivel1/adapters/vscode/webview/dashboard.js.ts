@@ -7,8 +7,9 @@
 /**
  * Generate the client-side JavaScript for the Dashboard webview.
  * @param initialStatusJson - JSON string of the initial status, or 'null'
+ * @param initialNotebooksJson - JSON string of the initial notebooks list, or '[]'
  */
-export function generateDashboardScript(initialStatusJson: string): string {
+export function generateDashboardScript(initialStatusJson: string, initialNotebooksJson: string): string {
   return `
     const vscode = acquireVsCodeApi();
     let currentState = 'disconnected';
@@ -120,6 +121,24 @@ export function generateDashboardScript(initialStatusJson: string): string {
       document.getElementById('setting-filter').value = settings.chatFilter;
       document.getElementById('setting-group').value = settings.allowedGroupName;
       document.getElementById('group-setting').classList.toggle('hidden', settings.chatFilter !== 'group');
+    }
+
+    // ── Tab Switching ──
+
+    var activeTab = 'whatsapp';
+
+    function switchTab(tabId) {
+      activeTab = tabId;
+      // Update tab buttons
+      var btns = document.querySelectorAll('.tab-btn');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].getAttribute('data-tab') === tabId);
+      }
+      // Update tab panels
+      var panels = document.querySelectorAll('.tab-panel');
+      for (var j = 0; j < panels.length; j++) {
+        panels[j].classList.toggle('active', panels[j].id === 'tab-' + tabId);
+      }
     }
 
     // ── UI Actions ──
@@ -278,6 +297,41 @@ export function generateDashboardScript(initialStatusJson: string): string {
       }
     }
 
+    // ── Notebooks ──
+
+    function refreshNotebooks() {
+      vscode.postMessage({ type: 'notebook-refresh' });
+    }
+
+    function renderNotebooks(notebooks) {
+      var list = document.getElementById('notebook-list');
+      var countEl = document.getElementById('notebook-count');
+      var badge = document.getElementById('tab-badge-notebooks');
+
+      if (!notebooks || notebooks.length === 0) {
+        list.innerHTML = '<div class="notebook-empty" id="notebook-empty">'
+          + '<span class="notebook-empty-icon"><svg viewBox="0 0 16 16"><path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm0 1v12h10V2H3zm2 2h6v1H5V4zm0 3h6v1H5V7zm0 3h4v1H5v-1z"/></svg></span>'
+          + '<span class="notebook-empty-text">Nenhum notebook encontrado.<br/>Use <b>@cappy /ingest</b> para criar um.</span>'
+          + '</div>';
+        countEl.textContent = '';
+        badge.textContent = '';
+        return;
+      }
+
+      countEl.textContent = '(' + notebooks.length + ')';
+      badge.textContent = notebooks.length;
+      list.innerHTML = notebooks.map(function(nb) {
+        var updated = nb.updated ? new Date(nb.updated).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '\\u2014';
+        return '<div class="notebook-item">'
+          + '<div class="notebook-icon"><svg viewBox="0 0 16 16"><path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm0 1v12h10V2H3zm2 2h6v1H5V4zm0 3h6v1H5V7zm0 3h4v1H5v-1z"/></svg></div>'
+          + '<div class="notebook-info">'
+          + '<div class="notebook-name">' + escapeHtml(nb.name) + '</div>'
+          + '<div class="notebook-meta">'
+          + nb.chunkCount + ' chunks \\u00b7 ' + nb.sourceCount + ' fonte(s) \\u00b7 ' + updated
+          + '</div></div></div>';
+      }).join('');
+    }
+
     // ── Message Listener (extension → webview) ──
 
     window.addEventListener('message', function(event) {
@@ -294,6 +348,7 @@ export function generateDashboardScript(initialStatusJson: string): string {
         case 'scheduler-tasks': renderSchedulerTasks(msg.data); break;
         case 'scheduler-running': updateSchedulerTaskStatus(msg.data, 'running'); break;
         case 'scheduler-complete': updateSchedulerTaskStatus(msg.data.taskId, msg.data.status); break;
+        case 'notebooks-list': renderNotebooks(msg.data); break;
       }
     });
 
@@ -303,6 +358,12 @@ export function generateDashboardScript(initialStatusJson: string): string {
     var __INITIAL_STATUS__ = ${initialStatusJson};
     if (__INITIAL_STATUS__) {
       updateStatus(__INITIAL_STATUS__);
+    }
+
+    // Apply initial notebooks
+    var __INITIAL_NOTEBOOKS__ = ${initialNotebooksJson};
+    if (__INITIAL_NOTEBOOKS__ && __INITIAL_NOTEBOOKS__.length > 0) {
+      renderNotebooks(__INITIAL_NOTEBOOKS__);
     }
 
     // Notify extension that webview JS is ready (for postMessage-based updates)

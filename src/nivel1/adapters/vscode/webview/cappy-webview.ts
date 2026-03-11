@@ -7,6 +7,8 @@
  */
 
 import * as vscode from 'vscode';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-bridge';
 import { generateDashboardHtml } from './dashboard.html';
 
@@ -137,6 +139,9 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
         case 'scheduler-run':
           vscode.commands.executeCommand('cappy.scheduler.run', msg.data);
           break;
+        case 'notebook-refresh':
+          this.sendNotebooksList();
+          break;
       }
     });
 
@@ -183,8 +188,9 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
 
     const currentStatus = this.bridge ? this.bridge.getStatus() : this.lastStatus;
     const initialStatusJson = currentStatus ? JSON.stringify(currentStatus) : 'null';
+    const initialNotebooksJson = JSON.stringify(this.getNotebooksList());
 
-    return generateDashboardHtml({ iconUri, initialStatusJson });
+    return generateDashboardHtml({ iconUri, initialStatusJson, initialNotebooksJson });
   }
 
   /** Send current settings to the webview */
@@ -198,5 +204,46 @@ export class CappyWebViewProvider implements vscode.WebviewViewProvider {
         allowedGroupName: config.get<string>('allowedGroupName', 'Cappy Dev'),
       },
     });
+  }
+
+  /** Send notebooks list to the webview via postMessage */
+  private sendNotebooksList(): void {
+    this.postMessage({ type: 'notebooks-list', data: this.getNotebooksList() });
+  }
+
+  /** Read notebook summaries directly from .cappy/notebooks in the workspace */
+  private getNotebooksList(): Array<{ name: string; chunkCount: number; sourceCount: number; updated: string }> {
+    try {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) return [];
+
+      const notebooksDir = path.join(workspaceFolder.uri.fsPath, '.cappy', 'notebooks');
+      if (!fs.existsSync(notebooksDir)) return [];
+
+      const entries = fs.readdirSync(notebooksDir);
+      const results: Array<{ name: string; chunkCount: number; sourceCount: number; updated: string }> = [];
+
+      for (const entry of entries) {
+        const jsonPath = path.join(notebooksDir, entry, 'notebook.json');
+        if (!fs.existsSync(jsonPath)) continue;
+
+        try {
+          const raw = fs.readFileSync(jsonPath, 'utf-8');
+          const data = JSON.parse(raw);
+          results.push({
+            name: data.meta?.name || entry,
+            chunkCount: data.chunks?.length || 0,
+            sourceCount: data.meta?.sources?.length || 0,
+            updated: data.meta?.updated || '',
+          });
+        } catch {
+          // Skip malformed notebooks
+        }
+      }
+
+      return results;
+    } catch {
+      return [];
+    }
   }
 }
