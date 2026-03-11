@@ -36,6 +36,9 @@ export class WhatsAppAdapter {
   private retryCount = 0;
   private readonly maxRetries = 5;
 
+  /**
+   * @param authDir Absolute path to the auth directory (global, shared across workspaces)
+   */
   constructor(authDir: string, events: WhatsAppAdapterEvents) {
     this.authDir = authDir;
     this.events = events;
@@ -43,9 +46,11 @@ export class WhatsAppAdapter {
 
   /**
    * Connect to WhatsApp. Shows QR code for authentication.
+   * Uses the absolute auth directory set in the constructor.
    */
-  async connect(workspaceRoot: string): Promise<void> {
-    const fullAuthDir = path.join(workspaceRoot, this.authDir);
+  async connect(): Promise<void> {
+    // authDir is already an absolute path (global storage)
+    const fullAuthDir = this.authDir;
 
     // Ensure auth directory exists
     if (!fs.existsSync(fullAuthDir)) {
@@ -102,7 +107,7 @@ export class WhatsAppAdapter {
         if (shouldReconnect && this.retryCount < this.maxRetries) {
           const delay = Math.min(3000 * Math.pow(2, this.retryCount - 1), 60000);
           console.log(`[WhatsApp] Retrying in ${delay / 1000}s...`);
-          setTimeout(() => this.connect(workspaceRoot), delay);
+          setTimeout(() => this.connect(), delay);
         } else if (this.retryCount >= this.maxRetries) {
           console.error('[WhatsApp] Max retries reached. Use "Cappy: Connect WhatsApp" to try again.');
           this.retryCount = 0;

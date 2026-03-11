@@ -66,8 +66,8 @@ export interface ProjectRegistration {
 export interface BridgeConfig {
   /** WebSocket port for inter-VS Code communication */
   port: number;
-  /** Path to store WhatsApp auth state */
-  authDir: string;
+  /** Absolute path to store WhatsApp auth state (global, shared across workspaces) */
+  globalAuthDir?: string;
   /** Owner's WhatsApp chat ID (for receiving messages) */
   ownerChatId?: string;
 }
@@ -89,5 +89,4 @@ export interface BridgeEvents {
 
 export const DEFAULT_BRIDGE_CONFIG: BridgeConfig = {
   port: 9090,
-  authDir: '.cappy/whatsapp-auth',
 };

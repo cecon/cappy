@@ -79,6 +79,12 @@ export class CappyBridge {
     this.workspaceRoot = workspaceRoot;
     this.agent = agent;
     this.config = { ...DEFAULT_BRIDGE_CONFIG, ...config };
+
+    // Resolve global auth directory (absolute path, shared across workspaces)
+    if (!this.config.globalAuthDir) {
+      // Fallback to workspace-local if no global path provided (shouldn't happen in normal use)
+      this.config.globalAuthDir = path.join(workspaceRoot, '.cappy', 'whatsapp-auth');
+    }
   }
 
   /**
@@ -158,7 +164,7 @@ export class CappyBridge {
 
     try {
       vscode.window.showInformationMessage('Cappy: Connecting to WhatsApp...');
-      await this.whatsapp.connect(this.workspaceRoot);
+      await this.whatsapp.connect();
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('[Bridge] WhatsApp connect error:', err);
@@ -171,19 +177,20 @@ export class CappyBridge {
    * This avoids requiring a new QR code scan every time the extension restarts.
    */
   private async autoConnectWhatsApp(): Promise<void> {
-    const authPath = path.join(this.workspaceRoot, this.config.authDir);
-    const credsFile = path.join(authPath, 'creds.json');
+    const globalAuthDir = this.config.globalAuthDir!;
+    const credsFile = path.join(globalAuthDir, 'creds.json');
 
     if (fs.existsSync(credsFile)) {
-      console.log('[Bridge] Found saved WhatsApp credentials — auto-connecting...');
+      console.log(`[Bridge] Found saved WhatsApp credentials in global storage — auto-connecting...`);
+      console.log(`[Bridge] Auth dir: ${globalAuthDir}`);
       try {
-        await this.whatsapp?.connect(this.workspaceRoot);
+        await this.whatsapp?.connect();
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error('[Bridge] Auto-connect failed:', errMsg);
       }
     } else {
-      console.log('[Bridge] No saved credentials — use "Cappy: Connect WhatsApp" to scan QR code.');
+      console.log(`[Bridge] No saved credentials in ${globalAuthDir} — use "Cappy: Connect WhatsApp" to scan QR code.`);
     }
   }
 
@@ -252,7 +259,7 @@ export class CappyBridge {
   }
 
   private setupWhatsApp(): void {
-    this.whatsapp = new WhatsAppAdapter(this.config.authDir, {
+    this.whatsapp = new WhatsAppAdapter(this.config.globalAuthDir!, {
       onMessage: (text, chatId, pushName) => {
         this.handleWhatsAppMessage(text, chatId, pushName);
       },

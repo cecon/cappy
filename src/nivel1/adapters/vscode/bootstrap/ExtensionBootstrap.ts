@@ -89,7 +89,15 @@ export class ExtensionBootstrap {
     const workspaceRoot = workspaceFolders[0].uri.fsPath;
     const projectName = workspaceFolders[0].name;
 
-    this.bridge = new CappyBridge(projectName, workspaceRoot, this.planningAgent);
+    // Use global storage for WhatsApp auth (shared across all workspaces/IDEs)
+    const globalAuthDir = vscode.Uri.joinPath(context.globalStorageUri, 'whatsapp-auth').fsPath;
+
+    // Migrate old workspace-local credentials to global storage (one-time)
+    await this.migrateWhatsAppAuth(workspaceRoot, globalAuthDir);
+
+    this.bridge = new CappyBridge(projectName, workspaceRoot, this.planningAgent, {
+      globalAuthDir,
+    });
 
     // Wire bridge events to webview
     if (this.webviewProvider) {
@@ -126,8 +134,56 @@ export class ExtensionBootstrap {
     try {
       await this.bridge.start();
       console.log(`[Bridge] Started for project: ${projectName}`);
+      console.log(`[Bridge] WhatsApp auth dir (global): ${globalAuthDir}`);
     } catch (err) {
       console.error('[Bridge] Failed to start:', err);
+    }
+  }
+
+  /**
+   * Migrate WhatsApp auth from old workspace-local path to global storage.
+   * This is a one-time operation — if global creds already exist, skip.
+   */
+  private async migrateWhatsAppAuth(workspaceRoot: string, globalAuthDir: string): Promise<void> {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+
+    const oldAuthDir = path.join(workspaceRoot, '.cappy', 'whatsapp-auth');
+    const oldCredsFile = path.join(oldAuthDir, 'creds.json');
+    const newCredsFile = path.join(globalAuthDir, 'creds.json');
+
+    // Skip if no old credentials exist or global ones already exist
+    if (!fs.existsSync(oldCredsFile) || fs.existsSync(newCredsFile)) {
+      return;
+    }
+
+    console.log('[Bridge] Migrating WhatsApp credentials from workspace to global storage...');
+    console.log(`[Bridge]   From: ${oldAuthDir}`);
+    console.log(`[Bridge]   To:   ${globalAuthDir}`);
+
+    try {
+      // Ensure global auth directory exists
+      if (!fs.existsSync(globalAuthDir)) {
+        fs.mkdirSync(globalAuthDir, { recursive: true });
+      }
+
+      // Copy all auth files
+      const files = fs.readdirSync(oldAuthDir);
+      for (const file of files) {
+        const srcPath = path.join(oldAuthDir, file);
+        const destPath = path.join(globalAuthDir, file);
+        if (fs.statSync(srcPath).isFile()) {
+          fs.copyFileSync(srcPath, destPath);
+        }
+      }
+
+      console.log(`[Bridge] ✅ Migrated ${files.length} auth files to global storage`);
+
+      // Remove old workspace auth directory
+      fs.rmSync(oldAuthDir, { recursive: true, force: true });
+      console.log('[Bridge] Removed old workspace-local auth directory');
+    } catch (err) {
+      console.error('[Bridge] Migration failed (will continue with global dir):', err);
     }
   }
 
