@@ -533,6 +533,74 @@
             "message"
           ]
         }
+      },
+      {
+        "name": "cappy_notebook_search",
+        "displayName": "Notebook Search",
+        "modelDescription": "Search the Cappy Notebook knowledge base (RAG). Use this to find relevant information from documents that have been previously ingested. Returns the most relevant text chunks with their source files and relevance scores. Great for finding context about code, docs, or any ingested documents.",
+        "userDescription": "Search the notebook knowledge base",
+        "toolReferenceName": "notebookSearch",
+        "tags": [
+          "notebook",
+          "search",
+          "rag",
+          "knowledge",
+          "cappy"
+        ],
+        "icon": "$(search)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query — describe what you're looking for"
+            },
+            "notebookName": {
+              "type": "string",
+              "description": "Name of the notebook to search (default: 'default')"
+            },
+            "topK": {
+              "type": "number",
+              "description": "Number of results to return (default: 5)"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "cappy_notebook_ingest",
+        "displayName": "Notebook Ingest",
+        "modelDescription": "Ingest a document into the Cappy Notebook knowledge base.Chunks the document, generates embeddings, and builds a knowledge graph — all stored as a portable JSON file. Supported formats: any text file (md, ts, js, py, txt, json, etc). After ingesting, use cappy_notebook_search to query.",
+        "userDescription": "Add a document to the notebook knowledge base",
+        "toolReferenceName": "notebookIngest",
+        "tags": [
+          "notebook",
+          "ingest",
+          "rag",
+          "document",
+          "cappy"
+        ],
+        "icon": "$(file-add)",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "type": "string",
+              "description": "Path to the file to ingest (relative to workspace root or absolute)"
+            },
+            "notebookName": {
+              "type": "string",
+              "description": "Name of the notebook to add the document to (default: 'default')"
+            }
+          },
+          "required": [
+            "filePath"
+          ]
+        }
       }
     ]
   },

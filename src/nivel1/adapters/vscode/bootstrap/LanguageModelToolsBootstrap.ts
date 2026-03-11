@@ -16,6 +16,8 @@ import { ListTodosTool } from '../../../../nivel2/infrastructure/tools/todo/list
 import { CompleteTodoTool } from '../../../../nivel2/infrastructure/tools/todo/complete-todo-tool';
 import { WhatsAppConfirmationTool } from '../../../../nivel2/infrastructure/tools/whatsapp-confirmation-tool';
 import { WhatsAppReplyTool } from '../../../../nivel2/infrastructure/tools/whatsapp-reply-tool';
+import { NotebookSearchTool } from '../../../../nivel2/infrastructure/tools/notebook-search-tool';
+import { NotebookIngestTool } from '../../../../nivel2/infrastructure/tools/notebook-ingest-tool';
 
 /**
  * Registers all Language Model Tools for GitHub Copilot integration
@@ -90,6 +92,15 @@ export class LanguageModelToolsBootstrap {
     const whatsappReplyTool = vscode.lm.registerTool('cappy_reply_whatsapp', new WhatsAppReplyTool());
     context.subscriptions.push(whatsappReplyTool);
     console.log('  ✅ cappy_reply_whatsapp');
+
+    // Register Notebook RAG tools
+    const notebookSearchTool = vscode.lm.registerTool('cappy_notebook_search', new NotebookSearchTool());
+    context.subscriptions.push(notebookSearchTool);
+    console.log('  ✅ cappy_notebook_search');
+
+    const notebookIngestTool = vscode.lm.registerTool('cappy_notebook_ingest', new NotebookIngestTool());
+    context.subscriptions.push(notebookIngestTool);
+    console.log('  ✅ cappy_notebook_ingest');
 
     // Schedule tool validation after LM runtime loads
     this.scheduleToolValidation();
