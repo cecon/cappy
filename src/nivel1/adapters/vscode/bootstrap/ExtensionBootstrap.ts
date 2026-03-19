@@ -9,7 +9,7 @@ import { IntelligentAgent } from '../../../../nivel2/infrastructure/agents';
 import type { PlanningTurnResult } from '../../../../nivel2/infrastructure/agents/common/types';
 import { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-bridge';
 import { CappyWebViewProvider } from '../webview/cappy-webview';
-import { setupAgentSkills } from '../../../../nivel2/infrastructure/agents/AgentSkillsSetup';
+
 import { CronScheduler } from '../../../../nivel2/infrastructure/scheduler/CronScheduler';
 
 /**
@@ -44,10 +44,7 @@ export class ExtensionBootstrap {
     // Phase 5: Register WhatsApp commands
     this.registerBridgeCommands(context);
 
-    // Phase 6: Setup Agent Skills (creates/updates .agents/ in workspace)
-    this.setupAgentSkills();
-
-    // Phase 7: Start Cron Scheduler
+    // Phase 6: Start Cron Scheduler
     this.startScheduler();
 
     console.log('✅ [Extension] Cappy activation completed');
@@ -97,7 +94,7 @@ export class ExtensionBootstrap {
 
     this.bridge = new CappyBridge(projectName, workspaceRoot, this.planningAgent, {
       globalAuthDir,
-    });
+    }, context.extensionPath);
 
     // Wire bridge events to webview
     if (this.webviewProvider) {
@@ -575,23 +572,7 @@ export class ExtensionBootstrap {
     }
   }
 
-  /**
-   * Sets up agent skills in the workspace (.agents/ directory)
-   */
-  private setupAgentSkills(): void {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-      console.log('[AgentSkills] No workspace folder — skipped');
-      return;
-    }
 
-    const workspaceRoot = workspaceFolders[0].uri.fsPath;
-    try {
-      setupAgentSkills(workspaceRoot);
-    } catch (err) {
-      console.error('[AgentSkills] Failed to setup:', err);
-    }
-  }
 
   /**
    * Start the Cron Scheduler for automated workflow execution

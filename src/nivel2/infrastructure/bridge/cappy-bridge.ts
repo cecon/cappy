@@ -34,6 +34,7 @@ export class CappyBridge {
   private projectName: string;
   private agent: IntelligentAgent;
   private workspaceRoot: string;
+  private extensionPath: string;
 
   // Server-only
   private wss: WebSocketServer | null = null;
@@ -74,11 +75,12 @@ export class CappyBridge {
   private statusChangeCallback: ((status: { role: string | null; whatsapp: string; projects: string[] }) => void) | null = null;
   private messageCallback: ((from: string, text: string, direction: 'in' | 'out') => void) | null = null;
 
-  constructor(projectName: string, workspaceRoot: string, agent: IntelligentAgent, config?: Partial<BridgeConfig>) {
+  constructor(projectName: string, workspaceRoot: string, agent: IntelligentAgent, config?: Partial<BridgeConfig>, extensionPath?: string) {
     this.projectName = projectName;
     this.workspaceRoot = workspaceRoot;
     this.agent = agent;
     this.config = { ...DEFAULT_BRIDGE_CONFIG, ...config };
+    this.extensionPath = extensionPath || '';
 
     // Resolve global auth directory (absolute path, shared across workspaces)
     if (!this.config.globalAuthDir) {
@@ -702,6 +704,12 @@ export class CappyBridge {
    * Build the full initial prompt with all rules (used for first message in a conversation).
    */
   private buildInitialPrompt(text: string): string {
+    const replyScriptPath = this.extensionPath
+      ? path.join(this.extensionPath, 'scripts', 'reply.js')
+      : null;
+    const fallbackMethod = replyScriptPath
+      ? `node "${replyScriptPath}" "SUA RESPOSTA AQUI"`
+      : `node "<extensionPath>/scripts/reply.js" "SUA RESPOSTA AQUI"`;
     return [
       `[WhatsApp] Mensagem de ${this.projectName}: "${text}"`,
       ``,
@@ -710,7 +718,7 @@ export class CappyBridge {
       `2. Você DEVE enviar resposta ao WhatsApp. Se não fizer, o usuário não receberá nada.`,
       `3. MÉTODO PRINCIPAL: Use a tool "cappy_reply_whatsapp" com o parâmetro message.`,
       `4. MÉTODO ALTERNATIVO (se a tool falhar): Execute no terminal:`,
-      `   node .agents/skills/whatsapp-reply/scripts/reply.js "SUA RESPOSTA AQUI"`,
+      `   ${fallbackMethod}`,
       `5. Para ações perigosas (deploy, push, rm, etc.), use "cappy_whatsapp_confirmation" ANTES.`,
       `6. Mantenha respostas CURTAS e em texto plano (sem markdown).`,
       `7. Tools disponíveis: cappy_reply_whatsapp, cappy_whatsapp_confirmation, cappy_run_terminal_command, cappy_grep_search, cappy_read_file.`,
