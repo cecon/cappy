@@ -2,7 +2,7 @@
   "name": "cappy",
   "displayName": "Cappy",
   "description": "AI planning assistant for VS Code — creates structured task plans through conversation. Future: WhatsApp bridge for remote dev workflows.",
-  "version": "3.1.23",
+  "version": "3.1.24",
   "publisher": "eduardocecon",
   "icon": "src/assets/icon.png",
   "repository": {
