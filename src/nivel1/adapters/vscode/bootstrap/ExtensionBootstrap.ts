@@ -94,7 +94,7 @@ export class ExtensionBootstrap {
 
     this.bridge = new CappyBridge(projectName, workspaceRoot, this.planningAgent, {
       globalAuthDir,
-    }, context.extensionPath);
+    });
 
     // Wire bridge events to webview
     if (this.webviewProvider) {

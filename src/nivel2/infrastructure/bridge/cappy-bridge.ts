@@ -34,7 +34,7 @@ export class CappyBridge {
   private projectName: string;
   private agent: IntelligentAgent;
   private workspaceRoot: string;
-  private extensionPath: string;
+
 
   // Server-only
   private wss: WebSocketServer | null = null;
@@ -75,12 +75,11 @@ export class CappyBridge {
   private statusChangeCallback: ((status: { role: string | null; whatsapp: string; projects: string[] }) => void) | null = null;
   private messageCallback: ((from: string, text: string, direction: 'in' | 'out') => void) | null = null;
 
-  constructor(projectName: string, workspaceRoot: string, agent: IntelligentAgent, config?: Partial<BridgeConfig>, extensionPath?: string) {
+  constructor(projectName: string, workspaceRoot: string, agent: IntelligentAgent, config?: Partial<BridgeConfig>) {
     this.projectName = projectName;
     this.workspaceRoot = workspaceRoot;
     this.agent = agent;
     this.config = { ...DEFAULT_BRIDGE_CONFIG, ...config };
-    this.extensionPath = extensionPath || '';
 
     // Resolve global auth directory (absolute path, shared across workspaces)
     if (!this.config.globalAuthDir) {
@@ -658,32 +657,6 @@ export class CappyBridge {
   // ─── CHAT IDE RELAY ───────────────────────────────────────────────
 
   /**
-   * Persist a WhatsApp message to the inbox for the reply cycle.
-   * The AI assistant reads these files via the /whatsapp-reply workflow.
-   */
-  private persistInbox(text: string, chatId: string): void {
-    try {
-      const inboxDir = path.join(this.workspaceRoot, '.cappy', 'whatsapp-inbox');
-      if (!fs.existsSync(inboxDir)) {
-        fs.mkdirSync(inboxDir, { recursive: true });
-      }
-
-      const inbox = {
-        text,
-        chatId,
-        timestamp: Date.now(),
-        project: this.projectName,
-      };
-
-      const filename = `${Date.now()}.json`;
-      fs.writeFileSync(path.join(inboxDir, filename), JSON.stringify(inbox, null, 2));
-      console.log(`[Bridge] Inbox saved: ${filename}`);
-    } catch (err) {
-      console.error('[Bridge] Failed to persist inbox:', err);
-    }
-  }
-
-  /**
    * Check if there's an active WhatsApp conversation that hasn't expired.
    */
   private isConversationActive(chatId: string): boolean {
@@ -704,26 +677,18 @@ export class CappyBridge {
    * Build the full initial prompt with all rules (used for first message in a conversation).
    */
   private buildInitialPrompt(text: string): string {
-    const replyScriptPath = this.extensionPath
-      ? path.join(this.extensionPath, 'scripts', 'reply.js')
-      : null;
-    const fallbackMethod = replyScriptPath
-      ? `node "${replyScriptPath}" "SUA RESPOSTA AQUI"`
-      : `node "<extensionPath>/scripts/reply.js" "SUA RESPOSTA AQUI"`;
     return [
       `[WhatsApp] Mensagem de ${this.projectName}: "${text}"`,
       ``,
       `⚠️ REGRAS OBRIGATÓRIAS (NÃO IGNORE):`,
       `1. Esta mensagem veio do WhatsApp. O usuário NÃO está no IDE e NÃO verá nada que você escrever aqui.`,
       `2. Você DEVE enviar resposta ao WhatsApp. Se não fizer, o usuário não receberá nada.`,
-      `3. MÉTODO PRINCIPAL: Use a tool "cappy_reply_whatsapp" com o parâmetro message.`,
-      `4. MÉTODO ALTERNATIVO (se a tool falhar): Execute no terminal:`,
-      `   ${fallbackMethod}`,
-      `5. Para ações perigosas (deploy, push, rm, etc.), use "cappy_whatsapp_confirmation" ANTES.`,
-      `6. Mantenha respostas CURTAS e em texto plano (sem markdown).`,
-      `7. Tools disponíveis: cappy_reply_whatsapp, cappy_whatsapp_confirmation, cappy_run_terminal_command, cappy_grep_search, cappy_read_file.`,
+      `3. Use a tool "cappy_reply_whatsapp" com o parâmetro message para enviar sua resposta.`,
+      `4. Para ações perigosas (deploy, push, rm, etc.), use "cappy_whatsapp_confirmation" ANTES.`,
+      `5. Mantenha respostas CURTAS e em texto plano (sem markdown).`,
+      `6. Tools disponíveis: cappy_reply_whatsapp, cappy_whatsapp_confirmation, cappy_run_terminal_command, cappy_grep_search, cappy_read_file.`,
       ``,
-      `REGRA DE OURO: Sua resposta SÓ será vista se você usar cappy_reply_whatsapp ou o script reply.js.`,
+      `REGRA DE OURO: Sua resposta SÓ será vista se você usar cappy_reply_whatsapp.`,
     ].join('\n');
   }
 
@@ -735,7 +700,7 @@ export class CappyBridge {
     return [
       `[WhatsApp] Nova mensagem de ${this.projectName}: "${text}"`,
       ``,
-      `Responda ao WhatsApp usando cappy_reply_whatsapp ou o script reply.js.`,
+      `Responda ao WhatsApp usando a tool cappy_reply_whatsapp.`,
     ].join('\n');
   }
 
@@ -747,9 +712,9 @@ export class CappyBridge {
    * Falls back through multiple injection methods.
    */
   private async relayToChatIDE(text: string, chatId?: string): Promise<string> {
-    // Persist inbox for reply cycle
+    // Store chatId in memory for reply cycle (no filesystem persistence)
     if (chatId) {
-      this.persistInbox(text, chatId);
+      this.pendingChatId = chatId;
       // Show native "typing..." indicator in WhatsApp
       this.whatsapp?.sendTyping(chatId);
     }
@@ -856,26 +821,10 @@ export class CappyBridge {
 
   /**
    * Reply to a pending WhatsApp message.
-   * Reads the inbox to find the chatId, sends the reply, and clears the inbox.
+   * Uses in-memory pendingChatId to identify the conversation.
    */
   async replyToWhatsApp(replyText: string): Promise<void> {
-    const inboxDir = path.join(this.workspaceRoot, '.cappy', 'whatsapp-inbox');
-
-    let chatId = this.pendingChatId;
-
-    // Try to read chatId from inbox files
-    if (!chatId && fs.existsSync(inboxDir)) {
-      const files = fs.readdirSync(inboxDir).filter(f => f.endsWith('.json')).sort();
-      if (files.length > 0) {
-        try {
-          const lastFile = files[files.length - 1];
-          const data = JSON.parse(fs.readFileSync(path.join(inboxDir, lastFile), 'utf-8'));
-          chatId = data.chatId;
-        } catch {
-          console.error('[Bridge] Failed to read inbox file');
-        }
-      }
-    }
+    const chatId = this.pendingChatId;
 
     if (!chatId) {
       vscode.window.showWarningMessage('Cappy: Nenhuma mensagem pendente do WhatsApp para responder.');
@@ -889,22 +838,7 @@ export class CappyBridge {
     // Emit outgoing message to webview
     this.messageCallback?.('Cappy', replyText, 'out');
 
-    // Clear inbox
-    if (fs.existsSync(inboxDir)) {
-      const files = fs.readdirSync(inboxDir).filter(f => f.endsWith('.json'));
-      for (const file of files) {
-        try {
-          fs.unlinkSync(path.join(inboxDir, file));
-        } catch {
-          // ignore cleanup errors
-        }
-      }
-    }
-
-    // Clear pending state
-    this.pendingChatId = null;
-
-    console.log('[Bridge] Reply sent to WhatsApp and inbox cleared');
+    console.log('[Bridge] Reply sent to WhatsApp');
     vscode.window.showInformationMessage('Cappy: Resposta enviada ao WhatsApp ✅');
   }
 

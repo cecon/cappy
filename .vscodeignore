@@ -26,9 +26,8 @@ eslint.config.js
 .env
 .env.local
 
-# Scripts (build/publish helpers excluded; bundled scripts included)
+# Scripts (build/publish helpers excluded)
 scripts/**
-!scripts/reply.js
 
 # Tests
 **/*.map
