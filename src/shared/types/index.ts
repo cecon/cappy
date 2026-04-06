@@ -5,3 +5,4 @@
  */
 
 export * from './tasks';
+export * from './agent';

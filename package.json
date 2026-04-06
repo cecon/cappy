@@ -91,6 +91,45 @@
             "GPT-4o",
             "GPT-4"
           ]
+        },
+        "cappy.provider.baseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1",
+          "description": "Base URL para API OpenAI-compatible usada pelo painel Cappy."
+        },
+        "cappy.provider.model": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "Modelo padrão para chamadas OpenAI-compatible."
+        },
+        "cappy.provider.backend": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "openclaude"
+          ],
+          "default": "openai",
+          "description": "Backend do agente: OpenAI-compatible ou OpenClaude externo."
+        },
+        "cappy.openclaude.command": {
+          "type": "string",
+          "default": "openclaude",
+          "description": "Comando do OpenClaude externo (usado quando backend=openclaude)."
+        },
+        "cappy.features.enableChatPanel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Habilita o painel de chat Planning + Sandbox."
+        },
+        "cappy.features.enableSandbox": {
+          "type": "boolean",
+          "default": true,
+          "description": "Habilita execução no modo sandbox via worktree."
+        },
+        "cappy.features.enableOpenClaudeFallback": {
+          "type": "boolean",
+          "default": true,
+          "description": "Permite fallback para provider OpenAI-compatible quando OpenClaude falhar."
         }
       }
     },
@@ -443,6 +482,8 @@
     "@vitest/ui": "^3.2.4",
     "@vscode/vsce": "^3.6.2",
     "eslint": "^9.36.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^16.4.0",
     "rimraf": "^6.0.1",
     "typescript": "~5.9.3",
