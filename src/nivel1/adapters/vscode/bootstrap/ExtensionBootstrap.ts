@@ -7,9 +7,7 @@ import * as vscode from 'vscode';
 import { LanguageModelToolsBootstrap } from './LanguageModelToolsBootstrap';
 import { IntelligentAgent } from '../../../../nivel2/infrastructure/agents';
 import type { PlanningTurnResult } from '../../../../nivel2/infrastructure/agents/common/types';
-import { CappyBridge } from '../../../../nivel2/infrastructure/bridge/cappy-bridge';
 import { CappyWebViewProvider } from '../webview/cappy-webview';
-import { setupAgentSkills } from '../../../../nivel2/infrastructure/agents/AgentSkillsSetup';
 import { CronScheduler } from '../../../../nivel2/infrastructure/scheduler/CronScheduler';
 
 /**
@@ -17,7 +15,6 @@ import { CronScheduler } from '../../../../nivel2/infrastructure/scheduler/CronS
  */
 export class ExtensionBootstrap {
   private readonly planningAgent = new IntelligentAgent();
-  private bridge: CappyBridge | null = null;
   private webviewProvider: CappyWebViewProvider | null = null;
   private scheduler: CronScheduler | null = null;
 
@@ -38,16 +35,10 @@ export class ExtensionBootstrap {
     // Phase 3: Register WebView (sidebar panel)
     this.registerWebView(context);
 
-    // Phase 4: Start Bridge (auto-elects as server or client)
-    await this.startBridge(context);
+    // Phase 4: Register extension commands
+    this.registerCommands(context);
 
-    // Phase 5: Register WhatsApp commands
-    this.registerBridgeCommands(context);
-
-    // Phase 6: Setup Agent Skills (creates/updates .agents/ in workspace)
-    this.setupAgentSkills();
-
-    // Phase 7: Start Cron Scheduler
+    // Phase 5: Start Cron Scheduler
     this.startScheduler();
 
     console.log('✅ [Extension] Cappy activation completed');
@@ -77,116 +68,9 @@ export class ExtensionBootstrap {
   }
 
   /**
-   * Starts the Cappy Bridge for WhatsApp ↔ VS Code communication
+   * Registers extension commands.
    */
-  private async startBridge(context: vscode.ExtensionContext): Promise<void> {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-      console.log('[Bridge] No workspace folder — bridge not started');
-      return;
-    }
-
-    const workspaceRoot = workspaceFolders[0].uri.fsPath;
-    const projectName = workspaceFolders[0].name;
-
-    this.bridge = new CappyBridge(projectName, workspaceRoot, this.planningAgent);
-
-    // Wire bridge events to webview
-    if (this.webviewProvider) {
-      this.webviewProvider.setBridge(this.bridge);
-
-      this.bridge.onQRCode(async (qr) => {
-        try {
-          const QRCode = await import('qrcode');
-          const dataUri = await QRCode.toDataURL(qr, {
-            width: 256,
-            margin: 2,
-            color: { dark: '#000000', light: '#ffffff' },
-          });
-          this.webviewProvider?.updateQRCode(dataUri);
-        } catch (err) {
-          console.error('[Bridge] QR code generation failed:', err);
-          // Fallback: send raw text
-          this.webviewProvider?.updateQRCode(qr);
-        }
-      });
-
-      this.bridge.onStatusChange((status) => {
-        this.webviewProvider?.updateStatus(status);
-        if (status.whatsapp === 'connected') {
-          this.webviewProvider?.clearQRCode();
-        }
-      });
-
-      this.bridge.onMessage((from, text, direction) => {
-        this.webviewProvider?.addMessage(from, text, direction);
-      });
-    }
-
-    try {
-      await this.bridge.start();
-      console.log(`[Bridge] Started for project: ${projectName}`);
-    } catch (err) {
-      console.error('[Bridge] Failed to start:', err);
-    }
-  }
-
-  /**
-   * Registers VS Code commands for bridge control
-   */
-  private registerBridgeCommands(context: vscode.ExtensionContext): void {
-    // Connect WhatsApp
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.whatsapp.connect', async () => {
-        if (!this.bridge) {
-          vscode.window.showWarningMessage('Cappy: Bridge not running. Open a workspace first.');
-          return;
-        }
-        await this.bridge.connectWhatsApp();
-      })
-    );
-
-    // Show status
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.whatsapp.status', () => {
-        if (!this.bridge) {
-          vscode.window.showInformationMessage('Cappy: Bridge not running.');
-          return;
-        }
-        const status = this.bridge.getStatus();
-        vscode.window.showInformationMessage(
-          `Cappy Bridge\n` +
-          `Role: ${status.role?.toUpperCase()}\n` +
-          `WhatsApp: ${status.whatsapp}\n` +
-          `Projects: ${status.projects.join(', ')}`
-        );
-      })
-    );
-
-    // Reply to WhatsApp (used by AI assistant via /whatsapp-reply workflow)
-    context.subscriptions.push(
-      vscode.commands.registerCommand('cappy.whatsapp.reply', async (...args: any[]) => {
-        if (!this.bridge) {
-          vscode.window.showWarningMessage('Cappy: Bridge not running.');
-          return;
-        }
-
-        // Accept text from command argument or prompt the user
-        let replyText = args[0] as string | undefined;
-
-        if (!replyText) {
-          replyText = await vscode.window.showInputBox({
-            prompt: 'Digite a resposta para o WhatsApp',
-            placeHolder: 'Sua resposta aqui...',
-          });
-        }
-
-        if (replyText) {
-          await this.bridge.replyToWhatsApp(replyText);
-        }
-      })
-    );
-
+  private registerCommands(context: vscode.ExtensionContext): void {
     // Diagnostic command — enumerate all available commands and test methods
     context.subscriptions.push(
       vscode.commands.registerCommand('cappy.diagnose', async () => {
@@ -300,7 +184,7 @@ export class ExtensionBootstrap {
                 id: 'cappy',
                 name: 'Cappy',
                 fullName: 'Cappy AI Assistant',
-                description: 'WhatsApp-integrated AI assistant for remote development',
+                description: 'AI assistant for development workflows',
                 isDefault: false,
                 metadata: { isSticky: false }
               }];
@@ -319,7 +203,7 @@ export class ExtensionBootstrap {
               provideCustomAgents: () => [{
                 id: 'cappy',
                 name: 'Cappy',
-                description: 'AI Assistant via WhatsApp'
+                description: 'AI assistant for development workflows'
               }]
             });
             out.appendLine(`  ✅ Alt pattern worked! ${typeof disposable}`);
@@ -337,7 +221,7 @@ export class ExtensionBootstrap {
           const dynParticipant = chat.createDynamicChatParticipant(
             'cappy.dynamic',
             'Cappy',
-            'WhatsApp AI assistant',
+            'AI assistant for development workflows',
             async (request: any, context: any, response: any, token: any) => {
               out.appendLine('  🔔 Dynamic participant handler called!');
               out.appendLine(`    request type: ${typeof request}`);
@@ -367,7 +251,7 @@ export class ExtensionBootstrap {
           // Try different signatures
           try {
             const dp = chat.createDynamicChatParticipant(
-              { id: 'cappy.dynamic', name: 'Cappy', description: 'AI via WhatsApp' },
+              { id: 'cappy.dynamic', name: 'Cappy', description: 'AI assistant' },
               async (request: any) => {
                 (globalThis as any).__cappyModel = request?.model;
                 return {};
@@ -455,7 +339,7 @@ export class ExtensionBootstrap {
           
           stream.progress('Pensando...');
 
-          // Capture the model reference for use by the bridge/HITL
+          // Capture model reference for internal use by advanced workflows
           (globalThis as any).__cappyModel = request.model;
           console.log(`[ChatParticipant] Model captured: ${request.model.name} (${request.model.vendor})`);
 
@@ -520,24 +404,6 @@ export class ExtensionBootstrap {
   }
 
   /**
-   * Sets up agent skills in the workspace (.agents/ directory)
-   */
-  private setupAgentSkills(): void {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-      console.log('[AgentSkills] No workspace folder — skipped');
-      return;
-    }
-
-    const workspaceRoot = workspaceFolders[0].uri.fsPath;
-    try {
-      setupAgentSkills(workspaceRoot);
-    } catch (err) {
-      console.error('[AgentSkills] Failed to setup:', err);
-    }
-  }
-
-  /**
    * Start the Cron Scheduler for automated workflow execution
    */
   private startScheduler(): void {
@@ -549,12 +415,6 @@ export class ExtensionBootstrap {
 
     const workspaceRoot = workspaceFolders[0].uri.fsPath;
     this.scheduler = new CronScheduler(workspaceRoot);
-
-    // Wire bridge for WhatsApp notifications
-    if (this.bridge) {
-      this.scheduler.setBridge(this.bridge);
-      this.bridge.setScheduler(this.scheduler);
-    }
 
     // Wire scheduler events to webview
     if (this.webviewProvider) {
@@ -581,7 +441,6 @@ export class ExtensionBootstrap {
   async deactivate(): Promise<void> {
     console.log('👋 [Extension] Cappy deactivating...');
     this.scheduler?.stop();
-    await this.bridge?.stop();
     console.log('✅ [Extension] Cappy deactivated');
   }
 

@@ -20,8 +20,6 @@ export interface ScheduledTask {
   intervalMinutes: number;
   /** Whether this task is currently active */
   enabled: boolean;
-  /** Whether to send result notifications via WhatsApp */
-  notifyWhatsApp: boolean;
   /** How the task is executed: 'new_chat' opens a new Antigravity conversation, 'terminal' runs in VS Code terminal */
   executionMode: ExecutionMode;
   /** Whether the task is recurring or runs once: 'recurring' uses setInterval, 'once' uses setTimeout and auto-removes */

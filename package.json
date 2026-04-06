@@ -1,7 +1,7 @@
 {
   "name": "cappy",
   "displayName": "Cappy",
-  "description": "AI planning assistant for VS Code — creates structured task plans through conversation. Future: WhatsApp bridge for remote dev workflows.",
+  "description": "AI planning assistant for VS Code — creates structured task plans through conversation.",
   "version": "3.1.16",
   "publisher": "eduardocecon",
   "icon": "src/assets/icon.png",
@@ -27,7 +27,6 @@
     "chat",
     "planning",
     "tasks",
-    "whatsapp",
     "assistant"
   ],
   "main": "./out/extension.js",
@@ -42,20 +41,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "cappy.whatsapp.connect",
-        "title": "Cappy: Connect WhatsApp"
-      },
-      {
-        "command": "cappy.whatsapp.status",
-        "title": "Cappy: WhatsApp Status"
-      },
-      {
         "command": "cappy.openDashboard",
         "title": "Cappy: Open Dashboard"
-      },
-      {
-        "command": "cappy.whatsapp.reply",
-        "title": "Cappy: Reply to WhatsApp"
       },
       {
         "command": "cappy.diagnose",
@@ -104,41 +91,6 @@
             "GPT-4o",
             "GPT-4"
           ]
-        },
-        "cappy.bridge.mode": {
-          "type": "string",
-          "enum": [
-            "agent",
-            "terminal",
-            "auto"
-          ],
-          "default": "auto",
-          "description": "How WhatsApp messages are processed. 'agent' = built-in planning agent, 'terminal' = relay to VS Code terminal (works with Antigravity/Cursor/any AI), 'auto' = terminal if available, else agent.",
-          "enumDescriptions": [
-            "Use Cappy's built-in planning agent",
-            "Relay messages to a VS Code terminal (works with any AI assistant)",
-            "Auto-detect: use terminal relay if available, otherwise use built-in agent"
-          ]
-        },
-        "cappy.bridge.chatFilter": {
-          "type": "string",
-          "enum": [
-            "self",
-            "group",
-            "allow_all"
-          ],
-          "default": "self",
-          "description": "Which WhatsApp messages Cappy should process. 'self' = only messages you send to yourself, 'group' = only from a specific group, 'allow_all' = any message (not recommended).",
-          "enumDescriptions": [
-            "Only messages you send to yourself (safest — use WhatsApp's 'Message Yourself')",
-            "Only messages from a specific group (set group name in cappy.bridge.allowedGroupName)",
-            "Process all incoming messages (not recommended)"
-          ]
-        },
-        "cappy.bridge.allowedGroupName": {
-          "type": "string",
-          "default": "Cappy Dev",
-          "description": "Name of the WhatsApp group to listen to (only used when chatFilter = 'group')"
         }
       }
     },
@@ -464,75 +416,6 @@
             "id"
           ]
         }
-      },
-      {
-        "name": "cappy_whatsapp_confirmation",
-        "displayName": "WhatsApp Confirmation (HITL)",
-        "modelDescription": "Requests user confirmation for sensitive actions via WhatsApp. Use this BEFORE executing any destructive or important command like: git push, deploy, npm publish, rm, database migrations, or any irreversible action. The tool sends a confirmation message to the user's WhatsApp and waits for their SIM/NÃO response. Returns whether the user approved or denied the action.",
-        "userDescription": "Request user approval via WhatsApp before executing sensitive actions",
-        "toolReferenceName": "whatsappConfirm",
-        "tags": [
-          "whatsapp",
-          "confirmation",
-          "hitl",
-          "approval",
-          "security",
-          "cappy"
-        ],
-        "icon": "$(shield)",
-        "canBeReferencedInPrompt": true,
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "action": {
-              "type": "string",
-              "description": "Human-readable description of the action that needs approval (e.g., 'Deploy to production', 'Push changes to main branch')"
-            },
-            "command": {
-              "type": "string",
-              "description": "The exact command to be executed, if applicable (e.g., 'git push origin main', 'npm run deploy:prod')"
-            },
-            "risk": {
-              "type": "string",
-              "enum": [
-                "low",
-                "medium",
-                "high"
-              ],
-              "description": "Risk level of the action: low (reversible), medium (requires attention), high (irreversible/destructive)"
-            }
-          },
-          "required": [
-            "action"
-          ]
-        }
-      },
-      {
-        "name": "cappy_reply_whatsapp",
-        "displayName": "Reply to WhatsApp",
-        "modelDescription": "OBRIGATÓRIO: Envia mensagem ao WhatsApp. Quando o prompt começa com '[WhatsApp]', você DEVE usar esta tool para responder. O usuário NÃO está no IDE e NÃO verá nada que você escrever no chat. Esta tool é a ÚNICA forma de enviar sua resposta ao WhatsApp. Use texto plano (sem markdown), respostas curtas e mobile-friendly. Se esta tool falhar, execute no terminal: node .agents/skills/whatsapp-reply/scripts/reply.js \"SUA_RESPOSTA\"",
-        "userDescription": "Send a reply message to WhatsApp",
-        "toolReferenceName": "whatsappReply",
-        "tags": [
-          "whatsapp",
-          "reply",
-          "message",
-          "cappy"
-        ],
-        "icon": "$(comment)",
-        "canBeReferencedInPrompt": true,
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "message": {
-              "type": "string",
-              "description": "The message to send to WhatsApp. Use plain text, keep it concise and mobile-friendly."
-            }
-          },
-          "required": [
-            "message"
-          ]
-        }
       }
     ]
   },
@@ -551,17 +434,12 @@
   },
   "dependencies": {
     "@langchain/core": "^0.3.78",
-    "@langchain/langgraph": "^0.4.9",
-    "@whiskeysockets/baileys": "^6.7.21",
-    "qrcode": "^1.5.4",
-    "ws": "^8.19.0"
+    "@langchain/langgraph": "^0.4.9"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
     "@types/node": "^24.9.1",
-    "@types/qrcode": "^1.5.6",
     "@types/vscode": "^1.105.0",
-    "@types/ws": "^8.18.1",
     "@vitest/ui": "^3.2.4",
     "@vscode/vsce": "^3.6.2",
     "eslint": "^9.36.0",

@@ -32,63 +32,17 @@ export function generateDashboardHtml(params: DashboardParams): string {
     <img src="${iconUri}" alt="Cappy" />
     <div class="header-text">
       <span class="header-title">Cappy</span>
-      <span class="header-sub">WhatsApp Dev Bridge</span>
+      <span class="header-sub">AI Planning Companion</span>
     </div>
   </div>
 
   <!-- ── Hero Status Card ── -->
   <div class="card" id="hero-card">
-    <div id="status-ring" class="status-ring ring-disconnected">
-      <span class="ring-icon"><svg viewBox="0 0 16 16"><path d="M11 1H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM5 2h6v10H5V2zm2.5 11.5a.5.5 0 1 1 1 0 .5.5 0 0 1-1 0z"/></svg></span>
+    <div id="status-ring" class="status-ring ring-connected">
+      <span class="ring-icon"><svg viewBox="0 0 16 16"><path d="M14.431 3.323l-8.47 10-.79-.036-3.35-4.77.818-.574 2.978 4.24 8.051-9.506.764.646z"/></svg></span>
     </div>
-    <div id="status-label" class="status-label">Desconectado</div>
-    <div id="status-hint" class="status-hint">Conecte ao WhatsApp para começar</div>
-
-    <div id="qr-area" class="hidden">
-      <div class="qr-container">
-        <div class="qr-frame">
-          <img id="qr-img" class="qr-img" alt="QR Code" />
-        </div>
-        <div class="qr-steps">
-          <b>1.</b> Abra o WhatsApp<br/>
-          <b>2.</b> Dispositivos Conectados<br/>
-          <b>3.</b> Conectar Dispositivo
-        </div>
-      </div>
-    </div>
-
-    <button id="btn-connect" class="btn btn-cta" onclick="connect()">
-      Conectar WhatsApp
-    </button>
-  </div>
-
-  <!-- ── Info Chips (visible when connected) ── -->
-  <div id="info-area" class="hidden">
-    <div class="info-chips">
-      <span class="chip">
-        <span class="chip-icon" id="role-icon"><svg viewBox="0 0 16 16"><path d="M5.56 14.56a.5.5 0 0 1-.09-.98L9.43 8H6a.5.5 0 0 1-.46-.7l3-7a.5.5 0 1 1 .92.4L6.6 7H10a.5.5 0 0 1 .43.76l-4.5 6.5a.5.5 0 0 1-.37.3z"/></svg></span>
-        <span id="role-text">—</span>
-      </span>
-      <span class="chip">
-        <span class="chip-icon"><svg viewBox="0 0 16 16"><path d="M14.5 3H7.71l-.86-.86A.48.48 0 0 0 6.5 2h-5a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5zM14 13H2V3h4.29l.86.86a.48.48 0 0 0 .35.14H14v9z"/></svg></span>
-        <span id="project-count">0</span> projeto(s)
-      </span>
-    </div>
-    <div id="project-tags" class="project-tags"></div>
-  </div>
-
-  <!-- ── Messages Card ── -->
-  <div class="card" id="messages-card">
-    <div class="card-label">
-      <span style="display:flex;align-items:center;gap:5px;"><svg style="width:12px;height:12px;fill:currentColor" viewBox="0 0 16 16"><path d="M14 1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h3.5l2.5 3 2.5-3H14a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM14 10h-3.87L8 12.87 5.87 10H2V2h12v8z"/></svg> Mensagens</span>
-      <span id="msg-count" style="font-size:10px;opacity:0.6;"></span>
-    </div>
-    <div id="chat-area" class="chat-area">
-      <div class="chat-empty" id="chat-empty">
-        <span class="chat-empty-icon"><svg viewBox="0 0 16 16"><path d="M14 1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h3.5l2.5 3 2.5-3H14a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM14 10h-3.87L8 12.87 5.87 10H2V2h12v8z"/></svg></span>
-        <span class="chat-empty-text">Nenhuma mensagem ainda.<br/>As mensagens do WhatsApp aparecerão aqui.</span>
-      </div>
-    </div>
+    <div id="status-label" class="status-label">Ativo na IDE</div>
+    <div id="status-hint" class="status-hint">Painel focado em planejamento e automações locais.</div>
   </div>
 
   <!-- ── Scheduler Card ── -->
@@ -132,15 +86,6 @@ export function generateDashboardHtml(params: DashboardParams): string {
           </select>
         </div>
       </div>
-      <div class="sched-form-row">
-        <div style="flex:1">
-          <label class="setting-label">Notificar WhatsApp</label>
-          <select id="sched-notify" class="select-field" style="margin-top:4px">
-            <option value="true">Sim</option>
-            <option value="false">Não</option>
-          </select>
-        </div>
-      </div>
       <div style="display:flex;gap:6px;margin-top:4px">
         <button class="btn btn-cta btn-sm" style="flex:1" onclick="addScheduledTask()">Criar Tarefa</button>
         <button class="btn btn-ghost btn-sm" onclick="toggleSchedForm(false)">Cancelar</button>
@@ -150,34 +95,6 @@ export function generateDashboardHtml(params: DashboardParams): string {
     <button class="btn btn-ghost" id="btn-add-sched" onclick="toggleSchedForm(true)" style="margin-top:8px;gap:5px;">
       <svg style="width:12px;height:12px;fill:currentColor" viewBox="0 0 16 16"><path d="M14 7v1H8v6H7V8H1V7h6V1h1v6h6z"/></svg> Nova Tarefa
     </button>
-  </div>
-
-  <!-- ── Settings Accordion ── -->
-  <div class="accordion" style="margin-bottom:10px;">
-    <button class="accordion-trigger" onclick="toggleAccordion(this)" aria-expanded="false">
-      <span style="display:flex;align-items:center;gap:5px;"><svg style="width:12px;height:12px;fill:currentColor" viewBox="0 0 16 16"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.7-1.3 2 .8.8 2-1.3.7.3.5 2.4h1.2l.5-2.4.7-.3 2 1.3.8-.8-1.3-2 .3-.7 2.4-.5V6.8l-2.4-.5-.3-.7 1.3-2-.8-.8-2 1.3-.7-.3zM9.4 1l.5 2.4L12 2.1l2 2-1.4 2.1 2.4.4v2.8l-2.4.5L14 12l-2 2-2.1-1.4-.5 2.4H6.6l-.5-2.4L4 13.9l-2-2 1.4-2.1L1 9.4V6.6l2.4-.5L2.1 4l2-2 2.1 1.4.4-2.4h2.8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0-1a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg> Configurações</span>
-      <span class="chevron"><svg viewBox="0 0 16 16"><path d="M8 10.5l-4.5-4.5h9z"/></svg></span>
-    </button>
-    <div class="accordion-content" id="settings-content">
-      <label class="setting-label">Modo Bridge</label>
-      <select id="setting-mode" class="select-field" onchange="changeSetting('mode', this.value)">
-        <option value="auto">Auto (terminal se disponível)</option>
-        <option value="agent">Agent (planning interno)</option>
-        <option value="terminal">Terminal (relay para AI)</option>
-      </select>
-
-      <label class="setting-label">Filtro de Mensagens</label>
-      <select id="setting-filter" class="select-field" onchange="changeSetting('chatFilter', this.value)">
-        <option value="self">Só self-chat (mais seguro)</option>
-        <option value="group">Grupo específico</option>
-        <option value="allow_all">Todas (não recomendado)</option>
-      </select>
-
-      <div id="group-setting" class="hidden">
-        <label class="setting-label">Nome do Grupo</label>
-        <input id="setting-group" class="input-field" type="text" placeholder="Cappy Dev" onchange="changeSetting('allowedGroupName', this.value)" />
-      </div>
-    </div>
   </div>
 
   <!-- ── Footer ── -->

@@ -12,7 +12,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { ScheduledTask, ScheduledTasksConfig, SchedulerEvents, ExecutionMode, RunMode } from './types';
-import type { CappyBridge } from '../bridge/cappy-bridge';
 
 /**
  * Manages scheduled tasks that execute workflows at configured intervals.
@@ -21,7 +20,6 @@ export class CronScheduler {
   private tasks: ScheduledTask[] = [];
   private timers = new Map<string, ReturnType<typeof setInterval>>();
   private configPath: string;
-  private bridge: CappyBridge | null = null;
 
   // Event callbacks
   private onTasksChangedCallback: SchedulerEvents['onTasksChanged'] | null = null;
@@ -48,13 +46,6 @@ export class CronScheduler {
 
   onTaskComplete(callback: SchedulerEvents['onTaskComplete']): void {
     this.onTaskCompleteCallback = callback;
-  }
-
-  /**
-   * Set bridge reference for WhatsApp notifications
-   */
-  setBridge(bridge: CappyBridge): void {
-    this.bridge = bridge;
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────
@@ -103,7 +94,6 @@ export class CronScheduler {
     name: string;
     workflow: string;
     intervalMinutes: number;
-    notifyWhatsApp?: boolean;
     executionMode?: ExecutionMode;
     runMode?: RunMode;
     delayMinutes?: number;
@@ -115,7 +105,6 @@ export class CronScheduler {
       workflow: params.workflow,
       intervalMinutes: params.intervalMinutes,
       enabled: true,
-      notifyWhatsApp: params.notifyWhatsApp ?? true,
       executionMode: params.executionMode ?? 'new_chat',
       runMode,
       delayMinutes: runMode === 'once' ? (params.delayMinutes ?? params.intervalMinutes) : undefined,
@@ -227,19 +216,6 @@ export class CronScheduler {
     this.emitTasksChanged();
 
     try {
-      // ── Special: WhatsApp reminder tasks ──
-      // Workflows prefixed with "whatsapp:" send a message directly to WhatsApp
-      // instead of dispatching to the agent panel.
-      if (task.workflow.startsWith('whatsapp:')) {
-        const reminderMessage = task.workflow.slice('whatsapp:'.length).trim();
-        if (this.bridge && reminderMessage) {
-          await this.bridge.replyToWhatsApp(`⏰ ${reminderMessage}`);
-          task.lastStatus = 'success';
-          console.log(`[CronScheduler] WhatsApp reminder sent: "${reminderMessage}"`);
-        } else {
-          throw new Error('Bridge not available or empty reminder message');
-        }
-      } else {
       // ── Normal workflow dispatch ──
       // Read the workflow file to get the prompt content
       const workflowPath = path.join(
@@ -277,33 +253,9 @@ export class CronScheduler {
 
       task.lastStatus = 'success';
       console.log(`[CronScheduler] Task "${task.name}" dispatched successfully (mode: ${mode})`);
-
-      // Notify via WhatsApp
-      if (task.notifyWhatsApp && this.bridge) {
-        try {
-          await this.bridge.replyToWhatsApp(
-            `✅ [Cron] Tarefa "${task.name}" executada com sucesso (${task.workflow})`,
-          );
-        } catch {
-          console.warn('[CronScheduler] Failed to notify WhatsApp');
-        }
-      }
-      } // end else (normal workflow dispatch)
     } catch (err) {
       task.lastStatus = 'error';
       console.error(`[CronScheduler] Task "${task.name}" failed:`, err);
-
-      // Notify error via WhatsApp
-      if (task.notifyWhatsApp && this.bridge) {
-        try {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          await this.bridge.replyToWhatsApp(
-            `❌ [Cron] Tarefa "${task.name}" falhou: ${errMsg}`,
-          );
-        } catch {
-          console.warn('[CronScheduler] Failed to notify WhatsApp about error');
-        }
-      }
     }
 
     this.onTaskCompleteCallback?.(task.id, task.lastStatus as 'success' | 'error');
@@ -329,7 +281,11 @@ export class CronScheduler {
       if (fs.existsSync(this.configPath)) {
         const raw = fs.readFileSync(this.configPath, 'utf-8');
         const config: ScheduledTasksConfig = JSON.parse(raw);
-        this.tasks = config.tasks || [];
+        this.tasks = (config.tasks || []).map((task) => ({
+          ...task,
+          executionMode: task.executionMode ?? 'new_chat',
+          runMode: task.runMode ?? 'recurring',
+        }));
       }
     } catch (err) {
       console.error('[CronScheduler] Failed to load config:', err);
