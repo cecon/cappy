@@ -2,7 +2,7 @@
   "name": "cappy",
   "displayName": "Cappy",
   "description": "AI planning assistant for VS Code — creates structured task plans through conversation.",
-  "version": "3.1.16",
+  "version": "3.1.17",
   "publisher": "eduardocecon",
   "icon": "src/assets/icon.png",
   "repository": {
