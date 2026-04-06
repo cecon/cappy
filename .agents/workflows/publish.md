@@ -11,26 +11,30 @@ Compilar, incrementar a versão (patch), empacotar e publicar no VS Code Marketp
 // turbo-all
 
 1. Compilar o TypeScript:
-```
-cd /Users/eduardomendonca/projetos/cappy && npm run compile-extension
+```powershell
+npm run compile-extension
 ```
 
 2. Bumpar versão (patch), empacotar e publicar:
-```
-cd /Users/eduardomendonca/projetos/cappy && npm run package
+```powershell
+npm run package
 ```
 
-3. Publicar no marketplace:
-```
-cd /Users/eduardomendonca/projetos/cappy && npx vsce publish
+3. Publicar no marketplace (caso o passo anterior nao publique):
+```powershell
+npx vsce publish
 ```
 
 4. Instalar a nova versão localmente:
-```
-cd /Users/eduardomendonca/projetos/cappy && code --install-extension $(ls -t cappy-*.vsix | head -1) --force
+```powershell
+$latestVsix = Get-ChildItem -Path . -Filter "cappy-*.vsix" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $latestVsix) { throw "Nenhum arquivo cappy-*.vsix encontrado." }
+code --install-extension $latestVsix.FullName --force
 ```
 
 5. Fazer commit da versão:
-```
-cd /Users/eduardomendonca/projetos/cappy && git add package.json package-lock.json && git commit -m "chore: bump version $(node -p 'require(\"./package.json\").version')"
+```powershell
+$version = node -p "require('./package.json').version"
+git add package.json package-lock.json
+git commit -m "chore: bump version $version"
 ```
