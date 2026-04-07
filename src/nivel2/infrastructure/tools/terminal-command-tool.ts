@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as util from 'util';
+import * as os from 'os';
 
 const exec = util.promisify(cp.exec);
 
@@ -16,11 +17,27 @@ export interface TerminalCommandInput {
  * Allows the agent to run shell commands like 'find', 'grep', 'ls', etc.
  */
 export class TerminalCommandTool implements vscode.LanguageModelTool<TerminalCommandInput> {
+    public inputSchema = {
+        type: 'object',
+        properties: {
+            command: {
+                type: 'string',
+                description: 'Command to execute in workspace terminal context'
+            }
+        },
+        required: ['command']
+    } as const;
+
     async invoke(
         options: vscode.LanguageModelToolInvocationOptions<TerminalCommandInput>,
         _token: vscode.CancellationToken
     ): Promise<vscode.LanguageModelToolResult> {
-        const { command } = options.input;
+        const command = (options.input?.command ?? '').trim();
+        if (!command) {
+            return {
+                content: [new vscode.LanguageModelTextPart('Error: missing required "command" parameter.')]
+            };
+        }
         
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -30,10 +47,20 @@ export class TerminalCommandTool implements vscode.LanguageModelTool<TerminalCom
                 throw new Error('No workspace folder open');
             }
 
-            // Execute the command
-            const { stdout, stderr } = await exec(command, { 
+            const blockedPattern = /\b(rm\s+-rf|mkfs|shutdown|reboot|halt|poweroff|diskutil\s+eraseDisk)\b/i;
+            if (blockedPattern.test(command)) {
+                throw new Error('Command blocked by safety policy.');
+            }
+
+            const shell = process.platform === 'win32'
+                ? (process.env.ComSpec || 'powershell.exe')
+                : (process.env.SHELL || (os.platform() === 'darwin' ? '/bin/zsh' : '/bin/bash'));
+
+            const { stdout, stderr } = await exec(command, {
                 cwd,
-                maxBuffer: 1024 * 1024 // 1MB buffer
+                maxBuffer: 2 * 1024 * 1024,
+                timeout: 30000,
+                shell,
             });
 
             let output = '';
@@ -46,6 +73,11 @@ export class TerminalCommandTool implements vscode.LanguageModelTool<TerminalCom
 
             if (!output) {
                 output = '(No output)';
+            }
+
+            const maxOutputChars = 20000;
+            if (output.length > maxOutputChars) {
+                output = `${output.slice(0, maxOutputChars)}\n... [output truncated]`;
             }
 
             return {
@@ -66,7 +98,7 @@ export class TerminalCommandTool implements vscode.LanguageModelTool<TerminalCom
         _token: vscode.CancellationToken
     ): Promise<vscode.PreparedToolInvocation> {
         return {
-            invocationMessage: `Executing terminal command: ${options.input.command}`
+            invocationMessage: `Executando comando no workspace: ${options.input.command}`
         };
     }
 }

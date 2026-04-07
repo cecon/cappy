@@ -58,10 +58,15 @@ export function generateChatPanelHtml(params: ChatPanelHtmlParams): string {
       </div>
     </header>
 
-    <div class="chat-main">
+    <div id="chat-main" class="chat-main">
       <aside id="sessions-drawer" class="sessions-drawer">
         <div class="drawer-header">
-          <input id="session-search" class="session-search" placeholder="Buscar sessões..." />
+          <button id="btn-toggle-session-search" class="icon-btn drawer-search-toggle" title="Buscar sessões">
+            <svg viewBox="0 0 16 16"><path d="M11.2 10.5 14.5 13.8l-.7.7-3.3-3.3a5.5 5.5 0 1 1 .7-.7zM6.5 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z"/></svg>
+          </button>
+          <div id="session-search-wrap" class="session-search-wrap hidden">
+            <input id="session-search" class="session-search" placeholder="Buscar sessões..." />
+          </div>
         </div>
         <div id="sessions-list" class="sessions-list"></div>
       </aside>
@@ -75,31 +80,37 @@ export function generateChatPanelHtml(params: ChatPanelHtmlParams): string {
 
         <footer class="input-area">
           <div class="composer-shell">
-          <textarea id="prompt" class="prompt-input" rows="1" placeholder="Ask Cappy..."></textarea>
+          <textarea id="prompt" class="prompt-input" rows="1" placeholder="Planeje, execute, use / para comandos e @ para contexto"></textarea>
+          <div class="composer-hint">Plan, Agent, / para comandos, @ para contexto</div>
+          <div id="mention-menu" class="mention-menu hidden"></div>
           <div class="input-toolbar">
             <button id="btn-attach" class="toolbar-btn" title="Anexar contexto"><svg viewBox="0 0 16 16"><path d="M7.5 1a4.5 4.5 0 0 1 4.5 4.5V11a3.5 3.5 0 0 1-7 0V4h1v7a2.5 2.5 0 0 0 5 0V5.5a3.5 3.5 0 0 0-7 0V11a4.5 4.5 0 0 0 9 0V4h1v7a5.5 5.5 0 0 1-11 0V5.5A4.5 4.5 0 0 1 7.5 1z"/></svg></button>
+            <button id="btn-stop-inline" class="stop-btn hidden" title="Parar">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5h6v6H5z"/></svg>
+            </button>
 
-            <div class="mode-selector-wrap">
-              <button id="btn-mode" class="mode-selector" title="Selecionar modo">
-                <span id="mode-label">Plan</span>
-                <span>▾</span>
-              </button>
-              <div id="mode-menu" class="mode-menu hidden">
-                <button data-ui-mode="agent" class="mode-option">Agent</button>
-                <button data-ui-mode="plan" class="mode-option">Plan</button>
-                <button data-ui-mode="debug" class="mode-option">Debug</button>
-                <button data-ui-mode="ask" class="mode-option">Ask</button>
-              </div>
-            </div>
+            <select id="ui-mode-select" class="compact-select mode-select" title="Selecionar modo">
+              <option value="plan">Plan</option>
+              <option value="agent">Agent</option>
+              <option value="debug">Debug</option>
+              <option value="ask">Ask</option>
+            </select>
 
             <select id="provider-model" class="compact-select"></select>
-            <button id="btn-send" class="send-btn" title="Enviar"><svg viewBox="0 0 16 16"><path d="M15 1 1 7l5 2 2 5 7-14zM6.8 8.2l-3.2-1.3 8.7-3.8-5.5 5.1z"/></svg></button>
-            <button id="btn-stop-inline" class="stop-btn hidden" title="Parar">Stop</button>
-            <span id="context-usage" class="context-usage"><span>0</span><span>/ 0</span></span>
+            <div id="context-usage" class="context-usage" title="Uso de contexto">
+              <svg class="context-usage-chart" viewBox="0 0 20 20" aria-hidden="true">
+                <circle class="context-usage-track" cx="10" cy="10" r="8"></circle>
+                <circle id="context-usage-ring" class="context-usage-ring" cx="10" cy="10" r="8"></circle>
+              </svg>
+              <span id="context-usage-percent" class="context-usage-percent">0</span>
+              <span id="context-usage-text" class="context-usage-text">0/0</span>
+            </div>
+            <button id="btn-send-inline" class="send-btn" title="Enviar mensagem" aria-label="Enviar mensagem">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1l.7.7v5.6h5.6L15 8l-.7.7H8.7v5.6L8 15l-.7-.7V8.7H1.7L1 8l.7-.7h5.6V1.7L8 1z"/></svg>
+            </button>
           </div>
           </div>
         </footer>
-      </div>
       </section>
     </div>
 
@@ -115,8 +126,6 @@ export function generateChatPanelHtml(params: ChatPanelHtmlParams): string {
         <option value="openai">OpenAI-Compatible</option>
         <option value="openclaude">OpenClaude Externo</option>
       </select>
-      <label>Model</label>
-      <input id="model" class="modal-input" placeholder="gpt-4o-mini" />
       <label>Base URL</label>
       <input id="baseUrl" class="modal-input" placeholder="https://api.openai.com/v1" />
       <label>API Key</label>

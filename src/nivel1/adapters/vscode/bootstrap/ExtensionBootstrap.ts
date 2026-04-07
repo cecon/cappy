@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
+import * as path from 'path';
 import { LanguageModelToolsBootstrap } from './LanguageModelToolsBootstrap';
 import { ChatPanelWebviewProvider } from '../webview/ChatPanelWebviewProvider';
 import { CappyChatParticipant } from '../chat/CappyChatParticipant';
@@ -27,6 +28,7 @@ import type { ChatMode, ChatSession } from '../../../../shared/types/agent';
  */
 export class ExtensionBootstrap {
   private static readonly SESSION_SNAPSHOT_KEY = 'cappy.chat.sessions.v1';
+  private static readonly UI_MODE_KEY = 'cappy.chat.ui-mode.v1';
   private webviewProvider: ChatPanelWebviewProvider | null = null;
   private providerGateway: ProviderGateway | null = null;
   private sessionStore: SessionStore | null = null;
@@ -41,9 +43,11 @@ export class ExtensionBootstrap {
   private rightSidebarMoveSucceeded = false;
   private currentSessionId: string | undefined;
   private currentUIMode: 'agent' | 'plan' | 'debug' | 'ask' | 'sandbox' = 'plan';
+  private availableModels: string[] = ['gpt-4o-mini'];
   private activeStreamingSessionId: string | undefined;
   private stoppedStreamingSessions = new Set<string>();
   private extensionContext: vscode.ExtensionContext | null = null;
+  private readonly liveToolRuns = new Set<string>();
 
   /**
    * Activates the extension
@@ -107,18 +111,18 @@ export class ExtensionBootstrap {
   private resolveModeFromParticipantCommand(command: string | undefined): ChatMode {
     const lower = (command ?? '').toLowerCase();
     if (lower.includes('agent')) {
-      this.currentUIMode = 'agent';
+      this.setCurrentUIMode('agent');
       return 'agent';
     }
     if (lower.includes('debug')) {
-      this.currentUIMode = 'debug';
+      this.setCurrentUIMode('debug');
       return 'sandbox';
     }
     if (lower.includes('ask')) {
-      this.currentUIMode = 'ask';
+      this.setCurrentUIMode('ask');
       return 'planning';
     }
-    this.currentUIMode = 'plan';
+    this.setCurrentUIMode('plan');
     return 'planning';
   }
 
@@ -143,6 +147,20 @@ export class ExtensionBootstrap {
   }
 
   /**
+   * Updates current UI mode and persists preference.
+   */
+  private setCurrentUIMode(mode: 'agent' | 'plan' | 'debug' | 'ask' | 'sandbox'): void {
+    this.currentUIMode = mode;
+    if (!this.extensionContext) {
+      return;
+    }
+    void this.extensionContext.workspaceState.update(
+      ExtensionBootstrap.UI_MODE_KEY,
+      mode,
+    );
+  }
+
+  /**
    * Initializes architecture services and orchestrator dependencies.
    */
   private setupArchitecture(context: vscode.ExtensionContext): void {
@@ -156,6 +174,12 @@ export class ExtensionBootstrap {
     const snapshot = context.workspaceState.get<SessionStoreSnapshot>(
       ExtensionBootstrap.SESSION_SNAPSHOT_KEY,
     );
+    const persistedUIMode = context.workspaceState.get<'agent' | 'plan' | 'debug' | 'ask' | 'sandbox'>(
+      ExtensionBootstrap.UI_MODE_KEY,
+    );
+    if (persistedUIMode) {
+      this.currentUIMode = persistedUIMode;
+    }
     this.sessionStore.restoreFromSnapshot(snapshot);
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     const resolvedWorkspaceRoot = workspaceRoot ?? process.cwd();
@@ -164,7 +188,19 @@ export class ExtensionBootstrap {
     const sandboxRuntime = new SandboxRuntime(resolvedWorkspaceRoot, this.auditTrailService);
     const mcpGateway = new McpGateway(new McpTransportAdapter(), this.auditTrailService);
     this.toolBroker = new ToolBroker(mcpGateway, this.auditTrailService);
-    const agentMode = new AgentModeEngine(this.providerGateway, this.toolBroker);
+    const agentMode = new AgentModeEngine(this.providerGateway, this.toolBroker, (event) => {
+      this.liveToolRuns.add(event.runId);
+      this.webviewProvider?.postMessage({
+        type: 'tool-call',
+        data: {
+          sessionId: event.sessionId,
+          ...event.toolCall,
+        },
+      });
+      if (event.toolCall.status === 'running') {
+        this.webviewProvider?.updateStatus(`Executando ferramenta: ${event.toolCall.tool}...`);
+      }
+    });
     this.orchestrator = new AgentOrchestrator(
       this.sessionStore,
       planningEngine,
@@ -188,6 +224,7 @@ export class ExtensionBootstrap {
     this.webviewProvider = new ChatPanelWebviewProvider(context.extensionUri);
     this.webviewProvider.setEvents({
       onReady: () => {
+        void this.refreshProviderModels();
         void this.syncPanelState('Painel carregado.', this.currentSessionId);
       },
       onCreateSession: (mode) => {
@@ -201,12 +238,18 @@ export class ExtensionBootstrap {
       },
       onSendMessage: (data) => {
         if (data.uiMode === 'agent' || data.uiMode === 'plan' || data.uiMode === 'debug' || data.uiMode === 'ask' || data.uiMode === 'sandbox') {
-          this.currentUIMode = data.uiMode;
+          this.setCurrentUIMode(data.uiMode);
         }
-        void this.handleChatSend(data.sessionId, data.mode, data.prompt);
+        void this.handleChatSend(data.sessionId, data.mode, data.prompt, data.mentions);
+      },
+      onWorkspaceMentionSearch: (query) => {
+        void this.handleWorkspaceMentionSearch(query);
       },
       onSaveProvider: (data) => {
-        void this.handleProviderSave(data.baseUrl, data.model, data.backend, data.apiKey, data.token);
+        void this.handleProviderSave(data.baseUrl, data.backend, data.apiKey, data.token);
+      },
+      onSelectProviderModel: (model) => {
+        void this.handleProviderModelSelect(model);
       },
       onTestProvider: () => {
         void this.handleProviderTest();
@@ -272,6 +315,12 @@ export class ExtensionBootstrap {
       },
       onOpenSettings: () => {
         void vscode.commands.executeCommand('workbench.action.openSettings', 'cappy');
+      },
+      onSetUIMode: (mode) => {
+        if (mode === 'agent' || mode === 'plan' || mode === 'debug' || mode === 'ask' || mode === 'sandbox') {
+          this.setCurrentUIMode(mode);
+          void this.syncPanelState(undefined, this.currentSessionId);
+        }
       },
     });
 
@@ -393,10 +442,22 @@ export class ExtensionBootstrap {
     sessionId: string | undefined,
     mode: ChatMode,
     prompt: string,
+    mentions?: string[],
   ): Promise<void> {
+    let streamingSessionId: string | undefined;
     try {
+      const enrichedPrompt = await this.buildPromptWithWorkspaceMentions(prompt, mentions);
+      const initialSession = this.sessionStore?.getOrCreateSession(sessionId, mode);
+      streamingSessionId = initialSession?.id;
+      if (streamingSessionId && this.webviewProvider) {
+        this.activeStreamingSessionId = streamingSessionId;
+        this.stoppedStreamingSessions.delete(streamingSessionId);
+        this.webviewProvider.startAssistantStream(streamingSessionId);
+        this.webviewProvider.updateStatus('Pensando...');
+        await this.syncPanelState(undefined, streamingSessionId);
+      }
       const turn = await this.runTurnAndSync({
-        prompt,
+        prompt: enrichedPrompt,
         mode,
         sessionId,
       });
@@ -406,6 +467,10 @@ export class ExtensionBootstrap {
       await this.streamText(turn.sessionId, turn.responseText, turn.runId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (streamingSessionId && this.webviewProvider) {
+        this.webviewProvider.endAssistantStream(streamingSessionId);
+      }
+      this.activeStreamingSessionId = undefined;
       if (this.currentSessionId) {
         this.webviewProvider?.postMessage({
           type: 'tool-call',
@@ -419,6 +484,152 @@ export class ExtensionBootstrap {
       }
       this.webviewProvider?.updateStatus(`Erro: ${message}`);
       void vscode.window.showErrorMessage(`Cappy: ${message}`);
+    }
+  }
+
+  /**
+   * Searches workspace files to feed mention autocomplete.
+   */
+  private async handleWorkspaceMentionSearch(query: string): Promise<void> {
+    if (!this.webviewProvider) {
+      return;
+    }
+    const items = await this.searchWorkspaceMentionCandidates(query);
+    this.webviewProvider.postMessage({
+      type: 'workspace-mention-results',
+      data: {
+        query,
+        items: items.map((item) => ({ path: item })),
+      },
+    });
+  }
+
+  /**
+   * Returns ranked workspace file candidates for one mention query.
+   */
+  private async searchWorkspaceMentionCandidates(query: string): Promise<string[]> {
+    const normalizedQuery = query.trim().toLowerCase();
+    const files = await vscode.workspace.findFiles(
+      '**/*',
+      '**/{node_modules,.git,.cursor,.cappy,dist,out,build,coverage}/**',
+      600,
+    );
+    const unique = Array.from(new Set(files
+      .map((uri) => vscode.workspace.asRelativePath(uri, false))
+      .filter((item) => item.length > 0)));
+    const filtered = normalizedQuery.length > 0
+      ? unique.filter((item) => item.toLowerCase().includes(normalizedQuery))
+      : unique;
+    const scored = filtered
+      .map((item) => {
+        const lower = item.toLowerCase();
+        const base = path.basename(lower);
+        let score = 100;
+        if (lower === normalizedQuery) {
+          score = 0;
+        } else if (lower.startsWith(normalizedQuery)) {
+          score = 1;
+        } else if (base.startsWith(normalizedQuery)) {
+          score = 2;
+        } else if (lower.includes(`/${normalizedQuery}`)) {
+          score = 3;
+        } else if (lower.includes(normalizedQuery)) {
+          score = 4;
+        }
+        return { item, score };
+      })
+      .sort((a, b) => {
+        if (a.score !== b.score) {
+          return a.score - b.score;
+        }
+        return a.item.localeCompare(b.item);
+      })
+      .slice(0, 8)
+      .map((entry) => entry.item);
+    return scored;
+  }
+
+  /**
+   * Injects mentioned workspace file snippets before orchestrator execution.
+   */
+  private async buildPromptWithWorkspaceMentions(prompt: string, mentions?: string[]): Promise<string> {
+    const mentionList = Array.isArray(mentions) ? mentions : [];
+    const shouldAttachReadme = /readme/i.test(prompt);
+    if (!mentionList.length && !shouldAttachReadme) {
+      return prompt;
+    }
+    const uniqueMentions = Array.from(new Set(
+      mentionList
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0),
+    ));
+    if (shouldAttachReadme) {
+      uniqueMentions.push('README.md');
+      uniqueMentions.push('readme.md');
+    }
+    const boundedMentions = Array.from(new Set(uniqueMentions)).slice(0, 3);
+    const attached: Array<{ path: string; content: string; truncated: boolean }> = [];
+    for (const mention of boundedMentions) {
+      const resolved = await this.resolveMentionedFile(mention);
+      if (resolved) {
+        attached.push(resolved);
+      }
+    }
+    if (!attached.length) {
+      return prompt;
+    }
+    const contextBlocks = attached.map((item) => [
+      `Arquivo: ${item.path}${item.truncated ? ' (trecho inicial)' : ''}`,
+      '```',
+      item.content,
+      '```',
+    ].join('\n'));
+    return [
+      prompt,
+      '',
+      'Contexto de workspace anexado automaticamente:',
+      ...contextBlocks,
+      '',
+      'Use esse contexto somente quando relevante para a resposta.',
+    ].join('\n');
+  }
+
+  /**
+   * Resolves one mention path into safe workspace file content.
+   */
+  private async resolveMentionedFile(rawMention: string): Promise<{ path: string; content: string; truncated: boolean } | null> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      return null;
+    }
+    const normalized = rawMention
+      .replace(/\\/g, '/')
+      .replace(/^@\s*/, '')
+      .replace(/^\.\//, '')
+      .trim();
+    if (!normalized || normalized.startsWith('/') || /^[a-zA-Z]:\//.test(normalized)) {
+      return null;
+    }
+    if (normalized.split('/').some((part) => part === '..')) {
+      return null;
+    }
+    const uri = vscode.Uri.joinPath(workspaceFolder.uri, normalized);
+    try {
+      const stat = await vscode.workspace.fs.stat(uri);
+      if (stat.type !== vscode.FileType.File) {
+        return null;
+      }
+      const raw = await vscode.workspace.fs.readFile(uri);
+      const text = Buffer.from(raw).toString('utf8');
+      const maxChars = 3500;
+      const truncated = text.length > maxChars;
+      return {
+        path: vscode.workspace.asRelativePath(uri, false),
+        content: truncated ? `${text.slice(0, maxChars)}\n...` : text,
+        truncated,
+      };
+    } catch {
+      return null;
     }
   }
 
@@ -519,7 +730,8 @@ export class ExtensionBootstrap {
       throw new Error('Falha ao resolver sessão ativa.');
     }
 
-    if (!params.preferNativeToolEvents && toolCalls?.length) {
+    const alreadyEmittedLiveEvents = this.liveToolRuns.has(resolvedRunId);
+    if (!params.preferNativeToolEvents && toolCalls?.length && !alreadyEmittedLiveEvents) {
       for (const toolCall of toolCalls) {
         this.webviewProvider?.postMessage({
           type: 'tool-call',
@@ -530,6 +742,7 @@ export class ExtensionBootstrap {
         });
       }
     }
+    this.liveToolRuns.delete(resolvedRunId);
 
     await this.syncPanelState('Resposta gerada.', resolvedSessionId);
     await this.persistSessions();
@@ -549,9 +762,12 @@ export class ExtensionBootstrap {
     if (!this.webviewProvider) {
       return;
     }
+    const alreadyStreamingSameSession = this.activeStreamingSessionId === sessionId;
     this.activeStreamingSessionId = sessionId;
     this.stoppedStreamingSessions.delete(sessionId);
-    this.webviewProvider.startAssistantStream(sessionId);
+    if (!alreadyStreamingSameSession) {
+      this.webviewProvider.startAssistantStream(sessionId);
+    }
     await this.auditTrailService?.appendIfNew({
       eventType: 'stream.started',
       sessionId,
@@ -560,7 +776,7 @@ export class ExtensionBootstrap {
       payloadRef: 'assistant-stream',
       attempt: 1,
     });
-    const chunks = text.match(/.{1,80}/gs) ?? [text];
+    const chunks = this.chunkTextForStreaming(text);
     for (let index = 0; index < chunks.length; index += 1) {
       if (this.stoppedStreamingSessions.has(sessionId)) {
         break;
@@ -578,7 +794,8 @@ export class ExtensionBootstrap {
           size: chunk.length,
         },
       });
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      const delay = Math.max(12, Math.min(36, Math.round(chunk.length * 0.45)));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
     this.webviewProvider.endAssistantStream(sessionId);
     const wasStopped = this.stoppedStreamingSessions.has(sessionId);
@@ -597,11 +814,36 @@ export class ExtensionBootstrap {
   }
 
   /**
+   * Breaks assistant output into small human-like stream chunks.
+   */
+  private chunkTextForStreaming(text: string): string[] {
+    if (!text || text.length <= 40) {
+      return [text];
+    }
+    const tokens = text.match(/\S+\s*|\n+/g) ?? [text];
+    const chunks: string[] = [];
+    let current = '';
+    for (const token of tokens) {
+      const candidate = current + token;
+      const shouldFlush = candidate.length >= 42 || /\n\n$/.test(candidate);
+      if (shouldFlush && current) {
+        chunks.push(current);
+        current = token;
+      } else {
+        current = candidate;
+      }
+    }
+    if (current) {
+      chunks.push(current);
+    }
+    return chunks;
+  }
+
+  /**
    * Saves provider configuration sent from the panel.
    */
   private async handleProviderSave(
     baseUrl: string,
-    model: string,
     backend: 'openai' | 'openclaude',
     apiKey?: string,
     token?: string,
@@ -611,15 +853,29 @@ export class ExtensionBootstrap {
     }
     const config = vscode.workspace.getConfiguration('cappy.provider');
     await config.update('baseUrl', baseUrl, vscode.ConfigurationTarget.Global);
-    await config.update('model', model, vscode.ConfigurationTarget.Global);
     await config.update('backend', backend, vscode.ConfigurationTarget.Global);
     const nextApiKey = apiKey?.trim() || token?.trim();
     if (nextApiKey && nextApiKey.length > 0) {
       await this.providerGateway.setApiKey(nextApiKey);
     }
     if (this.webviewProvider) {
+      await this.refreshProviderModels();
       await this.syncPanelState('Provider salvo com sucesso.');
     }
+  }
+
+  /**
+   * Persists selected model from composer selector.
+   */
+  private async handleProviderModelSelect(model: string): Promise<void> {
+    const nextModel = model.trim();
+    if (!nextModel) {
+      return;
+    }
+    const config = vscode.workspace.getConfiguration('cappy.provider');
+    await config.update('model', nextModel, vscode.ConfigurationTarget.Global);
+    await this.refreshProviderModels();
+    await this.syncPanelState(`Modelo selecionado: ${nextModel}`, this.currentSessionId);
   }
 
   /**
@@ -638,7 +894,19 @@ export class ExtensionBootstrap {
       return;
     }
     const result = await this.providerGateway.testConnection();
+    await this.refreshProviderModels();
     this.webviewProvider?.updateStatus(result.message);
+    await this.syncPanelState(undefined, this.currentSessionId);
+  }
+
+  /**
+   * Refreshes cached model list from provider endpoint.
+   */
+  private async refreshProviderModels(): Promise<void> {
+    if (!this.providerGateway) {
+      return;
+    }
+    this.availableModels = await this.providerGateway.listModels();
   }
 
   /**
@@ -689,6 +957,7 @@ export class ExtensionBootstrap {
         used: usage,
         limit: 32768,
       },
+      availableModels: this.availableModels,
     });
   }
 

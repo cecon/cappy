@@ -399,6 +399,10 @@ export interface IProviderGateway {
    * Sends a chat completion request.
    */
   chat(request: ProviderChatRequest): Promise<ProviderChatResponse>;
+  /**
+   * Lists available models from provider endpoint.
+   */
+  listModels(): Promise<string[]>;
 }
 
 /**

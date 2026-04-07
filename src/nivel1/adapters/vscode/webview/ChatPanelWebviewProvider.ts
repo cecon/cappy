@@ -129,6 +129,10 @@ export interface ChatPanelStatePayload {
    * Lightweight context usage estimate.
    */
   contextUsage?: { used: number; limit: number };
+  /**
+   * Available provider models for selector.
+   */
+  availableModels?: string[];
 }
 
 /**
@@ -146,17 +150,24 @@ export interface ChatPanelEvents {
   /**
    * User sent a message.
    */
-  onSendMessage: (data: { sessionId?: string; mode: ChatMode; prompt: string; uiMode?: string }) => void;
+  onSendMessage: (data: { sessionId?: string; mode: ChatMode; prompt: string; uiMode?: string; mentions?: string[] }) => void;
+  /**
+   * User requested workspace mention suggestions.
+   */
+  onWorkspaceMentionSearch: (query: string) => void;
   /**
    * User saved provider settings.
    */
   onSaveProvider: (data: {
     baseUrl: string;
-    model: string;
     backend: 'openai' | 'openclaude';
     apiKey?: string;
     token?: string;
   }) => void;
+  /**
+   * User selected model from composer dropdown.
+   */
+  onSelectProviderModel: (model: string) => void;
   /**
    * User requested provider test.
    */
@@ -201,6 +212,10 @@ export interface ChatPanelEvents {
    * User requested extension settings.
    */
   onOpenSettings: () => void;
+  /**
+   * User changed current UI mode selector.
+   */
+  onSetUIMode: (mode: 'agent' | 'plan' | 'debug' | 'ask' | 'sandbox') => void;
 }
 
 /**
@@ -303,8 +318,14 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
         case 'chat-send':
           this.events?.onSendMessage(message.data);
           break;
+        case 'workspace-mention-search':
+          this.events?.onWorkspaceMentionSearch(message.data?.query ?? '');
+          break;
         case 'provider-save':
           this.events?.onSaveProvider(message.data);
+          break;
+        case 'provider-model-select':
+          this.events?.onSelectProviderModel(message.data?.model ?? '');
           break;
         case 'provider-test':
           this.events?.onTestProvider();
@@ -339,6 +360,9 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
         case 'panel-open-settings':
           this.events?.onOpenSettings();
           break;
+        case 'chat-ui-mode':
+          this.events?.onSetUIMode(message.data?.uiMode);
+          break;
       }
     });
   }
@@ -350,9 +374,16 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
     const iconUri = this.view
       ? this.view.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'assets', 'icon.png')).toString()
       : '';
+    // Escape serialized payload so inline script parsing stays stable in webview.
+    const initialStateJson = JSON.stringify(this.state)
+      .replace(/</g, '\\u003c')
+      .replace(/>/g, '\\u003e')
+      .replace(/&/g, '\\u0026')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029');
     return generateChatPanelHtml({
       iconUri,
-      initialStateJson: JSON.stringify(this.state),
+      initialStateJson,
     });
   }
 }

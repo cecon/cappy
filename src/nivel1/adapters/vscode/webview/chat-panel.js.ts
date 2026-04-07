@@ -13,8 +13,14 @@ export function generateChatPanelScript(initialStateJson: string): string {
     let assistantBufferBySession = {};
     let uiMode = state.currentUIMode || 'plan';
     let searchTerm = '';
+    let isSessionSearchExpanded = false;
     let autoScrollEnabled = true;
     let toolCallsBySession = {};
+    let mentionSuggestions = [];
+    let mentionSearchToken = '';
+    let mentionSelectedIndex = 0;
+    let mentionSearchTimer = null;
+    let assistantPending = false;
 
     /**
      * Returns one DOM element by id.
@@ -96,6 +102,21 @@ export function generateChatPanelScript(initialStateJson: string): string {
     }
 
     /**
+     * Returns stable footer status, preventing stale loading text.
+     * @returns {string}
+     */
+    function resolveStatusText() {
+      const raw = (state.statusText || '').trim();
+      if (state.isStreaming) {
+        return raw || 'Pensando...';
+      }
+      if (/^(pensando|carregando|loading)\\.{0,3}$/i.test(raw)) {
+        return 'Pronto';
+      }
+      return raw;
+    }
+
+    /**
      * Returns active session from state.
      * @returns {any}
      */
@@ -157,10 +178,10 @@ export function generateChatPanelScript(initialStateJson: string): string {
      * Renders mode dropdown state.
      */
     function renderModeMenu() {
-      byId('mode-label').textContent = uiMode === 'plan' ? 'Plan' : uiMode === 'agent' ? 'Agent' : uiMode === 'debug' ? 'Debug' : 'Ask';
-      Array.from(document.querySelectorAll('.mode-option')).forEach(function(option) {
-        option.classList.toggle('active', option.getAttribute('data-ui-mode') === uiMode);
-      });
+      const select = byId('ui-mode-select');
+      if (select) {
+        select.value = uiMode;
+      }
     }
 
     /**
@@ -277,17 +298,53 @@ export function generateChatPanelScript(initialStateJson: string): string {
     }
 
     /**
+     * Upserts one live tool event in transient timeline for the session.
+     * @param {string} sessionId Session identifier.
+     * @param {{tool: string, status: 'running' | 'done' | 'error', input?: string, output?: string}} payload Tool payload.
+     */
+    function applyLiveToolCall(sessionId, payload) {
+      const queue = Array.isArray(toolCallsBySession[sessionId]) ? toolCallsBySession[sessionId].slice() : [];
+      const lastIndex = queue.length - 1;
+      const last = lastIndex >= 0 ? queue[lastIndex] : null;
+      if (
+        last
+        && last.tool === payload.tool
+        && last.status === 'running'
+        && (payload.status === 'done' || payload.status === 'error')
+      ) {
+        queue[lastIndex] = Object.assign({}, last, payload);
+      } else {
+        queue.push(payload);
+      }
+      toolCallsBySession[sessionId] = queue.slice(-12);
+    }
+
+    /**
      * Renders provider/model selector.
      */
     function renderModelSelector() {
       const select = byId('provider-model');
       const current = state.provider && state.provider.model ? state.provider.model : 'gpt-4o-mini';
-      const options = [current, 'gpt-4.1-mini', 'gpt-4o-mini', 'claude-sonnet'];
+      const runtimeModels = Array.isArray(state.availableModels) ? state.availableModels : [];
+      const options = [current].concat(runtimeModels);
       const unique = Array.from(new Set(options));
       select.innerHTML = unique.map(function(model) {
         return '<option value="' + esc(model) + '">' + esc(model) + '</option>';
       }).join('');
       select.value = current;
+    }
+
+    /**
+     * Syncs attach/stop visibility based on response activity.
+     */
+    function renderComposerActions() {
+      const running = Boolean(state.isStreaming || assistantPending);
+      const promptValue = byId('prompt').value || '';
+      const hasPrompt = promptValue.trim().length > 0;
+      byId('btn-stop-inline').classList.toggle('hidden', !running);
+      byId('btn-send-inline').classList.toggle('hidden', running);
+      byId('btn-send-inline').disabled = running || !hasPrompt;
+      byId('btn-attach').classList.toggle('hidden', running);
     }
 
     /**
@@ -298,16 +355,54 @@ export function generateChatPanelScript(initialStateJson: string): string {
       renderMessages();
       renderModeMenu();
       renderModelSelector();
-      byId('context-usage').innerHTML = '<span>' + (state.contextUsage ? state.contextUsage.used : 0) + '</span><span>/ ' + (state.contextUsage ? state.contextUsage.limit : 0) + '</span>';
+      const used = Number(state.contextUsage ? state.contextUsage.used : 0) || 0;
+      const limit = Number(state.contextUsage ? state.contextUsage.limit : 0) || 0;
+      const safeLimit = limit > 0 ? limit : 1;
+      const ratio = Math.max(0, Math.min(1, used / safeLimit));
+      const usagePercent = Math.round(ratio * 100);
+      const usageDegrees = Math.round(ratio * 360);
+      byId('context-usage-percent').textContent = String(usagePercent);
+      byId('context-usage-text').textContent = used + '/' + limit;
+      byId('context-usage').style.setProperty('--context-progress', usageDegrees + 'deg');
+      byId('context-usage').setAttribute('title', 'Uso de contexto: ' + usagePercent + '% (' + used + '/' + limit + ')');
       byId('streaming-indicator').classList.toggle('hidden', !state.isStreaming);
-      byId('btn-stop-inline').classList.toggle('hidden', !state.isStreaming);
-      byId('btn-send').classList.toggle('hidden', !!state.isStreaming);
+      renderComposerActions();
       if (state.provider) {
         byId('baseUrl').value = state.provider.baseUrl || '';
-        byId('model').value = state.provider.model || '';
         byId('backend').value = state.provider.backend || 'openai';
       }
-      setStatus(state.statusText || '');
+      setStatus(resolveStatusText());
+    }
+
+    /**
+     * Renders search input visibility state in sessions drawer.
+     */
+    function renderSessionSearch() {
+      byId('session-search-wrap').classList.toggle('hidden', !isSessionSearchExpanded);
+    }
+
+    /**
+     * Toggles compact session search in drawer header.
+     */
+    function toggleSessionSearch() {
+      isSessionSearchExpanded = !isSessionSearchExpanded;
+      if (!isSessionSearchExpanded) {
+        searchTerm = '';
+        byId('session-search').value = '';
+        renderSessions();
+      }
+      renderSessionSearch();
+      if (isSessionSearchExpanded) {
+        byId('session-search').focus();
+      }
+    }
+
+    /**
+     * Syncs main grid layout with sessions drawer visibility.
+     */
+    function syncHistoryLayout() {
+      const drawerHidden = byId('sessions-drawer').classList.contains('hidden');
+      byId('chat-main').classList.toggle('history-collapsed', drawerHidden);
     }
 
     /**
@@ -345,10 +440,14 @@ export function generateChatPanelScript(initialStateJson: string): string {
       if (!prompt) {
         return;
       }
+      const mentions = extractMentions(prompt);
       const session = getCurrentSession();
       const runtimeMode = mapUIModeToRuntimeMode();
       promptEl.value = '';
       resizePrompt();
+      closeMentionMenu();
+      assistantPending = true;
+      renderComposerActions();
       setStatus('Enviando...');
       vscode.postMessage({
         type: 'chat-send',
@@ -357,6 +456,7 @@ export function generateChatPanelScript(initialStateJson: string): string {
           mode: runtimeMode,
           uiMode: uiMode,
           prompt: prompt,
+          mentions: mentions,
         },
       });
     }
@@ -385,12 +485,127 @@ export function generateChatPanelScript(initialStateJson: string): string {
     }
 
     /**
+     * Extracts unique workspace mentions from prompt.
+     * @param {string} prompt Prompt text.
+     * @returns {string[]}
+     */
+    function extractMentions(prompt) {
+      const matches = prompt.match(/@([^\\s@]+)/g) || [];
+      const unique = Array.from(new Set(matches.map(function(item) {
+        return item.slice(1).trim();
+      }).filter(Boolean)));
+      return unique;
+    }
+
+    /**
+     * Returns active mention query near caret.
+     * @returns {{start: number, end: number, query: string} | null}
+     */
+    function getActiveMentionQuery() {
+      const input = byId('prompt');
+      const value = input.value || '';
+      const caret = Number(input.selectionStart || 0);
+      const beforeCaret = value.slice(0, caret);
+      const match = beforeCaret.match(/(?:^|\\s)@([^\\s@]*)$/);
+      if (!match) {
+        return null;
+      }
+      const query = match[1] || '';
+      const atIndex = beforeCaret.lastIndexOf('@');
+      if (atIndex < 0) {
+        return null;
+      }
+      return {
+        start: atIndex + 1,
+        end: caret,
+        query: query,
+      };
+    }
+
+    /**
+     * Renders mention suggestion menu.
+     */
+    function renderMentionMenu() {
+      const menu = byId('mention-menu');
+      if (!mentionSuggestions.length) {
+        menu.classList.add('hidden');
+        menu.innerHTML = '';
+        return;
+      }
+      menu.classList.remove('hidden');
+      menu.innerHTML = mentionSuggestions.map(function(item, index) {
+        const active = mentionSelectedIndex === index ? 'active' : '';
+        return '<button class="mention-item ' + active + '" data-mention-index="' + index + '" title="' + esc(item.path) + '">' + esc(item.path) + '</button>';
+      }).join('');
+    }
+
+    /**
+     * Hides mention menu and clears selection.
+     */
+    function closeMentionMenu() {
+      mentionSuggestions = [];
+      mentionSelectedIndex = 0;
+      renderMentionMenu();
+    }
+
+    /**
+     * Replaces active mention token with selected suggestion.
+     * @param {number} index Suggestion index.
+     * @returns {boolean}
+     */
+    function applyMentionSuggestion(index) {
+      if (!mentionSuggestions.length || index < 0 || index >= mentionSuggestions.length) {
+        return false;
+      }
+      const mention = getActiveMentionQuery();
+      if (!mention) {
+        return false;
+      }
+      const input = byId('prompt');
+      const value = input.value || '';
+      const selected = mentionSuggestions[index];
+      input.value = value.slice(0, mention.start) + selected.path + ' ' + value.slice(mention.end);
+      const nextCaret = mention.start + selected.path.length + 1;
+      input.setSelectionRange(nextCaret, nextCaret);
+      closeMentionMenu();
+      resizePrompt();
+      return true;
+    }
+
+    /**
+     * Requests workspace mention suggestions from extension.
+     */
+    function requestMentionSuggestions() {
+      const mention = getActiveMentionQuery();
+      if (!mention) {
+        if (mentionSearchTimer) {
+          clearTimeout(mentionSearchTimer);
+          mentionSearchTimer = null;
+        }
+        closeMentionMenu();
+        mentionSearchToken = '';
+        return;
+      }
+      mentionSearchToken = mention.query;
+      if (mentionSearchTimer) {
+        clearTimeout(mentionSearchTimer);
+      }
+      mentionSearchTimer = setTimeout(function() {
+        vscode.postMessage({
+          type: 'workspace-mention-search',
+          data: {
+            query: mention.query,
+          },
+        });
+      }, 120);
+    }
+
+    /**
      * Persists provider settings from modal.
      */
     function onSaveProvider() {
       const payload = {
         baseUrl: byId('baseUrl').value.trim(),
-        model: byId('model').value.trim(),
         backend: byId('backend').value,
         apiKey: byId('apiKey').value.trim(),
         token: byId('token').value.trim(),
@@ -497,10 +712,19 @@ export function generateChatPanelScript(initialStateJson: string): string {
       switch (msg.type) {
         case 'state':
           applyState(msg.data);
+          if (!state.isStreaming && state.currentSessionId) {
+            delete toolCallsBySession[state.currentSessionId];
+          }
+          if (!state.isStreaming && /^(pronto|erro)/i.test((state.statusText || '').trim())) {
+            assistantPending = false;
+          }
+          renderComposerActions();
           break;
         case 'assistant-stream-start':
           state.isStreaming = true;
+          assistantPending = true;
           assistantBufferBySession[msg.data.sessionId] = '';
+          setStatus('Pensando...');
           renderAll();
           break;
         case 'assistant-stream-chunk': {
@@ -527,6 +751,10 @@ export function generateChatPanelScript(initialStateJson: string): string {
         }
         case 'assistant-stream-end':
           state.isStreaming = false;
+          assistantPending = false;
+          if (msg.data && msg.data.sessionId) {
+            delete toolCallsBySession[msg.data.sessionId];
+          }
           renderAll();
           setStatus('Pronto');
           break;
@@ -535,19 +763,35 @@ export function generateChatPanelScript(initialStateJson: string): string {
           if (!data.sessionId) {
             break;
           }
-          toolCallsBySession[data.sessionId] = [data];
+          applyLiveToolCall(data.sessionId, data);
           renderMessages();
           break;
         }
         case 'status':
           setStatus(msg.data);
+          if (/^(pronto|erro)/i.test(String(msg.data || '').trim())) {
+            assistantPending = false;
+            renderComposerActions();
+          }
           break;
+        case 'workspace-mention-results': {
+          const data = msg.data || {};
+          if ((data.query || '') !== mentionSearchToken) {
+            break;
+          }
+          mentionSuggestions = Array.isArray(data.items) ? data.items.slice(0, 8) : [];
+          mentionSelectedIndex = 0;
+          renderMentionMenu();
+          break;
+        }
       }
     });
 
     byId('btn-new-chat').addEventListener('click', createSession);
+    byId('btn-toggle-session-search').addEventListener('click', toggleSessionSearch);
     byId('btn-toggle-history').addEventListener('click', function() {
       byId('sessions-drawer').classList.toggle('hidden');
+      syncHistoryLayout();
     });
     byId('btn-maximize').addEventListener('click', function() {
       vscode.postMessage({ type: 'panel-maximize' });
@@ -570,10 +814,12 @@ export function generateChatPanelScript(initialStateJson: string): string {
     byId('btn-menu').addEventListener('click', function() {
       byId('header-menu').classList.toggle('hidden');
     });
-    byId('btn-send').addEventListener('click', onSend);
     byId('btn-stop-inline').addEventListener('click', function() {
       const session = getCurrentSession();
       vscode.postMessage({ type: 'chat-stop-stream', data: { sessionId: session ? session.id : undefined } });
+    });
+    byId('btn-send-inline').addEventListener('click', function() {
+      onSend();
     });
     byId('btn-save-provider').addEventListener('click', onSaveProvider);
     byId('btn-test-provider').addEventListener('click', onTestProvider);
@@ -588,16 +834,16 @@ export function generateChatPanelScript(initialStateJson: string): string {
       prompt.value = (prompt.value || '') + ' @';
       prompt.focus();
       resizePrompt();
+      requestMentionSuggestions();
     });
-    byId('btn-mode').addEventListener('click', function() {
-      byId('mode-menu').classList.toggle('hidden');
-    });
-    Array.from(document.querySelectorAll('.mode-option')).forEach(function(option) {
-      option.addEventListener('click', function() {
-        uiMode = option.getAttribute('data-ui-mode') || 'plan';
-        byId('mode-menu').classList.add('hidden');
-        renderModeMenu();
-      });
+    byId('ui-mode-select').addEventListener('change', function(event) {
+      const nextMode = event.target && event.target.value ? event.target.value : 'plan';
+      if (nextMode !== 'agent' && nextMode !== 'plan' && nextMode !== 'debug' && nextMode !== 'ask') {
+        return;
+      }
+      uiMode = nextMode;
+      vscode.postMessage({ type: 'chat-ui-mode', data: { uiMode: uiMode } });
+      renderModeMenu();
     });
     byId('session-title-btn').addEventListener('click', startEditingSessionTitle);
     byId('session-title-input').addEventListener('blur', saveSessionTitle);
@@ -615,14 +861,62 @@ export function generateChatPanelScript(initialStateJson: string): string {
       renderSessions();
     });
     byId('provider-model').addEventListener('change', function(event) {
-      byId('model').value = event.target.value;
+      const nextModel = event.target && event.target.value ? event.target.value : '';
+      if (!nextModel) {
+        return;
+      }
+      vscode.postMessage({ type: 'provider-model-select', data: { model: nextModel } });
     });
-    byId('prompt').addEventListener('input', resizePrompt);
+    byId('prompt').addEventListener('input', function() {
+      resizePrompt();
+      requestMentionSuggestions();
+      renderComposerActions();
+    });
     byId('prompt').addEventListener('keydown', function(event) {
+      if (!byId('mention-menu').classList.contains('hidden')) {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          mentionSelectedIndex = (mentionSelectedIndex + 1) % mentionSuggestions.length;
+          renderMentionMenu();
+          return;
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          mentionSelectedIndex = (mentionSelectedIndex - 1 + mentionSuggestions.length) % mentionSuggestions.length;
+          renderMentionMenu();
+          return;
+        }
+        if (event.key === 'Enter' || event.key === 'Tab') {
+          event.preventDefault();
+          applyMentionSuggestion(mentionSelectedIndex);
+          return;
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeMentionMenu();
+          return;
+        }
+      }
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         onSend();
       }
+    });
+    byId('mention-menu').addEventListener('click', function(event) {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      const button = target.closest('[data-mention-index]');
+      if (!(button instanceof HTMLElement)) {
+        return;
+      }
+      const index = Number(button.getAttribute('data-mention-index'));
+      if (Number.isNaN(index)) {
+        return;
+      }
+      applyMentionSuggestion(index);
+      byId('prompt').focus();
     });
     byId('messages').addEventListener('scroll', function() {
       const target = byId('messages');
@@ -634,7 +928,6 @@ export function generateChatPanelScript(initialStateJson: string): string {
     document.addEventListener('keydown', function(event) {
       if (event.key === 'Escape') {
         closeSettingsModal();
-        byId('mode-menu').classList.add('hidden');
         closeHeaderMenu();
       }
     });
@@ -643,11 +936,11 @@ export function generateChatPanelScript(initialStateJson: string): string {
       if (!(target instanceof HTMLElement)) {
         return;
       }
-      if (!target.closest('.mode-selector-wrap')) {
-        byId('mode-menu').classList.add('hidden');
-      }
       if (!target.closest('.menu-wrap')) {
         closeHeaderMenu();
+      }
+      if (!target.closest('.composer-shell')) {
+        closeMentionMenu();
       }
     });
 
@@ -659,6 +952,8 @@ export function generateChatPanelScript(initialStateJson: string): string {
     }
 
     renderAll();
+    renderSessionSearch();
+    syncHistoryLayout();
     resizePrompt();
     vscode.postMessage({ type: 'webview-ready' });
   `;

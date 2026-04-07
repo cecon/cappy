@@ -105,5 +105,46 @@ export class ProviderGateway implements IProviderGateway {
       model: payload.model ?? request.model ?? settings.model,
     };
   }
+
+  /**
+   * Lists available model slugs from OpenAI-compatible /models endpoint.
+   */
+  async listModels(): Promise<string[]> {
+    const settings = await this.getSettings();
+    if (settings.backend !== 'openai') {
+      return [settings.model];
+    }
+    if (!settings.baseUrl) {
+      return [settings.model];
+    }
+    try {
+      const endpoint = `${settings.baseUrl.replace(/\/$/, '')}/models`;
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+        },
+      });
+      if (!response.ok) {
+        return [settings.model];
+      }
+      const payload = (await response.json()) as {
+        data?: Array<{
+          id?: string;
+          name?: string;
+          canonical_slug?: string;
+        }>;
+      };
+      const models = (payload.data ?? [])
+        .map((item) => item.id ?? item.canonical_slug ?? item.name ?? '')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+      const unique = Array.from(new Set([settings.model, ...models]));
+      return unique;
+    } catch {
+      return [settings.model];
+    }
+  }
 }
 
