@@ -5,18 +5,31 @@
 
 export const CHAT_PANEL_CSS = `
 * { box-sizing: border-box; }
+html, body {
+  height: 100%;
+}
 body {
   margin: 0;
   padding: 10px;
   font-family: var(--vscode-font-family);
   color: var(--vscode-foreground);
   background: var(--vscode-sideBar-background);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: hidden;
+}
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
 }
 .header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
 }
 .header img {
   width: 28px;
@@ -36,7 +49,12 @@ body {
   border-radius: 10px;
   background: var(--vscode-editor-background);
   padding: 10px;
-  margin-bottom: 10px;
+}
+.card-messages {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 180px;
 }
 .row {
   display: flex;
@@ -78,7 +96,8 @@ body {
   color: var(--vscode-descriptionForeground);
 }
 .messages {
-  max-height: 320px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
