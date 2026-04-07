@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/assets/icon.png" alt="Cappy" width="120" />
+  <img src="assets/cappy-icon.png" alt="Cappy" width="120" />
 </p>
 
 <h1 align="center">Cappy</h1>
@@ -33,13 +33,11 @@ What if one agent inside your IDE could plan, execute, and validate tasks with f
 
 **Cappy** is an AI-powered VS Code extension focused on planning and agent execution directly in your workspace. It's not just another coding assistant — it's a **full dev companion** that lives where you already are: in your editor.
 
-> 🦫 *Think of Cappy as a senior developer who never sleeps and never forgets project context.*
-
 ---
 
-## ✨ Key Features
+## Key Features
 
-### 🤖 Native Agent Experience
+### Native Agent Experience
 *Plan and execute without leaving the editor.*
 
 - **Native chat participant (`@cappy`)** in IDE chat
@@ -47,7 +45,7 @@ What if one agent inside your IDE could plan, execute, and validate tasks with f
 - **Streaming responses** with live progress
 - **Session continuity** between native chat and dashboard
 
-### 🧠 AI Planning Agent
+### AI Planning Agent
 *From idea to structured plan in seconds.*
 
 Mention `@cappy` in any AI chat and get intelligent, context-aware planning:
@@ -60,7 +58,7 @@ Mention `@cappy` in any AI chat and get intelligent, context-aware planning:
 
 Cappy analyzes your codebase, asks clarifying questions, and generates **structured task files** with implementation checklists, acceptance criteria, and step-by-step guidance.
 
-### 📊 Live Dashboard
+### Live Dashboard
 *Everything at a glance.*
 
 A sleek sidebar dashboard shows you real-time status:
@@ -68,7 +66,7 @@ A sleek sidebar dashboard shows you real-time status:
 - Tool-call timeline and streaming progress
 - Quick settings and configuration
 
-### 🛠️ Powerful Built-in Tools
+### Powerful Built-in Tools
 
 | Tool | What it does |
 |------|-------------|
@@ -81,11 +79,11 @@ A sleek sidebar dashboard shows you real-time status:
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Install
 
-Search for **"Cappy"** in the VS Code / Cursor / Antigravity Marketplace, or:
+Search for **"Cappy"** in the VS Code / Cursor Marketplace, or:
 
 ```bash
 code --install-extension eduardocecon.cappy
@@ -99,82 +97,21 @@ code --install-extension eduardocecon.cappy
 
 ### Use the AI Agent
 
-Just type `@cappy` followed by your request in any AI chat panel. That's it.
+Type `@cappy` followed by your request in any AI chat panel.
 
 ---
 
-## 🗺️ Roadmap
-
-| Phase | Feature | Status |
-|-------|---------|--------|
-| ✅ | AI Planning Agent (`@cappy`) | **Live** |
-| ✅ | Native Agent + Webview Sync | **Live** |
-| ✅ | Live Dashboard | **Live** |
-| 🔜 | Code Health Score (0-100) | *Coming Soon* |
-| 🔜 | Scheduled Health Checks & Cron Jobs | *Planned* |
-| 🔜 | GitHub/Jira Integration via MCP | *Planned* |
-
-### Coming Soon: Code Health Score 🏥
-
-> Know your project's health at a glance — scores across file size, test coverage, lint, complexity, and documentation.
-
-```
-🦫 Cappy: Project Health: 71/100
-├── File Size:    58/100  🔴 12 files > 300 lines
-├── Coverage:     45/100  🔴 Only 23% covered
-├── Lint:         81/100  ⚡ 47 warnings
-└── Complexity:   69/100  ⚡ 8 functions > 10 cyclomatic
-```
-
----
-
-## 🏗️ Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Language | TypeScript |
-| Platform | VS Code Extension API |
-| AI Engine | VS Code Language Model API + LangGraph |
-| Build | TSC |
-| Tests | Vitest |
-
----
-
-## 🤝 Compatible With
-
-Cappy works across multiple AI-powered editors:
-
-- **VS Code** (1.105.0+)
-- **Cursor**
-- **Antigravity IDE**
-
----
-
-## 🧑‍💻 Development
+## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Compile
-npm run compile-extension
-
-# Run tests
+npm run compile
 npm test
-
-# Package .vsix
 npm run package
 ```
 
 ---
 
-## 📄 License
+## License
 
-MIT — see [LICENSE](LICENSE)
-
----
-
-<p align="center">
-  Built with 🧡 by <a href="https://github.com/cecon">Eduardo Cecon</a><br/>
-  <sub>Because developers deserve tools that respect their flow.</sub>
-</p>
+MIT — see [LICENSE](LICENSE.txt)
