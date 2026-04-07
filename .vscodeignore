@@ -69,9 +69,10 @@ node_modules/**/examples/**
 node_modules/**/benchmark/**
 node_modules/**/benchmarks/**
 node_modules/**/*.md
-!node_modules/**/README.md
 node_modules/**/*.ts
-!node_modules/**/*.d.ts
+node_modules/**/*.d.ts
+node_modules/**/src/**
+node_modules/**/dist/**/*.map
 node_modules/**/.*
 node_modules/**/CHANGELOG*
 node_modules/**/HISTORY*
