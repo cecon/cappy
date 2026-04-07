@@ -9,6 +9,7 @@ export * from './types';
 
 // Constants
 export * from './constants/commands';
+export * from './constants/llm-config';
 export * from './constants/paths';
 export * from './constants/templates';
 

@@ -5,6 +5,7 @@
 
 import { CHAT_PANEL_CSS } from './chat-panel.css';
 import { generateChatPanelScript } from './chat-panel.js';
+import { DEFAULT_PROVIDER_BASE_URL } from '../../../../shared/constants/llm-config';
 
 /**
  * Input params for HTML generation.
@@ -18,6 +19,14 @@ export interface ChatPanelHtmlParams {
    * Initial serialized state.
    */
   initialStateJson: string;
+  /**
+   * CSP source for local webview assets.
+   */
+  cspSource: string;
+  /**
+   * CSP nonce used by inline script.
+   */
+  nonce: string;
 }
 
 /**
@@ -30,6 +39,10 @@ export function generateChatPanelHtml(params: ChatPanelHtmlParams): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'none'; img-src ${params.cspSource} data: https:; style-src 'unsafe-inline' ${params.cspSource}; script-src 'nonce-${params.nonce}';"
+  />
   <style>${CHAT_PANEL_CSS}</style>
 </head>
 <body>
@@ -127,7 +140,7 @@ export function generateChatPanelHtml(params: ChatPanelHtmlParams): string {
         <option value="openclaude">OpenClaude Externo</option>
       </select>
       <label>Base URL</label>
-      <input id="baseUrl" class="modal-input" placeholder="https://api.openai.com/v1" />
+      <input id="baseUrl" class="modal-input" placeholder="${DEFAULT_PROVIDER_BASE_URL}" />
       <label>API Key</label>
       <input id="apiKey" class="modal-input" type="password" placeholder="sk-..." />
       <label>Token</label>
@@ -140,7 +153,7 @@ export function generateChatPanelHtml(params: ChatPanelHtmlParams): string {
     </div>
   </div>
 
-  <script>${script}</script>
+  <script nonce="${params.nonce}">${script}</script>
 </body>
 </html>`;
 }

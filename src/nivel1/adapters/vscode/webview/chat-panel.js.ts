@@ -324,9 +324,11 @@ export function generateChatPanelScript(initialStateJson: string): string {
      */
     function renderModelSelector() {
       const select = byId('provider-model');
-      const current = state.provider && state.provider.model ? state.provider.model : 'gpt-4o-mini';
+      const current = state.provider && state.provider.model ? state.provider.model : '';
       const runtimeModels = Array.isArray(state.availableModels) ? state.availableModels : [];
-      const options = [current].concat(runtimeModels);
+      const options = [current].concat(runtimeModels).filter(function(item) {
+        return typeof item === 'string' && item.trim().length > 0;
+      });
       const unique = Array.from(new Set(options));
       select.innerHTML = unique.map(function(model) {
         return '<option value="' + esc(model) + '">' + esc(model) + '</option>';
@@ -787,162 +789,167 @@ export function generateChatPanelScript(initialStateJson: string): string {
       }
     });
 
-    byId('btn-new-chat').addEventListener('click', createSession);
-    byId('btn-toggle-session-search').addEventListener('click', toggleSessionSearch);
-    byId('btn-toggle-history').addEventListener('click', function() {
-      byId('sessions-drawer').classList.toggle('hidden');
-      syncHistoryLayout();
-    });
-    byId('btn-maximize').addEventListener('click', function() {
-      vscode.postMessage({ type: 'panel-maximize' });
-    });
-    byId('btn-settings').addEventListener('click', openSettingsModal);
-    byId('menu-settings').addEventListener('click', function() {
-      closeHeaderMenu();
-      openSettingsModal();
-      vscode.postMessage({ type: 'panel-open-settings' });
-    });
-    byId('menu-move-panel').addEventListener('click', function() {
-      closeHeaderMenu();
-      vscode.postMessage({ type: 'panel-move' });
-    });
-    byId('menu-export').addEventListener('click', function() {
-      closeHeaderMenu();
-      const session = getCurrentSession();
-      vscode.postMessage({ type: 'chat-export-session', data: { sessionId: session ? session.id : undefined } });
-    });
-    byId('btn-menu').addEventListener('click', function() {
-      byId('header-menu').classList.toggle('hidden');
-    });
-    byId('btn-stop-inline').addEventListener('click', function() {
-      const session = getCurrentSession();
-      vscode.postMessage({ type: 'chat-stop-stream', data: { sessionId: session ? session.id : undefined } });
-    });
-    byId('btn-send-inline').addEventListener('click', function() {
-      onSend();
-    });
-    byId('btn-save-provider').addEventListener('click', onSaveProvider);
-    byId('btn-test-provider').addEventListener('click', onTestProvider);
-    byId('btn-cancel-settings').addEventListener('click', closeSettingsModal);
-    byId('settings-modal').addEventListener('click', function(event) {
-      if (event.target instanceof HTMLElement && event.target.classList.contains('modal-backdrop')) {
-        closeSettingsModal();
-      }
-    });
-    byId('btn-attach').addEventListener('click', function() {
-      const prompt = byId('prompt');
-      prompt.value = (prompt.value || '') + ' @';
-      prompt.focus();
-      resizePrompt();
-      requestMentionSuggestions();
-    });
-    byId('ui-mode-select').addEventListener('change', function(event) {
-      const nextMode = event.target && event.target.value ? event.target.value : 'plan';
-      if (nextMode !== 'agent' && nextMode !== 'plan' && nextMode !== 'debug' && nextMode !== 'ask') {
-        return;
-      }
-      uiMode = nextMode;
-      vscode.postMessage({ type: 'chat-ui-mode', data: { uiMode: uiMode } });
-      renderModeMenu();
-    });
-    byId('session-title-btn').addEventListener('click', startEditingSessionTitle);
-    byId('session-title-input').addEventListener('blur', saveSessionTitle);
-    byId('session-title-input').addEventListener('keydown', function(event) {
-      if (event.key === 'Enter') {
-        saveSessionTitle();
-      }
-      if (event.key === 'Escape') {
-        byId('session-title-input').classList.add('hidden');
-        byId('session-title-btn').classList.remove('hidden');
-      }
-    });
-    byId('session-search').addEventListener('input', function(event) {
-      searchTerm = event.target.value || '';
-      renderSessions();
-    });
-    byId('provider-model').addEventListener('change', function(event) {
-      const nextModel = event.target && event.target.value ? event.target.value : '';
-      if (!nextModel) {
-        return;
-      }
-      vscode.postMessage({ type: 'provider-model-select', data: { model: nextModel } });
-    });
-    byId('prompt').addEventListener('input', function() {
-      resizePrompt();
-      requestMentionSuggestions();
-      renderComposerActions();
-    });
-    byId('prompt').addEventListener('keydown', function(event) {
-      if (!byId('mention-menu').classList.contains('hidden')) {
-        if (event.key === 'ArrowDown') {
-          event.preventDefault();
-          mentionSelectedIndex = (mentionSelectedIndex + 1) % mentionSuggestions.length;
-          renderMentionMenu();
+    /**
+     * Registers all UI event listeners.
+     */
+    function bindEvents() {
+      byId('btn-new-chat').addEventListener('click', createSession);
+      byId('btn-toggle-session-search').addEventListener('click', toggleSessionSearch);
+      byId('btn-toggle-history').addEventListener('click', function() {
+        byId('sessions-drawer').classList.toggle('hidden');
+        syncHistoryLayout();
+      });
+      byId('btn-maximize').addEventListener('click', function() {
+        vscode.postMessage({ type: 'panel-maximize' });
+      });
+      byId('btn-settings').addEventListener('click', openSettingsModal);
+      byId('menu-settings').addEventListener('click', function() {
+        closeHeaderMenu();
+        openSettingsModal();
+        vscode.postMessage({ type: 'panel-open-settings' });
+      });
+      byId('menu-move-panel').addEventListener('click', function() {
+        closeHeaderMenu();
+        vscode.postMessage({ type: 'panel-move' });
+      });
+      byId('menu-export').addEventListener('click', function() {
+        closeHeaderMenu();
+        const session = getCurrentSession();
+        vscode.postMessage({ type: 'chat-export-session', data: { sessionId: session ? session.id : undefined } });
+      });
+      byId('btn-menu').addEventListener('click', function() {
+        byId('header-menu').classList.toggle('hidden');
+      });
+      byId('btn-stop-inline').addEventListener('click', function() {
+        const session = getCurrentSession();
+        vscode.postMessage({ type: 'chat-stop-stream', data: { sessionId: session ? session.id : undefined } });
+      });
+      byId('btn-send-inline').addEventListener('click', function() {
+        onSend();
+      });
+      byId('btn-save-provider').addEventListener('click', onSaveProvider);
+      byId('btn-test-provider').addEventListener('click', onTestProvider);
+      byId('btn-cancel-settings').addEventListener('click', closeSettingsModal);
+      byId('settings-modal').addEventListener('click', function(event) {
+        if (event.target instanceof HTMLElement && event.target.classList.contains('modal-backdrop')) {
+          closeSettingsModal();
+        }
+      });
+      byId('btn-attach').addEventListener('click', function() {
+        const prompt = byId('prompt');
+        prompt.value = (prompt.value || '') + ' @';
+        prompt.focus();
+        resizePrompt();
+        requestMentionSuggestions();
+      });
+      byId('ui-mode-select').addEventListener('change', function(event) {
+        const nextMode = event.target && event.target.value ? event.target.value : 'plan';
+        if (nextMode !== 'agent' && nextMode !== 'plan' && nextMode !== 'debug' && nextMode !== 'ask') {
           return;
         }
-        if (event.key === 'ArrowUp') {
-          event.preventDefault();
-          mentionSelectedIndex = (mentionSelectedIndex - 1 + mentionSuggestions.length) % mentionSuggestions.length;
-          renderMentionMenu();
-          return;
-        }
-        if (event.key === 'Enter' || event.key === 'Tab') {
-          event.preventDefault();
-          applyMentionSuggestion(mentionSelectedIndex);
-          return;
+        uiMode = nextMode;
+        vscode.postMessage({ type: 'chat-ui-mode', data: { uiMode: uiMode } });
+        renderModeMenu();
+      });
+      byId('session-title-btn').addEventListener('click', startEditingSessionTitle);
+      byId('session-title-input').addEventListener('blur', saveSessionTitle);
+      byId('session-title-input').addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+          saveSessionTitle();
         }
         if (event.key === 'Escape') {
-          event.preventDefault();
-          closeMentionMenu();
+          byId('session-title-input').classList.add('hidden');
+          byId('session-title-btn').classList.remove('hidden');
+        }
+      });
+      byId('session-search').addEventListener('input', function(event) {
+        searchTerm = event.target.value || '';
+        renderSessions();
+      });
+      byId('provider-model').addEventListener('change', function(event) {
+        const nextModel = event.target && event.target.value ? event.target.value : '';
+        if (!nextModel) {
           return;
         }
-      }
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        onSend();
-      }
-    });
-    byId('mention-menu').addEventListener('click', function(event) {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) {
-        return;
-      }
-      const button = target.closest('[data-mention-index]');
-      if (!(button instanceof HTMLElement)) {
-        return;
-      }
-      const index = Number(button.getAttribute('data-mention-index'));
-      if (Number.isNaN(index)) {
-        return;
-      }
-      applyMentionSuggestion(index);
-      byId('prompt').focus();
-    });
-    byId('messages').addEventListener('scroll', function() {
-      const target = byId('messages');
-      const distance = target.scrollHeight - (target.scrollTop + target.clientHeight);
-      autoScrollEnabled = distance < 60;
-    });
-    byId('messages').addEventListener('click', onMessagesClick);
-    byId('sessions-list').addEventListener('click', onSessionsClick);
-    document.addEventListener('keydown', function(event) {
-      if (event.key === 'Escape') {
-        closeSettingsModal();
-        closeHeaderMenu();
-      }
-    });
-    document.addEventListener('click', function(event) {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) {
-        return;
-      }
-      if (!target.closest('.menu-wrap')) {
-        closeHeaderMenu();
-      }
-      if (!target.closest('.composer-shell')) {
-        closeMentionMenu();
-      }
-    });
+        vscode.postMessage({ type: 'provider-model-select', data: { model: nextModel } });
+      });
+      byId('prompt').addEventListener('input', function() {
+        resizePrompt();
+        requestMentionSuggestions();
+        renderComposerActions();
+      });
+      byId('prompt').addEventListener('keydown', function(event) {
+        if (!byId('mention-menu').classList.contains('hidden')) {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            mentionSelectedIndex = (mentionSelectedIndex + 1) % mentionSuggestions.length;
+            renderMentionMenu();
+            return;
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            mentionSelectedIndex = (mentionSelectedIndex - 1 + mentionSuggestions.length) % mentionSuggestions.length;
+            renderMentionMenu();
+            return;
+          }
+          if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault();
+            applyMentionSuggestion(mentionSelectedIndex);
+            return;
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            closeMentionMenu();
+            return;
+          }
+        }
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          onSend();
+        }
+      });
+      byId('mention-menu').addEventListener('click', function(event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        const button = target.closest('[data-mention-index]');
+        if (!(button instanceof HTMLElement)) {
+          return;
+        }
+        const index = Number(button.getAttribute('data-mention-index'));
+        if (Number.isNaN(index)) {
+          return;
+        }
+        applyMentionSuggestion(index);
+        byId('prompt').focus();
+      });
+      byId('messages').addEventListener('scroll', function() {
+        const target = byId('messages');
+        const distance = target.scrollHeight - (target.scrollTop + target.clientHeight);
+        autoScrollEnabled = distance < 60;
+      });
+      byId('messages').addEventListener('click', onMessagesClick);
+      byId('sessions-list').addEventListener('click', onSessionsClick);
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+          closeSettingsModal();
+          closeHeaderMenu();
+        }
+      });
+      document.addEventListener('click', function(event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        if (!target.closest('.menu-wrap')) {
+          closeHeaderMenu();
+        }
+        if (!target.closest('.composer-shell')) {
+          closeMentionMenu();
+        }
+      });
+    }
 
     /**
      * Hides header overflow menu.
@@ -951,11 +958,23 @@ export function generateChatPanelScript(initialStateJson: string): string {
       byId('header-menu').classList.add('hidden');
     }
 
-    renderAll();
-    renderSessionSearch();
-    syncHistoryLayout();
-    resizePrompt();
-    vscode.postMessage({ type: 'webview-ready' });
+    /**
+     * Performs initial UI sync after DOM is ready.
+     */
+    function init() {
+      bindEvents();
+      renderAll();
+      renderSessionSearch();
+      syncHistoryLayout();
+      resizePrompt();
+      vscode.postMessage({ type: 'webview-ready' });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init, { once: true });
+    } else {
+      init();
+    }
   `;
 }
 

@@ -22,6 +22,7 @@ import { McpGateway } from '../../../../nivel2/infrastructure/mcp/McpGateway';
 import { McpTransportAdapter } from '../../../../nivel2/infrastructure/mcp/McpTransportAdapter';
 import { OpenClaudeAdapter } from '../../../../nivel2/infrastructure/openclaude/OpenClaudeAdapter';
 import type { ChatMode, ChatSession } from '../../../../shared/types/agent';
+import { DEFAULT_PROVIDER_MODEL } from '../../../../shared/constants/llm-config';
 
 /**
  * Main bootstrap orchestrator for the extension
@@ -43,7 +44,7 @@ export class ExtensionBootstrap {
   private rightSidebarMoveSucceeded = false;
   private currentSessionId: string | undefined;
   private currentUIMode: 'agent' | 'plan' | 'debug' | 'ask' | 'sandbox' = 'plan';
-  private availableModels: string[] = ['gpt-4o-mini'];
+  private availableModels: string[] = [DEFAULT_PROVIDER_MODEL];
   private activeStreamingSessionId: string | undefined;
   private stoppedStreamingSessions = new Set<string>();
   private extensionContext: vscode.ExtensionContext | null = null;

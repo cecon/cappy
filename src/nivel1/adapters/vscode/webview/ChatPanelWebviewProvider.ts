@@ -5,6 +5,11 @@
 
 import * as vscode from 'vscode';
 import type { ChatMode, ChatSession, ProviderSettings } from '../../../../shared/types/agent';
+import {
+  DEFAULT_PROVIDER_BACKEND,
+  DEFAULT_PROVIDER_BASE_URL,
+  DEFAULT_PROVIDER_MODEL,
+} from '../../../../shared/constants/llm-config';
 import { generateChatPanelHtml } from './chat-panel.html';
 
 /**
@@ -232,9 +237,9 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
   private state: ChatPanelStatePayload = {
     sessions: [],
     provider: {
-      baseUrl: 'https://api.openai.com/v1',
-      model: 'gpt-4o-mini',
-      backend: 'openai',
+      baseUrl: DEFAULT_PROVIDER_BASE_URL,
+      model: DEFAULT_PROVIDER_MODEL,
+      backend: DEFAULT_PROVIDER_BACKEND,
     },
   };
 
@@ -297,9 +302,11 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
    */
   resolveWebviewView(
     webviewView: vscode.WebviewView,
-    _context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
+    context: vscode.WebviewViewResolveContext,
+    token: vscode.CancellationToken,
   ): void {
+    void context;
+    void token;
     this.view = webviewView;
     webviewView.webview.options = {
       enableScripts: true,
@@ -307,49 +314,62 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
     };
     webviewView.webview.html = this.buildHtml();
 
-    webviewView.webview.onDidReceiveMessage((message: { type: string; data?: any }) => {
+    webviewView.webview.onDidReceiveMessage((message: { type: string; data?: Record<string, unknown> }) => {
+      const data = message.data ?? {};
+      const asString = (value: unknown): string => (typeof value === 'string' ? value : '');
       switch (message.type) {
         case 'webview-ready':
           this.events?.onReady();
           break;
         case 'chat-create-session':
-          this.events?.onCreateSession((message.data?.mode as ChatMode) ?? 'planning');
+          this.events?.onCreateSession((data.mode as ChatMode) ?? 'planning');
           break;
         case 'chat-send':
-          this.events?.onSendMessage(message.data);
+          this.events?.onSendMessage(data as {
+            sessionId?: string;
+            mode: ChatMode;
+            prompt: string;
+            uiMode?: string;
+            mentions?: string[];
+          });
           break;
         case 'workspace-mention-search':
-          this.events?.onWorkspaceMentionSearch(message.data?.query ?? '');
+          this.events?.onWorkspaceMentionSearch(asString(data.query));
           break;
         case 'provider-save':
-          this.events?.onSaveProvider(message.data);
+          this.events?.onSaveProvider(data as {
+            baseUrl: string;
+            backend: 'openai' | 'openclaude';
+            apiKey?: string;
+            token?: string;
+          });
           break;
         case 'provider-model-select':
-          this.events?.onSelectProviderModel(message.data?.model ?? '');
+          this.events?.onSelectProviderModel(asString(data.model));
           break;
         case 'provider-test':
           this.events?.onTestProvider();
           break;
         case 'chat-session-select':
-          this.events?.onSelectSession(message.data?.sessionId);
+          this.events?.onSelectSession(asString(data.sessionId));
           break;
         case 'chat-session-rename':
-          this.events?.onRenameSession(message.data);
+          this.events?.onRenameSession(data as { sessionId: string; title: string });
           break;
         case 'chat-session-pin':
-          this.events?.onTogglePinSession(message.data?.sessionId);
+          this.events?.onTogglePinSession(asString(data.sessionId));
           break;
         case 'chat-session-archive':
-          this.events?.onArchiveSession(message.data);
+          this.events?.onArchiveSession(data as { sessionId: string; archived: boolean });
           break;
         case 'chat-session-delete':
-          this.events?.onDeleteSession(message.data?.sessionId);
+          this.events?.onDeleteSession(asString(data.sessionId));
           break;
         case 'chat-stop-stream':
-          this.events?.onStopStream(message.data?.sessionId);
+          this.events?.onStopStream(asString(data.sessionId) || undefined);
           break;
         case 'chat-export-session':
-          this.events?.onExportSession(message.data?.sessionId);
+          this.events?.onExportSession(asString(data.sessionId) || undefined);
           break;
         case 'panel-maximize':
           this.events?.onMaximizePanel();
@@ -361,7 +381,15 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
           this.events?.onOpenSettings();
           break;
         case 'chat-ui-mode':
-          this.events?.onSetUIMode(message.data?.uiMode);
+          if (
+            data.uiMode === 'agent'
+            || data.uiMode === 'plan'
+            || data.uiMode === 'debug'
+            || data.uiMode === 'ask'
+            || data.uiMode === 'sandbox'
+          ) {
+            this.events?.onSetUIMode(data.uiMode);
+          }
           break;
       }
     });
@@ -371,6 +399,7 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
    * Builds HTML with latest state snapshot.
    */
   private buildHtml(): string {
+    const nonce = this.createNonce();
     const iconUri = this.view
       ? this.view.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'assets', 'icon.png')).toString()
       : '';
@@ -384,7 +413,21 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
     return generateChatPanelHtml({
       iconUri,
       initialStateJson,
+      nonce,
+      cspSource: this.view?.webview.cspSource ?? '',
     });
+  }
+
+  /**
+   * Creates a random nonce for script CSP.
+   */
+  private createNonce(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let value = '';
+    for (let index = 0; index < 32; index += 1) {
+      value += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return value;
   }
 }
 

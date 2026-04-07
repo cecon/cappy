@@ -10,6 +10,11 @@ import type {
   ProviderChatResponse,
   ProviderSettings,
 } from '../../../shared/types/agent';
+import {
+  DEFAULT_PROVIDER_BACKEND,
+  DEFAULT_PROVIDER_BASE_URL,
+  DEFAULT_PROVIDER_MODEL,
+} from '../../../shared/constants/llm-config';
 
 const API_KEY_SECRET = 'cappy.provider.apiKey';
 
@@ -26,9 +31,9 @@ export class ProviderGateway implements IProviderGateway {
     const config = vscode.workspace.getConfiguration('cappy.provider');
     const apiKey = await this.secretStorage.get(API_KEY_SECRET);
     return {
-      baseUrl: config.get<string>('baseUrl', 'https://api.openai.com/v1'),
-      model: config.get<string>('model', 'gpt-4o-mini'),
-      backend: config.get<'openai' | 'openclaude'>('backend', 'openai'),
+      baseUrl: config.get<string>('baseUrl', DEFAULT_PROVIDER_BASE_URL),
+      model: config.get<string>('model', DEFAULT_PROVIDER_MODEL),
+      backend: config.get<'openai' | 'openclaude'>('backend', DEFAULT_PROVIDER_BACKEND),
       apiKey: apiKey ?? undefined,
     };
   }
