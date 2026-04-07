@@ -4,8 +4,98 @@
  */
 
 import * as vscode from 'vscode';
-import type { ChatSession, ProviderSettings } from '../../../../shared/types/agent';
+import type { ChatMode, ChatSession, ProviderSettings } from '../../../../shared/types/agent';
 import { generateChatPanelHtml } from './chat-panel.html';
+
+/**
+ * Tool-call payload rendered in the chat timeline.
+ */
+export interface ChatPanelToolCallPayload {
+  /**
+   * Tool display name.
+   */
+  tool: string;
+  /**
+   * Tool execution status.
+   */
+  status: 'running' | 'done' | 'error';
+  /**
+   * Optional serialized input.
+   */
+  input?: string;
+  /**
+   * Optional serialized output.
+   */
+  output?: string;
+}
+
+/**
+ * Message payload sent to webview.
+ */
+export interface ChatPanelMessagePayload {
+  /**
+   * Message identifier.
+   */
+  id: string;
+  /**
+   * Message role.
+   */
+  role: string;
+  /**
+   * Message markdown/text content.
+   */
+  content: string;
+  /**
+   * ISO creation timestamp.
+   */
+  createdAt: string;
+  /**
+   * Optional mode associated with message.
+   */
+  mode?: ChatMode;
+  /**
+   * Optional tool metadata when role is tool.
+   */
+  toolCall?: ChatPanelToolCallPayload;
+}
+
+/**
+ * Session payload sent to webview.
+ */
+export interface ChatPanelSessionPayload {
+  /**
+   * Session id.
+   */
+  id: string;
+  /**
+   * Session title.
+   */
+  title: string;
+  /**
+   * Session mode.
+   */
+  mode: ChatMode;
+  /**
+   * Session status.
+   */
+  status: ChatSession['status'];
+  /**
+   * Pin state.
+   */
+  pinned: boolean;
+  /**
+   * Session creation timestamp.
+   */
+  createdAt: string;
+  /**
+   * Session last update timestamp.
+   */
+  updatedAt: string;
+  /**
+   * Session timeline.
+   */
+  messages: ChatPanelMessagePayload[];
+}
 
 /**
  * Serialized state payload sent to webview.
@@ -14,7 +104,7 @@ export interface ChatPanelStatePayload {
   /**
    * Session collection.
    */
-  sessions: Array<Pick<ChatSession, 'id' | 'title'> & { messages: Array<{ role: string; content: string }> }>;
+  sessions: ChatPanelSessionPayload[];
   /**
    * Current active session id.
    */
@@ -22,11 +112,23 @@ export interface ChatPanelStatePayload {
   /**
    * Provider configuration projection.
    */
-  provider: Pick<ProviderSettings, 'baseUrl' | 'model' | 'backend'>;
+  provider: Pick<ProviderSettings, 'baseUrl' | 'model' | 'backend'> & { token?: string };
   /**
    * Optional status text.
    */
   statusText?: string;
+  /**
+   * Indicates whether assistant is streaming.
+   */
+  isStreaming?: boolean;
+  /**
+   * Last selected UI mode.
+   */
+  currentUIMode?: 'agent' | 'plan' | 'debug' | 'ask' | 'sandbox';
+  /**
+   * Lightweight context usage estimate.
+   */
+  contextUsage?: { used: number; limit: number };
 }
 
 /**
@@ -40,19 +142,65 @@ export interface ChatPanelEvents {
   /**
    * User requested new session.
    */
-  onCreateSession: (mode: 'planning' | 'sandbox') => void;
+  onCreateSession: (mode: ChatMode) => void;
   /**
    * User sent a message.
    */
-  onSendMessage: (data: { sessionId?: string; mode: 'planning' | 'sandbox'; prompt: string }) => void;
+  onSendMessage: (data: { sessionId?: string; mode: ChatMode; prompt: string; uiMode?: string }) => void;
   /**
    * User saved provider settings.
    */
-  onSaveProvider: (data: { baseUrl: string; model: string; backend: 'openai' | 'openclaude'; apiKey?: string }) => void;
+  onSaveProvider: (data: {
+    baseUrl: string;
+    model: string;
+    backend: 'openai' | 'openclaude';
+    apiKey?: string;
+    token?: string;
+  }) => void;
   /**
    * User requested provider test.
    */
   onTestProvider: () => void;
+  /**
+   * User selected a session in drawer.
+   */
+  onSelectSession: (sessionId: string) => void;
+  /**
+   * User renamed one session.
+   */
+  onRenameSession: (data: { sessionId: string; title: string }) => void;
+  /**
+   * User toggled pin on one session.
+   */
+  onTogglePinSession: (sessionId: string) => void;
+  /**
+   * User archive/restored one session.
+   */
+  onArchiveSession: (data: { sessionId: string; archived: boolean }) => void;
+  /**
+   * User removed one session.
+   */
+  onDeleteSession: (sessionId: string) => void;
+  /**
+   * User requested stream cancellation.
+   */
+  onStopStream: (sessionId?: string) => void;
+  /**
+   * User requested session export.
+   */
+  onExportSession: (sessionId?: string) => void;
+  /**
+   * User requested panel maximize/focus.
+   */
+  onMaximizePanel: () => void;
+  /**
+   * User requested panel move.
+   */
+  onMovePanel: () => void;
+  /**
+   * User requested extension settings.
+   */
+  onOpenSettings: () => void;
 }
 
 /**
@@ -90,7 +238,6 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
   updateState(state: ChatPanelStatePayload): void {
     this.state = state;
     this.postMessage({ type: 'state', data: state });
-    this.rerender();
   }
 
   /**
@@ -104,6 +251,7 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
    * Starts assistant stream updates in webview.
    */
   startAssistantStream(sessionId: string): void {
+    this.state = { ...this.state, isStreaming: true, currentSessionId: sessionId };
     this.postMessage({ type: 'assistant-stream-start', data: { sessionId } });
   }
 
@@ -118,6 +266,7 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
    * Marks assistant stream completion.
    */
   endAssistantStream(sessionId: string): void {
+    this.state = { ...this.state, isStreaming: false, currentSessionId: sessionId };
     this.postMessage({ type: 'assistant-stream-end', data: { sessionId } });
   }
 
@@ -149,7 +298,7 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
           this.events?.onReady();
           break;
         case 'chat-create-session':
-          this.events?.onCreateSession(message.data?.mode ?? 'planning');
+          this.events?.onCreateSession((message.data?.mode as ChatMode) ?? 'planning');
           break;
         case 'chat-send':
           this.events?.onSendMessage(message.data);
@@ -160,18 +309,38 @@ export class ChatPanelWebviewProvider implements vscode.WebviewViewProvider {
         case 'provider-test':
           this.events?.onTestProvider();
           break;
+        case 'chat-session-select':
+          this.events?.onSelectSession(message.data?.sessionId);
+          break;
+        case 'chat-session-rename':
+          this.events?.onRenameSession(message.data);
+          break;
+        case 'chat-session-pin':
+          this.events?.onTogglePinSession(message.data?.sessionId);
+          break;
+        case 'chat-session-archive':
+          this.events?.onArchiveSession(message.data);
+          break;
+        case 'chat-session-delete':
+          this.events?.onDeleteSession(message.data?.sessionId);
+          break;
+        case 'chat-stop-stream':
+          this.events?.onStopStream(message.data?.sessionId);
+          break;
+        case 'chat-export-session':
+          this.events?.onExportSession(message.data?.sessionId);
+          break;
+        case 'panel-maximize':
+          this.events?.onMaximizePanel();
+          break;
+        case 'panel-move':
+          this.events?.onMovePanel();
+          break;
+        case 'panel-open-settings':
+          this.events?.onOpenSettings();
+          break;
       }
     });
-  }
-
-  /**
-   * Rerenders full HTML to keep initial state coherent.
-   */
-  private rerender(): void {
-    if (!this.view) {
-      return;
-    }
-    this.view.webview.html = this.buildHtml();
   }
 
   /**

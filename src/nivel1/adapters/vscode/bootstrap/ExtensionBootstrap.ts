@@ -9,7 +9,7 @@ import { LanguageModelToolsBootstrap } from './LanguageModelToolsBootstrap';
 import { ChatPanelWebviewProvider } from '../webview/ChatPanelWebviewProvider';
 import { AuditTrailService } from '../../../../nivel2/application/audit/AuditTrailService';
 import { ProviderGateway } from '../../../../nivel2/infrastructure/providers/ProviderGateway';
-import { SessionStore } from '../../../../nivel2/application/session/SessionStore';
+import { SessionStore, type SessionStoreSnapshot } from '../../../../nivel2/application/session/SessionStore';
 import { PlanningModeEngine } from '../../../../nivel2/application/modes/PlanningModeEngine';
 import { SandboxRuntime } from '../../../../nivel2/infrastructure/sandbox/SandboxRuntime';
 import { AgentOrchestrator } from '../../../../nivel2/application/orchestrator/AgentOrchestrator';
@@ -18,12 +18,13 @@ import { JsonlAuditTrailStore } from '../../../../nivel2/infrastructure/audit/Js
 import { McpGateway } from '../../../../nivel2/infrastructure/mcp/McpGateway';
 import { McpTransportAdapter } from '../../../../nivel2/infrastructure/mcp/McpTransportAdapter';
 import { OpenClaudeAdapter } from '../../../../nivel2/infrastructure/openclaude/OpenClaudeAdapter';
-import type { ChatMode } from '../../../../shared/types/agent';
+import type { ChatMode, ChatSession } from '../../../../shared/types/agent';
 
 /**
  * Main bootstrap orchestrator for the extension
  */
 export class ExtensionBootstrap {
+  private static readonly SESSION_SNAPSHOT_KEY = 'cappy.chat.sessions.v1';
   private webviewProvider: ChatPanelWebviewProvider | null = null;
   private providerGateway: ProviderGateway | null = null;
   private sessionStore: SessionStore | null = null;
@@ -36,11 +37,17 @@ export class ExtensionBootstrap {
   private featureEnableOpenClaudeFallback = true;
   private rightSidebarMoveAttempted = false;
   private rightSidebarMoveSucceeded = false;
+  private currentSessionId: string | undefined;
+  private currentUIMode: 'agent' | 'plan' | 'debug' | 'ask' | 'sandbox' = 'plan';
+  private activeStreamingSessionId: string | undefined;
+  private stoppedStreamingSessions = new Set<string>();
+  private extensionContext: vscode.ExtensionContext | null = null;
 
   /**
    * Activates the extension
    */
   async activate(context: vscode.ExtensionContext): Promise<void> {
+    this.extensionContext = context;
     console.log('🚩 [Extension] Cappy activation starting...');
     console.log('Cappy extension is now active!');
 
@@ -72,6 +79,10 @@ export class ExtensionBootstrap {
 
     this.providerGateway = new ProviderGateway(context.secrets);
     this.sessionStore = new SessionStore();
+    const snapshot = context.workspaceState.get<SessionStoreSnapshot>(
+      ExtensionBootstrap.SESSION_SNAPSHOT_KEY,
+    );
+    this.sessionStore.restoreFromSnapshot(snapshot);
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     const resolvedWorkspaceRoot = workspaceRoot ?? process.cwd();
     this.auditTrailService = new AuditTrailService(new JsonlAuditTrailStore(resolvedWorkspaceRoot));
@@ -96,23 +107,90 @@ export class ExtensionBootstrap {
     this.webviewProvider = new ChatPanelWebviewProvider(context.extensionUri);
     this.webviewProvider.setEvents({
       onReady: () => {
-        void this.syncPanelState('Painel carregado.');
+        void this.syncPanelState('Painel carregado.', this.currentSessionId);
       },
       onCreateSession: (mode) => {
         if (!this.sessionStore) {
           return;
         }
         const session = this.sessionStore.createSession(mode);
+        this.currentSessionId = session.id;
+        void this.persistSessions();
         void this.syncPanelState(`Sessão criada: ${session.title}`, session.id);
       },
       onSendMessage: (data) => {
+        if (data.uiMode === 'agent' || data.uiMode === 'plan' || data.uiMode === 'debug' || data.uiMode === 'ask' || data.uiMode === 'sandbox') {
+          this.currentUIMode = data.uiMode;
+        }
         void this.handleChatSend(data.sessionId, data.mode, data.prompt);
       },
       onSaveProvider: (data) => {
-        void this.handleProviderSave(data.baseUrl, data.model, data.backend, data.apiKey);
+        void this.handleProviderSave(data.baseUrl, data.model, data.backend, data.apiKey, data.token);
       },
       onTestProvider: () => {
         void this.handleProviderTest();
+      },
+      onSelectSession: (sessionId) => {
+        this.currentSessionId = sessionId;
+        void this.syncPanelState(undefined, sessionId);
+      },
+      onRenameSession: (data) => {
+        if (!this.sessionStore) {
+          return;
+        }
+        this.sessionStore.renameSession(data.sessionId, data.title);
+        this.currentSessionId = data.sessionId;
+        void this.persistSessions();
+        void this.syncPanelState('Sessão renomeada.', data.sessionId);
+      },
+      onTogglePinSession: (sessionId) => {
+        if (!this.sessionStore) {
+          return;
+        }
+        this.sessionStore.togglePin(sessionId);
+        this.currentSessionId = sessionId;
+        void this.persistSessions();
+        void this.syncPanelState('Sessão atualizada.', sessionId);
+      },
+      onArchiveSession: (data) => {
+        if (!this.sessionStore) {
+          return;
+        }
+        this.sessionStore.setArchived(data.sessionId, data.archived);
+        this.currentSessionId = data.sessionId;
+        void this.persistSessions();
+        void this.syncPanelState(
+          data.archived ? 'Sessão arquivada.' : 'Sessão reativada.',
+          data.sessionId,
+        );
+      },
+      onDeleteSession: (sessionId) => {
+        if (!this.sessionStore) {
+          return;
+        }
+        this.sessionStore.deleteSession(sessionId);
+        this.currentSessionId = this.sessionStore.listSessions()[0]?.id;
+        void this.persistSessions();
+        void this.syncPanelState('Sessão removida.', this.currentSessionId);
+      },
+      onStopStream: (sessionId) => {
+        if (!sessionId) {
+          return;
+        }
+        this.stoppedStreamingSessions.add(sessionId);
+        this.webviewProvider?.updateStatus('Interrompendo streaming...');
+      },
+      onExportSession: (sessionId) => {
+        void this.exportSession(sessionId);
+      },
+      onMaximizePanel: () => {
+        void this.openDashboardOnRightSidebar();
+      },
+      onMovePanel: () => {
+        void this.tryMoveCappyToRightSidebar();
+      },
+      onOpenSettings: () => {
+        void vscode.commands.executeCommand('workbench.action.openSettings', 'cappy');
       },
     });
 
@@ -211,6 +289,7 @@ export class ExtensionBootstrap {
    * Deactivates the extension
    */
   async deactivate(): Promise<void> {
+    await this.persistSessions();
     await this.auditTrailService?.flush();
     console.log('👋 [Extension] Cappy deactivating...');
     console.log('✅ [Extension] Cappy deactivated');
@@ -244,11 +323,13 @@ export class ExtensionBootstrap {
       let responseText: string;
       let resolvedSessionId = sessionId;
       let resolvedRunId = `run-${crypto.randomUUID()}`;
-      const effectiveMode: ChatMode = mode === 'sandbox' && !this.featureEnableSandbox ? 'planning' : mode;
+      const requiresSandbox = mode === 'sandbox' || mode === 'agent';
+      const effectiveMode: ChatMode = requiresSandbox && !this.featureEnableSandbox ? 'planning' : mode;
 
       if (settings.backend === 'openclaude' && effectiveMode === 'planning' && this.openClaudeAdapter) {
         const session = this.sessionStore.getOrCreateSession(sessionId, effectiveMode);
         resolvedSessionId = session.id;
+        this.currentSessionId = session.id;
         resolvedRunId = `run-${crypto.randomUUID()}`;
         await this.auditTrailService?.appendIfNew({
           eventType: 'turn.started',
@@ -259,6 +340,7 @@ export class ExtensionBootstrap {
           attempt: 1,
         });
         this.sessionStore.appendMessage(session.id, { role: 'user', content: prompt, mode: effectiveMode });
+        await this.persistSessions();
         await this.auditTrailService?.appendIfNew({
           eventType: 'turn.user_appended',
           sessionId: session.id,
@@ -282,6 +364,7 @@ export class ExtensionBootstrap {
         }
         responseText = await this.openClaudeAdapter.send(prompt);
         this.sessionStore.appendMessage(session.id, { role: 'assistant', content: responseText, mode: effectiveMode });
+        await this.persistSessions();
         await this.auditTrailService?.appendIfNew({
           eventType: 'turn.assistant_appended',
           sessionId: session.id,
@@ -299,19 +382,61 @@ export class ExtensionBootstrap {
           attempt: 1,
         });
       } else {
-        const turn = await this.orchestrator.runTurn({ sessionId, mode: effectiveMode, prompt });
+        if (effectiveMode !== 'planning') {
+          const seeded = this.sessionStore.getOrCreateSession(sessionId, effectiveMode);
+          resolvedSessionId = seeded.id;
+          this.currentSessionId = seeded.id;
+          this.webviewProvider.postMessage({
+            type: 'tool-call',
+            data: {
+              sessionId: seeded.id,
+              tool: 'sandbox-runtime',
+              status: 'running',
+              input: prompt,
+            },
+          });
+        }
+        const turn = await this.orchestrator.runTurn({
+          sessionId: resolvedSessionId ?? sessionId,
+          mode: effectiveMode,
+          prompt,
+        });
         responseText = turn.responseText;
         resolvedSessionId = turn.sessionId;
         resolvedRunId = turn.runId;
+        this.currentSessionId = turn.sessionId;
+        if (effectiveMode !== 'planning') {
+          this.webviewProvider.postMessage({
+            type: 'tool-call',
+            data: {
+              sessionId: turn.sessionId,
+              tool: 'sandbox-runtime',
+              status: 'done',
+              output: 'Execução concluída.',
+            },
+          });
+        }
       }
 
       await this.syncPanelState('Resposta gerada.', resolvedSessionId);
+      await this.persistSessions();
       if (!resolvedSessionId) {
         return;
       }
       await this.streamText(resolvedSessionId, responseText, resolvedRunId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (this.currentSessionId) {
+        this.webviewProvider.postMessage({
+          type: 'tool-call',
+          data: {
+            sessionId: this.currentSessionId,
+            tool: 'sandbox-runtime',
+            status: 'error',
+            output: message,
+          },
+        });
+      }
       this.webviewProvider.updateStatus(`Erro: ${message}`);
       void vscode.window.showErrorMessage(`Cappy: ${message}`);
     }
@@ -324,6 +449,8 @@ export class ExtensionBootstrap {
     if (!this.webviewProvider) {
       return;
     }
+    this.activeStreamingSessionId = sessionId;
+    this.stoppedStreamingSessions.delete(sessionId);
     this.webviewProvider.startAssistantStream(sessionId);
     await this.auditTrailService?.appendIfNew({
       eventType: 'stream.started',
@@ -335,6 +462,9 @@ export class ExtensionBootstrap {
     });
     const chunks = text.match(/.{1,80}/gs) ?? [text];
     for (let index = 0; index < chunks.length; index += 1) {
+      if (this.stoppedStreamingSessions.has(sessionId)) {
+        break;
+      }
       const chunk = chunks[index];
       this.webviewProvider.pushAssistantChunk(sessionId, chunk);
       await this.auditTrailService?.appendIfNew({
@@ -351,6 +481,9 @@ export class ExtensionBootstrap {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     this.webviewProvider.endAssistantStream(sessionId);
+    const wasStopped = this.stoppedStreamingSessions.has(sessionId);
+    this.stoppedStreamingSessions.delete(sessionId);
+    this.activeStreamingSessionId = undefined;
     await this.auditTrailService?.appendIfNew({
       eventType: 'stream.completed',
       sessionId,
@@ -359,6 +492,8 @@ export class ExtensionBootstrap {
       payloadRef: 'assistant-stream',
       attempt: 1,
     });
+    this.webviewProvider.updateStatus(wasStopped ? 'Streaming interrompido.' : 'Pronto.');
+    await this.syncPanelState(undefined, sessionId);
   }
 
   /**
@@ -369,6 +504,7 @@ export class ExtensionBootstrap {
     model: string,
     backend: 'openai' | 'openclaude',
     apiKey?: string,
+    token?: string,
   ): Promise<void> {
     if (!this.providerGateway) {
       return;
@@ -377,8 +513,9 @@ export class ExtensionBootstrap {
     await config.update('baseUrl', baseUrl, vscode.ConfigurationTarget.Global);
     await config.update('model', model, vscode.ConfigurationTarget.Global);
     await config.update('backend', backend, vscode.ConfigurationTarget.Global);
-    if (apiKey && apiKey.trim().length > 0) {
-      await this.providerGateway.setApiKey(apiKey.trim());
+    const nextApiKey = apiKey?.trim() || token?.trim();
+    if (nextApiKey && nextApiKey.length > 0) {
+      await this.providerGateway.setApiKey(nextApiKey);
     }
     if (this.webviewProvider) {
       await this.syncPanelState('Provider salvo com sucesso.');
@@ -415,12 +552,25 @@ export class ExtensionBootstrap {
     const sessions = this.sessionStore.listSessions().map((session) => ({
       id: session.id,
       title: session.title,
+      mode: session.mode,
+      status: session.status,
+      pinned: session.pinned,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
       messages: session.messages.map((message) => ({
+        id: message.id,
         role: message.role,
         content: message.content,
+        createdAt: message.createdAt,
+        mode: message.mode,
       })),
     }));
-    const selected = currentSessionId ?? sessions[0]?.id;
+    const selected = currentSessionId ?? this.currentSessionId ?? sessions[0]?.id;
+    this.currentSessionId = selected;
+    const aggregateChars = sessions
+      .flatMap((item) => item.messages)
+      .reduce((sum, message) => sum + message.content.length, 0);
+    const usage = Math.max(1, Math.round(aggregateChars / 4));
     this.webviewProvider.updateState({
       sessions,
       currentSessionId: selected,
@@ -430,6 +580,99 @@ export class ExtensionBootstrap {
         backend: provider.backend,
       },
       statusText,
+      isStreaming: this.activeStreamingSessionId === selected,
+      currentUIMode: this.currentUIMode,
+      contextUsage: {
+        used: usage,
+        limit: 32768,
+      },
     });
+  }
+
+  /**
+   * Persists serialized sessions in workspaceState.
+   */
+  private async persistSessions(): Promise<void> {
+    if (!this.extensionContext || !this.sessionStore) {
+      return;
+    }
+    await this.extensionContext.workspaceState.update(
+      ExtensionBootstrap.SESSION_SNAPSHOT_KEY,
+      this.sessionStore.createSnapshot(),
+    );
+  }
+
+  /**
+   * Exports a single session to markdown file.
+   */
+  private async exportSession(sessionId?: string): Promise<void> {
+    if (!this.sessionStore) {
+      return;
+    }
+    const selected = sessionId ?? this.currentSessionId;
+    if (!selected) {
+      this.webviewProvider?.updateStatus('Nenhuma sessão selecionada para exportar.');
+      return;
+    }
+    const session = this.sessionStore.getSession(selected);
+    if (!session) {
+      this.webviewProvider?.updateStatus('Sessão não encontrada para exportação.');
+      return;
+    }
+    const defaultUri = vscode.Uri.file(
+      `${(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd())}\\${this.slugifySessionTitle(session)}.md`,
+    );
+    const target = await vscode.window.showSaveDialog({
+      defaultUri,
+      filters: {
+        Markdown: ['md'],
+      },
+      saveLabel: 'Exportar sessão',
+    });
+    if (!target) {
+      return;
+    }
+    const markdown = this.buildSessionMarkdown(session);
+    await vscode.workspace.fs.writeFile(target, Buffer.from(markdown, 'utf8'));
+    this.webviewProvider?.updateStatus(`Sessão exportada: ${target.fsPath}`);
+  }
+
+  /**
+   * Builds markdown report for one chat session.
+   */
+  private buildSessionMarkdown(session: ChatSession): string {
+    const lines = [
+      `# ${session.title}`,
+      '',
+      `- ID: ${session.id}`,
+      `- Modo: ${session.mode}`,
+      `- Status: ${session.status}`,
+      `- Criada em: ${session.createdAt}`,
+      `- Atualizada em: ${session.updatedAt}`,
+      '',
+      '---',
+      '',
+    ];
+    for (const message of session.messages) {
+      lines.push(`## ${message.role.toUpperCase()} (${message.createdAt})`);
+      lines.push('');
+      lines.push(message.content);
+      lines.push('');
+    }
+    return lines.join('\n');
+  }
+
+  /**
+   * Creates a file-safe name for export operations.
+   */
+  private slugifySessionTitle(session: ChatSession): string {
+    const fallback = `cappy-session-${session.id}`;
+    const normalized = session.title
+      .normalize('NFKD')
+      .replace(/[^\w\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .toLowerCase();
+    return normalized.length > 0 ? normalized : fallback;
   }
 }

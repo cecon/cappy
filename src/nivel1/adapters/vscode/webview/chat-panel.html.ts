@@ -33,74 +33,98 @@ export function generateChatPanelHtml(params: ChatPanelHtmlParams): string {
   <style>${CHAT_PANEL_CSS}</style>
 </head>
 <body>
-  <div class="app">
-    <div class="header">
-      <img src="${params.iconUri}" alt="Cappy" />
-      <div>
-        <div class="title">Cappy Chat Agent</div>
-        <div class="subtitle">Planning + Sandbox</div>
+  <div class="chat-shell">
+    <header class="chat-header">
+      <div class="chat-header-left">
+        <img src="${params.iconUri}" alt="Cappy" class="brand-icon" />
+        <button id="session-title-btn" class="session-title-btn" title="Editar título">
+          <span id="session-title-text">New Chat</span>
+        </button>
+        <input id="session-title-input" class="session-title-input hidden" maxlength="120" />
       </div>
+      <div class="chat-header-actions">
+        <button id="btn-new-chat" class="icon-btn" title="New Chat">+</button>
+        <button id="btn-toggle-history" class="icon-btn" title="Histórico">🕘</button>
+        <button id="btn-maximize" class="icon-btn" title="Maximizar painel">⛶</button>
+        <button id="btn-settings" class="icon-btn" title="Configurações">⚙</button>
+        <div class="menu-wrap">
+          <button id="btn-menu" class="icon-btn" title="Mais opções">⋯</button>
+          <div id="header-menu" class="header-menu hidden">
+            <button id="menu-move-panel" class="menu-item">Mover painel</button>
+            <button id="menu-export" class="menu-item">Exportar sessão</button>
+            <button id="menu-settings" class="menu-item">Configurações</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="chat-main">
+      <aside id="sessions-drawer" class="sessions-drawer">
+        <div class="drawer-header">
+          <input id="session-search" class="session-search" placeholder="Buscar sessões..." />
+        </div>
+        <div id="sessions-list" class="sessions-list"></div>
+      </aside>
+
+      <section class="chat-content">
+        <div id="messages" class="messages"></div>
+        <div id="streaming-indicator" class="streaming-indicator hidden">
+          <span></span><span></span><span></span>
+          <button id="btn-stop-stream" class="stop-btn">Stop</button>
+        </div>
+
+        <footer class="input-area">
+          <textarea id="prompt" class="prompt-input" rows="1" placeholder="Ask Cappy..."></textarea>
+          <div class="input-toolbar">
+            <button id="btn-attach" class="toolbar-btn" title="Anexar contexto">@</button>
+
+            <div class="mode-selector-wrap">
+              <button id="btn-mode" class="mode-selector" title="Selecionar modo">
+                <span id="mode-label">Plan</span>
+                <span>▾</span>
+              </button>
+              <div id="mode-menu" class="mode-menu hidden">
+                <button data-ui-mode="agent" class="mode-option">Agent</button>
+                <button data-ui-mode="plan" class="mode-option">Plan</button>
+                <button data-ui-mode="debug" class="mode-option">Debug</button>
+                <button data-ui-mode="ask" class="mode-option">Ask</button>
+              </div>
+            </div>
+
+            <select id="provider-model" class="compact-select"></select>
+            <button id="btn-send" class="send-btn" title="Enviar">➤</button>
+            <button id="btn-stop-inline" class="stop-btn hidden" title="Parar">Stop</button>
+            <span id="context-usage" class="context-usage">0 / 0</span>
+          </div>
+        </footer>
+      </div>
+      </section>
     </div>
 
-    <div class="card">
-      <div class="row">
-        <div>
-          <div class="label">Sessão</div>
-          <select id="session" class="select"></select>
-        </div>
-        <div style="max-width:130px;">
-          <div class="label">Modo</div>
-          <select id="mode" class="select">
-            <option value="planning">Planning</option>
-            <option value="sandbox">Sandbox</option>
-          </select>
-        </div>
-        <div style="max-width:110px;display:flex;align-items:end;">
-          <button id="btn-new-session" class="btn btn-ghost">Nova</button>
-        </div>
-      </div>
-    </div>
+    <div id="status" class="status"></div>
+  </div>
 
-    <div class="card card-messages">
-      <div class="label">Mensagens</div>
-      <div id="messages" class="messages"></div>
-    </div>
-
-    <div class="card">
-      <div class="label">Prompt</div>
-      <textarea id="prompt" class="textarea" placeholder="Descreva a tarefa..."></textarea>
-      <div class="row" style="margin-top:8px;">
-        <button id="btn-send" class="btn btn-primary">Enviar</button>
-      </div>
-      <div id="status" class="status"></div>
-    </div>
-
-    <div class="card">
-      <div class="label">Provider</div>
-      <div class="row">
-        <div>
-          <div class="label">Backend</div>
-          <select id="backend" class="select">
-            <option value="openai">OpenAI-Compatible</option>
-            <option value="openclaude">OpenClaude Externo</option>
-          </select>
-        </div>
-        <div>
-          <div class="label">Model</div>
-          <input id="model" class="input" placeholder="gpt-4o-mini" />
-        </div>
-      </div>
-      <div style="margin-top:8px;">
-        <div class="label">Base URL</div>
-        <input id="baseUrl" class="input" placeholder="https://api.openai.com/v1" />
-      </div>
-      <div style="margin-top:8px;">
-        <div class="label">API Key (opcional)</div>
-        <input id="apiKey" class="input" type="password" placeholder="sk-..." />
-      </div>
-      <div class="row" style="margin-top:8px;">
-        <button id="btn-save-provider" class="btn btn-primary">Salvar</button>
-        <button id="btn-test-provider" class="btn btn-ghost">Testar</button>
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <h3>Configurações do Provider</h3>
+      <label>Provider</label>
+      <select id="backend" class="modal-input">
+        <option value="openai">OpenAI-Compatible</option>
+        <option value="openclaude">OpenClaude Externo</option>
+      </select>
+      <label>Model</label>
+      <input id="model" class="modal-input" placeholder="gpt-4o-mini" />
+      <label>Base URL</label>
+      <input id="baseUrl" class="modal-input" placeholder="https://api.openai.com/v1" />
+      <label>API Key</label>
+      <input id="apiKey" class="modal-input" type="password" placeholder="sk-..." />
+      <label>Token</label>
+      <input id="token" class="modal-input" type="password" placeholder="token opcional..." />
+      <div class="modal-actions">
+        <button id="btn-test-provider" class="modal-btn ghost">Testar conexão</button>
+        <button id="btn-cancel-settings" class="modal-btn ghost">Cancelar</button>
+        <button id="btn-save-provider" class="modal-btn primary">Salvar</button>
       </div>
     </div>
   </div>

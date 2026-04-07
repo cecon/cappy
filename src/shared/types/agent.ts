@@ -6,7 +6,7 @@
 /**
  * Supported chat execution modes.
  */
-export type ChatMode = 'planning' | 'sandbox';
+export type ChatMode = 'planning' | 'agent' | 'sandbox';
 
 /**
  * Role of a message inside a session timeline.
@@ -60,6 +60,14 @@ export interface ChatSession {
    * Current execution mode.
    */
   mode: ChatMode;
+  /**
+   * Visual status for filtering and archive flows.
+   */
+  status: 'active' | 'archived';
+  /**
+   * Indicates whether the session is pinned.
+   */
+  pinned: boolean;
   /**
    * Ordered timeline.
    */
