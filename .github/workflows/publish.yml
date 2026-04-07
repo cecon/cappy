@@ -7,8 +7,6 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -22,13 +20,9 @@ jobs:
       - name: Compile
         run: npm run compile-extension
 
-      - name: Bump version
+      - name: Set unique publish version
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          npm version patch -m "chore: bump version to %s [skip ci]"
-          git push
-          git push --tags
+          node -e "const fs=require('fs'); const p='./package.json'; const pkg=JSON.parse(fs.readFileSync(p,'utf8')); const [majorRaw,minorRaw,patchRaw]=pkg.version.split('.'); const major=Number.parseInt(majorRaw,10)||0; const minor=Number.parseInt(minorRaw,10)||0; const patchBase=Number.parseInt(String(patchRaw).replace(/[^0-9].*$/,''),10)||0; const run=Number.parseInt(process.env.GITHUB_RUN_NUMBER||'0',10); const attempt=Number.parseInt(process.env.GITHUB_RUN_ATTEMPT||'1',10); const uniquePatch=patchBase + (run * 100) + attempt; pkg.version=major + '.' + minor + '.' + uniquePatch; fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n'); console.log('Publishing version:', pkg.version);"
 
       - name: Package
         run: npx vsce package --dependencies
