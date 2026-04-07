@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest'
 import { AgentOrchestrator } from '../../src/nivel2/application/orchestrator/AgentOrchestrator'
 import { SessionStore } from '../../src/nivel2/application/session/SessionStore'
 import type {
+  AgentModeResult,
+  IAgentModeEngine,
   IPlanningModeEngine,
   ISandboxRuntime,
   PlanningResult,
@@ -41,6 +43,21 @@ class FakeSandboxRuntime implements ISandboxRuntime {
   }
 }
 
+class FakeAgentModeEngine implements IAgentModeEngine {
+  async run(input: UserTurnInput): Promise<AgentModeResult> {
+    return {
+      markdown: `AGENT:${input.prompt}`,
+      toolCalls: [
+        {
+          tool: 'mock/tool',
+          status: 'done',
+          output: 'ok',
+        },
+      ],
+    }
+  }
+}
+
 describe('AgentOrchestrator', () => {
   it('roteia turn para planning mode', async () => {
     const orchestrator = new AgentOrchestrator(
@@ -70,6 +87,24 @@ describe('AgentOrchestrator', () => {
     })
 
     expect(result.responseText).toContain('SANDBOX:executar testes')
+  })
+
+  it('roteia turn para agent mode com tool calls', async () => {
+    const orchestrator = new AgentOrchestrator(
+      new SessionStore(),
+      new FakePlanningEngine(),
+      new FakeSandboxRuntime(),
+      new FakeAgentModeEngine(),
+    )
+
+    const result = await orchestrator.runTurn({
+      mode: 'agent',
+      prompt: 'investigar e executar ferramenta',
+    })
+
+    expect(result.responseText).toContain('AGENT:investigar e executar ferramenta')
+    expect(result.toolCalls?.length).toBe(1)
+    expect(result.toolCalls?.[0]?.tool).toBe('mock/tool')
   })
 })
 

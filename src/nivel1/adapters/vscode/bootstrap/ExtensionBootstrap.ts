@@ -7,10 +7,12 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import { LanguageModelToolsBootstrap } from './LanguageModelToolsBootstrap';
 import { ChatPanelWebviewProvider } from '../webview/ChatPanelWebviewProvider';
+import { CappyChatParticipant } from '../chat/CappyChatParticipant';
 import { AuditTrailService } from '../../../../nivel2/application/audit/AuditTrailService';
 import { ProviderGateway } from '../../../../nivel2/infrastructure/providers/ProviderGateway';
 import { SessionStore, type SessionStoreSnapshot } from '../../../../nivel2/application/session/SessionStore';
 import { PlanningModeEngine } from '../../../../nivel2/application/modes/PlanningModeEngine';
+import { AgentModeEngine } from '../../../../nivel2/application/modes/AgentModeEngine';
 import { SandboxRuntime } from '../../../../nivel2/infrastructure/sandbox/SandboxRuntime';
 import { AgentOrchestrator } from '../../../../nivel2/application/orchestrator/AgentOrchestrator';
 import { ToolBroker } from '../../../../nivel2/application/tools/ToolBroker';
@@ -58,6 +60,9 @@ export class ExtensionBootstrap {
     // Phase 2: Build core architecture services
     this.setupArchitecture(context);
 
+    // Phase 2.1: Register native chat participant
+    this.registerNativeChatParticipant(context);
+
     // Phase 3: Register Chat Panel (sidebar webview)
     this.registerWebView(context);
     await this.tryMoveCappyToRightSidebar();
@@ -66,6 +71,75 @@ export class ExtensionBootstrap {
     this.registerCommands(context);
 
     console.log('✅ [Extension] Cappy activation completed');
+  }
+
+  /**
+   * Registers native @cappy chat participant when host API is available.
+   */
+  private registerNativeChatParticipant(context: vscode.ExtensionContext): void {
+    const participant = new CappyChatParticipant({
+      onRequest: async (request) => {
+        const mode = this.resolveModeFromParticipantCommand(request.command);
+        const prompt = request.prompt.trim().length > 0
+          ? request.prompt
+          : this.defaultPromptForCommand(request.command);
+        const session = this.sessionStore?.getOrCreateSession(this.currentSessionId, mode);
+        const sessionId = session?.id;
+        const turn = await this.runTurnAndSync({
+          prompt,
+          mode,
+          sessionId,
+          preferNativeToolEvents: true,
+        });
+        return {
+          text: turn.responseText,
+          sessionId: turn.sessionId,
+          toolCalls: turn.toolCalls ?? [],
+        };
+      },
+    });
+    participant.register(context);
+  }
+
+  /**
+   * Maps participant command aliases into runtime mode.
+   */
+  private resolveModeFromParticipantCommand(command: string | undefined): ChatMode {
+    const lower = (command ?? '').toLowerCase();
+    if (lower.includes('agent')) {
+      this.currentUIMode = 'agent';
+      return 'agent';
+    }
+    if (lower.includes('debug')) {
+      this.currentUIMode = 'debug';
+      return 'sandbox';
+    }
+    if (lower.includes('ask')) {
+      this.currentUIMode = 'ask';
+      return 'planning';
+    }
+    this.currentUIMode = 'plan';
+    return 'planning';
+  }
+
+  /**
+   * Generates fallback prompt when command is used without text.
+   */
+  private defaultPromptForCommand(command: string | undefined): string {
+    const lower = (command ?? '').toLowerCase();
+    if (lower.includes('help')) {
+      return 'Explique rapidamente como usar os modos Plan, Agent, Debug e Ask no Cappy.';
+    }
+    if (lower.includes('agent')) {
+      return 'Execute como Agent e proponha os próximos passos práticos.';
+    }
+    if (lower.includes('debug')) {
+      return 'Rode uma estratégia de diagnóstico e validação para a tarefa atual.';
+    }
+    if (lower.includes('ask')) {
+      return 'Responda de forma curta e objetiva.';
+    }
+    return 'Crie um plano objetivo para a solicitação atual.';
   }
 
   /**
@@ -88,9 +162,16 @@ export class ExtensionBootstrap {
     this.auditTrailService = new AuditTrailService(new JsonlAuditTrailStore(resolvedWorkspaceRoot));
     const planningEngine = new PlanningModeEngine(this.providerGateway);
     const sandboxRuntime = new SandboxRuntime(resolvedWorkspaceRoot, this.auditTrailService);
-    this.orchestrator = new AgentOrchestrator(this.sessionStore, planningEngine, sandboxRuntime, this.auditTrailService);
     const mcpGateway = new McpGateway(new McpTransportAdapter(), this.auditTrailService);
     this.toolBroker = new ToolBroker(mcpGateway, this.auditTrailService);
+    const agentMode = new AgentModeEngine(this.providerGateway, this.toolBroker);
+    this.orchestrator = new AgentOrchestrator(
+      this.sessionStore,
+      planningEngine,
+      sandboxRuntime,
+      agentMode,
+      this.auditTrailService,
+    );
     const openClaudeCommand = vscode.workspace.getConfiguration('cappy.openclaude').get<string>('command', 'openclaude');
     this.openClaudeAdapter = new OpenClaudeAdapter(openClaudeCommand);
   }
@@ -313,56 +394,95 @@ export class ExtensionBootstrap {
     mode: ChatMode,
     prompt: string,
   ): Promise<void> {
-    if (!this.webviewProvider || !this.orchestrator || !this.providerGateway || !this.sessionStore) {
-      return;
-    }
-
     try {
-      this.webviewProvider.updateStatus('Processando...');
-      const settings = await this.providerGateway.getSettings();
-      let responseText: string;
-      let resolvedSessionId = sessionId;
-      let resolvedRunId = `run-${crypto.randomUUID()}`;
-      const requiresSandbox = mode === 'sandbox' || mode === 'agent';
-      const effectiveMode: ChatMode = requiresSandbox && !this.featureEnableSandbox ? 'planning' : mode;
+      const turn = await this.runTurnAndSync({
+        prompt,
+        mode,
+        sessionId,
+      });
+      if (!turn.sessionId) {
+        return;
+      }
+      await this.streamText(turn.sessionId, turn.responseText, turn.runId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (this.currentSessionId) {
+        this.webviewProvider?.postMessage({
+          type: 'tool-call',
+          data: {
+            sessionId: this.currentSessionId,
+            tool: 'sandbox-runtime',
+            status: 'error',
+            output: message,
+          },
+        });
+      }
+      this.webviewProvider?.updateStatus(`Erro: ${message}`);
+      void vscode.window.showErrorMessage(`Cappy: ${message}`);
+    }
+  }
 
-      if (settings.backend === 'openclaude' && effectiveMode === 'planning' && this.openClaudeAdapter) {
-        const session = this.sessionStore.getOrCreateSession(sessionId, effectiveMode);
-        resolvedSessionId = session.id;
-        this.currentSessionId = session.id;
-        resolvedRunId = `run-${crypto.randomUUID()}`;
-        await this.auditTrailService?.appendIfNew({
-          eventType: 'turn.started',
-          sessionId: session.id,
-          runId: resolvedRunId,
-          actor: 'orchestrator',
-          payloadRef: effectiveMode,
-          attempt: 1,
-        });
-        this.sessionStore.appendMessage(session.id, { role: 'user', content: prompt, mode: effectiveMode });
-        await this.persistSessions();
-        await this.auditTrailService?.appendIfNew({
-          eventType: 'turn.user_appended',
-          sessionId: session.id,
-          runId: resolvedRunId,
-          actor: 'orchestrator',
-          payloadRef: effectiveMode,
-          attempt: 1,
-        });
-        const available = await this.openClaudeAdapter.isAvailable();
-        if (!available) {
-          if (this.featureEnableOpenClaudeFallback) {
-            const turn = await this.orchestrator.runTurn({ sessionId, mode: effectiveMode, prompt });
-            responseText = turn.responseText;
-            resolvedSessionId = turn.sessionId;
-            resolvedRunId = turn.runId;
-            await this.syncPanelState('OpenClaude indisponível, fallback aplicado.', resolvedSessionId);
-            await this.streamText(resolvedSessionId, responseText, resolvedRunId);
-            return;
-          }
+  /**
+   * Executes one turn and synchronizes session state for all surfaces.
+   */
+  private async runTurnAndSync(params: {
+    prompt: string;
+    mode: ChatMode;
+    sessionId?: string;
+    preferNativeToolEvents?: boolean;
+  }): Promise<{ sessionId: string; runId: string; responseText: string; toolCalls?: Array<{ tool: string; status: 'running' | 'done' | 'error'; input?: string; output?: string }> }> {
+    if (!this.orchestrator || !this.providerGateway || !this.sessionStore) {
+      throw new Error('Orquestrador indisponível.');
+    }
+    this.webviewProvider?.updateStatus('Processando...');
+    const settings = await this.providerGateway.getSettings();
+    let responseText: string;
+    let resolvedSessionId = params.sessionId;
+    let resolvedRunId = `run-${crypto.randomUUID()}`;
+    let toolCalls: Array<{ tool: string; status: 'running' | 'done' | 'error'; input?: string; output?: string }> | undefined;
+    const requiresSandbox = params.mode === 'sandbox' || params.mode === 'agent';
+    const effectiveMode: ChatMode = requiresSandbox && !this.featureEnableSandbox ? 'planning' : params.mode;
+
+    if (settings.backend === 'openclaude' && effectiveMode === 'planning' && this.openClaudeAdapter) {
+      const session = this.sessionStore.getOrCreateSession(params.sessionId, effectiveMode);
+      resolvedSessionId = session.id;
+      this.currentSessionId = session.id;
+      resolvedRunId = `run-${crypto.randomUUID()}`;
+      await this.auditTrailService?.appendIfNew({
+        eventType: 'turn.started',
+        sessionId: session.id,
+        runId: resolvedRunId,
+        actor: 'orchestrator',
+        payloadRef: effectiveMode,
+        attempt: 1,
+      });
+      this.sessionStore.appendMessage(session.id, { role: 'user', content: params.prompt, mode: effectiveMode });
+      await this.persistSessions();
+      await this.auditTrailService?.appendIfNew({
+        eventType: 'turn.user_appended',
+        sessionId: session.id,
+        runId: resolvedRunId,
+        actor: 'orchestrator',
+        payloadRef: effectiveMode,
+        attempt: 1,
+      });
+      const available = await this.openClaudeAdapter.isAvailable();
+      if (!available) {
+        if (this.featureEnableOpenClaudeFallback) {
+          const fallback = await this.orchestrator.runTurn({
+            sessionId: params.sessionId,
+            mode: effectiveMode,
+            prompt: params.prompt,
+          });
+          responseText = fallback.responseText;
+          resolvedSessionId = fallback.sessionId;
+          resolvedRunId = fallback.runId;
+          toolCalls = fallback.toolCalls;
+        } else {
           throw new Error('OpenClaude externo indisponível. Verifique o comando configurado.');
         }
-        responseText = await this.openClaudeAdapter.send(prompt);
+      } else {
+        responseText = await this.openClaudeAdapter.send(params.prompt);
         this.sessionStore.appendMessage(session.id, { role: 'assistant', content: responseText, mode: effectiveMode });
         await this.persistSessions();
         await this.auditTrailService?.appendIfNew({
@@ -381,65 +501,45 @@ export class ExtensionBootstrap {
           payloadRef: effectiveMode,
           attempt: 1,
         });
-      } else {
-        if (effectiveMode !== 'planning') {
-          const seeded = this.sessionStore.getOrCreateSession(sessionId, effectiveMode);
-          resolvedSessionId = seeded.id;
-          this.currentSessionId = seeded.id;
-          this.webviewProvider.postMessage({
-            type: 'tool-call',
-            data: {
-              sessionId: seeded.id,
-              tool: 'sandbox-runtime',
-              status: 'running',
-              input: prompt,
-            },
-          });
-        }
-        const turn = await this.orchestrator.runTurn({
-          sessionId: resolvedSessionId ?? sessionId,
-          mode: effectiveMode,
-          prompt,
-        });
-        responseText = turn.responseText;
-        resolvedSessionId = turn.sessionId;
-        resolvedRunId = turn.runId;
-        this.currentSessionId = turn.sessionId;
-        if (effectiveMode !== 'planning') {
-          this.webviewProvider.postMessage({
-            type: 'tool-call',
-            data: {
-              sessionId: turn.sessionId,
-              tool: 'sandbox-runtime',
-              status: 'done',
-              output: 'Execução concluída.',
-            },
-          });
-        }
       }
+    } else {
+      const turn = await this.orchestrator.runTurn({
+        sessionId: resolvedSessionId ?? params.sessionId,
+        mode: effectiveMode,
+        prompt: params.prompt,
+      });
+      responseText = turn.responseText;
+      resolvedSessionId = turn.sessionId;
+      resolvedRunId = turn.runId;
+      toolCalls = turn.toolCalls;
+      this.currentSessionId = turn.sessionId;
+    }
 
-      await this.syncPanelState('Resposta gerada.', resolvedSessionId);
-      await this.persistSessions();
-      if (!resolvedSessionId) {
-        return;
-      }
-      await this.streamText(resolvedSessionId, responseText, resolvedRunId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (this.currentSessionId) {
-        this.webviewProvider.postMessage({
+    if (!resolvedSessionId) {
+      throw new Error('Falha ao resolver sessão ativa.');
+    }
+
+    if (!params.preferNativeToolEvents && toolCalls?.length) {
+      for (const toolCall of toolCalls) {
+        this.webviewProvider?.postMessage({
           type: 'tool-call',
           data: {
-            sessionId: this.currentSessionId,
-            tool: 'sandbox-runtime',
-            status: 'error',
-            output: message,
+            sessionId: resolvedSessionId,
+            ...toolCall,
           },
         });
       }
-      this.webviewProvider.updateStatus(`Erro: ${message}`);
-      void vscode.window.showErrorMessage(`Cappy: ${message}`);
     }
+
+    await this.syncPanelState('Resposta gerada.', resolvedSessionId);
+    await this.persistSessions();
+
+    return {
+      sessionId: resolvedSessionId,
+      runId: resolvedRunId,
+      responseText: responseText!,
+      toolCalls,
+    };
   }
 
   /**
@@ -492,7 +592,7 @@ export class ExtensionBootstrap {
       payloadRef: 'assistant-stream',
       attempt: 1,
     });
-    this.webviewProvider.updateStatus(wasStopped ? 'Streaming interrompido.' : 'Pronto.');
+    this.webviewProvider?.updateStatus(wasStopped ? 'Streaming interrompido.' : 'Pronto.');
     await this.syncPanelState(undefined, sessionId);
   }
 
@@ -532,13 +632,13 @@ export class ExtensionBootstrap {
     const settings = await this.providerGateway.getSettings();
     if (settings.backend === 'openclaude' && this.openClaudeAdapter) {
       const available = await this.openClaudeAdapter.isAvailable();
-      this.webviewProvider.updateStatus(
+      this.webviewProvider?.updateStatus(
         available ? 'OpenClaude disponível.' : 'OpenClaude indisponível.',
       );
       return;
     }
     const result = await this.providerGateway.testConnection();
-    this.webviewProvider.updateStatus(result.message);
+    this.webviewProvider?.updateStatus(result.message);
   }
 
   /**
@@ -563,6 +663,9 @@ export class ExtensionBootstrap {
         content: message.content,
         createdAt: message.createdAt,
         mode: message.mode,
+        toolCall: message.role === 'tool'
+          ? this.tryParseToolCallContent(message.content)
+          : undefined,
       })),
     }));
     const selected = currentSessionId ?? this.currentSessionId ?? sessions[0]?.id;
@@ -674,5 +777,38 @@ export class ExtensionBootstrap {
       .replace(/\s+/g, '-')
       .toLowerCase();
     return normalized.length > 0 ? normalized : fallback;
+  }
+
+  /**
+   * Parses serialized tool payload from timeline message content.
+   */
+  private tryParseToolCallContent(content: string): {
+    tool: string;
+    status: 'running' | 'done' | 'error';
+    input?: string;
+    output?: string;
+  } | undefined {
+    try {
+      const parsed = JSON.parse(content) as {
+        tool?: string;
+        status?: string;
+        input?: string;
+        output?: string;
+      };
+      if (!parsed.tool || !parsed.status) {
+        return undefined;
+      }
+      if (parsed.status !== 'running' && parsed.status !== 'done' && parsed.status !== 'error') {
+        return undefined;
+      }
+      return {
+        tool: parsed.tool,
+        status: parsed.status,
+        input: parsed.input,
+        output: parsed.output,
+      };
+    } catch {
+      return undefined;
+    }
   }
 }

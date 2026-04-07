@@ -135,6 +135,25 @@ export interface PlanningResult {
 }
 
 /**
+ * Runtime output for agent mode with optional tool timeline.
+ */
+export interface AgentModeResult {
+  /**
+   * Final assistant markdown/text.
+   */
+  markdown: string;
+  /**
+   * Tool-call timeline emitted during the turn.
+   */
+  toolCalls: Array<{
+    tool: string;
+    status: 'running' | 'done' | 'error';
+    input?: string;
+    output?: string;
+  }>;
+}
+
+/**
  * Execution output for sandbox mode.
  */
 export interface SandboxResult {
@@ -390,6 +409,16 @@ export interface IPlanningModeEngine {
    * Generates a structured plan.
    */
   run(input: UserTurnInput): Promise<PlanningResult>;
+}
+
+/**
+ * Agent mode contract.
+ */
+export interface IAgentModeEngine {
+  /**
+   * Executes one agent turn with optional tool-calls.
+   */
+  run(input: UserTurnInput): Promise<AgentModeResult>;
 }
 
 /**

@@ -150,6 +150,22 @@
           {
             "name": "help",
             "description": "Get help on how to use @cappy"
+          },
+          {
+            "name": "plan",
+            "description": "Run Cappy in planning mode"
+          },
+          {
+            "name": "agent",
+            "description": "Run Cappy in agent mode"
+          },
+          {
+            "name": "debug",
+            "description": "Run Cappy in debug/sandbox mode"
+          },
+          {
+            "name": "ask",
+            "description": "Run quick ask mode with concise output"
           }
         ]
       }
