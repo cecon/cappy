@@ -4,13 +4,19 @@
  */
 
 import * as vscode from 'vscode';
+import * as crypto from 'crypto';
 import { LanguageModelToolsBootstrap } from './LanguageModelToolsBootstrap';
 import { ChatPanelWebviewProvider } from '../webview/ChatPanelWebviewProvider';
+import { AuditTrailService } from '../../../../nivel2/application/audit/AuditTrailService';
 import { ProviderGateway } from '../../../../nivel2/infrastructure/providers/ProviderGateway';
 import { SessionStore } from '../../../../nivel2/application/session/SessionStore';
 import { PlanningModeEngine } from '../../../../nivel2/application/modes/PlanningModeEngine';
 import { SandboxRuntime } from '../../../../nivel2/infrastructure/sandbox/SandboxRuntime';
 import { AgentOrchestrator } from '../../../../nivel2/application/orchestrator/AgentOrchestrator';
+import { ToolBroker } from '../../../../nivel2/application/tools/ToolBroker';
+import { JsonlAuditTrailStore } from '../../../../nivel2/infrastructure/audit/JsonlAuditTrailStore';
+import { McpGateway } from '../../../../nivel2/infrastructure/mcp/McpGateway';
+import { McpTransportAdapter } from '../../../../nivel2/infrastructure/mcp/McpTransportAdapter';
 import { OpenClaudeAdapter } from '../../../../nivel2/infrastructure/openclaude/OpenClaudeAdapter';
 import type { ChatMode } from '../../../../shared/types/agent';
 
@@ -22,6 +28,8 @@ export class ExtensionBootstrap {
   private providerGateway: ProviderGateway | null = null;
   private sessionStore: SessionStore | null = null;
   private orchestrator: AgentOrchestrator | null = null;
+  private auditTrailService: AuditTrailService | null = null;
+  private toolBroker: ToolBroker | null = null;
   private openClaudeAdapter: OpenClaudeAdapter | null = null;
   private featureEnableChatPanel = true;
   private featureEnableSandbox = true;
@@ -61,10 +69,14 @@ export class ExtensionBootstrap {
 
     this.providerGateway = new ProviderGateway(context.secrets);
     this.sessionStore = new SessionStore();
-    const planningEngine = new PlanningModeEngine(this.providerGateway);
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const sandboxRuntime = new SandboxRuntime(workspaceRoot ?? process.cwd());
-    this.orchestrator = new AgentOrchestrator(this.sessionStore, planningEngine, sandboxRuntime);
+    const resolvedWorkspaceRoot = workspaceRoot ?? process.cwd();
+    this.auditTrailService = new AuditTrailService(new JsonlAuditTrailStore(resolvedWorkspaceRoot));
+    const planningEngine = new PlanningModeEngine(this.providerGateway);
+    const sandboxRuntime = new SandboxRuntime(resolvedWorkspaceRoot, this.auditTrailService);
+    this.orchestrator = new AgentOrchestrator(this.sessionStore, planningEngine, sandboxRuntime, this.auditTrailService);
+    const mcpGateway = new McpGateway(new McpTransportAdapter(), this.auditTrailService);
+    this.toolBroker = new ToolBroker(mcpGateway, this.auditTrailService);
     const openClaudeCommand = vscode.workspace.getConfiguration('cappy.openclaude').get<string>('command', 'openclaude');
     this.openClaudeAdapter = new OpenClaudeAdapter(openClaudeCommand);
   }
@@ -155,6 +167,7 @@ export class ExtensionBootstrap {
    * Deactivates the extension
    */
   async deactivate(): Promise<void> {
+    await this.auditTrailService?.flush();
     console.log('👋 [Extension] Cappy deactivating...');
     console.log('✅ [Extension] Cappy deactivated');
   }
@@ -162,9 +175,10 @@ export class ExtensionBootstrap {
   /**
    * Gets internal state (for testing).
    */
-  getState(): { orchestratorReady: boolean } {
+  getState(): { orchestratorReady: boolean; toolBrokerReady: boolean } {
     return {
       orchestratorReady: this.orchestrator !== null,
+      toolBrokerReady: this.toolBroker !== null,
     };
   }
 
@@ -185,41 +199,73 @@ export class ExtensionBootstrap {
       const settings = await this.providerGateway.getSettings();
       let responseText: string;
       let resolvedSessionId = sessionId;
+      let resolvedRunId = `run-${crypto.randomUUID()}`;
       const effectiveMode: ChatMode = mode === 'sandbox' && !this.featureEnableSandbox ? 'planning' : mode;
 
       if (settings.backend === 'openclaude' && effectiveMode === 'planning' && this.openClaudeAdapter) {
         const session = this.sessionStore.getOrCreateSession(sessionId, effectiveMode);
         resolvedSessionId = session.id;
+        resolvedRunId = `run-${crypto.randomUUID()}`;
+        await this.auditTrailService?.appendIfNew({
+          eventType: 'turn.started',
+          sessionId: session.id,
+          runId: resolvedRunId,
+          actor: 'orchestrator',
+          payloadRef: effectiveMode,
+          attempt: 1,
+        });
         this.sessionStore.appendMessage(session.id, { role: 'user', content: prompt, mode: effectiveMode });
+        await this.auditTrailService?.appendIfNew({
+          eventType: 'turn.user_appended',
+          sessionId: session.id,
+          runId: resolvedRunId,
+          actor: 'orchestrator',
+          payloadRef: effectiveMode,
+          attempt: 1,
+        });
         const available = await this.openClaudeAdapter.isAvailable();
         if (!available) {
           if (this.featureEnableOpenClaudeFallback) {
             const turn = await this.orchestrator.runTurn({ sessionId, mode: effectiveMode, prompt });
             responseText = turn.responseText;
             resolvedSessionId = turn.sessionId;
+            resolvedRunId = turn.runId;
             await this.syncPanelState('OpenClaude indisponível, fallback aplicado.', resolvedSessionId);
-            this.webviewProvider.startAssistantStream(resolvedSessionId);
-            await this.streamText(resolvedSessionId, responseText);
-            this.webviewProvider.endAssistantStream(resolvedSessionId);
+            await this.streamText(resolvedSessionId, responseText, resolvedRunId);
             return;
           }
           throw new Error('OpenClaude externo indisponível. Verifique o comando configurado.');
         }
         responseText = await this.openClaudeAdapter.send(prompt);
         this.sessionStore.appendMessage(session.id, { role: 'assistant', content: responseText, mode: effectiveMode });
+        await this.auditTrailService?.appendIfNew({
+          eventType: 'turn.assistant_appended',
+          sessionId: session.id,
+          runId: resolvedRunId,
+          actor: 'orchestrator',
+          payloadRef: effectiveMode,
+          attempt: 1,
+        });
+        await this.auditTrailService?.appendIfNew({
+          eventType: 'turn.completed',
+          sessionId: session.id,
+          runId: resolvedRunId,
+          actor: 'orchestrator',
+          payloadRef: effectiveMode,
+          attempt: 1,
+        });
       } else {
         const turn = await this.orchestrator.runTurn({ sessionId, mode: effectiveMode, prompt });
         responseText = turn.responseText;
         resolvedSessionId = turn.sessionId;
+        resolvedRunId = turn.runId;
       }
 
       await this.syncPanelState('Resposta gerada.', resolvedSessionId);
       if (!resolvedSessionId) {
         return;
       }
-      this.webviewProvider.startAssistantStream(resolvedSessionId);
-      await this.streamText(resolvedSessionId, responseText);
-      this.webviewProvider.endAssistantStream(resolvedSessionId);
+      await this.streamText(resolvedSessionId, responseText, resolvedRunId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.webviewProvider.updateStatus(`Erro: ${message}`);
@@ -230,15 +276,45 @@ export class ExtensionBootstrap {
   /**
    * Streams assistant text to webview in small chunks.
    */
-  private async streamText(sessionId: string, text: string): Promise<void> {
+  private async streamText(sessionId: string, text: string, runId: string): Promise<void> {
     if (!this.webviewProvider) {
       return;
     }
+    this.webviewProvider.startAssistantStream(sessionId);
+    await this.auditTrailService?.appendIfNew({
+      eventType: 'stream.started',
+      sessionId,
+      runId,
+      actor: 'streaming-callback',
+      payloadRef: 'assistant-stream',
+      attempt: 1,
+    });
     const chunks = text.match(/.{1,80}/gs) ?? [text];
-    for (const chunk of chunks) {
+    for (let index = 0; index < chunks.length; index += 1) {
+      const chunk = chunks[index];
       this.webviewProvider.pushAssistantChunk(sessionId, chunk);
+      await this.auditTrailService?.appendIfNew({
+        eventType: 'stream.chunk',
+        sessionId,
+        runId,
+        actor: 'streaming-callback',
+        payloadRef: `chunk-${index + 1}`,
+        attempt: 1,
+        metadata: {
+          size: chunk.length,
+        },
+      });
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
+    this.webviewProvider.endAssistantStream(sessionId);
+    await this.auditTrailService?.appendIfNew({
+      eventType: 'stream.completed',
+      sessionId,
+      runId,
+      actor: 'streaming-callback',
+      payloadRef: 'assistant-stream',
+      attempt: 1,
+    });
   }
 
   /**

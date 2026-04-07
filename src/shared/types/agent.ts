@@ -83,6 +83,10 @@ export interface UserTurnInput {
    */
   sessionId: string;
   /**
+   * Correlation run id for end-to-end timeline reconstruction.
+   */
+  runId: string;
+  /**
    * User prompt.
    */
   prompt: string;
@@ -255,6 +259,82 @@ export interface McpToolRequest {
 }
 
 /**
+ * Allowed actor identities for unified audit events.
+ */
+export type AuditActor =
+  | 'user'
+  | 'system'
+  | 'orchestrator'
+  | 'tool-broker'
+  | 'mcp-gateway'
+  | 'sandbox-runtime'
+  | 'streaming-callback';
+
+/**
+ * Unified append-only audit event schema.
+ */
+export interface AuditEvent {
+  /**
+   * Deterministic identifier for dedupe/idempotency.
+   */
+  eventId: string;
+  /**
+   * Event semantic name.
+   */
+  eventType: string;
+  /**
+   * ISO creation timestamp.
+   */
+  timestamp: string;
+  /**
+   * Session correlation id.
+   */
+  sessionId: string;
+  /**
+   * Run correlation id.
+   */
+  runId: string;
+  /**
+   * Producer identity.
+   */
+  actor: AuditActor;
+  /**
+   * Reference-safe payload projection.
+   */
+  payloadRef: string;
+  /**
+   * Retry attempt number.
+   */
+  attempt: number;
+  /**
+   * Optional metadata for diagnostics.
+   */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Correlation context required in MCP execution paths.
+ */
+export interface McpExecutionContext {
+  /**
+   * Session correlation id.
+   */
+  sessionId: string;
+  /**
+   * Run correlation id.
+   */
+  runId: string;
+  /**
+   * Origin actor for auditing.
+   */
+  actor: AuditActor;
+  /**
+   * Retry attempt number.
+   */
+  attempt?: number;
+}
+
+/**
  * Generic approval request.
  */
 export interface ApprovalRequest {
@@ -321,7 +401,57 @@ export interface IMcpGateway {
   /**
    * Executes an MCP tool request under policy.
    */
-  execute(request: McpToolRequest): Promise<unknown>;
+  execute(request: McpToolRequest, context: McpExecutionContext): Promise<unknown>;
+}
+
+/**
+ * MCP transport adapter contract.
+ */
+export interface IMcpTransportAdapter {
+  /**
+   * Executes one MCP tool call on concrete transport.
+   */
+  execute(request: McpToolRequest, context: McpExecutionContext): Promise<unknown>;
+}
+
+/**
+ * Append-only audit store contract.
+ */
+export interface IAuditTrailStore {
+  /**
+   * Persists one event.
+   */
+  append(event: AuditEvent): Promise<void>;
+  /**
+   * Returns all events correlated with one run.
+   */
+  readByRunId(runId: string): Promise<AuditEvent[]>;
+  /**
+   * Returns all events correlated with one session.
+   */
+  readBySessionId(sessionId: string): Promise<AuditEvent[]>;
+  /**
+   * Flushes pending writes.
+   */
+  flush(): Promise<void>;
+}
+
+/**
+ * Audit service contract with idempotent append semantics.
+ */
+export interface IAuditTrailService {
+  /**
+   * Persists one event regardless of duplicates.
+   */
+  append(event: Omit<AuditEvent, 'eventId' | 'timestamp'>): Promise<AuditEvent>;
+  /**
+   * Persists one event only when not already seen.
+   */
+  appendIfNew(event: Omit<AuditEvent, 'eventId' | 'timestamp'>): Promise<AuditEvent | null>;
+  /**
+   * Reads run timeline in chronological order.
+   */
+  getRunTimeline(runId: string): Promise<AuditEvent[]>;
 }
 
 /**

@@ -4,7 +4,12 @@
  */
 
 import { execFile } from 'child_process';
-import type { ISandboxRuntime, SandboxResult, UserTurnInput } from '../../../shared/types/agent';
+import type {
+  IAuditTrailService,
+  ISandboxRuntime,
+  SandboxResult,
+  UserTurnInput,
+} from '../../../shared/types/agent';
 import { ApprovalGate } from './ApprovalGate';
 import { ArtifactStore } from './ArtifactStore';
 import { CommandPolicy } from './CommandPolicy';
@@ -23,7 +28,10 @@ export class SandboxRuntime implements ISandboxRuntime {
   private readonly approvalGate = new ApprovalGate();
   private readonly pathGuard: PathGuard;
 
-  constructor(private readonly workspaceRoot: string) {
+  constructor(
+    private readonly workspaceRoot: string,
+    private readonly auditTrail?: IAuditTrailService,
+  ) {
     this.worktreeManager = new WorktreeManager(workspaceRoot);
     this.artifactStore = new ArtifactStore(workspaceRoot);
     this.pathGuard = new PathGuard(workspaceRoot, `${workspaceRoot}/.cappy/sandbox`);
@@ -33,12 +41,21 @@ export class SandboxRuntime implements ISandboxRuntime {
    * Executes one sandbox run from user input.
    */
   async execute(input: UserTurnInput): Promise<SandboxResult> {
-    const run = await this.worktreeManager.create();
+    const run = await this.worktreeManager.create(input.runId);
     const commands: string[] = [];
     const logs: string[] = [];
     let status: 'success' | 'error' = 'success';
 
     try {
+      await this.auditTrail?.appendIfNew({
+        eventType: 'sandbox.started',
+        sessionId: input.sessionId,
+        runId: run.runId,
+        actor: 'sandbox-runtime',
+        payloadRef: input.mode,
+        attempt: 1,
+      });
+
       if (!this.pathGuard.isPathAllowed(run.worktreePath)) {
         throw new Error('Worktree path outside allowed boundaries.');
       }
@@ -53,6 +70,17 @@ export class SandboxRuntime implements ISandboxRuntime {
         action: 'Executar comando no sandbox',
         risk,
         command,
+      });
+      await this.auditTrail?.appendIfNew({
+        eventType: approved ? 'sandbox.approval_approved' : 'sandbox.approval_rejected',
+        sessionId: input.sessionId,
+        runId: run.runId,
+        actor: 'sandbox-runtime',
+        payloadRef: command,
+        attempt: 1,
+        metadata: {
+          risk,
+        },
       });
       if (!approved) {
         throw new Error('Execução negada pelo usuário.');
@@ -72,6 +100,17 @@ export class SandboxRuntime implements ISandboxRuntime {
         diff,
         status,
         sourcePrompt: input.prompt,
+      });
+      await this.auditTrail?.appendIfNew({
+        eventType: 'sandbox.completed',
+        sessionId: input.sessionId,
+        runId: run.runId,
+        actor: 'sandbox-runtime',
+        payloadRef: command,
+        attempt: 1,
+        metadata: {
+          status,
+        },
       });
 
       return {
@@ -101,6 +140,17 @@ export class SandboxRuntime implements ISandboxRuntime {
         diff: '',
         status,
         sourcePrompt: input.prompt,
+      });
+      await this.auditTrail?.appendIfNew({
+        eventType: 'sandbox.failed',
+        sessionId: input.sessionId,
+        runId: run.runId,
+        actor: 'sandbox-runtime',
+        payloadRef: input.mode,
+        attempt: 1,
+        metadata: {
+          error: message,
+        },
       });
       return {
         runId: run.runId,

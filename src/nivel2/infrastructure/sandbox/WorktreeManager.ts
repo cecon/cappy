@@ -37,8 +37,8 @@ export class WorktreeManager {
   /**
    * Creates a detached worktree and returns run metadata.
    */
-  async create(): Promise<{ runId: string; worktreePath: string }> {
-    const runId = `run-${crypto.randomUUID()}`;
+  async create(preferredRunId?: string): Promise<{ runId: string; worktreePath: string }> {
+    const runId = preferredRunId ?? `run-${crypto.randomUUID()}`;
     const worktreePath = path.join(this.sandboxRoot, runId);
     await runGit(['worktree', 'add', '--detach', worktreePath, 'HEAD'], this.workspaceRoot);
     return { runId, worktreePath };

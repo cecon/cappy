@@ -3,6 +3,14 @@
 # Workspace data
 .cappy/
 .cappy/**
+.agents/
+.agents/**
+.cursor/
+.cursor/**
+mcps/
+mcps/**
+agent-transcripts/
+agent-transcripts/**
 
 # Dev folders
 .vscode/
@@ -10,6 +18,10 @@
 .gitignore
 .github/
 old/
+coverage/
+dist/
+tmp/
+*.tmp
 
 # Source code (compiled output is in out/)
 src/**
@@ -18,6 +30,7 @@ src/**
 # Config files
 tsconfig*.json
 tsconfig*.tsbuildinfo
+vitest.config.ts
 eslint.config.js
 .eslintignore
 .eslintrc*
@@ -25,9 +38,14 @@ eslint.config.js
 *.log
 .env
 .env.local
+.env.*
+!.env.example
+*.plan.md
 
 # Scripts
 scripts/**
+install.ps1
+install.sh
 
 # Tests
 **/*.map
@@ -42,8 +60,14 @@ tests/
 node_modules/.bin/**
 node_modules/**/.git/**
 node_modules/**/.github/**
+node_modules/**/.vscode/**
+node_modules/**/docs/**
 node_modules/**/test/**
 node_modules/**/tests/**
+node_modules/**/example/**
+node_modules/**/examples/**
+node_modules/**/benchmark/**
+node_modules/**/benchmarks/**
 node_modules/**/*.md
 !node_modules/**/README.md
 node_modules/**/*.ts
@@ -57,3 +81,4 @@ node_modules/**/HISTORY*
 !package.json
 !README.md
 !LICENSE
+!LICENSE.*
