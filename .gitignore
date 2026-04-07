@@ -41,8 +41,6 @@ old/
 .cappy/*.lance
 .cappy/indexes/
 
-# WhatsApp auth & sensitive data
-.cappy/whatsapp-auth/
-.cappy/whatsapp-inbox/
+# Runtime state & sensitive data
 .cappy/test-auth/
 .cappy/history/

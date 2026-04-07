@@ -14,7 +14,6 @@ O Cappy permite agendar workflows para execução automática em intervalos conf
    - **Nome**: Um nome descritivo (ex: "Build Automático")
    - **Workflow**: O caminho do workflow (ex: `/build`)
    - **Intervalo**: Tempo em minutos entre execuções
-   - **Notificar WhatsApp**: Se deseja receber notificação a cada execução
 4. Clique em **Criar Tarefa**
 
 ## Gerenciamento
@@ -30,7 +29,6 @@ No dashboard você pode:
 - Cada tarefa usa `setInterval` para disparar no intervalo configurado
 - O despacho é feito via `antigravity.sendPromptToAgentPanel`
 - O VS Code precisa estar aberto para as tarefas executarem
-- Resultados podem ser notificados via WhatsApp
 
 ## Exemplo de scheduled-tasks.json
 
@@ -43,7 +41,6 @@ No dashboard você pode:
       "workflow": "/build",
       "intervalMinutes": 30,
       "enabled": true,
-      "notifyWhatsApp": true,
       "lastRun": null,
       "lastStatus": null,
       "createdAt": "2026-03-08T19:00:00Z"
@@ -52,20 +49,7 @@ No dashboard você pode:
 }
 ```
 
-## Via Terminal (para o agente AI)
+## Via Terminal (descontinuado)
 
-Quando o agente precisa criar tarefas programaticamente (ex: recebendo pedido via WhatsApp), use o script `schedule.js`:
-
-```bash
-# Lembrete WhatsApp (one-shot, envia mensagem direto)
-node .agents/skills/whatsapp-reply/scripts/schedule.js --name "Lembrete" --delay 5 --message "Hora de dormir!"
-
-# Workflow recorrente
-node .agents/skills/whatsapp-reply/scripts/schedule.js --name "Build Auto" --workflow "/build" --interval 30
-
-# Workflow one-shot
-node .agents/skills/whatsapp-reply/scripts/schedule.js --name "Deploy" --workflow "/publish" --delay 10
-```
-
-O script conecta ao WebSocket (porta 9090) e cria a tarefa no CronScheduler, que aparece automaticamente no dashboard.
+O fluxo antigo via bridge/WebSocket foi removido. Use apenas o dashboard do Cappy para criar e gerenciar tarefas agendadas.
 

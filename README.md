@@ -5,8 +5,8 @@
 <h1 align="center">Cappy</h1>
 
 <p align="center">
-  <b>Your AI dev companion — in your IDE and on WhatsApp.</b><br/>
-  <i>Code smarter. Ship faster. Stay connected.</i>
+  <b>Your AI dev companion inside the IDE.</b><br/>
+  <i>Code smarter. Ship faster.</i>
 </p>
 
 <p align="center">
@@ -25,37 +25,27 @@
 
 ## The Problem
 
-You're deep in a coding session. Your phone buzzes — a bug report. You context-switch to Slack. Then Jira. Then back to the IDE. **You've lost 23 minutes.** Sound familiar?
+You're deep in a coding session. New work arrives from multiple channels. You context-switch between issue tracker, terminal, docs, and the editor. **Flow is lost.**
 
-What if your IDE could talk to you on WhatsApp? What if you could triage, plan, and monitor your projects from anywhere — without ever leaving the conversation?
+What if one agent inside your IDE could plan, execute, and validate tasks with full project context?
 
 ## The Solution: Meet Cappy
 
-**Cappy** is an AI-powered VS Code extension that bridges the gap between your IDE and your life. It's not just another coding assistant — it's a **full dev companion** that lives where you already are: in your editor and on your phone.
+**Cappy** is an AI-powered VS Code extension focused on planning and agent execution directly in your workspace. It's not just another coding assistant — it's a **full dev companion** that lives where you already are: in your editor.
 
-> 🦫 *Think of Cappy as a senior developer who never sleeps, never forgets, and is always a WhatsApp message away.*
+> 🦫 *Think of Cappy as a senior developer who never sleeps and never forgets project context.*
 
 ---
 
 ## ✨ Key Features
 
-### 🔗 WhatsApp Dev Bridge
-*Your IDE, in your pocket.*
+### 🤖 Native Agent Experience
+*Plan and execute without leaving the editor.*
 
-Connect your WhatsApp to your IDE and interact with your projects from anywhere. No extra apps. No dashboards. Just chat.
-
-```
-You: @erp run the tests
-🦫 Cappy [erp-dsl]: 🧪 47 passing | ❌ 2 failing
-
-You: @mobile what's the build status?
-🦫 Cappy [mobile-app]: ✅ Build passing
-```
-
-- **Bi-directional messaging** — send commands, receive results
-- **Multi-project support** — manage multiple workspaces simultaneously
-- **Human-in-the-loop** — authorize AI actions remotely, stay in control
-- **Zero setup on phone** — if you have WhatsApp, you're ready
+- **Native chat participant (`@cappy`)** in IDE chat
+- **Agent mode with tool calls** and approval flow
+- **Streaming responses** with live progress
+- **Session continuity** between native chat and dashboard
 
 ### 🧠 AI Planning Agent
 *From idea to structured plan in seconds.*
@@ -74,8 +64,8 @@ Cappy analyzes your codebase, asks clarifying questions, and generates **structu
 *Everything at a glance.*
 
 A sleek sidebar dashboard shows you real-time status:
-- WhatsApp connection status with visual indicator
-- Live message feed from your phone
+- Session list with pin/archive/search
+- Tool-call timeline and streaming progress
 - Quick settings and configuration
 
 ### 🛠️ Powerful Built-in Tools
@@ -101,12 +91,11 @@ Search for **"Cappy"** in the VS Code / Cursor / Antigravity Marketplace, or:
 code --install-extension eduardocecon.cappy
 ```
 
-### Connect WhatsApp
+### Open Dashboard
 
 1. Open the Cappy Dashboard (sidebar icon)
-2. Click **Connect WhatsApp**
-3. Scan the QR code with your phone
-4. Start chatting with your IDE 🎉
+2. Configure provider/model in settings
+3. Start planning and executing tasks with Cappy
 
 ### Use the AI Agent
 
@@ -119,12 +108,11 @@ Just type `@cappy` followed by your request in any AI chat panel. That's it.
 | Phase | Feature | Status |
 |-------|---------|--------|
 | ✅ | AI Planning Agent (`@cappy`) | **Live** |
-| ✅ | WhatsApp Bridge | **Live** |
+| ✅ | Native Agent + Webview Sync | **Live** |
 | ✅ | Live Dashboard | **Live** |
 | 🔜 | Code Health Score (0-100) | *Coming Soon* |
 | 🔜 | Scheduled Health Checks & Cron Jobs | *Planned* |
 | 🔜 | GitHub/Jira Integration via MCP | *Planned* |
-| 🔜 | Daily Digest on WhatsApp | *Planned* |
 
 ### Coming Soon: Code Health Score 🏥
 
@@ -147,8 +135,6 @@ Just type `@cappy` followed by your request in any AI chat panel. That's it.
 | Language | TypeScript |
 | Platform | VS Code Extension API |
 | AI Engine | VS Code Language Model API + LangGraph |
-| WhatsApp | Baileys (Web API) |
-| Realtime | WebSocket (port 9090) |
 | Build | TSC |
 | Tests | Vitest |
 
