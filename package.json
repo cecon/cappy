@@ -71,7 +71,14 @@
         }
       ]
     },
-    "keybindings": [],
+    "keybindings": [
+      {
+        "command": "cappy.openDashboard",
+        "key": "ctrl+alt+c",
+        "mac": "cmd+alt+c",
+        "when": "workbenchState != empty"
+      }
+    ],
     "configuration": {
       "title": "Cappy",
       "properties": {

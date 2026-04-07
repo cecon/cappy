@@ -34,6 +34,8 @@ export class ExtensionBootstrap {
   private featureEnableChatPanel = true;
   private featureEnableSandbox = true;
   private featureEnableOpenClaudeFallback = true;
+  private rightSidebarMoveAttempted = false;
+  private rightSidebarMoveSucceeded = false;
 
   /**
    * Activates the extension
@@ -51,6 +53,7 @@ export class ExtensionBootstrap {
 
     // Phase 3: Register Chat Panel (sidebar webview)
     this.registerWebView(context);
+    await this.tryMoveCappyToRightSidebar();
 
     // Phase 4: Register extension commands/events
     this.registerCommands(context);
@@ -123,11 +126,52 @@ export class ExtensionBootstrap {
     // Open dashboard command
     context.subscriptions.push(
       vscode.commands.registerCommand('cappy.openDashboard', () => {
-        vscode.commands.executeCommand('cappy.dashboard.focus');
+        void this.openDashboardOnRightSidebar();
       })
     );
 
     console.log('  ✅ Registered Cappy sidebar WebView');
+  }
+
+  /**
+   * Opens Cappy dashboard preferring the right sidebar (auxiliary bar).
+   */
+  private async openDashboardOnRightSidebar(): Promise<void> {
+    await this.tryMoveCappyToRightSidebar();
+    await vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
+    await vscode.commands.executeCommand('cappy.dashboard.focus');
+  }
+
+  /**
+   * Tries to move Cappy view container to the right sidebar.
+   * Falls back silently when commands are unavailable in the host.
+   */
+  private async tryMoveCappyToRightSidebar(): Promise<void> {
+    if (this.rightSidebarMoveSucceeded || this.rightSidebarMoveAttempted) {
+      return;
+    }
+    this.rightSidebarMoveAttempted = true;
+
+    const containerId = 'workbench.view.extension.cappy-sidebar';
+    const viewId = ChatPanelWebviewProvider.viewType;
+    const attempts: Array<{ command: string; args: unknown[] }> = [
+      { command: 'workbench.action.moveViewContainerToAuxiliaryBar', args: [containerId] },
+      { command: 'workbench.action.moveViewContainerToAuxiliaryBar', args: [{ viewContainerId: containerId }] },
+      { command: 'workbench.action.moveViewsToAuxiliaryBar', args: [[viewId]] },
+      { command: 'workbench.action.moveViewsToAuxiliaryBar', args: [{ viewIds: [viewId] }] },
+      { command: 'workbench.action.moveViewToSecondarySideBar', args: [viewId] },
+      { command: 'workbench.action.moveViewToSecondarySideBar', args: [{ viewId }] },
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        await vscode.commands.executeCommand(attempt.command, ...attempt.args);
+        this.rightSidebarMoveSucceeded = true;
+        break;
+      } catch {
+        // Ignore and try the next command/argument shape.
+      }
+    }
   }
 
   /**
