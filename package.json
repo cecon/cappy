@@ -495,7 +495,7 @@
     "publish": "npm run package && vsce publish && code --install-extension cappy-*.vsix"
   },
   "dependencies": {
-    "@langchain/core": "^0.3.78",
+    "@langchain/core": "^1.1.39",
     "@langchain/langgraph": "^0.4.9",
     "highlight.js": "^11.11.1",
     "markdown-it": "^14.1.1"
