@@ -169,18 +169,25 @@ export function generateChatPanelScript(initialStateJson: string): string {
      * @returns {string}
      */
     function renderSessionRow(session) {
-      const pinned = session.pinned ? '📌' : '•';
+      const pinned = session.pinned ? 'pin' : '';
       const status = session.status === 'archived' ? 'archived' : 'active';
+      const pinIcon = session.pinned
+        ? '<svg viewBox="0 0 16 16"><path d="M6 1h4v1l1 2v1l-2 1v4l-1 1-1-1V6L5 5V4l1-2V1z"/></svg>'
+        : '<svg viewBox="0 0 16 16"><path d="M8 2.2c-1 0-1.8.8-1.8 1.8 0 .8.5 1.4 1.1 1.7v5.1l.7.7.7-.7V5.7c.6-.3 1.1-.9 1.1-1.7 0-1-.8-1.8-1.8-1.8z"/></svg>';
+      const archiveIcon = status === 'archived'
+        ? '<svg viewBox="0 0 16 16"><path d="M7 3 3 7l4 4V8h3a3 3 0 1 1 0 6H6v1h4a4 4 0 1 0 0-8H7V3z"/></svg>'
+        : '<svg viewBox="0 0 16 16"><path d="M2 2h12v3H2V2zm1 4h10v8H3V6zm2 2v1h6V8H5z"/></svg>';
+      const deleteIcon = '<svg viewBox="0 0 16 16"><path d="M3 4h10v1H3V4zm2 1h1v8H5V5zm5 0h1v8h-1V5zM6 2h4l1 1h2v1H3V3h2l1-1z"/></svg>';
       return '<div class="session-item ' + (session.id === state.currentSessionId ? 'active' : '') + '" data-session-id="' + esc(session.id) + '">'
         + '<div class="session-item-head">'
         + '<span class="session-title">' + esc(session.title) + '</span>'
         + '<span class="session-actions">'
-        + '<button class="session-action-btn" data-action="pin" title="Pin">' + (session.pinned ? '📌' : '📍') + '</button>'
-        + '<button class="session-action-btn" data-action="archive" title="' + (status === 'archived' ? 'Restaurar' : 'Arquivar') + '">' + (status === 'archived' ? '↩' : '🗄') + '</button>'
-        + '<button class="session-action-btn" data-action="delete" title="Excluir">🗑</button>'
+        + '<button class="session-action-btn" data-action="pin" title="Pin">' + pinIcon + '</button>'
+        + '<button class="session-action-btn" data-action="archive" title="' + (status === 'archived' ? 'Restaurar' : 'Arquivar') + '">' + archiveIcon + '</button>'
+        + '<button class="session-action-btn" data-action="delete" title="Excluir">' + deleteIcon + '</button>'
         + '</span>'
         + '</div>'
-        + '<div class="session-meta"><span>' + esc(formatTs(session.updatedAt)) + '</span><span>' + pinned + ' ' + status + '</span></div>'
+        + '<div class="session-meta"><span>' + esc(formatTs(session.updatedAt)) + '</span><span>' + (pinned ? ('pin · ' + status) : status) + '</span></div>'
         + '</div>';
     }
 
@@ -207,7 +214,7 @@ export function generateChatPanelScript(initialStateJson: string): string {
     function renderToolCall(tool) {
       const statusClass = tool.status === 'running' ? 'tool-status-running' : tool.status === 'error' ? 'tool-status-error' : 'tool-status-done';
       return '<details class="tool-call" open>'
-        + '<summary>🛠 ' + esc(tool.tool) + ' <span class="' + statusClass + '">' + esc(tool.status) + '</span></summary>'
+        + '<summary><span class="tool-icon">tool</span>' + esc(tool.tool) + ' <span class="' + statusClass + '">' + esc(tool.status) + '</span></summary>'
         + (tool.input ? '<pre><code>' + esc(tool.input) + '</code></pre>' : '')
         + (tool.output ? '<pre><code>' + esc(tool.output) + '</code></pre>' : '')
         + '</details>';
@@ -226,8 +233,8 @@ export function generateChatPanelScript(initialStateJson: string): string {
       return '<div class="msg-wrap ' + kind + '">'
         + '<div class="msg-bubble">' + renderMarkdown(message.content || '') + '</div>'
         + '<div class="msg-actions">'
-        + '<button class="msg-action-btn" data-msg-action="copy" data-msg-id="' + esc(message.id || '') + '">Copy</button>'
-        + '<button class="msg-action-btn" data-msg-action="resend" data-msg-id="' + esc(message.id || '') + '">Resend</button>'
+        + '<button class="msg-action-btn" title="Copiar" data-msg-action="copy" data-msg-id="' + esc(message.id || '') + '">⧉</button>'
+        + '<button class="msg-action-btn" title="Reenviar" data-msg-action="resend" data-msg-id="' + esc(message.id || '') + '">↻</button>'
         + '<button class="msg-action-btn" data-msg-action="up" data-msg-id="' + esc(message.id || '') + '">👍</button>'
         + '<button class="msg-action-btn" data-msg-action="down" data-msg-id="' + esc(message.id || '') + '">👎</button>'
         + '</div>'
@@ -291,7 +298,7 @@ export function generateChatPanelScript(initialStateJson: string): string {
       renderMessages();
       renderModeMenu();
       renderModelSelector();
-      byId('context-usage').textContent = (state.contextUsage ? state.contextUsage.used : 0) + ' / ' + (state.contextUsage ? state.contextUsage.limit : 0);
+      byId('context-usage').innerHTML = '<span>' + (state.contextUsage ? state.contextUsage.used : 0) + '</span><span>/ ' + (state.contextUsage ? state.contextUsage.limit : 0) + '</span>';
       byId('streaming-indicator').classList.toggle('hidden', !state.isStreaming);
       byId('btn-stop-inline').classList.toggle('hidden', !state.isStreaming);
       byId('btn-send').classList.toggle('hidden', !!state.isStreaming);
@@ -565,10 +572,6 @@ export function generateChatPanelScript(initialStateJson: string): string {
     });
     byId('btn-send').addEventListener('click', onSend);
     byId('btn-stop-inline').addEventListener('click', function() {
-      const session = getCurrentSession();
-      vscode.postMessage({ type: 'chat-stop-stream', data: { sessionId: session ? session.id : undefined } });
-    });
-    byId('btn-stop-stream').addEventListener('click', function() {
       const session = getCurrentSession();
       vscode.postMessage({ type: 'chat-stop-stream', data: { sessionId: session ? session.id : undefined } });
     });
