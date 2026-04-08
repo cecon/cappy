@@ -18,19 +18,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Set publish version from latest prod tag
         id: version
@@ -39,14 +43,14 @@ jobs:
           node -e "const fs=require('fs'); const cp=require('child_process'); const p='./extension/package.json'; const pkg=JSON.parse(fs.readFileSync(p,'utf8')); const tagsRaw=cp.execSync('git tag -l \"v*\" --sort=-v:refname',{encoding:'utf8'}).trim(); const latestTag=tagsRaw.split('\n').filter(Boolean)[0]||''; const versionFromTag=latestTag.replace(/^v/,''); const parsed=versionFromTag.match(/^(\d+)\.(\d+)\.(\d+)/); let major=0; let minor=1; let patch=0; if(parsed){major=Number.parseInt(parsed[1],10); minor=Number.parseInt(parsed[2],10); patch=Number.parseInt(parsed[3],10)+1;} else {const cur=(pkg.version||'0.1.0').match(/^(\d+)\.(\d+)\.(\d+)/); if(cur){major=Number.parseInt(cur[1],10); minor=Number.parseInt(cur[2],10); patch=Number.parseInt(cur[3],10);} } const run=Number.parseInt(process.env.GITHUB_RUN_NUMBER||'0',10); const attempt=Number.parseInt(process.env.GITHUB_RUN_ATTEMPT||'1',10); const uniquePatch=patch + (run*100) + attempt; pkg.version=major + '.' + minor + '.' + uniquePatch; fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + pkg.version + '\n'); console.log('Latest prod tag:', latestTag || '(none)'); console.log('Publishing version:', pkg.version);"
 
       - name: Package
-        run: npm run package
+        run: pnpm run package
 
       - name: Publish to VS Code Marketplace
         run: |
           cd extension
-          npx @vscode/vsce publish --packagePath "eduardocecon.cappy-${{ steps.version.outputs.version }}.vsix" -p "${{ secrets.VSCE_PAT }}"
+          pnpm exec vsce publish --packagePath "eduardocecon.cappy-${{ steps.version.outputs.version }}.vsix" -p "${{ secrets.VSCE_PAT }}"
 
       - name: Publish to Open VSX
         run: |
           cd extension
-          npx ovsx publish "eduardocecon.cappy-${{ steps.version.outputs.version }}.vsix" -p "${{ secrets.OVSX_PAT }}"
+          pnpm exec ovsx publish "eduardocecon.cappy-${{ steps.version.outputs.version }}.vsix" -p "${{ secrets.OVSX_PAT }}"
