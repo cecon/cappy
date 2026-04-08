@@ -1,0 +1,24 @@
+.card {
+  border: 1px solid #999;
+  padding: 12px;
+}
+
+.arguments {
+  background: #f7f7f7;
+  border: 1px solid #ddd;
+  padding: 8px;
+  overflow-x: auto;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.approve {
+  padding: 6px 10px;
+}
+
+.reject {
+  padding: 6px 10px;
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@cappy/extension",
+  "version": "0.1.0",
+  "private": true,
+  "displayName": "Cappy",
+  "description": "Cappy coding agent extension scaffold",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:cappy.start"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cappy.start",
+        "title": "Cappy: Start"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json -w",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "openai": "^6.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.20",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.8.3"
+  }
+}

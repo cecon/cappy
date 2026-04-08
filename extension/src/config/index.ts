@@ -1,0 +1,177 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+/**
+ * OpenRouter configuration block.
+ */
+interface OpenRouterConfig {
+  apiKey: string;
+  model: string;
+  maxTokens: number;
+}
+
+/**
+ * Agent runtime configuration block.
+ */
+export type ActiveAgent = "coder" | "planner" | "reviewer";
+
+/**
+ * Agent runtime configuration block.
+ */
+interface AgentConfig {
+  activeAgent: ActiveAgent;
+  systemPrompt: string;
+  maxIterations: number;
+}
+
+/**
+ * MCP server entry persisted in config.
+ */
+export interface McpServerConfig {
+  name: string;
+  url: string;
+}
+
+/**
+ * Full Cappy runtime configuration.
+ */
+export interface CappyConfig {
+  openrouter: OpenRouterConfig;
+  agent: AgentConfig;
+  mcp: {
+    servers: McpServerConfig[];
+  };
+}
+
+/**
+ * Returns the default configuration values.
+ */
+export function defaultConfig(): CappyConfig {
+  return {
+    openrouter: {
+      apiKey: "",
+      model: "anthropic/claude-sonnet-4-5",
+      maxTokens: 4096,
+    },
+    agent: {
+      activeAgent: "coder",
+      systemPrompt: "You are Cappy, an expert coding assistant.",
+      maxIterations: 20,
+    },
+    mcp: {
+      servers: [],
+    },
+  };
+}
+
+/**
+ * Loads `.cappy/config.json` from workspace root.
+ * If it does not exist, creates it with defaults.
+ */
+export async function loadConfig(workspaceRoot: string): Promise<CappyConfig> {
+  const { configPath } = getConfigPaths(workspaceRoot);
+
+  try {
+    const rawFile = await readFile(configPath, "utf8");
+    const parsed = JSON.parse(rawFile) as unknown;
+    const config = mergeWithDefaults(parsed);
+    await saveConfig(workspaceRoot, config);
+    return config;
+  } catch (error) {
+    if (!isNodeErrorCode(error, "ENOENT")) {
+      const config = defaultConfig();
+      await saveConfig(workspaceRoot, config);
+      return config;
+    }
+
+    const config = defaultConfig();
+    await saveConfig(workspaceRoot, config);
+    return config;
+  }
+}
+
+/**
+ * Saves `.cappy/config.json` to workspace root.
+ */
+export async function saveConfig(workspaceRoot: string, config: CappyConfig): Promise<void> {
+  const { configDirectoryPath, configPath } = getConfigPaths(workspaceRoot);
+  await mkdir(configDirectoryPath, { recursive: true });
+  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+}
+
+/**
+ * Returns absolute filesystem paths for config directory and file.
+ */
+function getConfigPaths(workspaceRoot: string): {
+  configDirectoryPath: string;
+  configPath: string;
+} {
+  const configDirectoryPath = path.join(workspaceRoot, ".cappy");
+  const configPath = path.join(configDirectoryPath, "config.json");
+  return { configDirectoryPath, configPath };
+}
+
+/**
+ * Merges a runtime value with defaults and normalizes invalid shapes.
+ */
+function mergeWithDefaults(raw: unknown): CappyConfig {
+  const defaults = defaultConfig();
+  if (!isRecord(raw)) {
+    return defaults;
+  }
+
+  const rawOpenRouter = isRecord(raw.openrouter) ? raw.openrouter : {};
+  const rawAgent = isRecord(raw.agent) ? raw.agent : {};
+  const rawMcp = isRecord(raw.mcp) ? raw.mcp : {};
+  const rawServers = Array.isArray(rawMcp.servers) ? rawMcp.servers : [];
+
+  return {
+    openrouter: {
+      apiKey: typeof rawOpenRouter.apiKey === "string" ? rawOpenRouter.apiKey : defaults.openrouter.apiKey,
+      model: typeof rawOpenRouter.model === "string" ? rawOpenRouter.model : defaults.openrouter.model,
+      maxTokens:
+        typeof rawOpenRouter.maxTokens === "number"
+          ? rawOpenRouter.maxTokens
+          : defaults.openrouter.maxTokens,
+    },
+    agent: {
+      activeAgent: isActiveAgent(rawAgent.activeAgent) ? rawAgent.activeAgent : defaults.agent.activeAgent,
+      systemPrompt:
+        typeof rawAgent.systemPrompt === "string" ? rawAgent.systemPrompt : defaults.agent.systemPrompt,
+      maxIterations:
+        typeof rawAgent.maxIterations === "number"
+          ? rawAgent.maxIterations
+          : defaults.agent.maxIterations,
+    },
+    mcp: {
+      servers: rawServers
+        .filter(isRecord)
+        .map((server) => ({
+          name: typeof server.name === "string" ? server.name : "",
+          url: typeof server.url === "string" ? server.url : "",
+        }))
+        .filter((server) => server.name.length > 0 && server.url.length > 0),
+    },
+  };
+}
+
+/**
+ * Narrows unknown values to plain object records.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * Checks whether an unknown error has a specific Node.js error code.
+ */
+function isNodeErrorCode(error: unknown, code: string): boolean {
+  return isRecord(error) && typeof error.code === "string" && error.code === code;
+}
+
+/**
+ * Narrows unknown values to one supported active agent id.
+ */
+function isActiveAgent(value: unknown): value is ActiveAgent {
+  return value === "coder" || value === "planner" || value === "reviewer";
+}

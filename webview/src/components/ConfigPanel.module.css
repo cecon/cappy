@@ -1,0 +1,137 @@
+.container {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.title {
+  margin: 0;
+}
+
+.loading {
+  margin: 0;
+  color: #666;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section h3 {
+  margin: 0;
+}
+
+.label {
+  font-size: 13px;
+  color: #333;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+.apiKeyRow {
+  display: flex;
+  gap: 8px;
+}
+
+.serverList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.serverItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.serverInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.serverInfo span {
+  color: #555;
+  font-size: 13px;
+}
+
+.inlineForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inlineActions {
+  display: flex;
+  gap: 8px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.primaryButton {
+  margin-left: auto;
+  border-color: #0d6efd;
+  color: #0d6efd;
+}
+
+.dangerButton {
+  border-color: #dc3545;
+  color: #dc3545;
+}
+
+.emptyText {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.error {
+  color: #b00020;
+  font-size: 13px;
+}
+
+.saved {
+  color: #137333;
+  font-size: 13px;
+}

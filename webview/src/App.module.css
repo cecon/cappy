@@ -1,0 +1,46 @@
+.container {
+  margin: 0 auto;
+  max-width: 960px;
+  padding: 16px;
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+}
+
+.environment {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tabButton {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tabButtonActive {
+  border-color: #0d6efd;
+  color: #0d6efd;
+}
+
+.panelVisible {
+  display: block;
+}
+
+.panelHidden {
+  display: none;
+}

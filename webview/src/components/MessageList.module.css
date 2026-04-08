@@ -1,0 +1,22 @@
+.container {
+  border: 1px solid #ddd;
+  padding: 12px;
+  min-height: 180px;
+}
+
+.message {
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+
+.cursor {
+  display: inline-block;
+  margin-left: 2px;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
