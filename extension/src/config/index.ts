@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 
 /**
@@ -67,48 +68,55 @@ export function defaultConfig(): CappyConfig {
 }
 
 /**
- * Loads `.cappy/config.json` from workspace root.
+ * Loads `~/.cappy/config.json` from the user home directory.
  * If it does not exist, creates it with defaults.
  */
-export async function loadConfig(workspaceRoot: string): Promise<CappyConfig> {
-  const { configPath } = getConfigPaths(workspaceRoot);
+export async function loadConfig(): Promise<CappyConfig> {
+  const { configPath } = getConfigPaths();
 
   try {
     const rawFile = await readFile(configPath, "utf8");
     const parsed = JSON.parse(rawFile) as unknown;
     const config = mergeWithDefaults(parsed);
-    await saveConfig(workspaceRoot, config);
+    await saveConfig(config);
     return config;
   } catch (error) {
     if (!isNodeErrorCode(error, "ENOENT")) {
       const config = defaultConfig();
-      await saveConfig(workspaceRoot, config);
+      await saveConfig(config);
       return config;
     }
 
     const config = defaultConfig();
-    await saveConfig(workspaceRoot, config);
+    await saveConfig(config);
     return config;
   }
 }
 
 /**
- * Saves `.cappy/config.json` to workspace root.
+ * Saves `~/.cappy/config.json` to the user home directory.
  */
-export async function saveConfig(workspaceRoot: string, config: CappyConfig): Promise<void> {
-  const { configDirectoryPath, configPath } = getConfigPaths(workspaceRoot);
+export async function saveConfig(config: CappyConfig): Promise<void> {
+  const { configDirectoryPath, configPath } = getConfigPaths();
   await mkdir(configDirectoryPath, { recursive: true });
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 }
 
 /**
+ * Returns the global config directory path (`~/.cappy`).
+ */
+export function getConfigDirectoryPath(): string {
+  return path.join(homedir(), ".cappy");
+}
+
+/**
  * Returns absolute filesystem paths for config directory and file.
  */
-function getConfigPaths(workspaceRoot: string): {
+function getConfigPaths(): {
   configDirectoryPath: string;
   configPath: string;
 } {
-  const configDirectoryPath = path.join(workspaceRoot, ".cappy");
+  const configDirectoryPath = getConfigDirectoryPath();
   const configPath = path.join(configDirectoryPath, "config.json");
   return { configDirectoryPath, configPath };
 }

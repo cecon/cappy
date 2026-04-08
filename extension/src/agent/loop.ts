@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { EventEmitter } from "node:events";
 
@@ -76,7 +77,7 @@ export class AgentLoop extends EventEmitter {
   public constructor(options: AgentLoopOptions = {}) {
     super();
     this.workspaceRoot = options.workspaceRoot ?? process.cwd();
-    this.configPath = path.join(this.workspaceRoot, ".cappy", "config.json");
+    this.configPath = path.join(homedir(), ".cappy", "config.json");
     this.onMcpCall = options.onMcpCall;
   }
 
@@ -318,28 +319,28 @@ export class AgentLoop extends EventEmitter {
   }
 
   /**
-   * Reads and validates `.cappy/config.json`.
+   * Reads and validates `~/.cappy/config.json`.
    */
   private async readConfig(): Promise<CappyConfig> {
     const raw = await readFile(this.configPath, "utf8");
     const parsed: unknown = JSON.parse(raw);
 
     if (!isRecord(parsed)) {
-      throw new Error("Arquivo .cappy/config.json invalido.");
+      throw new Error("Arquivo ~/.cappy/config.json invalido.");
     }
     const openrouter = parsed.openrouter;
     if (!isRecord(openrouter)) {
-      throw new Error('Campo "openrouter" ausente em .cappy/config.json.');
+      throw new Error('Campo "openrouter" ausente em ~/.cappy/config.json.');
     }
 
     const apiKey = openrouter.apiKey;
     const model = openrouter.model;
     const visionModel = openrouter.visionModel;
     if (typeof apiKey !== "string" || apiKey.trim().length === 0) {
-      throw new Error('Campo "openrouter.apiKey" invalido em .cappy/config.json.');
+      throw new Error('Campo "openrouter.apiKey" invalido em ~/.cappy/config.json.');
     }
     if (typeof model !== "string" || model.trim().length === 0) {
-      throw new Error('Campo "openrouter.model" invalido em .cappy/config.json.');
+      throw new Error('Campo "openrouter.model" invalido em ~/.cappy/config.json.');
     }
 
     return {

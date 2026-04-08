@@ -136,14 +136,8 @@ async function handleWebviewMessage(
   }
 
   if (raw.type === "config:load") {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) {
-      await postToWebview(webview, { type: "error", message: "Nenhum workspace aberto para carregar configuracao." });
-      return;
-    }
-
     try {
-      const config = await loadConfig(workspaceRoot);
+      const config = await loadConfig();
       await mcpManager.connect(config.mcp.servers);
       await postToWebview(webview, { type: "config:loaded", config });
     } catch (error) {
@@ -154,14 +148,8 @@ async function handleWebviewMessage(
   }
 
   if (raw.type === "config:save") {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) {
-      await postToWebview(webview, { type: "error", message: "Nenhum workspace aberto para salvar configuracao." });
-      return;
-    }
-
     try {
-      await saveConfig(workspaceRoot, raw.config);
+      await saveConfig(raw.config);
       await mcpManager.connect(raw.config.mcp.servers);
       await postToWebview(webview, { type: "config:saved" });
     } catch (error) {
