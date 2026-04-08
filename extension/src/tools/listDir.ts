@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
-import path from "node:path";
 
 import type { ToolDefinition } from "./index";
+import { resolveWorkspacePath } from "./workspacePath";
 
 interface ListDirParams {
   path: string;
@@ -22,7 +22,7 @@ export const listDirTool: ToolDefinition<ListDirParams, { entries: string[] }> =
     additionalProperties: false,
   },
   async execute(params) {
-    const targetPath = path.resolve(params.path);
+    const targetPath = resolveWorkspacePath(params.path);
     const dirEntries = await readdir(targetPath, { withFileTypes: true });
     const entries = dirEntries.map((entry) => {
       return entry.isDirectory() ? `${entry.name}/` : entry.name;

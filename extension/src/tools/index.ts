@@ -1,3 +1,4 @@
+import { globFilesTool } from "./globFiles";
 import { listDirTool } from "./listDir";
 import { readFileTool } from "./readFile";
 import { runTerminalTool } from "./runTerminal";
@@ -38,6 +39,7 @@ export interface ToolDefinition<TParams = any, TResult = unknown> {
  * Registry with all scaffold tools.
  */
 export const toolsRegistry: ToolDefinition<any, unknown>[] = [
+  globFilesTool,
   readFileTool,
   writeFileTool,
   listDirTool,

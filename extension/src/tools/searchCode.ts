@@ -2,6 +2,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import type { ToolDefinition } from "./index";
+import { resolveWorkspacePath } from "./workspacePath";
 
 interface SearchCodeParams {
   query: string;
@@ -496,7 +497,8 @@ function isNodeErrorWithCode(error: unknown): error is { code: string } {
  */
 export const searchCodeTool: ToolDefinition<SearchCodeParams, { matches: SearchResult[] }> = {
   name: "searchCode",
-  description: "Searches code via ripgrep in text or semantic mode.",
+  description:
+    "Searches code content via ripgrep in text or semantic mode. For filename discovery, prefer globFiles.",
   parameters: {
     type: "object",
     properties: {
@@ -522,7 +524,7 @@ export const searchCodeTool: ToolDefinition<SearchCodeParams, { matches: SearchR
     }
 
     const maxResults = Number.isFinite(params.maxResults) ? Math.max(1, Math.trunc(params.maxResults ?? 20)) : 20;
-    const targetPath = path.resolve(params.path ?? process.cwd());
+    const targetPath = resolveWorkspacePath(params.path ?? ".");
     const normalizedQuery = query.toLowerCase();
 
     await ensureRipgrepAvailable();

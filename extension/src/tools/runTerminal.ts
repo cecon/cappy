@@ -1,7 +1,9 @@
 import { exec } from "node:child_process";
+import path from "node:path";
 import { promisify } from "node:util";
 
 import type { ToolDefinition } from "./index";
+import { getWorkspaceRoot } from "./workspacePath";
 
 interface RunTerminalParams {
   command: string;
@@ -29,8 +31,13 @@ export const runTerminalTool: ToolDefinition<
     additionalProperties: false,
   },
   async execute(params) {
+    const workspaceRoot = getWorkspaceRoot();
+    const resolvedCwd =
+      typeof params.cwd === "string" && params.cwd.trim().length > 0
+        ? path.resolve(workspaceRoot, params.cwd)
+        : workspaceRoot;
     const { stdout, stderr } = await execAsync(params.command, {
-      cwd: params.cwd,
+      cwd: resolvedCwd,
       maxBuffer: 1024 * 1024,
     });
     return { stdout, stderr };

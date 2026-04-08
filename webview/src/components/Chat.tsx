@@ -18,6 +18,18 @@ interface ActivityState {
   startedAtMs: number;
 }
 
+type AgentTaskStatus = "running" | "completed" | "error";
+
+interface AgentTask {
+  id: string;
+  title: string;
+  status: AgentTaskStatus;
+  startedAtMs: number;
+  finishedAtMs: number | null;
+  steps: number;
+  lastEvent: string;
+}
+
 /**
  * Chat container that manages history, stream state and pending HITL confirmations.
  */
@@ -30,6 +42,8 @@ export function Chat(): JSX.Element {
   const [activityTone, setActivityTone] = useState<ActivityTone>("working");
   const [activityTick, setActivityTick] = useState(0);
   const [contextFiles, setContextFiles] = useState<ContextFile[]>([]);
+  const [tasks, setTasks] = useState<AgentTask[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     bridge.onMessage((message: IncomingMessage) => {
@@ -41,6 +55,7 @@ export function Chat(): JSX.Element {
         setErrorMessage,
         setActivity,
         setActivityTone,
+        setTasks,
       );
     });
   }, []);
@@ -75,10 +90,13 @@ export function Chat(): JSX.Element {
    * Appends the user message and triggers one chat run.
    */
   function handleSend(text: string): void {
+    const task = createTask(text);
     setErrorMessage(null);
     setActivityTone("working");
     setActivityTick(0);
     setActivity(createActivity("Pensando", "Analisando contexto"));
+    setTasks((previousTasks) => [...previousTasks, task]);
+    setSelectedTaskId(task.id);
     setIsStreaming(true);
     setMessages((previousMessages) => {
       const nextMessages: Message[] = [...previousMessages, { role: "user", content: text }];
@@ -120,8 +138,37 @@ export function Chat(): JSX.Element {
     setContextFiles((previousFiles) => previousFiles.filter((file) => file.path !== path));
   }
 
+  const selectedTask = useMemo(() => {
+    if (!selectedTaskId) {
+      return null;
+    }
+    return tasks.find((task) => task.id === selectedTaskId) ?? null;
+  }, [selectedTaskId, tasks]);
+
   return (
     <section className={styles.container}>
+      {tasks.length > 0 ? (
+        <div className={styles.taskRail}>
+          {tasks.map((task) => (
+            <button
+              key={task.id}
+              type="button"
+              className={`${styles.taskChip} ${selectedTaskId === task.id ? styles.taskChipSelected : ""}`}
+              onClick={() => setSelectedTaskId(task.id)}
+            >
+              <span className={`${styles.taskDot} ${getTaskDotClass(styles, task.status)}`} aria-hidden="true" />
+              <span className={styles.taskTitle}>{task.title}</span>
+              <span className={styles.taskMeta}>{task.steps} etapas</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {selectedTask ? (
+        <div className={styles.taskSummary}>
+          <span className={styles.taskSummaryLabel}>Tarefa selecionada</span>
+          <span className={styles.taskSummaryText}>{selectedTask.lastEvent}</span>
+        </div>
+      ) : null}
       <div className={styles.messages}>
         <MessageList messages={messages} isStreaming={isStreaming} />
       </div>
@@ -178,11 +225,13 @@ function handleIncomingMessage(
   setErrorMessage: Dispatch<SetStateAction<string | null>>,
   setActivity: Dispatch<SetStateAction<ActivityState | null>>,
   setActivityTone: Dispatch<SetStateAction<ActivityTone>>,
+  setTasks: Dispatch<SetStateAction<AgentTask[]>>,
 ): void {
   if (message.type === "stream:token") {
     setIsStreaming(true);
     setActivityTone("working");
     setActivity((previousActivity) => mergeActivity(previousActivity, createActivity("Escrevendo resposta", null)));
+    setTasks((previousTasks) => updateLatestRunningTask(previousTasks, "Escrevendo resposta"));
     setMessages((previousMessages) => appendAssistantToken(previousMessages, message.token));
     return;
   }
@@ -190,12 +239,23 @@ function handleIncomingMessage(
   if (message.type === "stream:done") {
     setIsStreaming(false);
     setActivity(null);
+    setTasks((previousTasks) => finishLatestRunningTask(previousTasks, "Concluida com resposta"));
     return;
   }
 
   if (message.type === "tool:confirm") {
     setActivityTone("working");
     setActivity(createActivity(`Aguardando aprovacao: ${message.toolCall.name}`, "Confirme para continuar"));
+    setTasks((previousTasks) =>
+      stepLatestRunningTask(previousTasks, `Aguardando aprovacao de ${message.toolCall.name}`),
+    );
+    setMessages((previousMessages) =>
+      appendToolLogMessage(
+        previousMessages,
+        `Aguardando aprovacao para executar \`${message.toolCall.name}\``,
+        getToolLogDetail(message.toolCall),
+      ),
+    );
     setPendingConfirms((previousConfirms) => {
       if (previousConfirms.some((toolCall) => toolCall.id === message.toolCall.id)) {
         return previousConfirms;
@@ -208,6 +268,14 @@ function handleIncomingMessage(
   if (message.type === "tool:executing") {
     setActivityTone("working");
     setActivity((previousActivity) => mergeActivity(previousActivity, buildToolActivity(message.toolCall)));
+    setTasks((previousTasks) => stepLatestRunningTask(previousTasks, `Executando ${message.toolCall.name}`));
+    setMessages((previousMessages) =>
+      appendToolLogMessage(
+        previousMessages,
+        `Executando tool \`${message.toolCall.name}\``,
+        getToolLogDetail(message.toolCall),
+      ),
+    );
     return;
   }
 
@@ -222,6 +290,21 @@ function handleIncomingMessage(
         ),
       ),
     );
+    setTasks((previousTasks) =>
+      stepLatestRunningTask(
+        previousTasks,
+        message.type === "tool:result" ? `Resultado recebido de ${message.toolCall.name}` : `${message.toolCall.name} rejeitada`,
+      ),
+    );
+    setMessages((previousMessages) =>
+      appendToolLogMessage(
+        previousMessages,
+        message.type === "tool:result"
+          ? `Resultado recebido de \`${message.toolCall.name}\``
+          : `Execucao de \`${message.toolCall.name}\` foi rejeitada`,
+        message.type === "tool:result" ? summarizeToolResult(message.result) : "Aguardando nova estrategia do agente",
+      ),
+    );
     setPendingConfirms((previousConfirms) =>
       previousConfirms.filter((toolCall) => toolCall.id !== message.toolCall.id),
     );
@@ -233,6 +316,7 @@ function handleIncomingMessage(
     setErrorMessage(message.message);
     setActivityTone("error");
     setActivity(createActivity("Erro durante execucao", message.message));
+    setTasks((previousTasks) => failLatestRunningTask(previousTasks, message.message));
   }
 }
 
@@ -362,4 +446,157 @@ function mergeActivity(previous: ActivityState | null, next: ActivityState): Act
     ...previous,
     repeats: previous.repeats + 1,
   };
+}
+
+/**
+ * Appends one compact tool event message to the chat history.
+ */
+function appendToolLogMessage(previousMessages: Message[], title: string, detail: string | null): Message[] {
+  const content = detail ? `${title}\n${detail}` : title;
+  const lastMessage = previousMessages[previousMessages.length - 1];
+  if (lastMessage?.role === "tool" && lastMessage.content === content) {
+    return previousMessages;
+  }
+  return [...previousMessages, { role: "tool", content }];
+}
+
+/**
+ * Builds one human-readable tool detail line.
+ */
+function getToolLogDetail(toolCall: ToolCall): string | null {
+  const targetPath = getPathArgument(toolCall.arguments);
+  const query = getStringArgument(toolCall.arguments, ["query", "pattern"]);
+  const command = getStringArgument(toolCall.arguments, ["command"]);
+  if (query) {
+    return `Filtro: ${truncate(query, 120)}`;
+  }
+  if (command) {
+    return `Comando: ${truncate(command, 120)}`;
+  }
+  if (targetPath) {
+    return `Alvo: ${truncate(targetPath, 120)}`;
+  }
+  return null;
+}
+
+/**
+ * Summarizes raw tool payload for timeline display.
+ */
+function summarizeToolResult(result: string): string {
+  const normalized = result.trim();
+  if (normalized.length === 0) {
+    return "Tool sem retorno textual";
+  }
+  return `Retorno: ${truncate(normalized.replace(/\s+/gu, " "), 140)}`;
+}
+
+/**
+ * Creates one task model from user text.
+ */
+function createTask(text: string): AgentTask {
+  const startedAtMs = Date.now();
+  return {
+    id: `task-${startedAtMs}-${Math.random().toString(36).slice(2, 7)}`,
+    title: truncate(text.trim() || "Nova tarefa", 64),
+    status: "running",
+    startedAtMs,
+    finishedAtMs: null,
+    steps: 0,
+    lastEvent: "Iniciada",
+  };
+}
+
+/**
+ * Updates latest running task event without incrementing steps.
+ */
+function updateLatestRunningTask(previousTasks: AgentTask[], eventLabel: string): AgentTask[] {
+  const taskIndex = findLatestRunningTaskIndex(previousTasks);
+  if (taskIndex < 0) {
+    return previousTasks;
+  }
+  return previousTasks.map((task, index) => (index === taskIndex ? { ...task, lastEvent: eventLabel } : task));
+}
+
+/**
+ * Adds one step into latest running task.
+ */
+function stepLatestRunningTask(previousTasks: AgentTask[], eventLabel: string): AgentTask[] {
+  const taskIndex = findLatestRunningTaskIndex(previousTasks);
+  if (taskIndex < 0) {
+    return previousTasks;
+  }
+  return previousTasks.map((task, index) =>
+    index === taskIndex
+      ? {
+          ...task,
+          steps: task.steps + 1,
+          lastEvent: eventLabel,
+        }
+      : task,
+  );
+}
+
+/**
+ * Marks latest running task as completed.
+ */
+function finishLatestRunningTask(previousTasks: AgentTask[], eventLabel: string): AgentTask[] {
+  const taskIndex = findLatestRunningTaskIndex(previousTasks);
+  if (taskIndex < 0) {
+    return previousTasks;
+  }
+  return previousTasks.map((task, index) =>
+    index === taskIndex
+      ? {
+          ...task,
+          status: "completed",
+          lastEvent: eventLabel,
+          finishedAtMs: Date.now(),
+        }
+      : task,
+  );
+}
+
+/**
+ * Marks latest running task as failed.
+ */
+function failLatestRunningTask(previousTasks: AgentTask[], errorMessage: string): AgentTask[] {
+  const taskIndex = findLatestRunningTaskIndex(previousTasks);
+  if (taskIndex < 0) {
+    return previousTasks;
+  }
+  return previousTasks.map((task, index) =>
+    index === taskIndex
+      ? {
+          ...task,
+          status: "error",
+          lastEvent: truncate(errorMessage, 120),
+          finishedAtMs: Date.now(),
+        }
+      : task,
+  );
+}
+
+/**
+ * Returns latest running task index from task list.
+ */
+function findLatestRunningTaskIndex(tasks: AgentTask[]): number {
+  for (let index = tasks.length - 1; index >= 0; index -= 1) {
+    if (tasks[index]?.status === "running") {
+      return index;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Maps task status into one CSS dot class.
+ */
+function getTaskDotClass(css: typeof styles, status: AgentTaskStatus): string {
+  if (status === "running") {
+    return css.taskDotRunning ?? "";
+  }
+  if (status === "error") {
+    return css.taskDotError ?? "";
+  }
+  return css.taskDotCompleted ?? "";
 }

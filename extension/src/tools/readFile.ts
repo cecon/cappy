@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 
 import type { ToolDefinition } from "./index";
+import { resolveWorkspacePath } from "./workspacePath";
 
 interface ReadFileParams {
   path: string;
@@ -22,7 +22,7 @@ export const readFileTool: ToolDefinition<ReadFileParams, { content: string }> =
     additionalProperties: false,
   },
   async execute(params) {
-    const targetPath = path.resolve(params.path);
+    const targetPath = resolveWorkspacePath(params.path);
     const content = await readFile(targetPath, "utf8");
     return { content };
   },

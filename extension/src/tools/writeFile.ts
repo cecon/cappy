@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ToolDefinition } from "./index";
+import { resolveWorkspacePath } from "./workspacePath";
 
 interface WriteFileParams {
   path: string;
@@ -24,7 +25,7 @@ export const writeFileTool: ToolDefinition<WriteFileParams, { ok: true }> = {
     additionalProperties: false,
   },
   async execute(params) {
-    const targetPath = path.resolve(params.path);
+    const targetPath = resolveWorkspacePath(params.path);
     await mkdir(path.dirname(targetPath), { recursive: true });
     await writeFile(targetPath, params.content, "utf8");
     return { ok: true };
