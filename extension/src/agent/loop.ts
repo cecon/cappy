@@ -6,6 +6,7 @@ import { EventEmitter } from "node:events";
 import OpenAI from "openai";
 import type {
   ChatCompletionChunk,
+  ChatCompletionContentPart,
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
@@ -495,7 +496,7 @@ function buildUserMessage(message: Message): ChatCompletionMessageParam {
     };
   }
 
-  const parts: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: string } }> = [];
+  const parts: ChatCompletionContentPart[] = [];
   if (message.content.length > 0) {
     parts.push({ type: "text", text: message.content });
   }
