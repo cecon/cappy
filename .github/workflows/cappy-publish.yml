@@ -48,9 +48,9 @@ jobs:
       - name: Publish to VS Code Marketplace
         run: |
           cd extension
-          pnpm exec vsce publish --packagePath "eduardocecon.cappy-${{ steps.version.outputs.version }}.vsix" -p "${{ secrets.VSCE_PAT }}"
+          pnpm dlx @vscode/vsce publish --packagePath "eduardocecon.cappy-${{ steps.version.outputs.version }}.vsix" -p "${{ secrets.VSCE_PAT }}"
 
       - name: Publish to Open VSX
         run: |
           cd extension
-          pnpm exec ovsx publish "eduardocecon.cappy-${{ steps.version.outputs.version }}.vsix" -p "${{ secrets.OVSX_PAT }}"
+          pnpm dlx ovsx publish "eduardocecon.cappy-${{ steps.version.outputs.version }}.vsix" -p "${{ secrets.OVSX_PAT }}"
