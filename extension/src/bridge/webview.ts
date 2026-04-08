@@ -34,7 +34,7 @@ export type WebviewToHostMessage =
 /**
  * Creates a message bridge for a VS Code webview with AgentLoop integration.
  */
-export function createWebviewBridge(panel: vscode.WebviewPanel): vscode.Disposable {
+export function createWebviewBridge(webview: vscode.Webview): vscode.Disposable[] {
   const mcpManager = new McpManager();
   const agentLoop = new AgentLoop({
     onMcpCall: async (serverName, toolName, args) => mcpManager.callTool(serverName, toolName, args),
@@ -43,25 +43,25 @@ export function createWebviewBridge(panel: vscode.WebviewPanel): vscode.Disposab
   const bridgeDisposables: vscode.Disposable[] = [];
 
   const streamTokenListener = (token: string) => {
-    void postToWebview(panel, { type: "stream:token", token });
+    void postToWebview(webview, { type: "stream:token", token });
   };
   const streamDoneListener = () => {
-    void postToWebview(panel, { type: "stream:done" });
+    void postToWebview(webview, { type: "stream:done" });
   };
   const toolConfirmListener = (toolCall: ToolCall) => {
-    void postToWebview(panel, { type: "tool:confirm", toolCall });
+    void postToWebview(webview, { type: "tool:confirm", toolCall });
   };
   const toolExecutingListener = (toolCall: ToolCall) => {
-    void postToWebview(panel, { type: "tool:executing", toolCall });
+    void postToWebview(webview, { type: "tool:executing", toolCall });
   };
   const toolResultListener = (toolCall: ToolCall, result: string) => {
-    void postToWebview(panel, { type: "tool:result", toolCall, result });
+    void postToWebview(webview, { type: "tool:result", toolCall, result });
   };
   const toolRejectedListener = (toolCall: ToolCall) => {
-    void postToWebview(panel, { type: "tool:rejected", toolCall });
+    void postToWebview(webview, { type: "tool:rejected", toolCall });
   };
   const errorListener = (error: Error) => {
-    void postToWebview(panel, { type: "error", message: error.message });
+    void postToWebview(webview, { type: "error", message: error.message });
   };
 
   agentLoop.on("stream:token", streamTokenListener);
@@ -73,13 +73,14 @@ export function createWebviewBridge(panel: vscode.WebviewPanel): vscode.Disposab
   agentLoop.on("error", errorListener);
 
   bridgeDisposables.push(
-    panel.webview.onDidReceiveMessage((raw: unknown) => {
-      void handleWebviewMessage(raw, agentLoop, panel, tools, mcpManager);
+    webview.onDidReceiveMessage((raw: unknown) => {
+      void handleWebviewMessage(raw, agentLoop, webview, tools, mcpManager);
     }),
   );
 
   bridgeDisposables.push(
-    panel.onDidDispose(() => {
+    vscode.Disposable.from({
+      dispose: () => {
       agentLoop.off("stream:token", streamTokenListener);
       agentLoop.off("stream:done", streamDoneListener);
       agentLoop.off("tool:confirm", toolConfirmListener);
@@ -88,10 +89,11 @@ export function createWebviewBridge(panel: vscode.WebviewPanel): vscode.Disposab
       agentLoop.off("tool:rejected", toolRejectedListener);
       agentLoop.off("error", errorListener);
       void mcpManager.disconnect();
+      },
     }),
   );
 
-  return vscode.Disposable.from(...bridgeDisposables);
+  return bridgeDisposables;
 }
 
 /**
@@ -100,12 +102,12 @@ export function createWebviewBridge(panel: vscode.WebviewPanel): vscode.Disposab
 async function handleWebviewMessage(
   raw: unknown,
   agentLoop: AgentLoop,
-  panel: vscode.WebviewPanel,
+  webview: vscode.Webview,
   tools: AgentTool[],
   mcpManager: McpManager,
 ): Promise<void> {
   if (!isWebviewToHostMessage(raw)) {
-    await postToWebview(panel, { type: "error", message: "Mensagem invalida recebida do webview." });
+    await postToWebview(webview, { type: "error", message: "Mensagem invalida recebida do webview." });
     return;
   }
 
@@ -120,7 +122,7 @@ async function handleWebviewMessage(
 
   if (raw.type === "tool:approve") {
     if (!agentLoop.approve(raw.toolCallId)) {
-      await postToWebview(panel, {
+      await postToWebview(webview, {
         type: "error",
         message: `Confirmacao pendente nao encontrada: ${raw.toolCallId}`,
       });
@@ -131,17 +133,17 @@ async function handleWebviewMessage(
   if (raw.type === "config:load") {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) {
-      await postToWebview(panel, { type: "error", message: "Nenhum workspace aberto para carregar configuracao." });
+      await postToWebview(webview, { type: "error", message: "Nenhum workspace aberto para carregar configuracao." });
       return;
     }
 
     try {
       const config = await loadConfig(workspaceRoot);
       await mcpManager.connect(config.mcp.servers);
-      await postToWebview(panel, { type: "config:loaded", config });
+      await postToWebview(webview, { type: "config:loaded", config });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao carregar configuracao.";
-      await postToWebview(panel, { type: "error", message });
+      await postToWebview(webview, { type: "error", message });
     }
     return;
   }
@@ -149,23 +151,23 @@ async function handleWebviewMessage(
   if (raw.type === "config:save") {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) {
-      await postToWebview(panel, { type: "error", message: "Nenhum workspace aberto para salvar configuracao." });
+      await postToWebview(webview, { type: "error", message: "Nenhum workspace aberto para salvar configuracao." });
       return;
     }
 
     try {
       await saveConfig(workspaceRoot, raw.config);
       await mcpManager.connect(raw.config.mcp.servers);
-      await postToWebview(panel, { type: "config:saved" });
+      await postToWebview(webview, { type: "config:saved" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao salvar configuracao.";
-      await postToWebview(panel, { type: "error", message });
+      await postToWebview(webview, { type: "error", message });
     }
     return;
   }
 
   if (raw.type === "mcp:list") {
-    await postToWebview(panel, {
+    await postToWebview(webview, {
       type: "mcp:tools",
       tools: mcpManager.listTools(),
     });
@@ -173,7 +175,7 @@ async function handleWebviewMessage(
   }
 
   if (!agentLoop.reject(raw.toolCallId)) {
-    await postToWebview(panel, {
+    await postToWebview(webview, {
       type: "error",
       message: `Confirmacao pendente nao encontrada: ${raw.toolCallId}`,
     });
@@ -242,8 +244,8 @@ function isCappyConfig(value: unknown): value is CappyConfig {
  * Posts a typed message from extension to webview.
  */
 export async function postToWebview(
-  panel: vscode.WebviewPanel,
+  webview: vscode.Webview,
   message: HostToWebviewMessage,
 ): Promise<boolean> {
-  return panel.webview.postMessage(message);
+  return webview.postMessage(message);
 }

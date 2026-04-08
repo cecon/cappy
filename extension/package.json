@@ -1,30 +1,68 @@
 {
-  "name": "@cappy/extension",
-  "version": "0.1.0",
-  "private": true,
+  "name": "cappy",
+  "version": "3.1.22",
   "displayName": "Cappy",
-  "description": "Cappy coding agent extension scaffold",
+  "description": "Your autonomous AI dev companion",
+  "publisher": "eduardocecon",
+  "icon": "media/icon.png",
+  "homepage": "https://github.com/cecon/cappy",
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode-copilot-chat"
+  },
+  "bugs": {
+    "url": "https://github.com/microsoft/vscode/issues"
+  },
+  "qna": "https://github.com/github-community/community/discussions/categories/copilot",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
-    "Other"
+    "AI",
+    "Chat",
+    "Programming Languages",
+    "Machine Learning"
   ],
   "activationEvents": [
-    "onCommand:cappy.start"
+    "onStartupFinished"
   ],
-  "main": "./dist/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cappy-sidebar",
+          "title": "Cappy",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "cappy-sidebar": [
+        {
+          "type": "webview",
+          "id": "cappy.chatView",
+          "name": "Cappy"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "cappy.start",
-        "title": "Cappy: Start"
+        "command": "cappy.openChat",
+        "title": "Cappy: Open Chat"
+      },
+      {
+        "command": "cappy.clearChat",
+        "title": "Cappy: Clear Chat"
       }
     ]
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "watch": "tsc -p tsconfig.json -w",
+    "vscode:prepublish": "pnpm run build",
+    "build": "pnpm run build:webview && tsc -p tsconfig.json --outDir out",
+    "build:webview": "cd ../webview && pnpm run build && cd ..",
+    "watch": "tsc -watch -p tsconfig.json --outDir out",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -33,7 +71,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.20",
-    "@types/vscode": "^1.90.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "3.7.1",
     "typescript": "^5.8.3"
   }
 }

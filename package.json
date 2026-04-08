@@ -1,16 +1,18 @@
 {
-  "name": "cappy",
+  "name": "cappy-workspace",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@10.27.0",
   "workspaces": [
     "extension",
     "webview",
     "cli-mock"
   ],
   "scripts": {
-    "dev": "concurrently -k -n webview,cli-mock -c blue,green \"npm run dev -w webview\" \"npm run dev -w cli-mock\"",
-    "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "dev": "concurrently -k -n webview,cli-mock -c blue,green \"pnpm --filter @cappy/webview dev\" \"pnpm --filter @cappy/cli-mock dev\"",
+    "build": "pnpm --filter cappy build && pnpm --filter @cappy/webview build && pnpm --filter @cappy/cli-mock build",
+    "package": "pnpm run build && cd extension && pnpm exec vsce package --no-dependencies -o eduardocecon.cappy-$(node -p \"require('./package.json').version\").vsix",
+    "typecheck": "pnpm -r --if-present typecheck"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

@@ -53,11 +53,13 @@ export class AgentLoop extends EventEmitter {
 
   private readonly configPath: string;
 
-  private readonly onMcpCall?: (
+  private readonly onMcpCall:
+    | ((
     serverName: string,
     toolName: string,
     args: Record<string, unknown>,
-  ) => Promise<string>;
+  ) => Promise<string>)
+    | undefined;
 
   private client: OpenAI | null = null;
 

@@ -1,0 +1,14 @@
+node_modules/
+**/node_modules/
+
+dist/
+out/
+**/dist/
+**/out/
+webview/node_modules/.vite/
+
+*.vsix
+
+.DS_Store
+
+.husky/_/
