@@ -30,6 +30,7 @@ interface PendingToolCallState {
 interface OpenRouterConfig {
   apiKey: string;
   model: string;
+  visionModel: string;
 }
 
 interface CappyConfig {
@@ -64,6 +65,8 @@ export class AgentLoop extends EventEmitter {
   private client: OpenAI | null = null;
 
   private model: string | null = null;
+
+  private visionModel: string | null = null;
 
   private readonly pendingConfirmations = new Map<string, (approved: boolean) => void>();
 
@@ -190,13 +193,42 @@ export class AgentLoop extends EventEmitter {
    * Creates one streaming completion request to OpenRouter.
    */
   private async createStream(messages: Message[], tools: AgentTool[]) {
-    const { client, model } = await this.getClientAndModel();
-    return client.chat.completions.create({
-      model,
-      stream: true,
-      messages: messages.map((message) => toChatMessage(message)),
-      tools: tools.map((tool) => toChatTool(tool)),
-    });
+    const { client, model, visionModel } = await this.getClientAndModel();
+    const validMessages = sanitizeHistory(messages);
+    const hasImages = validMessages.some((m) => m.images && m.images.length > 0);
+    const selectedModel = hasImages ? visionModel : model;
+
+    try {
+      return await client.chat.completions.create({
+        model: selectedModel,
+        stream: true,
+        messages: validMessages.map((message) => toChatMessage(message)),
+        tools: tools.map((tool) => toChatTool(tool)),
+      });
+    } catch (error) {
+      const errorMessage = asError(error).message;
+      if (errorMessage.includes("image input") || errorMessage.includes("image_url")) {
+        this.emitEvent("stream:token", "\n> ⚠️ Modelo de visão não suporta imagens. Enviando apenas texto.\n\n");
+        const stripped = validMessages.map(stripImages);
+        return client.chat.completions.create({
+          model,
+          stream: true,
+          messages: stripped.map((message) => toChatMessage(message)),
+          tools: tools.map((tool) => toChatTool(tool)),
+        });
+      }
+      if (errorMessage.includes("tool use") || errorMessage.includes("tool_use")) {
+        this.emitEvent("stream:token", `\n> ⚠️ Modelo \`${selectedModel}\` não suporta tools. Reenviando com modelo principal.\n\n`);
+        const stripped = validMessages.map(stripImages);
+        return client.chat.completions.create({
+          model,
+          stream: true,
+          messages: stripped.map((message) => toChatMessage(message)),
+          tools: tools.map((tool) => toChatTool(tool)),
+        });
+      }
+      throw error;
+    }
   }
 
   /**
@@ -270,9 +302,9 @@ export class AgentLoop extends EventEmitter {
   /**
    * Resolves OpenRouter client and model from workspace config.
    */
-  private async getClientAndModel(): Promise<{ client: OpenAI; model: string }> {
-    if (this.client && this.model) {
-      return { client: this.client, model: this.model };
+  private async getClientAndModel(): Promise<{ client: OpenAI; model: string; visionModel: string }> {
+    if (this.client && this.model && this.visionModel) {
+      return { client: this.client, model: this.model, visionModel: this.visionModel };
     }
 
     const config = await this.readConfig();
@@ -281,7 +313,8 @@ export class AgentLoop extends EventEmitter {
       baseURL: "https://openrouter.ai/api/v1",
     });
     this.model = config.openrouter.model;
-    return { client: this.client, model: this.model };
+    this.visionModel = config.openrouter.visionModel;
+    return { client: this.client, model: this.model, visionModel: this.visionModel };
   }
 
   /**
@@ -301,6 +334,7 @@ export class AgentLoop extends EventEmitter {
 
     const apiKey = openrouter.apiKey;
     const model = openrouter.model;
+    const visionModel = openrouter.visionModel;
     if (typeof apiKey !== "string" || apiKey.trim().length === 0) {
       throw new Error('Campo "openrouter.apiKey" invalido em .cappy/config.json.');
     }
@@ -312,6 +346,7 @@ export class AgentLoop extends EventEmitter {
       openrouter: {
         apiKey,
         model,
+        visionModel: typeof visionModel === "string" && visionModel.trim().length > 0 ? visionModel : model,
       },
     };
   }
@@ -387,6 +422,33 @@ export async function runAgentLoop(messages: Message[], tools: ToolDefinition[])
 }
 
 /**
+ * Removes orphan tool messages (missing tool_call_id) and their
+ * corresponding assistant tool_calls entries from history.
+ * This prevents API errors when history is carried across sessions.
+ */
+function sanitizeHistory(messages: Message[]): Message[] {
+  const result: Message[] = [];
+  for (const msg of messages) {
+    if (msg.role === "tool" && !msg.tool_call_id) {
+      continue;
+    }
+    result.push(msg);
+  }
+  return result;
+}
+
+/**
+ * Returns a copy of the message with images removed.
+ */
+function stripImages(message: Message): Message {
+  if (!message.images || message.images.length === 0) {
+    return message;
+  }
+  const { images, ...rest } = message;
+  return rest as Message;
+}
+
+/**
  * Converts internal message format into OpenAI-compatible message param.
  */
 function toChatMessage(message: Message): ChatCompletionMessageParam {
@@ -418,9 +480,33 @@ function toChatMessage(message: Message): ChatCompletionMessageParam {
     };
   }
 
+  return buildUserMessage(message);
+}
+
+/**
+ * Builds an OpenAI-compatible user message, supporting optional image attachments.
+ */
+function buildUserMessage(message: Message): ChatCompletionMessageParam {
+  if (!message.images || message.images.length === 0) {
+    return {
+      role: "user",
+      content: message.content,
+    };
+  }
+
+  const parts: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: string } }> = [];
+  if (message.content.length > 0) {
+    parts.push({ type: "text", text: message.content });
+  }
+  for (const img of message.images) {
+    parts.push({
+      type: "image_url",
+      image_url: { url: img.dataUrl, detail: "auto" },
+    });
+  }
   return {
     role: "user",
-    content: message.content,
+    content: parts,
   };
 }
 

@@ -1,8 +1,11 @@
 import path from "node:path";
+import fs from "node:fs";
 import { spawn } from "node:child_process";
+import * as vscode from "vscode";
 
 import type { ToolDefinition } from "./index";
 import { resolveWorkspacePath } from "./workspacePath";
+import { getRgPath } from "./ripgrep";
 
 interface SearchCodeParams {
   query: string;
@@ -231,13 +234,14 @@ function shouldPreferFileNameSearch(params: SearchCodeParams, normalizedQuery: s
  * Ensures ripgrep is available in runtime PATH.
  */
 async function ensureRipgrepAvailable(): Promise<void> {
+  const rgBin = getRgPath();
   await new Promise<void>((resolve, reject) => {
-    const versionProcess = spawn("rg", ["--version"], { stdio: "ignore" });
+    const versionProcess = spawn(rgBin, ["--version"], { stdio: "ignore" });
     versionProcess.on("error", (error) => {
       if (isNodeErrorWithCode(error) && error.code === "ENOENT") {
         reject(
           new Error(
-            'ripgrep (rg) não está instalado ou não está no PATH. Instale com `brew install ripgrep` e tente novamente.',
+            `ripgrep não encontrado em "${rgBin}". appRoot="${vscode.env.appRoot}", execPath="${process.execPath}". Instale com "brew install ripgrep" (macOS) ou "winget install BurntSushi.ripgrep" (Windows).`,
           ),
         );
         return;
@@ -259,7 +263,7 @@ async function ensureRipgrepAvailable(): Promise<void> {
  */
 async function runRipgrep(args: string[]): Promise<string> {
   return new Promise<string>((resolve, reject) => {
-    const searchProcess = spawn("rg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const searchProcess = spawn(getRgPath(), args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let totalStdoutBytes = 0;
@@ -306,7 +310,7 @@ async function runRipgrep(args: string[]): Promise<string> {
  */
 async function runRipgrepFiles(targetPath: string, normalizedQuery: string, maxResults: number): Promise<string[]> {
   return new Promise<string[]>((resolve, reject) => {
-    const filesProcess = spawn("rg", ["--files", targetPath], { stdio: ["ignore", "pipe", "pipe"] });
+    const filesProcess = spawn(getRgPath(), ["--files", targetPath], { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let totalStdoutBytes = 0;

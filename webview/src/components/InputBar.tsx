@@ -1,4 +1,5 @@
-import { FormEvent, KeyboardEvent, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useMemo, useRef, useState } from "react";
+import type { ImageAttachment } from "../lib/types";
 import styles from "./InputBar.module.css";
 
 export interface ContextFile {
@@ -7,7 +8,7 @@ export interface ContextFile {
 }
 
 interface InputBarProps {
-  onSend: (text: string) => void;
+  onSend: (text: string, images?: ImageAttachment[]) => void;
   isStreaming: boolean;
   contextFiles: ContextFile[];
   onAddContextFile: (file: ContextFile) => void;
@@ -46,9 +47,11 @@ export function InputBar({
   const [value, setValue] = useState("");
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
+  const [images, setImages] = useState<ImageAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const trimmedValue = value.trim();
-  const isSendState = trimmedValue.length > 0;
+  const isSendState = trimmedValue.length > 0 || images.length > 0;
   const showSlashMenu = value.startsWith("/");
   const atToken = getAtToken(value);
   const showAtMenu = value.includes("@");
@@ -105,12 +108,54 @@ export function InputBar({
    */
   function submitCurrentValue(): void {
     const text = value.trim();
-    if (!text || isStreaming) {
+    if ((!text && images.length === 0) || isStreaming) {
       return;
     }
-    onSend(text);
+    onSend(text || "(imagem)", images.length > 0 ? images : undefined);
     setValue("");
+    setImages([]);
   }
+
+  /**
+   * Reads a File as a base64 data URL and adds it as an image attachment.
+   */
+  function addImageFile(file: File): void {
+    if (!file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setImages((prev) => [...prev, { dataUrl, mimeType: file.type }]);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * Handles file input change for image upload.
+   */
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>): void {
+    const files = event.target.files;
+    if (!files) return;
+    for (let i = 0; i < files.length; i++) {
+      addImageFile(files[i]!);
+    }
+    event.target.value = "";
+  }
+
+  /**
+   * Handles paste events to capture images from clipboard.
+   */
+  const handlePaste = useCallback((event: React.ClipboardEvent) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]!;
+      if (item.type.startsWith("image/")) {
+        event.preventDefault();
+        const file = item.getAsFile();
+        if (file) addImageFile(file);
+      }
+    }
+  }, []);
 
   /**
    * Handles Enter and Shift+Enter behavior in textarea.
@@ -157,13 +202,41 @@ export function InputBar({
       ) : null}
 
       <div className={styles.inputBox}>
+        {images.length > 0 && (
+          <div className={styles.imagePreviewRow}>
+            {images.map((img, i) => (
+              <div key={i} className={styles.imagePreview}>
+                <img src={img.dataUrl} alt={`Anexo ${i + 1}`} className={styles.imageThumb} />
+                <button
+                  type="button"
+                  className={styles.imageRemove}
+                  onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
+                  aria-label={`Remover imagem ${i + 1}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <textarea
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={handleTextareaKeyDown}
+          onPaste={handlePaste}
           placeholder="/ para comandos, @ para contexto"
           className={styles.textarea}
           rows={3}
+        />
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleFileChange}
+          className={styles.hiddenFileInput}
         />
 
         {showSlashMenu ? (
@@ -229,7 +302,7 @@ export function InputBar({
               ) : null}
             </div>
 
-            <button type="button" className={styles.ghostButton} aria-label="Anexar arquivo">
+            <button type="button" className={styles.ghostButton} aria-label="Anexar imagem" onClick={() => fileInputRef.current?.click()}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M8 12.5V8.3a4 4 0 1 1 8 0v7.5a5.5 5.5 0 0 1-11 0V9.8" />
               </svg>

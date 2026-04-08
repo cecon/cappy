@@ -8,6 +8,14 @@ export interface ToolCall {
 }
 
 /**
+ * Image attachment sent with a message (base64 data URL).
+ */
+export interface ImageAttachment {
+  dataUrl: string;
+  mimeType: string;
+}
+
+/**
  * Message model shared by the webview chat UI and bridge payloads.
  */
 export interface Message {
@@ -15,6 +23,7 @@ export interface Message {
   content: string;
   tool_call_id?: string;
   tool_calls?: ToolCall[];
+  images?: ImageAttachment[];
 }
 
 /**
@@ -46,6 +55,7 @@ export interface CappyConfig {
   openrouter: {
     apiKey: string;
     model: string;
+    visionModel: string;
     maxTokens: number;
   };
   agent: {

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 
 import type { ToolDefinition } from "./index";
 import { resolveWorkspacePath } from "./workspacePath";
+import { getRgPath } from "./ripgrep";
 
 interface GlobFilesParams {
   pattern: string;
@@ -23,7 +24,7 @@ const MAX_FILES_OUTPUT_BYTES = 2 * 1024 * 1024;
  */
 async function ensureRipgrepAvailable(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const versionProcess = spawn("rg", ["--version"], { stdio: "ignore" });
+    const versionProcess = spawn(getRgPath(), ["--version"], { stdio: "ignore" });
     versionProcess.on("error", (error) => reject(error));
     versionProcess.on("exit", (code) => {
       if (code === 0) {
@@ -76,7 +77,7 @@ async function runGlobFiles(
   ];
 
   return new Promise<GlobFilesResult>((resolve, reject) => {
-    const filesProcess = spawn("rg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const filesProcess = spawn(getRgPath(), args, { stdio: ["ignore", "pipe", "pipe"] });
     let stderr = "";
     let totalStdoutBytes = 0;
     let trailingBuffer = "";

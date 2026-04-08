@@ -1,4 +1,9 @@
 packages:
-  - "extension"
-  - "webview"
-  - "cli-mock"
+  - extension
+  - webview
+  - cli-mock
+
+ignoredBuiltDependencies:
+  - '@vscode/vsce-sign'
+  - esbuild
+  - keytar

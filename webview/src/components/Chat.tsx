@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { getBridge, type IncomingMessage } from "../lib/vscode-bridge";
-import type { Message, ToolCall } from "../lib/types";
+import type { ImageAttachment, Message, ToolCall } from "../lib/types";
 import { InputBar, type ContextFile } from "./InputBar";
 import { MessageList } from "./MessageList";
 import { ToolConfirmCard } from "./ToolConfirmCard";
@@ -89,7 +89,7 @@ export function Chat(): JSX.Element {
   /**
    * Appends the user message and triggers one chat run.
    */
-  function handleSend(text: string): void {
+  function handleSend(text: string, images?: ImageAttachment[]): void {
     const task = createTask(text);
     setErrorMessage(null);
     setActivityTone("working");
@@ -99,7 +99,11 @@ export function Chat(): JSX.Element {
     setSelectedTaskId(task.id);
     setIsStreaming(true);
     setMessages((previousMessages) => {
-      const nextMessages: Message[] = [...previousMessages, { role: "user", content: text }];
+      const userMessage: Message = { role: "user", content: text };
+      if (images && images.length > 0) {
+        userMessage.images = images;
+      }
+      const nextMessages: Message[] = [...previousMessages, userMessage];
       bridge.send({ type: "chat:send", messages: nextMessages });
       return nextMessages;
     });

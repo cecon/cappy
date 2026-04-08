@@ -33,6 +33,7 @@ function getDefaultConfig(): CappyConfig {
     openrouter: {
       apiKey: "",
       model: "anthropic/claude-sonnet-4-5",
+      visionModel: "openai/gpt-4o",
       maxTokens: 4096,
     },
     agent: {
@@ -112,6 +113,13 @@ export function ConfigPanel(): JSX.Element {
     }
     return [config.openrouter.model, ...modelOptions];
   }, [config.openrouter.model, modelOptions]);
+
+  const availableVisionModelOptions = useMemo(() => {
+    if (modelOptions.includes(config.openrouter.visionModel)) {
+      return modelOptions;
+    }
+    return [config.openrouter.visionModel, ...modelOptions];
+  }, [config.openrouter.visionModel, modelOptions]);
 
   useEffect(() => {
     let isDisposed = false;
@@ -246,6 +254,28 @@ export function ConfigPanel(): JSX.Element {
         </select>
         {isLoadingModels ? <p className={styles.infoText}>Carregando modelos da OpenRouter...</p> : null}
         {modelLoadError ? <p className={styles.warningText}>{modelLoadError}</p> : null}
+
+        <label className={styles.label} htmlFor="openrouter-vision-model">
+          Modelo de Visão
+        </label>
+        <select
+          id="openrouter-vision-model"
+          className={styles.input}
+          value={config.openrouter.visionModel}
+          onChange={(event) =>
+            setConfig((previousConfig) => ({
+              ...previousConfig,
+              openrouter: { ...previousConfig.openrouter, visionModel: event.target.value },
+            }))
+          }
+          disabled={isLoading || isSaving}
+        >
+          {availableVisionModelOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
 
         <label className={styles.label} htmlFor="openrouter-max-tokens">
           Max Tokens

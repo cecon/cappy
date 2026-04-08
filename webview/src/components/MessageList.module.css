@@ -1,7 +1,7 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   padding: 4px;
   min-height: 0;
 }
@@ -11,19 +11,22 @@
   font-size: 13px;
 }
 
+/* ── Rows ── */
+
 .row {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-width: 82%;
 }
 
 .rowUser {
+  max-width: 85%;
   align-self: flex-end;
   align-items: flex-end;
 }
 
 .rowAssistant {
+  max-width: 100%;
   align-self: flex-start;
   align-items: flex-start;
 }
@@ -35,17 +38,22 @@
   text-transform: uppercase;
 }
 
+/* ── Bubbles ── */
+
 .bubble {
   display: inline-flex;
   align-items: flex-end;
   gap: 6px;
-  padding: 9px 10px;
+  padding: 10px 12px;
+  word-break: break-word;
 }
 
 .bubbleUser {
   background: var(--bg-accent);
   color: var(--text-accent);
   border-radius: 10px 10px 2px 10px;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .bubbleAssistant {
@@ -60,6 +68,191 @@
   line-height: 1.45;
   white-space: pre-wrap;
 }
+
+/* ── Message images ── */
+
+.messageImages {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.messageImage {
+  max-width: 200px;
+  max-height: 160px;
+  border-radius: 6px;
+  object-fit: contain;
+  border: 1px solid var(--border-subtle);
+}
+
+/* ── Tool group (collapsible) ── */
+
+.toolGroup {
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.toolToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-sunken);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  max-width: 100%;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.toolToggle:hover {
+  background: var(--bg-hover);
+}
+
+.toolIcon {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.toolSummary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolDetails {
+  margin-top: 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-sunken);
+  max-height: 200px;
+  overflow: auto;
+}
+
+.toolPre {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.toolPre:last-child {
+  border-bottom: none;
+}
+
+/* ── Markdown ── */
+
+.markdown {
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.markdown p {
+  margin: 0 0 8px;
+}
+
+.markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 12px 0 6px;
+  font-weight: 600;
+}
+
+.markdown h1 { font-size: 1.3em; }
+.markdown h2 { font-size: 1.15em; }
+.markdown h3 { font-size: 1.05em; }
+
+.markdown ul,
+.markdown ol {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.markdown li {
+  margin: 2px 0;
+}
+
+.markdown code {
+  background: var(--bg-input, var(--bg-sunken));
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.markdown pre {
+  background: var(--bg-input, var(--bg-sunken));
+  padding: 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+
+.markdown pre code {
+  background: none;
+  padding: 0;
+  font-size: 12px;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border-surface);
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 12px;
+}
+
+.markdown th {
+  background: var(--bg-input, var(--bg-sunken));
+  font-weight: 600;
+}
+
+.markdown blockquote {
+  border-left: 3px solid var(--border-surface);
+  margin: 6px 0;
+  padding: 4px 12px;
+  color: var(--text-secondary);
+}
+
+.markdown strong {
+  font-weight: 600;
+}
+
+.markdown a {
+  color: var(--text-accent);
+  text-decoration: none;
+}
+
+.markdown hr {
+  border: none;
+  border-top: 1px solid var(--border-surface);
+  margin: 10px 0;
+}
+
+/* ── Cursor ── */
 
 .cursor {
   width: 2px;

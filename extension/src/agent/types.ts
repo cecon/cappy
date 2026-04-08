@@ -13,6 +13,14 @@ export interface ToolCall {
 }
 
 /**
+ * Image attachment sent with a message (base64 data URL).
+ */
+export interface ImageAttachment {
+  dataUrl: string;
+  mimeType: string;
+}
+
+/**
  * Canonical message format used by the agent loop.
  */
 export interface Message {
@@ -20,6 +28,7 @@ export interface Message {
   content: string;
   tool_call_id?: string;
   tool_calls?: ToolCall[];
+  images?: ImageAttachment[];
 }
 
 /**

@@ -7,6 +7,7 @@ import path from "node:path";
 interface OpenRouterConfig {
   apiKey: string;
   model: string;
+  visionModel: string;
   maxTokens: number;
 }
 
@@ -51,6 +52,7 @@ export function defaultConfig(): CappyConfig {
     openrouter: {
       apiKey: "",
       model: "anthropic/claude-sonnet-4-5",
+      visionModel: "openai/gpt-4o",
       maxTokens: 4096,
     },
     agent: {
@@ -129,6 +131,7 @@ function mergeWithDefaults(raw: unknown): CappyConfig {
     openrouter: {
       apiKey: typeof rawOpenRouter.apiKey === "string" ? rawOpenRouter.apiKey : defaults.openrouter.apiKey,
       model: typeof rawOpenRouter.model === "string" ? rawOpenRouter.model : defaults.openrouter.model,
+      visionModel: typeof rawOpenRouter.visionModel === "string" ? rawOpenRouter.visionModel : defaults.openrouter.visionModel,
       maxTokens:
         typeof rawOpenRouter.maxTokens === "number"
           ? rawOpenRouter.maxTokens
