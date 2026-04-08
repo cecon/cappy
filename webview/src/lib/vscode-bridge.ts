@@ -10,7 +10,8 @@ export type OutgoingMessage =
   | { type: "tool:reject"; toolCallId: string }
   | { type: "config:load" }
   | { type: "config:save"; config: CappyConfig }
-  | { type: "mcp:list" };
+  | { type: "mcp:list" }
+  | { type: "history:load"; sessionId: string };
 
 /**
  * Inbound messages received from host in the webview.

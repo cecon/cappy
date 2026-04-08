@@ -1,46 +1,109 @@
-.container {
-  margin: 0 auto;
-  max-width: 960px;
-  padding: 16px;
-  font-family: sans-serif;
+.shell {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
-.title {
-  margin: 0;
+.shellBrowser {
+  height: 100vh;
 }
 
-.environment {
-  margin: 0;
-  color: #666;
-  font-size: 13px;
+.shellExtension {
+  height: 100%;
 }
 
-.tabs {
+.header {
+  height: 52px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 12px;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.tabButton {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: #fff;
-  padding: 8px 12px;
+.brandDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--purple-mid);
+}
+
+.brandLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.navigation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iconButton {
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
-.tabButtonActive {
-  border-color: #0d6efd;
-  color: #0d6efd;
+.iconButton:hover {
+  background: var(--bg-surface);
 }
 
-.panelVisible {
-  display: block;
+.iconButtonActive {
+  background: var(--bg-surface);
+  color: var(--text-accent);
 }
 
-.panelHidden {
-  display: none;
+.iconGlyph {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconGlyph svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.activeDot {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--purple-mid);
+  transform: translateX(-50%);
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+  overflow: hidden;
 }

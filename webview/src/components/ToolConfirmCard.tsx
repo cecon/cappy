@@ -19,7 +19,7 @@ export function ToolConfirmCard({
 
   return (
     <div className={styles.card}>
-      <strong>Confirmar tool: {toolCall.name}</strong>
+      <span className={styles.toolName}>{toolCall.name}</span>
       <pre className={styles.arguments}>{formattedArguments}</pre>
       <div className={styles.actions}>
         <button onClick={() => onApprove(toolCall.id)} type="button" className={styles.approve}>

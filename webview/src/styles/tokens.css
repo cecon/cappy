@@ -1,0 +1,22 @@
+:root {
+  --bg-base: #1a1a1f;
+  --bg-surface: #22222c;
+  --bg-sunken: #13131a;
+  --bg-hover: #2a2a38;
+  --bg-accent: #2a2560;
+  --border-subtle: #2a2a35;
+  --border-surface: #2a2a38;
+  --border-focus: #534ab7;
+  --text-primary: #e2e2f0;
+  --text-secondary: #888799;
+  --text-muted: #555566;
+  --text-disabled: #3a3a4a;
+  --text-accent: #afa9ec;
+  --purple-mid: #7f77dd;
+  --purple-dark: #534ab7;
+  --green-mid: #1d9e75;
+  --amber: #ef9f27;
+  --red-soft: #f09595;
+  --red-bg: #2a1515;
+  --tool-border: #ef9f27;
+}

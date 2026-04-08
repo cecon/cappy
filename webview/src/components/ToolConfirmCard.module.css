@@ -1,12 +1,29 @@
 .card {
-  border: 1px solid #999;
-  padding: 12px;
+  border: 1px solid var(--border-surface);
+  border-left: 3px solid var(--tool-border);
+  border-radius: 8px;
+  background: var(--bg-sunken);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toolName {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tool-border);
 }
 
 .arguments {
-  background: #f7f7f7;
-  border: 1px solid #ddd;
-  padding: 8px;
+  margin: 0;
+  background: var(--bg-sunken);
+  border-radius: 5px;
+  padding: 5px 8px;
+  color: #b0b0c8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
   overflow-x: auto;
 }
 
@@ -16,9 +33,19 @@
 }
 
 .approve {
+  border: 0;
+  border-radius: 7px;
+  background: var(--green-mid);
+  color: #e1f5ee;
   padding: 6px 10px;
+  cursor: pointer;
 }
 
 .reject {
+  border: 1px solid var(--red-bg);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--red-soft);
   padding: 6px 10px;
+  cursor: pointer;
 }

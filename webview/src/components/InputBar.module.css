@@ -1,13 +1,340 @@
 .form {
   display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-.input {
-  flex: 1;
-  padding: 8px;
+.contextChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.button {
-  padding: 8px 12px;
+.contextChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border-surface);
+  background: var(--bg-surface);
+}
+
+.contextFileIcon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.contextFileIcon svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--purple-mid);
+  stroke-width: 1.7;
+}
+
+.contextFileName {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.contextRemove {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.inputBox {
+  position: relative;
+  border: 1px solid var(--border-surface);
+  border-radius: 9px;
+  background: var(--bg-surface);
+  overflow: visible;
+}
+
+.inputBox:focus-within {
+  border-color: var(--border-focus);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 74px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  resize: vertical;
+  padding: 10px 12px 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  outline: none;
+}
+
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.menu {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% + 8px);
+  border: 1px solid var(--border-surface);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  box-shadow: 0 8px 18px rgb(0 0 0 / 28%);
+  padding: 4px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.menuItem {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.menuItem:hover {
+  background: var(--bg-hover);
+}
+
+.menuItemActive {
+  background: var(--bg-accent);
+}
+
+.menuCommand {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.menuDescription {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.toolbar {
+  border-top: 1px solid var(--border-subtle);
+  padding: 5px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.toolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pill {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-base);
+  border-radius: 20px;
+  padding: 3px 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.pillDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+}
+
+.pillDotPurple {
+  background: var(--purple-mid);
+}
+
+.pillDotGreen {
+  background: var(--green-mid);
+}
+
+.chevron {
+  color: var(--text-muted);
+}
+
+.toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.contextRingArea {
+  position: relative;
+}
+
+.contextRingButton {
+  border: 0;
+  background: transparent;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.contextRing {
+  width: 18px;
+  height: 18px;
+  transform: rotate(-90deg);
+}
+
+.contextRingTrack {
+  fill: none;
+  stroke: var(--border-surface);
+  stroke-width: 2.2;
+}
+
+.contextRingFill {
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.contextRingFillLow {
+  stroke: var(--purple-mid);
+}
+
+.contextRingFillMedium {
+  stroke: var(--amber);
+}
+
+.contextRingFillHigh {
+  stroke: var(--red-soft);
+}
+
+.contextTooltip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: 210px;
+  border: 1px solid var(--border-surface);
+  border-radius: 7px;
+  background: var(--bg-surface);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 6;
+}
+
+.contextTitle {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.contextNumbers {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.contextProgress {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+}
+
+.contextProgress::-webkit-progress-bar {
+  background: var(--border-surface);
+  border-radius: 999px;
+}
+
+.contextProgress::-webkit-progress-value {
+  background: var(--purple-mid);
+  border-radius: 999px;
+}
+
+.ghostButton,
+.actionButton {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border-surface);
+  background: var(--bg-surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ghostButton {
+  cursor: pointer;
+}
+
+.ghostButton:hover {
+  border-color: var(--border-subtle);
+}
+
+.ghostButton svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.actionButton {
+  cursor: pointer;
+}
+
+.actionButton svg {
+  width: 14px;
+  height: 14px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.actionButtonIdle {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.actionButtonIdle svg {
+  fill: none;
+  stroke: var(--text-disabled);
+  stroke-width: 2;
+}
+
+.actionButtonSend svg {
+  fill: none;
+  stroke: var(--text-accent);
+  stroke-width: 2;
+}
+
+.actionButtonSend:hover {
+  border-color: var(--purple-mid);
+  background: var(--bg-accent);
+}
+
+.actionButtonStop svg {
+  fill: var(--red-soft);
+  stroke: none;
+}
+
+.actionButtonStop:hover {
+  border-color: var(--red-soft);
+  background: var(--red-bg);
 }

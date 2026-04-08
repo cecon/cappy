@@ -9,6 +9,9 @@ webview/node_modules/.vite/
 
 *.vsix
 
+.cappy/config.json
+.env
+
 .DS_Store
 
 .husky/_/

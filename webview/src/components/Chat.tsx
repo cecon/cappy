@@ -1,17 +1,12 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { getBridge, type IncomingMessage } from "../lib/vscode-bridge";
-import type { ActiveAgent, Message, ToolCall } from "../lib/types";
-import { InputBar } from "./InputBar";
+import type { Message, ToolCall } from "../lib/types";
+import { InputBar, type ContextFile } from "./InputBar";
 import { MessageList } from "./MessageList";
 import { ToolConfirmCard } from "./ToolConfirmCard";
 import styles from "./Chat.module.css";
 
 const bridge = getBridge();
-const AGENT_BADGE_MAP: Record<ActiveAgent, { label: string; icon: string; color: string; background: string }> = {
-  coder: { label: "Coder", icon: "●", color: "#1f6feb", background: "#e8f0fe" },
-  planner: { label: "Planner", icon: "◆", color: "#9a6700", background: "#fff8c5" },
-  reviewer: { label: "Reviewer", icon: "■", color: "#1a7f37", background: "#dafbe1" },
-};
 
 /**
  * Chat container that manages history, stream state and pending HITL confirmations.
@@ -21,17 +16,12 @@ export function Chat(): JSX.Element {
   const [pendingConfirms, setPendingConfirms] = useState<ToolCall[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeAgent, setActiveAgent] = useState<ActiveAgent>("coder");
+  const [contextFiles, setContextFiles] = useState<ContextFile[]>([]);
 
   useEffect(() => {
     bridge.onMessage((message: IncomingMessage) => {
-      if (message.type === "config:loaded") {
-        setActiveAgent(message.config.agent.activeAgent);
-        return;
-      }
       handleIncomingMessage(message, setMessages, setPendingConfirms, setIsStreaming, setErrorMessage);
     });
-    bridge.send({ type: "config:load" });
   }, []);
 
   /**
@@ -60,30 +50,30 @@ export function Chat(): JSX.Element {
     bridge.send({ type: "tool:reject", toolCallId });
   }
 
-  const activeBadge = AGENT_BADGE_MAP[activeAgent];
+  /**
+   * Adds one context file if it is not already selected.
+   */
+  function handleAddContextFile(file: ContextFile): void {
+    setContextFiles((previousFiles) => {
+      if (previousFiles.some((currentFile) => currentFile.path === file.path)) {
+        return previousFiles;
+      }
+      return [...previousFiles, file];
+    });
+  }
+
+  /**
+   * Removes one selected context file.
+   */
+  function handleRemoveContextFile(path: string): void {
+    setContextFiles((previousFiles) => previousFiles.filter((file) => file.path !== path));
+  }
 
   return (
     <section className={styles.container}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <h2>Chat</h2>
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            borderRadius: "999px",
-            padding: "4px 10px",
-            fontSize: "12px",
-            fontWeight: 600,
-            color: activeBadge.color,
-            backgroundColor: activeBadge.background,
-          }}
-        >
-          <span aria-hidden="true">{activeBadge.icon}</span>
-          {activeBadge.label}
-        </span>
+      <div className={styles.messages}>
+        <MessageList messages={messages} isStreaming={isStreaming} />
       </div>
-      <MessageList messages={messages} isStreaming={isStreaming} />
       <div className={styles.confirmList}>
         {pendingConfirms.map((toolCall) => (
           <ToolConfirmCard
@@ -95,9 +85,15 @@ export function Chat(): JSX.Element {
         ))}
       </div>
       {errorMessage ? <p className={styles.error}>{errorMessage}</p> : null}
-      <div className={styles.inputBar}>
-        <InputBar onSend={handleSend} isStreaming={isStreaming} />
-      </div>
+      <footer className={styles.inputArea}>
+        <InputBar
+          onSend={handleSend}
+          isStreaming={isStreaming}
+          contextFiles={contextFiles}
+          onAddContextFile={handleAddContextFile}
+          onRemoveContextFile={handleRemoveContextFile}
+        />
+      </footer>
     </section>
   );
 }

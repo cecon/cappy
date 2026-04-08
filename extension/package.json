@@ -5,15 +5,23 @@
   "description": "Your autonomous AI dev companion",
   "publisher": "eduardocecon",
   "icon": "media/icon.png",
-  "homepage": "https://github.com/cecon/cappy",
-  "license": "SEE LICENSE IN LICENSE.txt",
+  "homepage": "https://github.com/eduardocecon/cappy#readme",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode-copilot-chat"
+    "url": "https://github.com/eduardocecon/cappy"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
+    "url": "https://github.com/eduardocecon/cappy/issues"
   },
+  "keywords": [
+    "ai",
+    "agent",
+    "coding",
+    "mcp",
+    "openrouter",
+    "copilot"
+  ],
   "qna": "https://github.com/github-community/community/discussions/categories/copilot",
   "engines": {
     "vscode": "^1.85.0"
@@ -60,7 +68,8 @@
   },
   "scripts": {
     "vscode:prepublish": "pnpm run build",
-    "build": "pnpm run build:webview && tsc -p tsconfig.json --outDir out",
+    "build": "pnpm run build:webview && pnpm run build:ext",
+    "build:ext": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node18 --external:vscode --outfile=out/extension.js",
     "build:webview": "cd ../webview && pnpm run build && cd ..",
     "watch": "tsc -watch -p tsconfig.json --outDir out",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -73,6 +82,7 @@
     "@types/node": "^22.15.20",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "3.7.1",
+    "esbuild": "^0.25.11",
     "typescript": "^5.8.3"
   }
 }

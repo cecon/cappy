@@ -1,59 +1,124 @@
 # Cappy
 
-Monorepo inicial do Cappy com tres pacotes:
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-- `extension`: Extension Host do VS Code (TypeScript)
-- `webview`: UI React 18 + Vite
-- `cli-mock`: servidor local para simular host fora do VS Code
+Autonomous AI coding companion for VS Code with multi-agent workflows and human-in-the-loop tool execution.
 
-## Requisitos
+<!-- Screenshot placeholder: add a screenshot or GIF of the Cappy chat panel here -->
+
+## Features
+
+- Multi-agent workflow with `coder`, `planner`, and `reviewer` roles
+- Human-in-the-loop (HITL) approval flow for tool calls
+- OpenRouter-powered model access
+- MCP server support for extending available tools
+- VS Code sidebar chat experience with local development support
+
+## Requirements
 
 - Node.js 20+
-- npm 10+
+- `ripgrep` installed and available in `PATH`
+- OpenRouter API key
 
-## Instalar dependencias
+## Installation
 
-```bash
+### Via Marketplace
+
+Install **Cappy** from the VS Code Marketplace.
+
+### Via VSIX (manual)
+
+Open VS Code, go to **Extensions**, click the `...` menu, then choose **Install from VSIX...**.
+
+## Configuration
+
+### Get an OpenRouter API key
+
+1. Create an account at [OpenRouter](https://openrouter.ai/).
+2. Generate an API key in your account settings.
+3. Keep the key private.
+
+### Configure in the Cappy Config panel
+
+1. Open the Cappy view in VS Code.
+2. Open the **Config** panel.
+3. Fill in your OpenRouter key and model settings.
+4. Save the configuration.
+
+### `.cappy/config.json` structure
+
+```json
+{
+  "openrouterApiKey": "or-xxxxxxxxxxxxxxxx",
+  "model": "openrouter/auto",
+  "agent": "coder",
+  "mcpServers": [
+    {
+      "name": "filesystem",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ]
+    }
+  ],
+  "hitl": {
+    "enabled": true
+  }
+}
+```
+
+## Usage
+
+- Open the Cappy chat from the Activity Bar (`Cappy` icon) or command palette.
+- Switch agents in the UI between `coder`, `planner`, and `reviewer`.
+- Approve or reject tool calls when prompted by HITL.
+- Add MCP servers in configuration to extend capabilities.
+
+## Local Development
+
+1. Clone the repository.
+2. Install dependencies:
+
+```powershell
 npm install
 ```
 
-## Rodar em modo dev (browser)
+3. Run browser development mode with `cli-mock`:
 
-Este modo sobe:
-
-- `webview` em Vite
-- `cli-mock` em `localhost:3333`
-
-```bash
+```powershell
 npm run dev
 ```
 
-Fluxo de comunicacao no browser:
+4. Test inside VS Code:
+   - Open the project in VS Code
+   - Press `F5` to launch an Extension Development Host
+   - Open Cappy and validate the main workflows
 
-1. A UI tenta usar `window.acquireVsCodeApi`.
-2. Se nao existir, conecta via WebSocket em `ws://localhost:3333`.
-3. O `cli-mock` responde mensagens e expoe endpoints HTTP basicos.
+## Architecture
 
-## Rodar typecheck
+High-level monorepo layout:
 
-```bash
-npm run typecheck
+```text
+cappy/
+|- extension/   # VS Code extension host (commands, agent loop, tool bridge)
+|- webview/     # React/Vite chat UI
+|- cli-mock/    # Local mock server for browser/dev mode
+`- .cappy/      # User-local config (not committed)
 ```
 
-## Rodar modo extensao VS Code
+Runtime flow:
 
-1. Instale dependencias na raiz: `npm install`
-2. Gere build da extensao: `npm run build -w extension`
-3. Abra o projeto no VS Code.
-4. Pressione `F5` para iniciar Extension Development Host.
-5. Execute o comando `Cappy: Start`.
+```text
+VS Code UI (webview) <-> extension host <-> models/tools (OpenRouter + MCP)
+```
 
-## Estrutura
+## Contributing
 
-- `extension/src/extension.ts`: entrypoint da extensao
-- `extension/src/agent/loop.ts`: loop manual do agente (stub)
-- `extension/src/tools/*`: tools com contrato padrao
-- `extension/src/bridge/webview.ts`: bridge de mensagens no host da extensao
-- `webview/src/lib/vscode-bridge.ts`: interface de bridge para UI
-- `webview/src/lib/vscode-mock.ts`: auto-detect VS Code API ou WebSocket
-- `cli-mock/src/server.ts`: servidor HTTP + WebSocket para dev local
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](./LICENSE).
