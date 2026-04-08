@@ -1,44 +1,74 @@
 .container {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 16px;
+  height: 100%;
+  overflow: auto;
+  border: 1px solid var(--border-surface);
+  border-radius: 12px;
+  background: var(--bg-sunken);
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .title {
-  margin: 0;
+  font-size: 15px;
+  color: var(--text-primary);
 }
 
 .loading {
-  margin: 0;
-  color: #666;
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .section {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  background: var(--bg-base);
+  padding: 10px;
 }
 
 .section h3 {
-  margin: 0;
+  font-size: 12px;
+  color: var(--text-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
 }
 
 .label {
-  font-size: 13px;
-  color: #333;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .input,
 .textarea {
   width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  border: 1px solid var(--border-surface);
+  border-radius: 9px;
   padding: 8px 10px;
-  font-size: 14px;
+  font-size: 13px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.input:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.input:disabled,
+.textarea:disabled {
+  color: var(--text-disabled);
+  opacity: 0.75;
 }
 
 .textarea {
@@ -53,8 +83,6 @@
 
 .serverList {
   list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -65,8 +93,9 @@
   justify-content: space-between;
   gap: 12px;
   align-items: center;
-  border: 1px solid #eee;
-  border-radius: 6px;
+  border: 1px solid var(--border-surface);
+  border-radius: 8px;
+  background: var(--bg-surface);
   padding: 8px 10px;
 }
 
@@ -76,9 +105,14 @@
   gap: 2px;
 }
 
+.serverInfo strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
 .serverInfo span {
-  color: #555;
-  font-size: 13px;
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .inlineForm {
@@ -96,42 +130,78 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
 }
 
 .primaryButton,
 .secondaryButton,
 .dangerButton {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 13px;
+  border: 1px solid var(--border-surface);
+  border-radius: 7px;
+  padding: 7px 11px;
+  font-size: 12px;
   cursor: pointer;
-  background: #fff;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .primaryButton {
   margin-left: auto;
-  border-color: #0d6efd;
-  color: #0d6efd;
+  border-color: var(--purple-dark);
+  background: var(--bg-accent);
+  color: var(--text-accent);
+}
+
+.primaryButton:hover {
+  border-color: var(--purple-mid);
+}
+
+.primaryButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.secondaryButton {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+.secondaryButton:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
 }
 
 .dangerButton {
-  border-color: #dc3545;
-  color: #dc3545;
+  border-color: var(--red-bg);
+  background: transparent;
+  color: var(--red-soft);
+}
+
+.dangerButton:hover {
+  background: var(--red-bg);
 }
 
 .emptyText {
-  margin: 0;
-  color: #666;
-  font-size: 13px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.infoText {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.warningText {
+  color: var(--amber);
+  font-size: 12px;
 }
 
 .error {
-  color: #b00020;
-  font-size: 13px;
+  color: var(--red-soft);
+  font-size: 12px;
 }
 
 .saved {
-  color: #137333;
-  font-size: 13px;
+  color: #93e2c8;
+  font-size: 12px;
 }

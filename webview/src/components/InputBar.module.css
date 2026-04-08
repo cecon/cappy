@@ -55,6 +55,7 @@
   border: 1px solid var(--border-surface);
   border-radius: 9px;
   background: var(--bg-surface);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 2%);
   overflow: visible;
 }
 
@@ -64,11 +65,11 @@
 
 .textarea {
   width: 100%;
-  min-height: 74px;
+  min-height: 64px;
   border: 0;
   background: transparent;
   color: var(--text-primary);
-  resize: vertical;
+  resize: none;
   padding: 10px 12px 8px;
   font-size: 13px;
   line-height: 1.4;
@@ -87,7 +88,7 @@
   border: 1px solid var(--border-surface);
   border-radius: 8px;
   background: var(--bg-surface);
-  box-shadow: 0 8px 18px rgb(0 0 0 / 28%);
+  box-shadow: 0 12px 24px rgb(0 0 0 / 35%);
   padding: 4px;
   z-index: 5;
   display: flex;
@@ -130,7 +131,7 @@
 
 .toolbar {
   border-top: 1px solid var(--border-subtle);
-  padding: 5px 6px;
+  padding: 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -147,7 +148,7 @@
   border: 1px solid var(--border-subtle);
   background: var(--bg-base);
   border-radius: 20px;
-  padding: 3px 8px;
+  padding: 3px 9px;
   color: var(--text-secondary);
   font-size: 11px;
   display: inline-flex;
@@ -185,7 +186,8 @@
 }
 
 .contextRingButton {
-  border: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
   background: transparent;
   width: 18px;
   height: 18px;
@@ -193,6 +195,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.contextRingButton:hover {
+  border-color: var(--border-surface);
 }
 
 .contextRing {
@@ -272,7 +278,7 @@
   height: 28px;
   border-radius: 6px;
   border: 1px solid var(--border-surface);
-  background: var(--bg-surface);
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;

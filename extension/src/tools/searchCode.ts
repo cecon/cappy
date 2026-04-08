@@ -20,6 +20,9 @@ interface SearchResult {
   context: { before: string[]; after: string[] };
 }
 
+const MAX_RIPGREP_OUTPUT_BYTES = 5 * 1024 * 1024;
+const MAX_RIPGREP_FILES_OUTPUT_BYTES = 2 * 1024 * 1024;
+
 /**
  * Represents one parsed regular expression using /pattern/flags syntax.
  */
@@ -126,13 +129,32 @@ function buildSemanticPattern(rawQuery: string): string {
 function buildRipgrepArgs(params: SearchCodeParams, targetPath: string): string[] {
   const mode = params.mode ?? "text";
   const isCaseSensitive = params.caseSensitive ?? false;
-  const args: string[] = ["--json", "--line-number", "--context", "2"];
+  const args: string[] = [
+    "--json",
+    "--line-number",
+    "--context",
+    "2",
+    "--glob",
+    "!**/node_modules/**",
+    "--glob",
+    "!**/.git/**",
+    "--glob",
+    "!**/dist/**",
+    "--glob",
+    "!**/out/**",
+    "--glob",
+    "!**/build/**",
+  ];
 
   if (!isCaseSensitive) {
     args.push("--ignore-case");
   }
   if (params.filePattern && params.filePattern.trim().length > 0) {
     args.push("--glob", params.filePattern.trim());
+  }
+  if (Number.isFinite(params.maxResults)) {
+    const safeLimit = Math.max(1, Math.trunc(params.maxResults ?? 20));
+    args.push("--max-count", String(Math.max(10, safeLimit * 3)));
   }
 
   if (mode === "semantic") {
@@ -151,6 +173,57 @@ function buildRipgrepArgs(params: SearchCodeParams, targetPath: string): string[
 
   args.push(targetPath);
   return args;
+}
+
+/**
+ * Builds a stricter ripgrep command for broad-query fallback.
+ */
+function buildEmergencyRipgrepArgs(
+  params: SearchCodeParams,
+  targetPath: string,
+  fallbackQuery: string,
+  maxResults: number,
+): string[] {
+  const args: string[] = [
+    "--json",
+    "--line-number",
+    "--max-count",
+    String(Math.max(1, maxResults)),
+    "--glob",
+    "!**/node_modules/**",
+    "--glob",
+    "!**/.git/**",
+    "--glob",
+    "!**/dist/**",
+    "--glob",
+    "!**/out/**",
+    "--glob",
+    "!**/build/**",
+  ];
+  if (!(params.caseSensitive ?? false)) {
+    args.push("--ignore-case");
+  }
+  args.push("--fixed-strings", "--regexp", fallbackQuery, targetPath);
+  return args;
+}
+
+/**
+ * Checks whether query likely targets file names (e.g. "readme", "package.json").
+ */
+function shouldPreferFileNameSearch(params: SearchCodeParams, normalizedQuery: string): boolean {
+  if ((params.mode ?? "text") !== "text") {
+    return false;
+  }
+  if (normalizedQuery.length < 3) {
+    return false;
+  }
+  if (normalizedQuery.length > 80) {
+    return false;
+  }
+  if (normalizedQuery.includes(" ")) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -188,8 +261,19 @@ async function runRipgrep(args: string[]): Promise<string> {
     const searchProcess = spawn("rg", args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
+    let totalStdoutBytes = 0;
+    let hasExceededLimit = false;
 
     searchProcess.stdout.on("data", (chunk: Buffer) => {
+      if (hasExceededLimit) {
+        return;
+      }
+      totalStdoutBytes += chunk.byteLength;
+      if (totalStdoutBytes > MAX_RIPGREP_OUTPUT_BYTES) {
+        hasExceededLimit = true;
+        searchProcess.kill();
+        return;
+      }
       stdout += chunk.toString("utf8");
     });
     searchProcess.stderr.on("data", (chunk: Buffer) => {
@@ -199,12 +283,114 @@ async function runRipgrep(args: string[]): Promise<string> {
       reject(error);
     });
     searchProcess.on("close", (code) => {
+      if (hasExceededLimit) {
+        reject(
+          new Error(
+            "Busca muito ampla para processamento seguro. Refine a query ou limite o escopo (path/filePattern).",
+          ),
+        );
+        return;
+      }
       if (code === 0 || code === 1) {
         resolve(stdout);
         return;
       }
       reject(new Error(stderr.trim().length > 0 ? stderr.trim() : `rg finalizou com código ${code}.`));
     });
+  });
+}
+
+/**
+ * Lists files via ripgrep and returns matching paths for filename-like queries.
+ */
+async function runRipgrepFiles(targetPath: string, normalizedQuery: string, maxResults: number): Promise<string[]> {
+  return new Promise<string[]>((resolve, reject) => {
+    const filesProcess = spawn("rg", ["--files", targetPath], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    let totalStdoutBytes = 0;
+    let hasExceededLimit = false;
+
+    filesProcess.stdout.on("data", (chunk: Buffer) => {
+      if (hasExceededLimit) {
+        return;
+      }
+      totalStdoutBytes += chunk.byteLength;
+      if (totalStdoutBytes > MAX_RIPGREP_FILES_OUTPUT_BYTES) {
+        hasExceededLimit = true;
+        filesProcess.kill();
+        return;
+      }
+      stdout += chunk.toString("utf8");
+    });
+    filesProcess.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    filesProcess.on("error", (error) => reject(error));
+    filesProcess.on("close", (code) => {
+      if (hasExceededLimit) {
+        resolve([]);
+        return;
+      }
+      if (code !== 0) {
+        reject(new Error(stderr.trim().length > 0 ? stderr.trim() : `rg --files finalizou com código ${code}.`));
+        return;
+      }
+
+      const candidates = stdout
+        .split(/\r?\n/u)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .filter((line) => line.toLowerCase().includes(normalizedQuery))
+        .slice(0, maxResults);
+      resolve(candidates);
+    });
+  });
+}
+
+/**
+ * Tries filename lookup using query tokens.
+ */
+async function runRipgrepFilesByTokens(
+  targetPath: string,
+  query: string,
+  maxResults: number,
+): Promise<string[]> {
+  const normalizedQuery = query.toLowerCase();
+  const tokens = normalizedQuery
+    .split(/[^a-z0-9._-]+/u)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3);
+
+  if (tokens.length === 0) {
+    return [];
+  }
+
+  const broadCandidates = await runRipgrepFiles(targetPath, "", Math.max(maxResults * 10, 200));
+  const filtered = broadCandidates.filter((candidate) => {
+    const normalizedCandidate = candidate.toLowerCase();
+    return tokens.every((token) => normalizedCandidate.includes(token));
+  });
+
+  return filtered.slice(0, maxResults);
+}
+
+/**
+ * Converts file path candidates into SearchResult output shape.
+ */
+function toFileNameMatches(fileCandidates: string[], targetPath: string): SearchResult[] {
+  return fileCandidates.map((candidate) => {
+    const absoluteFilePath = path.resolve(targetPath, candidate);
+    return {
+      file: absoluteFilePath,
+      line: 1,
+      column: 1,
+      content: `Arquivo encontrado: ${path.basename(candidate)}`,
+      context: {
+        before: [],
+        after: [],
+      },
+    };
   });
 }
 
@@ -337,11 +523,46 @@ export const searchCodeTool: ToolDefinition<SearchCodeParams, { matches: SearchR
 
     const maxResults = Number.isFinite(params.maxResults) ? Math.max(1, Math.trunc(params.maxResults ?? 20)) : 20;
     const targetPath = path.resolve(params.path ?? process.cwd());
+    const normalizedQuery = query.toLowerCase();
 
     await ensureRipgrepAvailable();
-    const args = buildRipgrepArgs({ ...params, query }, targetPath);
-    const rawOutput = await runRipgrep(args);
-    const matches = parseSearchResults(rawOutput, maxResults);
+    if (shouldPreferFileNameSearch(params, normalizedQuery)) {
+      const fileCandidates = await runRipgrepFiles(targetPath, normalizedQuery, maxResults);
+      if (fileCandidates.length > 0) {
+        return { matches: toFileNameMatches(fileCandidates, targetPath) };
+      }
+    }
+
+    let matches: SearchResult[] = [];
+    try {
+      const args = buildRipgrepArgs({ ...params, query }, targetPath);
+      const rawOutput = await runRipgrep(args);
+      matches = parseSearchResults(rawOutput, maxResults);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("Busca muito ampla")) {
+        const fileCandidates = await runRipgrepFilesByTokens(targetPath, query, maxResults);
+        if (fileCandidates.length > 0) {
+          return { matches: toFileNameMatches(fileCandidates, targetPath) };
+        }
+
+        // Last safe fallback: retry with strict limits and no broad context expansion.
+        const fallbackToken =
+          query
+            .split(/[^a-zA-Z0-9._-]+/u)
+            .map((token) => token.trim())
+            .find((token) => token.length >= 3) ?? query;
+        try {
+          const emergencyArgs = buildEmergencyRipgrepArgs(params, targetPath, fallbackToken, maxResults);
+          const emergencyOutput = await runRipgrep(emergencyArgs);
+          const emergencyMatches = parseSearchResults(emergencyOutput, maxResults);
+          return { matches: emergencyMatches };
+        } catch {
+          // Do not hard-fail agent loop for broad queries; return empty and let model refine.
+          return { matches: [] };
+        }
+      }
+      throw error;
+    }
 
     return { matches };
   },

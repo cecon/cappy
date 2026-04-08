@@ -487,18 +487,24 @@ function parseToolArguments(argumentsText: string, toolName: string): Record<str
     return {};
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmedArguments);
-  } catch {
-    throw new Error(`Argumentos JSON invalidos para tool "${toolName}".`);
+  const candidateJsonChunks = collectJsonCandidates(trimmedArguments);
+  for (const candidateJson of candidateJsonChunks) {
+    try {
+      const parsed = JSON.parse(candidateJson) as unknown;
+      if (isRecord(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Try next candidate.
+    }
   }
 
-  if (!isRecord(parsed)) {
-    throw new Error(`Argumentos da tool "${toolName}" devem ser um objeto JSON.`);
+  const fallbackArguments = inferFallbackArguments(trimmedArguments, toolName);
+  if (fallbackArguments) {
+    return fallbackArguments;
   }
 
-  return parsed;
+  throw new Error(`Argumentos JSON invalidos para tool "${toolName}".`);
 }
 
 /**
@@ -517,4 +523,97 @@ function asError(error: unknown): Error {
   }
   const description = typeof error === "string" ? error : "Erro desconhecido no loop do agente.";
   return new Error(description);
+}
+
+/**
+ * Builds JSON parse candidates from raw tool argument text.
+ */
+function collectJsonCandidates(rawArguments: string): string[] {
+  const direct = rawArguments.trim();
+  const withoutCodeFence = stripCodeFence(direct);
+  const objectSlice = extractJsonObjectSlice(withoutCodeFence);
+  const uniqueCandidates = new Set<string>();
+
+  if (direct.length > 0) {
+    uniqueCandidates.add(direct);
+  }
+  if (withoutCodeFence.length > 0) {
+    uniqueCandidates.add(withoutCodeFence);
+  }
+  if (objectSlice && objectSlice.length > 0) {
+    uniqueCandidates.add(objectSlice);
+  }
+
+  return [...uniqueCandidates];
+}
+
+/**
+ * Removes markdown fences from argument text.
+ */
+function stripCodeFence(rawArguments: string): string {
+  const normalized = rawArguments.trim();
+  if (!normalized.startsWith("```")) {
+    return normalized;
+  }
+  return normalized
+    .replace(/^```[a-zA-Z]*\s*/u, "")
+    .replace(/\s*```$/u, "")
+    .trim();
+}
+
+/**
+ * Extracts first JSON-like object slice from mixed text.
+ */
+function extractJsonObjectSlice(rawArguments: string): string | null {
+  const firstBrace = rawArguments.indexOf("{");
+  const lastBrace = rawArguments.lastIndexOf("}");
+  if (firstBrace < 0 || lastBrace <= firstBrace) {
+    return null;
+  }
+  return rawArguments.slice(firstBrace, lastBrace + 1).trim();
+}
+
+/**
+ * Infers valid arguments for common tools from non-JSON text.
+ */
+function inferFallbackArguments(rawArguments: string, toolName: string): Record<string, unknown> | null {
+  const cleaned = rawArguments.trim();
+  if (cleaned.length === 0) {
+    return null;
+  }
+
+  const normalizedToolName = toolName.toLowerCase();
+  if (normalizedToolName === "listdir" || normalizedToolName === "readfile") {
+    const pathValue = inferSingleTextValue(cleaned);
+    return pathValue ? { path: pathValue } : null;
+  }
+  if (normalizedToolName === "searchcode") {
+    const queryValue = inferSingleTextValue(cleaned);
+    return queryValue ? { query: queryValue } : null;
+  }
+  if (normalizedToolName === "runterminal") {
+    const commandValue = inferSingleTextValue(cleaned);
+    return commandValue ? { command: commandValue } : null;
+  }
+
+  return null;
+}
+
+/**
+ * Attempts to infer one string argument from raw text.
+ */
+function inferSingleTextValue(rawArguments: string): string | null {
+  const quotedMatch = rawArguments.match(/"([^"]+)"|'([^']+)'/u);
+  if (quotedMatch) {
+    const value = quotedMatch[1] ?? quotedMatch[2];
+    if (value && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  const cleaned = rawArguments
+    .replace(/^[a-zA-Z0-9_]+\s*:\s*/u, "")
+    .replace(/[{}[\]]/gu, "")
+    .trim();
+  return cleaned.length > 0 ? cleaned : null;
 }

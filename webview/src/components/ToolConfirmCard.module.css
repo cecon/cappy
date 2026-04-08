@@ -3,7 +3,7 @@
   border-left: 3px solid var(--tool-border);
   border-radius: 8px;
   background: var(--bg-sunken);
-  padding: 10px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -18,7 +18,7 @@
 
 .arguments {
   margin: 0;
-  background: var(--bg-sunken);
+  background: #0f1019;
   border-radius: 5px;
   padding: 5px 8px;
   color: #b0b0c8;
@@ -37,7 +37,9 @@
   border-radius: 7px;
   background: var(--green-mid);
   color: #e1f5ee;
-  padding: 6px 10px;
+  padding: 8px 10px;
+  font-weight: 600;
+  flex: 1;
   cursor: pointer;
 }
 
@@ -46,6 +48,8 @@
   border-radius: 7px;
   background: transparent;
   color: var(--red-soft);
-  padding: 6px 10px;
+  padding: 8px 10px;
+  font-weight: 600;
+  flex: 1;
   cursor: pointer;
 }

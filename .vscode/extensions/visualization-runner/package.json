@@ -9,8 +9,5 @@
 	"main": "./entry.js",
 	"activationEvents": [
 		"onLanguage:typescript"
-	],
-	"extensionDependencies": [
-		"ms-vscode.debug-value-editor"
 	]
 }

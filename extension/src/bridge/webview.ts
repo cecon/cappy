@@ -36,7 +36,9 @@ export type WebviewToHostMessage =
  */
 export function createWebviewBridge(webview: vscode.Webview): vscode.Disposable[] {
   const mcpManager = new McpManager();
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const agentLoop = new AgentLoop({
+    ...(workspaceRoot ? { workspaceRoot } : {}),
     onMcpCall: async (serverName, toolName, args) => mcpManager.callTool(serverName, toolName, args),
   });
   const tools = toolsRegistry as unknown as AgentTool[];

@@ -15,12 +15,12 @@ export function ToolConfirmCard({
   onApprove,
   onReject,
 }: ToolConfirmCardProps): JSX.Element {
-  const formattedArguments = JSON.stringify(toolCall.arguments, null, 2);
+  const commandPreview = getCommandPreview(toolCall);
 
   return (
     <div className={styles.card}>
-      <span className={styles.toolName}>{toolCall.name}</span>
-      <pre className={styles.arguments}>{formattedArguments}</pre>
+      <span className={styles.toolName}>{toolCall.name.toUpperCase()}</span>
+      <pre className={styles.arguments}>{`$ ${commandPreview}`}</pre>
       <div className={styles.actions}>
         <button onClick={() => onApprove(toolCall.id)} type="button" className={styles.approve}>
           Aprovar
@@ -31,4 +31,15 @@ export function ToolConfirmCard({
       </div>
     </div>
   );
+}
+
+/**
+ * Builds one readable command preview from tool args.
+ */
+function getCommandPreview(toolCall: ToolCall): string {
+  const rawCommand = toolCall.arguments.command;
+  if (typeof rawCommand === "string" && rawCommand.trim().length > 0) {
+    return rawCommand.trim();
+  }
+  return JSON.stringify(toolCall.arguments);
 }

@@ -5,7 +5,8 @@ import styles from "./ConfigPanel.module.css";
 
 const bridge = getBridge();
 const SAVE_SUCCESS_MS = 2000;
-const MODEL_OPTIONS = [
+const OPENROUTER_MODELS_ENDPOINT = "https://openrouter.ai/api/v1/models";
+const FALLBACK_MODEL_OPTIONS = [
   "anthropic/claude-sonnet-4-5",
   "anthropic/claude-opus-4-5",
   "openai/gpt-4o",
@@ -50,6 +51,9 @@ function getDefaultConfig(): CappyConfig {
  */
 export function ConfigPanel(): JSX.Element {
   const [config, setConfig] = useState<CappyConfig>(getDefaultConfig);
+  const [modelOptions, setModelOptions] = useState<string[]>([...FALLBACK_MODEL_OPTIONS]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
@@ -102,6 +106,42 @@ export function ConfigPanel(): JSX.Element {
   const canAddServer = useMemo(() => {
     return newServerName.trim().length > 0 && newServerUrl.trim().length > 0;
   }, [newServerName, newServerUrl]);
+  const availableModelOptions = useMemo(() => {
+    if (modelOptions.includes(config.openrouter.model)) {
+      return modelOptions;
+    }
+    return [config.openrouter.model, ...modelOptions];
+  }, [config.openrouter.model, modelOptions]);
+
+  useEffect(() => {
+    let isDisposed = false;
+    void loadOpenRouterModels({
+      onStart: () => {
+        if (!isDisposed) {
+          setIsLoadingModels(true);
+          setModelLoadError(null);
+        }
+      },
+      onSuccess: (models) => {
+        if (!isDisposed) {
+          setModelOptions(models);
+        }
+      },
+      onError: () => {
+        if (!isDisposed) {
+          setModelLoadError("Falha ao carregar modelos da OpenRouter. Usando lista padrão.");
+        }
+      },
+      onFinally: () => {
+        if (!isDisposed) {
+          setIsLoadingModels(false);
+        }
+      },
+    });
+    return () => {
+      isDisposed = true;
+    };
+  }, []);
 
   /**
    * Persists the current in-memory config through bridge.
@@ -198,12 +238,14 @@ export function ConfigPanel(): JSX.Element {
           }
           disabled={isLoading || isSaving}
         >
-          {MODEL_OPTIONS.map((option) => (
+          {availableModelOptions.map((option) => (
             <option key={option} value={option}>
               {option}
             </option>
           ))}
         </select>
+        {isLoadingModels ? <p className={styles.infoText}>Carregando modelos da OpenRouter...</p> : null}
+        {modelLoadError ? <p className={styles.warningText}>{modelLoadError}</p> : null}
 
         <label className={styles.label} htmlFor="openrouter-max-tokens">
           Max Tokens
@@ -409,4 +451,62 @@ function parseActiveAgent(value: string): ActiveAgent | null {
     return value;
   }
   return null;
+}
+
+interface LoadOpenRouterModelsCallbacks {
+  onStart: () => void;
+  onSuccess: (models: string[]) => void;
+  onError: () => void;
+  onFinally: () => void;
+}
+
+/**
+ * Loads model IDs from OpenRouter public models endpoint.
+ */
+async function loadOpenRouterModels(callbacks: LoadOpenRouterModelsCallbacks): Promise<void> {
+  callbacks.onStart();
+  try {
+    const response = await fetch(OPENROUTER_MODELS_ENDPOINT);
+    if (!response.ok) {
+      callbacks.onError();
+      return;
+    }
+    const payload = (await response.json()) as unknown;
+    const models = extractModelIds(payload);
+    if (models.length === 0) {
+      callbacks.onError();
+      return;
+    }
+    callbacks.onSuccess(models);
+  } catch {
+    callbacks.onError();
+  } finally {
+    callbacks.onFinally();
+  }
+}
+
+/**
+ * Extracts and sorts model IDs from unknown API payload.
+ */
+function extractModelIds(payload: unknown): string[] {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) {
+    return [];
+  }
+  const modelIds = payload.data
+    .map((model) => {
+      if (!isRecord(model) || typeof model.id !== "string") {
+        return null;
+      }
+      return model.id;
+    })
+    .filter((modelId): modelId is string => Boolean(modelId));
+  const uniqueModelIds = Array.from(new Set(modelIds));
+  return uniqueModelIds.sort((left, right) => left.localeCompare(right));
+}
+
+/**
+ * Narrows unknown values to plain object records.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

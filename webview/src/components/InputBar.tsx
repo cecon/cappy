@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, useMemo, useState } from "react";
 import styles from "./InputBar.module.css";
 
 export interface ContextFile {
@@ -51,7 +51,7 @@ export function InputBar({
   const isSendState = trimmedValue.length > 0;
   const showSlashMenu = value.startsWith("/");
   const atToken = getAtToken(value);
-  const showAtMenu = atToken.length > 0;
+  const showAtMenu = value.includes("@");
 
   const mockTokensUsed = useMemo(() => {
     const inputTokens = Math.ceil(value.length / 3.2);
@@ -65,12 +65,7 @@ export function InputBar({
    */
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const text = value.trim();
-    if (!text) {
-      return;
-    }
-    onSend(text);
-    setValue("");
+    submitCurrentValue();
   }
 
   /**
@@ -102,9 +97,38 @@ export function InputBar({
     if (!isSendState) {
       return;
     }
-    onSend(trimmedValue);
+    submitCurrentValue();
+  }
+
+  /**
+   * Sends the current input value when valid.
+   */
+  function submitCurrentValue(): void {
+    const text = value.trim();
+    if (!text || isStreaming) {
+      return;
+    }
+    onSend(text);
     setValue("");
   }
+
+  /**
+   * Handles Enter and Shift+Enter behavior in textarea.
+   */
+  function handleTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+    event.preventDefault();
+    submitCurrentValue();
+  }
+
+  const availableContextFiles = MOCK_WORKSPACE_FILES.filter((file) => {
+    if (atToken.length === 0) {
+      return true;
+    }
+    return file.path.toLowerCase().includes(atToken.toLowerCase());
+  });
 
   return (
     <form onSubmit={handleSubmit} className={styles.form}>
@@ -136,6 +160,7 @@ export function InputBar({
         <textarea
           value={value}
           onChange={(event) => setValue(event.target.value)}
+          onKeyDown={handleTextareaKeyDown}
           placeholder="/ para comandos, @ para contexto"
           className={styles.textarea}
           rows={3}
@@ -160,7 +185,7 @@ export function InputBar({
 
         {showAtMenu ? (
           <div className={styles.menu} role="listbox" aria-label="Arquivos do workspace">
-            {MOCK_WORKSPACE_FILES.filter((file) => file.path.toLowerCase().includes(atToken.toLowerCase())).map((file) => (
+            {availableContextFiles.map((file) => (
               <button key={file.path} type="button" className={styles.menuItem} onClick={() => handleSelectContextFile(file)}>
                 <span className={styles.menuCommand}>@{file.name}</span>
                 <span className={styles.menuDescription}>{file.path}</span>
