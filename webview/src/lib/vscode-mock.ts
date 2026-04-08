@@ -139,7 +139,6 @@ function isCappyConfig(value: unknown): boolean {
   return (
     typeof value.openrouter.apiKey === "string" &&
     typeof value.openrouter.model === "string" &&
-    typeof value.openrouter.maxTokens === "number" &&
     typeof value.agent.systemPrompt === "string" &&
     typeof value.agent.maxIterations === "number" &&
     Array.isArray(value.mcp.servers) &&

@@ -56,7 +56,6 @@ export interface CappyConfig {
     apiKey: string;
     model: string;
     visionModel: string;
-    maxTokens: number;
   };
   agent: {
     activeAgent: ActiveAgent;

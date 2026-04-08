@@ -51,8 +51,8 @@ export function defaultConfig(): CappyConfig {
   return {
     openrouter: {
       apiKey: "",
-      model: "anthropic/claude-sonnet-4-5",
-      visionModel: "openai/gpt-4o",
+      model: "openai/gpt-oss-120b",
+      visionModel: "meta-llama/llama-3.2-11b-vision-instruct:free",
     },
     agent: {
       activeAgent: "coder",

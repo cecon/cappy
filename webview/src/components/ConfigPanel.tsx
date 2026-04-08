@@ -7,7 +7,7 @@ const bridge = getBridge();
 const SAVE_SUCCESS_MS = 2000;
 const OPENROUTER_MODELS_ENDPOINT = "https://openrouter.ai/api/v1/models";
 const FALLBACK_MODEL_OPTIONS = [
-  "anthropic/claude-sonnet-4-5",
+  "openai/gpt-oss-120b",
   "anthropic/claude-opus-4-5",
   "openai/gpt-4o",
   "openai/gpt-4o-mini",
@@ -32,9 +32,8 @@ function getDefaultConfig(): CappyConfig {
   return {
     openrouter: {
       apiKey: "",
-      model: "anthropic/claude-sonnet-4-5",
-      visionModel: "openai/gpt-4o",
-      maxTokens: 4096,
+      model: "openai/gpt-oss-120b",
+      visionModel: "meta-llama/llama-3.2-11b-vision-instruct:free",
     },
     agent: {
       activeAgent: "coder",
@@ -276,28 +275,6 @@ export function ConfigPanel(): JSX.Element {
             </option>
           ))}
         </select>
-
-        <label className={styles.label} htmlFor="openrouter-max-tokens">
-          Max Tokens
-        </label>
-        <input
-          id="openrouter-max-tokens"
-          className={styles.input}
-          type="number"
-          min={256}
-          max={32768}
-          value={config.openrouter.maxTokens}
-          onChange={(event) =>
-            setConfig((previousConfig) => ({
-              ...previousConfig,
-              openrouter: {
-                ...previousConfig.openrouter,
-                maxTokens: clampNumber(event.target.value, 256, 32768, previousConfig.openrouter.maxTokens),
-              },
-            }))
-          }
-          disabled={isLoading || isSaving}
-        />
       </div>
 
       <div className={styles.section}>
