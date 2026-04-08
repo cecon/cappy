@@ -1,0 +1,81 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+}
+
+.empty {
+  margin: 0;
+  color: #666;
+}
+
+.serverCard {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.serverName {
+  margin: 0;
+  font-size: 16px;
+}
+
+.toolList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toolItem {
+  border: 1px solid #ececec;
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toolHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolName {
+  font-size: 14px;
+}
+
+.toolDescription {
+  margin: 0;
+  font-size: 13px;
+  color: #555;
+}
+
+.badgeSafe,
+.badgeDestructive {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badgeSafe {
+  background: #e8f7ee;
+  color: #167f39;
+}
+
+.badgeDestructive {
+  background: #fdecec;
+  color: #a11a1a;
+}
