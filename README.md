@@ -1,11 +1,29 @@
-# Cappy
+<p align="center">
+  <img src="extension/media/icon.png" alt="Cappy" width="120" />
+</p>
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+<h1 align="center">Cappy</h1>
+
+<p align="center">
+  <b>Your autonomous AI coding companion — right in your IDE.</b><br/>
+  <i>Code smarter. Ship faster.</i>
+</p>
+
+<p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy">
+    <img src="https://img.shields.io/visual-studio-marketplace/v/eduardocecon.cappy?style=for-the-badge&label=Marketplace&color=007ACC" alt="VS Code Marketplace" />
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy">
+    <img src="https://img.shields.io/visual-studio-marketplace/d/eduardocecon.cappy?style=for-the-badge&label=Downloads&color=4CC61E" alt="Downloads" />
+  </a>
+  <a href="https://github.com/cecon/cappy/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/cecon/cappy?style=for-the-badge&color=yellow" alt="License" />
+  </a>
+</p>
+
+---
 
 Autonomous AI coding companion for VS Code with multi-agent workflows and human-in-the-loop tool execution.
-
-<!-- Screenshot placeholder: add a screenshot or GIF of the Cappy chat panel here -->
 
 ## Features
 

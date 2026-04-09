@@ -71,10 +71,18 @@ export default function App(): JSX.Element {
         </header>
 
         <div className={styles.content}>
-          {activePanel === "config" ? <ConfigPanel /> : null}
-          {activePanel === "mcp" ? <McpToolsPanel /> : null}
-          {activePanel === "history" ? <HistoryPanel /> : null}
-          {activePanel === "chat" ? <Chat /> : null}
+          <div style={{ display: activePanel === "config" ? "contents" : "none" }}>
+            <ConfigPanel />
+          </div>
+          <div style={{ display: activePanel === "mcp" ? "contents" : "none" }}>
+            <McpToolsPanel />
+          </div>
+          <div style={{ display: activePanel === "history" ? "contents" : "none" }}>
+            <HistoryPanel />
+          </div>
+          <div style={{ display: activePanel === "chat" ? "contents" : "none" }}>
+            <Chat />
+          </div>
         </div>
       </div>
     </main>
