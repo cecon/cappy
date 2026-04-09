@@ -36,11 +36,11 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Set publish version from latest prod tag
+      - name: Set publish version (3.2.x, patch <= 999)
         id: version
         shell: bash
         run: |
-          node -e "const fs=require('fs'); const cp=require('child_process'); const p='./extension/package.json'; const pkg=JSON.parse(fs.readFileSync(p,'utf8')); const tagsRaw=cp.execSync('git tag -l \"v*\" --sort=-v:refname',{encoding:'utf8'}).trim(); const latestTag=tagsRaw.split('\n').filter(Boolean)[0]||''; const versionFromTag=latestTag.replace(/^v/,''); const parsed=versionFromTag.match(/^(\d+)\.(\d+)\.(\d+)/); let major=0; let minor=1; let patch=0; if(parsed){major=Number.parseInt(parsed[1],10); minor=Number.parseInt(parsed[2],10); patch=Number.parseInt(parsed[3],10)+1;} else {const cur=(pkg.version||'0.1.0').match(/^(\d+)\.(\d+)\.(\d+)/); if(cur){major=Number.parseInt(cur[1],10); minor=Number.parseInt(cur[2],10); patch=Number.parseInt(cur[3],10);} } const run=Number.parseInt(process.env.GITHUB_RUN_NUMBER||'0',10); const attempt=Number.parseInt(process.env.GITHUB_RUN_ATTEMPT||'1',10); const uniquePatch=patch + (run*100) + attempt; pkg.version=major + '.' + minor + '.' + uniquePatch; fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + pkg.version + '\n'); console.log('Latest prod tag:', latestTag || '(none)'); console.log('Publishing version:', pkg.version);"
+          node -e "const fs=require('fs'); const p='./extension/package.json'; const pkg=JSON.parse(fs.readFileSync(p,'utf8')); const targetMajor=3; const targetMinor=2; const patch=Number.parseInt(process.env.GITHUB_RUN_NUMBER||'0',10); if(!Number.isFinite(patch) || patch < 0){throw new Error('Invalid GITHUB_RUN_NUMBER for patch version');} if(patch > 999){throw new Error('Patch overflow: GITHUB_RUN_NUMBER exceeds 999. Bump minor version.');} pkg.version=targetMajor + '.' + targetMinor + '.' + patch; fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + pkg.version + '\n'); console.log('Publishing version:', pkg.version);"
 
       - name: Package
         run: pnpm run package
