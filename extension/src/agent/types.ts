@@ -1,3 +1,5 @@
+import type { FileDiffPayload } from "../utils/fileDiffPayload";
+
 /**
  * Roles supported by the agent message history.
  */
@@ -37,9 +39,10 @@ export interface Message {
 export interface AgentEvents {
   "stream:token": (token: string) => void;
   "stream:done": () => void;
+  "context:usage": (payload: import("./contextBudget").ContextUsagePayload) => void;
   "tool:confirm": (toolCall: ToolCall) => void;
   "tool:executing": (toolCall: ToolCall) => void;
-  "tool:result": (toolCall: ToolCall, result: string) => void;
+  "tool:result": (toolCall: ToolCall, result: string, fileDiff?: FileDiffPayload) => void;
   "tool:rejected": (toolCall: ToolCall) => void;
   error: (err: Error) => void;
 }

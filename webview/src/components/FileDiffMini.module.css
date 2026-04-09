@@ -1,0 +1,117 @@
+.card {
+  border: 1px solid var(--border-surface);
+  border-radius: 8px;
+  background: var(--bg-base);
+  overflow: hidden;
+  margin-bottom: 8px;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.card:hover {
+  border-color: var(--border-subtle);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--accent, #3b82f6);
+  outline-offset: 2px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 11px;
+}
+
+.fileIcon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.fileName {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.add {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.del {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.neutral {
+  color: var(--text-muted);
+}
+
+.hunks {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.hunk {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-x: auto;
+}
+
+.lineAdd,
+.lineDel,
+.lineCtx {
+  padding: 1px 8px 1px 0;
+  border-left: 3px solid transparent;
+}
+
+.lineAdd {
+  background: rgba(34, 197, 94, 0.12);
+  border-left-color: rgba(34, 197, 94, 0.55);
+}
+
+.lineDel {
+  background: rgba(239, 68, 68, 0.12);
+  border-left-color: rgba(239, 68, 68, 0.55);
+}
+
+.lineCtx {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.lineInner {
+  display: block;
+  white-space: pre;
+  padding-left: 6px;
+}

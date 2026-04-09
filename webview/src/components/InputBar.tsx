@@ -1,5 +1,5 @@
 import { FormEvent, KeyboardEvent, useCallback, useMemo, useRef, useState } from "react";
-import type { ImageAttachment } from "../lib/types";
+import type { ChatUiMode, ContextUsageSnapshot, ImageAttachment } from "../lib/types";
 import styles from "./InputBar.module.css";
 
 export interface ContextFile {
@@ -8,19 +8,27 @@ export interface ContextFile {
 }
 
 interface InputBarProps {
-  onSend: (text: string, images?: ImageAttachment[]) => void;
+  onSend: (text: string, mode: ChatUiMode, images?: ImageAttachment[]) => void;
   isStreaming: boolean;
   contextFiles: ContextFile[];
   onAddContextFile: (file: ContextFile) => void;
   onRemoveContextFile: (path: string) => void;
+  /** Estimativa do host; quando ausente, usa limite por defeito. */
+  contextUsage: ContextUsageSnapshot | null;
 }
+
+const MODE_ITEMS: { id: ChatUiMode; label: string; hint: string }[] = [
+  { id: "plain", label: "Plain", hint: "Só texto, sem ferramentas" },
+  { id: "agent", label: "Agent", hint: "Ferramentas completas + MCP" },
+  { id: "ask", label: "Ask", hint: "Leitura e pesquisa, sem escrita no repo" },
+];
 
 interface CommandItem {
   value: string;
   description: string;
 }
 
-const TOTAL_CONTEXT_TOKENS = 160_000;
+const DEFAULT_CONTEXT_LIMIT_TOKENS = 128_000;
 const MOCK_WORKSPACE_FILES: ContextFile[] = [
   { path: "webview/src/components/Chat.tsx", name: "Chat.tsx" },
   { path: "webview/src/components/InputBar.tsx", name: "InputBar.tsx" },
@@ -43,8 +51,10 @@ export function InputBar({
   contextFiles,
   onAddContextFile,
   onRemoveContextFile,
+  contextUsage,
 }: InputBarProps): JSX.Element {
   const [value, setValue] = useState("");
+  const [chatMode, setChatMode] = useState<ChatUiMode>("agent");
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -56,12 +66,15 @@ export function InputBar({
   const atToken = getAtToken(value);
   const showAtMenu = value.includes("@");
 
-  const mockTokensUsed = useMemo(() => {
-    const inputTokens = Math.ceil(value.length / 3.2);
-    const contextTokens = contextFiles.length * 4500;
-    return Math.min(TOTAL_CONTEXT_TOKENS, inputTokens + contextTokens + 3200);
-  }, [contextFiles.length, value.length]);
-  const contextRatio = mockTokensUsed / TOTAL_CONTEXT_TOKENS;
+  const contextMetrics = useMemo(() => {
+    const limitTokens = contextUsage?.limitTokens ?? DEFAULT_CONTEXT_LIMIT_TOKENS;
+    const baseUsed = contextUsage?.usedTokens ?? 0;
+    const draftTokens = isStreaming ? 0 : Math.ceil(value.length / 4);
+    const attachmentTokens = contextFiles.length * 4500;
+    const previewUsed = Math.min(limitTokens * 1.5, baseUsed + draftTokens + attachmentTokens);
+    return { previewUsed, limitTokens, effectiveBudget: contextUsage?.effectiveInputBudgetTokens ?? null, didTrim: contextUsage?.didTrimForApi ?? false };
+  }, [contextFiles.length, contextUsage, isStreaming, value.length]);
+  const contextRatio = contextMetrics.previewUsed / contextMetrics.limitTokens;
 
   /**
    * Handles submit from input form.
@@ -111,7 +124,7 @@ export function InputBar({
     if ((!text && images.length === 0) || isStreaming) {
       return;
     }
-    onSend(text || "(imagem)", images.length > 0 ? images : undefined);
+    onSend(text || "(imagem)", chatMode, images.length > 0 ? images : undefined);
     setValue("");
     setImages([]);
   }
@@ -225,7 +238,13 @@ export function InputBar({
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={handleTextareaKeyDown}
           onPaste={handlePaste}
-          placeholder="/ para comandos, @ para contexto"
+          placeholder={
+            chatMode === "plain"
+              ? "Mensagem em texto puro (sem tools)"
+              : chatMode === "ask"
+                ? "Pergunta: leitura e pesquisa no código e na web"
+                : "/ para comandos, @ para contexto — agente com ferramentas"
+          }
           className={styles.textarea}
           rows={3}
         />
@@ -269,16 +288,21 @@ export function InputBar({
 
         <div className={styles.toolbar}>
           <div className={styles.toolbarLeft}>
-            <button type="button" className={styles.pill}>
-              <span className={`${styles.pillDot} ${styles.pillDotPurple}`} />
-              <span>Coder</span>
-              <span className={styles.chevron}>▾</span>
-            </button>
-            <button type="button" className={styles.pill}>
-              <span className={`${styles.pillDot} ${styles.pillDotGreen}`} />
-              <span>Claude</span>
-              <span className={styles.chevron}>▾</span>
-            </button>
+            <div className={styles.modeSwitch} role="tablist" aria-label="Modo do chat">
+              {MODE_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={chatMode === item.id}
+                  title={item.hint}
+                  className={`${styles.modeSegment} ${chatMode === item.id ? styles.modeSegmentActive : ""}`}
+                  onClick={() => setChatMode(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className={styles.toolbarRight}>
@@ -295,9 +319,22 @@ export function InputBar({
                 <div className={styles.contextTooltip}>
                   <strong className={styles.contextTitle}>Contexto</strong>
                   <span className={styles.contextNumbers}>
-                    {mockTokensUsed.toLocaleString("pt-BR")} / {TOTAL_CONTEXT_TOKENS.toLocaleString("pt-BR")} tokens
+                    ~{Math.round(contextMetrics.previewUsed).toLocaleString("pt-BR")} /{" "}
+                    {contextMetrics.limitTokens.toLocaleString("pt-BR")} tokens
                   </span>
-                  <progress className={styles.contextProgress} value={mockTokensUsed} max={TOTAL_CONTEXT_TOKENS} />
+                  {contextMetrics.effectiveBudget !== null ? (
+                    <span className={styles.contextBudgetHint}>
+                      Orçamento útil (~entrada): {Math.round(contextMetrics.effectiveBudget).toLocaleString("pt-BR")}
+                    </span>
+                  ) : null}
+                  {contextMetrics.didTrim ? (
+                    <span className={styles.contextTrimHint}>Histórico foi compactado para caber no modelo.</span>
+                  ) : null}
+                  <progress
+                    className={styles.contextProgress}
+                    value={Math.min(contextMetrics.previewUsed, contextMetrics.limitTokens)}
+                    max={contextMetrics.limitTokens}
+                  />
                 </div>
               ) : null}
             </div>

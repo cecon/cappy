@@ -2,8 +2,12 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 4px;
+  padding: 0;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .empty {
@@ -17,15 +21,18 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .rowUser {
-  max-width: 85%;
+  max-width: min(92%, 100%);
   align-self: flex-end;
   align-items: flex-end;
 }
 
 .rowAssistant {
+  width: 100%;
   max-width: 100%;
   align-self: flex-start;
   align-items: flex-start;
@@ -41,11 +48,15 @@
 /* ── Bubbles ── */
 
 .bubble {
-  display: inline-flex;
+  display: flex;
   align-items: flex-end;
   gap: 6px;
   padding: 10px 12px;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .bubbleUser {
@@ -91,6 +102,12 @@
 .toolGroup {
   align-self: flex-start;
   max-width: 100%;
+}
+
+.toolExploreHint {
+  margin: 0 0 6px 2px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .toolToggle {
@@ -157,6 +174,8 @@
   line-height: 1.55;
   overflow-x: auto;
   max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .markdown p {
@@ -202,6 +221,7 @@
   padding: 10px;
   border-radius: 6px;
   overflow-x: auto;
+  max-width: 100%;
   margin: 6px 0;
 }
 

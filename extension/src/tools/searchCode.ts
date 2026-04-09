@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { spawn } from "node:child_process";
 import * as vscode from "vscode";
 
-import type { ToolDefinition } from "./index";
+import type { ToolDefinition } from "./toolTypes";
 import { resolveWorkspacePath } from "./workspacePath";
 import { getRgPath } from "./ripgrep";
 

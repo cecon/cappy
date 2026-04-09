@@ -97,7 +97,11 @@ function isIncomingMessage(value: unknown): value is IncomingMessage {
   }
 
   if (value.type === "tool:result") {
-    return isToolCall(value.toolCall) && typeof value.result === "string";
+    return (
+      isToolCall(value.toolCall) &&
+      typeof value.result === "string" &&
+      (value.fileDiff === undefined || isRecord(value.fileDiff))
+    );
   }
 
   if (value.type === "error") {
@@ -110,6 +114,20 @@ function isIncomingMessage(value: unknown): value is IncomingMessage {
 
   if (value.type === "config:saved") {
     return true;
+  }
+
+  if (value.type === "mcp:tools") {
+    return Array.isArray(value.tools);
+  }
+
+  if (value.type === "context:usage") {
+    return (
+      typeof value.usedTokens === "number" &&
+      typeof value.limitTokens === "number" &&
+      typeof value.effectiveInputBudgetTokens === "number" &&
+      typeof value.didTrimForApi === "boolean" &&
+      typeof value.droppedMessageCount === "number"
+    );
   }
 
   return false;

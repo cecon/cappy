@@ -1,48 +1,40 @@
-import { globFilesTool } from "./globFiles";
+export * from "./toolTypes";
+
+import { editTool } from "./fileEdit";
+import { exploreAgentTool } from "./exploreAgent";
+import { globFilesTool, globOpenClaudeTool } from "./globFiles";
+import { grepTool } from "./grepTool";
 import { listDirTool } from "./listDir";
-import { readFileTool } from "./readFile";
-import { runTerminalTool } from "./runTerminal";
+import { enterPlanModeTool, exitPlanModeTool } from "./planModeTools";
+import { readFileTool, readOpenClaudeTool } from "./readFile";
+import { bashTool, runTerminalTool } from "./runTerminal";
 import { searchCodeTool } from "./searchCode";
-import { writeFileTool } from "./writeFile";
+import { todoWriteTool } from "./todoWrite";
+import type { ToolDefinition } from "./toolTypes";
+import { webFetchTool } from "./webFetch";
+import { webSearchTool } from "./webSearch";
+import { writeFileTool, writeOpenClaudeTool } from "./writeFile";
 
 /**
- * JSON Schema property metadata used by tools.
- */
-export interface JsonSchemaProperty {
-  type: "string" | "number" | "boolean" | "object" | "array";
-  description?: string;
-  enum?: string[];
-  default?: string | number | boolean;
-}
-
-/**
- * Minimal JSON Schema object used by tools.
- */
-export interface JsonSchema {
-  type: "object";
-  properties: Record<string, JsonSchemaProperty>;
-  required?: string[];
-  additionalProperties?: boolean;
-}
-
-/**
- * Shared contract for all Cappy tools.
- */
-export interface ToolDefinition<TParams = any, TResult = unknown> {
-  name: string;
-  description: string;
-  parameters: JsonSchema;
-  execute: (params: TParams) => Promise<TResult>;
-}
-
-/**
- * Registry with all scaffold tools.
+ * Full agent surface: OpenClaude-style names plus ExploreAgent subagent.
  */
 export const toolsRegistry: ToolDefinition<any, unknown>[] = [
-  globFilesTool,
+  exploreAgentTool,
+  readOpenClaudeTool,
   readFileTool,
+  writeOpenClaudeTool,
   writeFileTool,
+  editTool,
+  globOpenClaudeTool,
+  globFilesTool,
   listDirTool,
+  bashTool,
   runTerminalTool,
+  grepTool,
   searchCodeTool,
+  todoWriteTool,
+  enterPlanModeTool,
+  exitPlanModeTool,
+  webFetchTool,
+  webSearchTool,
 ];
