@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises";
+import { type Dirent } from "node:fs";
 import * as path from "node:path";
 
 /** Segmentos da pasta de skills por projeto (sob a raiz do workspace). */
@@ -14,9 +15,9 @@ async function collectMarkdownFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
 
   async function walk(current: string): Promise<void> {
-    let entries: fs.Dirent[];
+    let entries: Dirent[];
     try {
-      entries = await fs.readdir(current, { withFileTypes: true });
+      entries = await fs.readdir(current, { withFileTypes: true }) as Dirent[];
     } catch {
       return;
     }

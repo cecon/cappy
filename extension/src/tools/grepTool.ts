@@ -31,19 +31,19 @@ export interface GrepToolParams {
 export interface GrepToolResult {
   mode: "content" | "files_with_matches" | "count";
   content: string;
-  numFiles?: number;
-  appliedLimit?: number;
-  appliedOffset?: number;
+  numFiles?: number | undefined;
+  appliedLimit?: number | undefined;
+  appliedOffset?: number | undefined;
 }
 
-function applyHeadLimit<T>(items: T[], limit: number | undefined, offset: number): { items: T[]; applied?: number } {
+function applyHeadLimit<T>(items: T[], limit: number | undefined, offset: number): { items: T[]; applied?: number | undefined } {
   if (limit === 0) {
-    return { items: items.slice(offset), applied: undefined };
+    return { items: items.slice(offset) };
   }
   const effective = limit ?? DEFAULT_HEAD_LIMIT;
   const sliced = items.slice(offset, offset + effective);
   const truncated = items.length - offset > effective;
-  return { items: sliced, applied: truncated ? effective : undefined };
+  return truncated ? { items: sliced, applied: effective } : { items: sliced };
 }
 
 async function runRg(args: string[]): Promise<string[]> {

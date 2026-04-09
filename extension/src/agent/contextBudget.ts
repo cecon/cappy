@@ -96,7 +96,7 @@ export function isValidOpenAiMessageSequence(messages: Message[]): boolean {
   }
   let index = 0;
   while (index < messages.length) {
-    const current = messages[index];
+    const current = messages[index]!;
     if (current.role === "user") {
       index += 1;
       continue;

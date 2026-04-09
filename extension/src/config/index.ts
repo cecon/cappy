@@ -10,9 +10,9 @@ interface OpenRouterConfig {
   model: string;
   visionModel: string;
   /** Janela de contexto em tokens (estimativa UI + orçamento de compactação). */
-  contextWindowTokens?: number;
+  contextWindowTokens?: number | undefined;
   /** Tokens reservados para a resposta do modelo. */
-  reservedOutputTokens?: number;
+  reservedOutputTokens?: number | undefined;
 }
 
 /**
@@ -30,7 +30,7 @@ interface AgentConfig {
   /**
    * Se `true` (omissão), após falha de parse dos argumentos de uma tool tenta um pedido LLM curto para corrigir o JSON antes de reportar erro ao modelo principal.
    */
-  recoverToolArgumentsWithLlm?: boolean;
+  recoverToolArgumentsWithLlm?: boolean | undefined;
 }
 
 /**

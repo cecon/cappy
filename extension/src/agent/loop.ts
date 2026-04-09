@@ -826,7 +826,7 @@ function serializeToolResult(result: unknown): string {
     return result;
   }
   if (isRecord(result) && result.fileDiff && isRecord(result.fileDiff)) {
-    const fd = result.fileDiff as FileDiffPayload;
+    const fd = result.fileDiff as unknown as FileDiffPayload;
     const slim: Record<string, unknown> = {
       ok: result.ok,
       path: fd.path,
@@ -848,7 +848,7 @@ function extractFileDiffPayload(result: unknown): FileDiffPayload | undefined {
   if (!isRecord(result) || !result.fileDiff || !isRecord(result.fileDiff)) {
     return undefined;
   }
-  return result.fileDiff as FileDiffPayload;
+  return result.fileDiff as unknown as FileDiffPayload;
 }
 
 /**
