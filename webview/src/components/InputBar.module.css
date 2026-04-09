@@ -2,6 +2,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .contextChips {
@@ -56,7 +60,10 @@
   border-radius: 9px;
   background: var(--bg-surface);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 2%);
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: visible;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .inputBox:focus-within {
@@ -116,6 +123,8 @@
 
 .textarea {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 64px;
   border: 0;
   background: transparent;
@@ -125,6 +134,7 @@
   font-size: 13px;
   line-height: 1.4;
   outline: none;
+  box-sizing: border-box;
 }
 
 .textarea::placeholder {
@@ -186,50 +196,60 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .toolbarLeft {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
-.pill {
+.modeSwitch {
+  display: inline-flex;
+  align-items: stretch;
   border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
   background: var(--bg-base);
-  border-radius: 20px;
-  padding: 3px 9px;
+}
+
+.modeSegment {
+  border: 0;
+  background: transparent;
   color: var(--text-secondary);
   font-size: 11px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  font-weight: 500;
+  padding: 5px 10px;
   cursor: pointer;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.pillDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
+.modeSegment:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
-.pillDotPurple {
-  background: var(--purple-mid);
+.modeSegmentActive {
+  background: var(--bg-accent);
+  color: var(--text-primary);
 }
 
-.pillDotGreen {
-  background: var(--green-mid);
-}
-
-.chevron {
-  color: var(--text-muted);
+.modeSegment + .modeSegment {
+  border-left: 1px solid var(--border-subtle);
 }
 
 .toolbarRight {
   display: flex;
   align-items: center;
   gap: 5px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .contextRingArea {
@@ -286,7 +306,7 @@
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  width: 210px;
+  width: 240px;
   border: 1px solid var(--border-surface);
   border-radius: 7px;
   background: var(--bg-surface);
@@ -305,6 +325,17 @@
 .contextNumbers {
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+.contextBudgetHint,
+.contextTrimHint {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.contextTrimHint {
+  color: var(--amber);
 }
 
 .contextProgress {

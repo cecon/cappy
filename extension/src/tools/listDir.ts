@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 
-import type { ToolDefinition } from "./index";
+import type { ToolDefinition } from "./toolTypes";
 import { resolveWorkspacePath } from "./workspacePath";
 
 interface ListDirParams {

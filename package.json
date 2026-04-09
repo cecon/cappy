@@ -11,11 +11,11 @@
   "scripts": {
     "dev": "concurrently -k -n webview,cli-mock -c blue,green \"pnpm --filter @cappy/webview dev\" \"pnpm --filter @cappy/cli-mock dev\"",
     "build": "pnpm --filter cappy build && pnpm --filter @cappy/webview build && pnpm --filter @cappy/cli-mock build",
-    "package": "pnpm run build && cd extension && pnpm exec vsce package --no-dependencies -o eduardocecon.cappy-$(node -p \"require('./package.json').version\").vsix",
+    "package": "pnpm run build && cd extension && pnpm exec vsce package --no-dependencies --allow-package-all-secrets --allow-package-env-file -o eduardocecon.cappy-$(node -p \"require('./package.json').version\").vsix",
     "typecheck": "pnpm -r --if-present typecheck"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.7.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1"
   }
 }

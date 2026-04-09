@@ -2,7 +2,8 @@ import { exec } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import type { ToolDefinition } from "./index";
+import { getPlanMode } from "../agent/sessionContext";
+import type { ToolDefinition } from "./toolTypes";
 import { getWorkspaceRoot } from "./workspacePath";
 
 interface RunTerminalParams {
@@ -12,13 +13,47 @@ interface RunTerminalParams {
 
 const execAsync = promisify(exec);
 
+async function executeTerminal(params: RunTerminalParams): Promise<{ stdout: string; stderr: string }> {
+  if (getPlanMode()) {
+    throw new Error(
+      "Plan mode is active: do not run shell commands yet. Use ExitPlanMode when ready to execute, or ask the user.",
+    );
+  }
+  const workspaceRoot = getWorkspaceRoot();
+  const resolvedCwd =
+    typeof params.cwd === "string" && params.cwd.trim().length > 0
+      ? path.resolve(workspaceRoot, params.cwd)
+      : workspaceRoot;
+  const { stdout, stderr } = await execAsync(params.command, {
+    cwd: resolvedCwd,
+    maxBuffer: 1024 * 1024,
+  });
+  return { stdout, stderr };
+}
+
 /**
- * Runs a shell command and returns stdout/stderr.
+ * OpenClaude-style shell (`Bash`).
  */
-export const runTerminalTool: ToolDefinition<
-  RunTerminalParams,
-  { stdout: string; stderr: string }
-> = {
+export const bashTool: ToolDefinition<RunTerminalParams, { stdout: string; stderr: string }> = {
+  name: "Bash",
+  description:
+    "Runs a shell command in the workspace. Prefer Glob, Grep, Read, Edit, Write for file operations when possible.",
+  parameters: {
+    type: "object",
+    properties: {
+      command: { type: "string", description: "Command line to execute." },
+      cwd: { type: "string", description: "Optional working directory relative to workspace root." },
+    },
+    required: ["command"],
+    additionalProperties: false,
+  },
+  execute: executeTerminal,
+};
+
+/**
+ * Runs a terminal command (legacy name `runTerminal`).
+ */
+export const runTerminalTool: ToolDefinition<RunTerminalParams, { stdout: string; stderr: string }> = {
   name: "runTerminal",
   description: "Runs a terminal command in the local machine.",
   parameters: {
@@ -30,16 +65,5 @@ export const runTerminalTool: ToolDefinition<
     required: ["command"],
     additionalProperties: false,
   },
-  async execute(params) {
-    const workspaceRoot = getWorkspaceRoot();
-    const resolvedCwd =
-      typeof params.cwd === "string" && params.cwd.trim().length > 0
-        ? path.resolve(workspaceRoot, params.cwd)
-        : workspaceRoot;
-    const { stdout, stderr } = await execAsync(params.command, {
-      cwd: resolvedCwd,
-      maxBuffer: 1024 * 1024,
-    });
-    return { stdout, stderr };
-  },
+  execute: executeTerminal,
 };

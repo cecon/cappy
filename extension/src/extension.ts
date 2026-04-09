@@ -1,6 +1,11 @@
 import * as vscode from "vscode";
 
 import { createWebviewBridge } from "./bridge/webview";
+import {
+  launchOpenClaudeCli,
+  openOpenClaudeRepository,
+  openOpenClaudeWorkspaceProfile,
+} from "./openClaudeLauncher";
 
 const CHAT_VIEW_ID = "cappy.chatView";
 const SIDEBAR_CONTAINER_ID = "cappy-sidebar";
@@ -102,7 +107,38 @@ export function activate(context: vscode.ExtensionContext): void {
     provider.reveal();
   });
 
-  extensionDisposables.push(provider, providerRegistration, openChatCommand, clearChatCommand);
+  const launchOpenClaudeCommand = vscode.commands.registerCommand("cappy.launchOpenClaude", async () => {
+    await launchOpenClaudeCli({ requireWorkspaceRoot: false });
+  });
+
+  const launchOpenClaudeWorkspaceRootCommand = vscode.commands.registerCommand(
+    "cappy.launchOpenClaudeWorkspaceRoot",
+    async () => {
+      await launchOpenClaudeCli({ requireWorkspaceRoot: true });
+    },
+  );
+
+  const openOpenClaudeProfileCommand = vscode.commands.registerCommand(
+    "cappy.openOpenClaudeProfile",
+    async () => {
+      await openOpenClaudeWorkspaceProfile();
+    },
+  );
+
+  const openOpenClaudeRepoCommand = vscode.commands.registerCommand("cappy.openOpenClaudeRepository", async () => {
+    await openOpenClaudeRepository();
+  });
+
+  extensionDisposables.push(
+    provider,
+    providerRegistration,
+    openChatCommand,
+    clearChatCommand,
+    launchOpenClaudeCommand,
+    launchOpenClaudeWorkspaceRootCommand,
+    openOpenClaudeProfileCommand,
+    openOpenClaudeRepoCommand,
+  );
   context.subscriptions.push(...extensionDisposables);
 }
 

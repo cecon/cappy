@@ -1,6 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import path from "node:path";
 import { EventEmitter } from "node:events";
 
 import OpenAI from "openai";
@@ -11,17 +8,52 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 
+import type { ChatUiMode } from "../bridge/chatMode";
+import { loadConfig } from "../config";
+import { coerceSearchPattern, mergeNestedPatternArgs } from "../tools/coercePattern";
 import type { McpTool } from "../mcp/client";
-import type { ToolDefinition } from "../tools";
+import type { ToolDefinition } from "../tools/toolTypes";
+import type { FileDiffPayload } from "../utils/fileDiffPayload";
+import {
+  DEFAULT_CONTEXT_WINDOW_TOKENS,
+  DEFAULT_RESERVED_OUTPUT_TOKENS,
+  estimateMessagesTokens,
+  estimateTextTokens,
+  getEffectiveInputBudgetTokens,
+  SYSTEM_PROMPT_OVERHEAD_TOKENS,
+  trimMessagesForBudget,
+  type ContextUsagePayload,
+} from "./contextBudget";
+import {
+  MAX_CONTEXT_SANITIZE_ITERATIONS,
+  MIN_DROPPED_TOKENS_TO_SUMMARIZE,
+  summarizeDroppedMessagesForMainAgent,
+} from "./contextSanitize";
+import {
+  appendCompactionNote,
+  getConversationCompactionSummary,
+  getPlanMode,
+} from "./sessionContext";
 import type { AgentEvents, AgentTool, Message, ToolCall } from "./types";
+import { recoverToolArgumentsWithLlm } from "./toolArgumentRecovery";
+import { loadWorkspaceSkillsPrompt } from "./workspaceSkills";
 
 /**
  * Tools that require explicit user confirmation before execution.
  */
-const DESTRUCTIVE_TOOLS = ["writeFile", "runTerminal"] as const;
+const DESTRUCTIVE_TOOLS = ["writeFile", "Write", "runTerminal", "Bash", "Edit"] as const;
 const MCP_DESTRUCTIVE_KEYWORDS = ["write", "delete", "remove", "create", "execute", "run"] as const;
 
 const DESTRUCTIVE_TOOL_SET = new Set<string>(DESTRUCTIVE_TOOLS);
+
+/**
+ * Injected while plan mode is active (OpenClaude-style EnterPlanMode).
+ */
+const PLAN_MODE_SYSTEM_PROMPT =
+  "You are in PLAN MODE. Explore the codebase, read files, and design an approach. " +
+  "Do not use Write, writeFile, Edit, Bash, or runTerminal until you call ExitPlanMode or the user explicitly asks for implementation. " +
+  "You may use ExploreAgent for read-only deep code/web search. Use TodoWrite to track steps. " +
+  "Use WebFetch or WebSearch for quick public lookups when helpful.";
 
 interface PendingToolCallState {
   id: string;
@@ -29,23 +61,40 @@ interface PendingToolCallState {
   argumentsText: string;
 }
 
-interface OpenRouterConfig {
-  apiKey: string;
-  model: string;
-  visionModel: string;
-}
-
-interface CappyConfig {
-  openrouter: OpenRouterConfig;
-}
-
 interface AgentLoopOptions {
   workspaceRoot?: string;
   onMcpCall?: (serverName: string, toolName: string, args: Record<string, unknown>) => Promise<string>;
 }
 
+const PLAIN_MODE_SYSTEM_PROMPT =
+  "Modo Plain: responde só em texto. Não invoques ferramentas. Não finjas ter lido ficheiros do disco; usa apenas o que o utilizador enviou no chat.";
+
+const ASK_MODE_SYSTEM_PROMPT =
+  "Modo Ask: podes usar só ferramentas de leitura e pesquisa (ler código, grep, glob, web). " +
+  "Não escrevas ficheiros, não executas shell, não uses Write/Edit/Bash salvo o utilizador pedir explicitamente alterações no repo.";
+
 interface AgentRunOptions {
   mcpTools?: McpTool[];
+  /**
+   * Webview mode: ajusta prompts de sistema (plain/ask) em buildOpenAiMessages.
+   */
+  chatMode?: ChatUiMode;
+  /**
+   * Extra system instruction prepended before plan-mode (used by read-only subagents).
+   */
+  systemPromptPrefix?: string;
+  /**
+   * When true, streaming tokens are not emitted (nested subagent runs).
+   */
+  silent?: boolean;
+  /**
+   * When true, plan-mode system prompt is skipped (subagent should explore with read-only tools).
+   */
+  ignorePlanMode?: boolean;
+  /**
+   * Maximum number of LLM rounds (outer while iterations); undefined = unlimited.
+   */
+  maxLlmRounds?: number;
 }
 
 /**
@@ -53,8 +102,6 @@ interface AgentRunOptions {
  */
 export class AgentLoop extends EventEmitter {
   private readonly workspaceRoot: string;
-
-  private readonly configPath: string;
 
   private readonly onMcpCall:
     | ((
@@ -72,13 +119,20 @@ export class AgentLoop extends EventEmitter {
 
   private readonly pendingConfirmations = new Map<string, (approved: boolean) => void>();
 
+  /** Per-`run()` options; cleared after each run. */
+  private runOptions: AgentRunOptions = {};
+
+  /**
+   * Bloco injectado a partir de `.cappy/skill` (ficheiros `.md`, recursivo; recarregado em cada `run()`).
+   */
+  private workspaceSkillsBlock = "";
+
   /**
    * Creates a loop instance bound to one workspace root.
    */
   public constructor(options: AgentLoopOptions = {}) {
     super();
     this.workspaceRoot = options.workspaceRoot ?? process.cwd();
-    this.configPath = path.join(homedir(), ".cappy", "config.json");
     this.onMcpCall = options.onMcpCall;
   }
 
@@ -119,12 +173,27 @@ export class AgentLoop extends EventEmitter {
    * Runs the manual agent loop until the model stops requesting tools.
    */
   public async run(messages: Message[], tools: AgentTool[], options: AgentRunOptions = {}): Promise<Message[]> {
+    this.runOptions = options;
+    this.workspaceSkillsBlock = await loadWorkspaceSkillsPrompt(this.workspaceRoot);
     const mergedTools = this.mergeTools(tools, options.mcpTools ?? []);
     const history = [...messages];
     const toolsByName = new Map<string, AgentTool>(mergedTools.map((tool) => [tool.name, tool]));
+    const maxRounds = options.maxLlmRounds;
+    let completedLlmRounds = 0;
 
     try {
       while (true) {
+        if (maxRounds !== undefined && completedLlmRounds >= maxRounds) {
+          history.push({
+            role: "assistant",
+            content:
+              "[Cappy] Limite de rodadas do agente aninhado atingido. " +
+              "Peça um relatório mais estreito ou aumente max_iterations na próxima chamada.",
+          });
+          this.emitEvent("stream:done");
+          break;
+        }
+
         const stream = await this.createStream(history, mergedTools);
         const assistantTextParts: string[] = [];
         const pendingToolCalls = new Map<number, PendingToolCallState>();
@@ -133,8 +202,10 @@ export class AgentLoop extends EventEmitter {
           this.consumeChunk(chunk, assistantTextParts, pendingToolCalls);
         }
 
+        completedLlmRounds += 1;
+
         const assistantContent = assistantTextParts.join("");
-        const toolCalls = this.finalizeToolCalls(pendingToolCalls);
+        const toolCalls = await this.resolveParsedToolCalls(pendingToolCalls, toolsByName);
 
         if (toolCalls.length === 0) {
           if (assistantContent.length > 0) {
@@ -166,10 +237,37 @@ export class AgentLoop extends EventEmitter {
             }
           }
 
+          if (toolCall.argumentsParseError) {
+            const snippet = truncateToolArgsSnippet(toolCall.rawArgumentsText ?? "", 4_000);
+            const parseFailContent = [
+              `[Erro de argumentos para tool "${toolCall.name}"]`,
+              toolCall.argumentsParseError,
+              "",
+              "--- Argumentos brutos (fragmento) ---",
+              snippet,
+            ].join("\n");
+            this.emitEvent("tool:executing", toolCall);
+            this.emitEvent("tool:result", toolCall, parseFailContent, undefined);
+            history.push({
+              role: "tool",
+              content: parseFailContent,
+              tool_call_id: toolCall.id,
+            });
+            continue;
+          }
+
           this.emitEvent("tool:executing", toolCall);
-          const result = await tool.execute(toolCall.arguments);
-          const serializedResult = serializeToolResult(result);
-          this.emitEvent("tool:result", toolCall, serializedResult);
+          let serializedResult: string;
+          let fileDiffPayload: FileDiffPayload | undefined;
+          try {
+            const result = await tool.execute(toolCall.arguments);
+            serializedResult = serializeToolResult(result);
+            fileDiffPayload = extractFileDiffPayload(result);
+          } catch (execError) {
+            serializedResult = `[Erro ao executar tool "${toolCall.name}"] ${asError(execError).message}`;
+            fileDiffPayload = undefined;
+          }
+          this.emitEvent("tool:result", toolCall, serializedResult, fileDiffPayload);
           history.push({
             role: "tool",
             content: serializedResult,
@@ -188,6 +286,9 @@ export class AgentLoop extends EventEmitter {
       const normalizedError = asError(error);
       this.emitEvent("error", normalizedError);
       throw normalizedError;
+    } finally {
+      this.runOptions = {};
+      this.workspaceSkillsBlock = "";
     }
   }
 
@@ -196,7 +297,115 @@ export class AgentLoop extends EventEmitter {
    */
   private async createStream(messages: Message[], tools: AgentTool[]) {
     const { client, model, visionModel } = await this.getClientAndModel();
-    const validMessages = sanitizeHistory(messages);
+    const config = await loadConfig();
+    const contextWindow =
+      typeof config.openrouter.contextWindowTokens === "number" && config.openrouter.contextWindowTokens >= 4096
+        ? config.openrouter.contextWindowTokens
+        : DEFAULT_CONTEXT_WINDOW_TOKENS;
+    const reservedOut =
+      typeof config.openrouter.reservedOutputTokens === "number" && config.openrouter.reservedOutputTokens >= 512
+        ? config.openrouter.reservedOutputTokens
+        : DEFAULT_RESERVED_OUTPUT_TOKENS;
+    const effectiveBudget = getEffectiveInputBudgetTokens(contextWindow, reservedOut);
+
+    const sanitized = sanitizeHistory(messages);
+    let validMessages: Message[];
+    let didTrimForApi = false;
+    let droppedMessageCount = 0;
+
+    if (this.runOptions.silent) {
+      const compactionExtraSilent = 0;
+      const trimBudget = Math.max(1024, effectiveBudget - SYSTEM_PROMPT_OVERHEAD_TOKENS - compactionExtraSilent);
+      const tr = trimMessagesForBudget(sanitized, trimBudget);
+      validMessages = tr.messages;
+      didTrimForApi = tr.droppedCount > 0;
+      droppedMessageCount = tr.droppedCount;
+    } else {
+      let work = [...sanitized];
+      for (let iter = 0; iter < MAX_CONTEXT_SANITIZE_ITERATIONS; iter += 1) {
+        const compactionExtra = estimateTextTokens(getConversationCompactionSummary());
+        const trimBudget = Math.max(1024, effectiveBudget - SYSTEM_PROMPT_OVERHEAD_TOKENS - compactionExtra);
+        const tr = trimMessagesForBudget(work, trimBudget);
+        if (tr.droppedCount === 0) {
+          work = tr.messages;
+          break;
+        }
+        didTrimForApi = true;
+        droppedMessageCount += tr.droppedCount;
+        const dropped = work.slice(0, tr.droppedCount);
+        work = tr.messages;
+        const droppedTokens = estimateMessagesTokens(dropped);
+        if (droppedTokens >= MIN_DROPPED_TOKENS_TO_SUMMARIZE) {
+          try {
+            const summary = await summarizeDroppedMessagesForMainAgent(client, model, dropped);
+            if (summary.length > 0) {
+              appendCompactionNote(summary);
+            } else {
+              appendCompactionNote(
+                `[Compactação] Trecho omitido (~${String(droppedTokens)} tokens); modelo não devolveu resumo.`,
+              );
+            }
+          } catch {
+            appendCompactionNote(
+              `[Compactação] Trecho omitido (~${String(droppedTokens)} tokens); falha ao gerar resumo.`,
+            );
+          }
+        } else {
+          appendCompactionNote(`[Compactação] Trecho curto omitido (~${String(droppedTokens)} tokens).`);
+        }
+      }
+
+      const compactionExtraFinal = estimateTextTokens(getConversationCompactionSummary());
+      const trimBudgetFinal = Math.max(1024, effectiveBudget - SYSTEM_PROMPT_OVERHEAD_TOKENS - compactionExtraFinal);
+      const finalTr = trimMessagesForBudget(work, trimBudgetFinal);
+      if (finalTr.droppedCount > 0) {
+        didTrimForApi = true;
+        droppedMessageCount += finalTr.droppedCount;
+        const droppedFinal = work.slice(0, finalTr.droppedCount);
+        work = finalTr.messages;
+        const finalTokens = estimateMessagesTokens(droppedFinal);
+        if (finalTokens >= MIN_DROPPED_TOKENS_TO_SUMMARIZE) {
+          try {
+            const summaryFinal = await summarizeDroppedMessagesForMainAgent(client, model, droppedFinal);
+            if (summaryFinal.length > 0) {
+              appendCompactionNote(summaryFinal);
+            } else {
+              appendCompactionNote(
+                `[Compactação] Ajuste final: trecho omitido (~${String(finalTokens)} tokens); resumo vazio.`,
+              );
+            }
+          } catch {
+            appendCompactionNote(
+              `[Compactação] Ajuste final: trecho omitido (~${String(finalTokens)} tokens); falha ao resumir.`,
+            );
+          }
+        } else {
+          appendCompactionNote(`[Compactação] Ajuste final: trecho curto omitido (~${String(finalTokens)} tokens).`);
+        }
+        const compactionAfterFinal = estimateTextTokens(getConversationCompactionSummary());
+        const trimAfterFinal = Math.max(1024, effectiveBudget - SYSTEM_PROMPT_OVERHEAD_TOKENS - compactionAfterFinal);
+        const lastTr = trimMessagesForBudget(work, trimAfterFinal);
+        if (lastTr.droppedCount > 0) {
+          didTrimForApi = true;
+          droppedMessageCount += lastTr.droppedCount;
+          appendCompactionNote("[Compactação] Último corte após novo resumo (orçamento).");
+        }
+        validMessages = lastTr.messages;
+      } else {
+        validMessages = finalTr.messages;
+      }
+    }
+
+    const usagePayload: ContextUsagePayload = {
+      usedTokens: estimateMessagesTokens(sanitized),
+      limitTokens: contextWindow,
+      effectiveInputBudgetTokens: effectiveBudget,
+      didTrimForApi,
+      droppedMessageCount,
+    };
+    if (!this.runOptions.silent) {
+      this.emitEvent("context:usage", usagePayload);
+    }
     const hasImages = validMessages.some((m) => m.images && m.images.length > 0);
     const selectedModel = hasImages ? visionModel : model;
 
@@ -204,7 +413,7 @@ export class AgentLoop extends EventEmitter {
       return await client.chat.completions.create({
         model: selectedModel,
         stream: true,
-        messages: validMessages.map((message) => toChatMessage(message)),
+        messages: this.buildOpenAiMessages(validMessages),
         tools: tools.map((tool) => toChatTool(tool)),
       });
     } catch (error) {
@@ -215,7 +424,7 @@ export class AgentLoop extends EventEmitter {
         return client.chat.completions.create({
           model,
           stream: true,
-          messages: stripped.map((message) => toChatMessage(message)),
+          messages: this.buildOpenAiMessages(stripped),
           tools: tools.map((tool) => toChatTool(tool)),
         });
       }
@@ -225,12 +434,56 @@ export class AgentLoop extends EventEmitter {
         return client.chat.completions.create({
           model,
           stream: true,
-          messages: stripped.map((message) => toChatMessage(message)),
+          messages: this.buildOpenAiMessages(stripped),
           tools: tools.map((tool) => toChatTool(tool)),
         });
       }
       throw error;
     }
+  }
+
+  /**
+   * Builds API messages, optionally prefixing plan-mode system instructions (OpenClaude parity).
+   */
+  private buildOpenAiMessages(validMessages: Message[]): ChatCompletionMessageParam[] {
+    const core = validMessages.map((message) => toChatMessage(message));
+    const mode = this.runOptions.chatMode ?? "agent";
+    const modeSystem: ChatCompletionMessageParam[] = [];
+    if (mode === "plain") {
+      modeSystem.push({ role: "system", content: PLAIN_MODE_SYSTEM_PROMPT });
+    } else if (mode === "ask") {
+      modeSystem.push({ role: "system", content: ASK_MODE_SYSTEM_PROMPT });
+    }
+    const compactionSummary = this.runOptions.silent ? "" : getConversationCompactionSummary();
+    const compactionSystem: ChatCompletionMessageParam[] =
+      compactionSummary.length > 0
+        ? [
+            {
+              role: "system",
+              content:
+                "Memória sanitizada do histórico anterior (compactado para caber no contexto). Usa estes factos como continuação da conversa:\n" +
+                compactionSummary,
+            },
+          ]
+        : [];
+    const workspaceSkills: ChatCompletionMessageParam[] =
+      this.workspaceSkillsBlock.length > 0
+        ? [{ role: "system", content: this.workspaceSkillsBlock }]
+        : [];
+    const prefix = this.runOptions.systemPromptPrefix;
+    const plan =
+      !this.runOptions.ignorePlanMode && getPlanMode() ? [{ role: "system" as const, content: PLAN_MODE_SYSTEM_PROMPT }] : [];
+    const extra = prefix && prefix.length > 0 ? [{ role: "system" as const, content: prefix }] : [];
+    if (
+      modeSystem.length === 0 &&
+      workspaceSkills.length === 0 &&
+      compactionSystem.length === 0 &&
+      extra.length === 0 &&
+      plan.length === 0
+    ) {
+      return core;
+    }
+    return [...modeSystem, ...workspaceSkills, ...compactionSystem, ...extra, ...plan, ...core];
   }
 
   /**
@@ -249,7 +502,9 @@ export class AgentLoop extends EventEmitter {
     const content = choice.delta.content;
     if (typeof content === "string" && content.length > 0) {
       assistantTextParts.push(content);
-      this.emitEvent("stream:token", content);
+      if (!this.runOptions.silent) {
+        this.emitEvent("stream:token", content);
+      }
     }
 
     const streamedToolCalls = choice.delta.tool_calls;
@@ -284,21 +539,78 @@ export class AgentLoop extends EventEmitter {
   }
 
   /**
-   * Consolidates streamed partial tool-call chunks into complete tool calls.
+   * Parse dos argumentos em stream, com recuperação opcional via LLM e fallback para erro como resultado da tool.
    */
-  private finalizeToolCalls(pendingToolCalls: Map<number, PendingToolCallState>): ToolCall[] {
+  private async resolveParsedToolCalls(
+    pendingToolCalls: Map<number, PendingToolCallState>,
+    toolsByName: Map<string, AgentTool>,
+  ): Promise<ToolCall[]> {
     const orderedEntries = [...pendingToolCalls.entries()].sort(([a], [b]) => a - b);
-    return orderedEntries.map(([index, partial]) => {
+    const config = await loadConfig();
+    const allowLlmRecovery = config.agent.recoverToolArgumentsWithLlm !== false && !this.runOptions.silent;
+
+    let cachedClient: { client: OpenAI; model: string } | null = null;
+    const ensureClient = async (): Promise<{ client: OpenAI; model: string }> => {
+      if (!cachedClient) {
+        const resolved = await this.getClientAndModel();
+        cachedClient = { client: resolved.client, model: resolved.model };
+      }
+      return cachedClient;
+    };
+
+    const out: ToolCall[] = [];
+    for (const [index, partial] of orderedEntries) {
       if (!partial.name) {
         throw new Error(`Tool call no indice ${index} nao possui nome.`);
       }
-      const parsedArguments = parseToolArguments(partial.argumentsText, partial.name);
-      return {
-        id: partial.id || `tool_call_${index}`,
+      const id = partial.id || `tool_call_${index}`;
+      let parsed: Record<string, unknown> | undefined;
+      let parseFailureMessage: string | undefined;
+      try {
+        parsed = parseToolArguments(partial.argumentsText, partial.name);
+      } catch (firstError) {
+        parseFailureMessage = asError(firstError).message;
+      }
+
+      if (parsed !== undefined) {
+        out.push({ id, name: partial.name, arguments: parsed });
+        continue;
+      }
+
+      let recoveredJson: string | null = null;
+      if (allowLlmRecovery) {
+        const { client, model } = await ensureClient();
+        const toolMeta = toolsByName.get(partial.name);
+        recoveredJson = await recoverToolArgumentsWithLlm(
+          client,
+          model,
+          partial.name,
+          partial.argumentsText,
+          parseFailureMessage ?? "parse falhou",
+          toolMeta?.parameters,
+        );
+      }
+
+      if (recoveredJson) {
+        try {
+          parsed = parseToolArguments(recoveredJson, partial.name);
+          out.push({ id, name: partial.name, arguments: parsed });
+          continue;
+        } catch (secondError) {
+          parseFailureMessage = `${parseFailureMessage ?? "parse falhou"} | recuperacao LLM: ${asError(secondError).message}`;
+        }
+      }
+
+      out.push({
+        id,
         name: partial.name,
-        arguments: parsedArguments,
-      };
-    });
+        arguments: {},
+        argumentsParseError: parseFailureMessage ?? "Falha ao interpretar argumentos JSON.",
+        rawArgumentsText: partial.argumentsText,
+      });
+    }
+
+    return out;
   }
 
   /**
@@ -309,7 +621,14 @@ export class AgentLoop extends EventEmitter {
       return { client: this.client, model: this.model, visionModel: this.visionModel };
     }
 
-    const config = await this.readConfig();
+    const config = await loadConfig();
+    if (config.openrouter.apiKey.trim().length === 0) {
+      throw new Error('Campo "openrouter.apiKey" invalido em ~/.cappy/config.json.');
+    }
+    if (config.openrouter.model.trim().length === 0) {
+      throw new Error('Campo "openrouter.model" invalido em ~/.cappy/config.json.');
+    }
+
     this.client = new OpenAI({
       apiKey: config.openrouter.apiKey,
       baseURL: "https://openrouter.ai/api/v1",
@@ -317,40 +636,6 @@ export class AgentLoop extends EventEmitter {
     this.model = config.openrouter.model;
     this.visionModel = config.openrouter.visionModel;
     return { client: this.client, model: this.model, visionModel: this.visionModel };
-  }
-
-  /**
-   * Reads and validates `~/.cappy/config.json`.
-   */
-  private async readConfig(): Promise<CappyConfig> {
-    const raw = await readFile(this.configPath, "utf8");
-    const parsed: unknown = JSON.parse(raw);
-
-    if (!isRecord(parsed)) {
-      throw new Error("Arquivo ~/.cappy/config.json invalido.");
-    }
-    const openrouter = parsed.openrouter;
-    if (!isRecord(openrouter)) {
-      throw new Error('Campo "openrouter" ausente em ~/.cappy/config.json.');
-    }
-
-    const apiKey = openrouter.apiKey;
-    const model = openrouter.model;
-    const visionModel = openrouter.visionModel;
-    if (typeof apiKey !== "string" || apiKey.trim().length === 0) {
-      throw new Error('Campo "openrouter.apiKey" invalido em ~/.cappy/config.json.');
-    }
-    if (typeof model !== "string" || model.trim().length === 0) {
-      throw new Error('Campo "openrouter.model" invalido em ~/.cappy/config.json.');
-    }
-
-    return {
-      openrouter: {
-        apiKey,
-        model,
-        visionModel: typeof visionModel === "string" && visionModel.trim().length > 0 ? visionModel : model,
-      },
-    };
   }
 
   /**
@@ -540,7 +825,30 @@ function serializeToolResult(result: unknown): string {
   if (typeof result === "string") {
     return result;
   }
+  if (isRecord(result) && result.fileDiff && isRecord(result.fileDiff)) {
+    const fd = result.fileDiff as FileDiffPayload;
+    const slim: Record<string, unknown> = {
+      ok: result.ok,
+      path: fd.path,
+      additions: fd.additions,
+      deletions: fd.deletions,
+    };
+    if (typeof result.replacements === "number") {
+      slim.replacements = result.replacements;
+    }
+    return JSON.stringify(slim);
+  }
   return JSON.stringify(result);
+}
+
+/**
+ * Pulls rich diff payload for the webview (not sent in full to the model transcript).
+ */
+function extractFileDiffPayload(result: unknown): FileDiffPayload | undefined {
+  if (!isRecord(result) || !result.fileDiff || !isRecord(result.fileDiff)) {
+    return undefined;
+  }
+  return result.fileDiff as FileDiffPayload;
 }
 
 /**
@@ -567,23 +875,52 @@ function toAgentToolSchema(schema: Record<string, unknown>): AgentTool["paramete
 }
 
 /**
+ * Trunca texto longo para o eco de argumentos brutos nas mensagens de tool.
+ */
+function truncateToolArgsSnippet(text: string, maxChars: number): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  const head = Math.max(32, Math.floor(maxChars / 2) - 2);
+  const tail = maxChars - head - 3;
+  return `${trimmed.slice(0, head)}…${trimmed.slice(-tail)}`;
+}
+
+/**
  * Parses model-provided function arguments into a JSON object.
  */
 function parseToolArguments(argumentsText: string, toolName: string): Record<string, unknown> {
-  const trimmedArguments = argumentsText.trim();
+  const trimmedArguments = normalizeSmartQuotes(argumentsText).trim();
   if (trimmedArguments.length === 0) {
     return {};
   }
 
   const candidateJsonChunks = collectJsonCandidates(trimmedArguments);
+  const triedJson = new Set<string>();
   for (const candidateJson of candidateJsonChunks) {
-    try {
-      const parsed = JSON.parse(candidateJson) as unknown;
-      if (isRecord(parsed)) {
-        return parsed;
+    for (const variant of [candidateJson, repairCommonJsonIssues(candidateJson)]) {
+      if (triedJson.has(variant)) {
+        continue;
       }
-    } catch {
-      // Try next candidate.
+      triedJson.add(variant);
+      try {
+        const parsed = JSON.parse(variant) as unknown;
+        if (isRecord(parsed)) {
+          const name = toolName.toLowerCase();
+          if (name === "grep" || name === "glob") {
+            const kind = name === "grep" ? "grep" : "glob";
+            const merged = mergeNestedPatternArgs(parsed);
+            if (coerceSearchPattern(merged, kind).length === 0) {
+              continue;
+            }
+            return merged;
+          }
+          return parsed;
+        }
+      } catch {
+        // Try next variant.
+      }
     }
   }
 
@@ -593,6 +930,13 @@ function parseToolArguments(argumentsText: string, toolName: string): Record<str
   }
 
   throw new Error(`Argumentos JSON invalidos para tool "${toolName}".`);
+}
+
+/**
+ * Substitui aspas curvas tipográficas por ASCII para o JSON.parse aceitar.
+ */
+function normalizeSmartQuotes(text: string): string {
+  return text.replace(/\u201c|\u201d/gu, '"').replace(/\u2018|\u2019/gu, "'");
 }
 
 /**
@@ -614,12 +958,63 @@ function asError(error: unknown): Error {
 }
 
 /**
+ * Removes vírgulas finais antes de `}` ou `]` (erro comum em JSON gerado por LLMs).
+ */
+function repairCommonJsonIssues(json: string): string {
+  return json.replace(/,\s*([}\]])/gu, "$1");
+}
+
+/**
+ * Extrai o primeiro objecto JSON com chaves balanceadas (respeita `{`/`}` dentro de strings).
+ */
+function extractBalancedJsonObject(rawArguments: string): string | null {
+  const start = rawArguments.indexOf("{");
+  if (start < 0) {
+    return null;
+  }
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < rawArguments.length; i++) {
+    const c = rawArguments[i]!;
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (inString) {
+      if (c === "\\") {
+        escape = true;
+        continue;
+      }
+      if (c === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      continue;
+    }
+    if (c === "{") {
+      depth++;
+    } else if (c === "}") {
+      depth--;
+      if (depth === 0) {
+        return rawArguments.slice(start, i + 1);
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Builds JSON parse candidates from raw tool argument text.
  */
 function collectJsonCandidates(rawArguments: string): string[] {
   const direct = rawArguments.trim();
   const withoutCodeFence = stripCodeFence(direct);
   const objectSlice = extractJsonObjectSlice(withoutCodeFence);
+  const balancedSlice = extractBalancedJsonObject(withoutCodeFence);
   const uniqueCandidates = new Set<string>();
 
   if (direct.length > 0) {
@@ -630,6 +1025,9 @@ function collectJsonCandidates(rawArguments: string): string[] {
   }
   if (objectSlice && objectSlice.length > 0) {
     uniqueCandidates.add(objectSlice);
+  }
+  if (balancedSlice && balancedSlice.length > 0) {
+    uniqueCandidates.add(balancedSlice);
   }
 
   return [...uniqueCandidates];
@@ -682,6 +1080,103 @@ function inferFallbackArguments(rawArguments: string, toolName: string): Record<
   if (normalizedToolName === "runterminal") {
     const commandValue = inferSingleTextValue(cleaned);
     return commandValue ? { command: commandValue } : null;
+  }
+  if (normalizedToolName === "grep" || normalizedToolName === "glob") {
+    return inferGrepOrGlobArguments(cleaned);
+  }
+
+  return null;
+}
+
+/**
+ * Extrai `pattern` / `path` / `glob` quando o modelo envia pseudo-JSON (chave `pattern` sem aspas, etc.).
+ */
+function inferLooseGrepPatternObject(cleaned: string): Record<string, unknown> | null {
+  const unquoted =
+    cleaned.match(/\bpattern\s*:\s*"((?:\\.|[^"\\])*)"/su) ??
+    cleaned.match(/\bpattern\s*:\s*'((?:\\.|[^'\\])*)'/su);
+  if (unquoted?.[1] !== undefined && unquoted[1].length > 0) {
+    const pattern = unquoted[1]
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\"/gu, '"')
+      .replace(/\\\\/gu, "\\");
+    const out: Record<string, unknown> = { pattern };
+    const pathM = cleaned.match(/\bpath\s*:\s*"((?:\\.|[^"\\])*)"/su);
+    if (pathM?.[1]) {
+      out.path = pathM[1].replace(/\\"/gu, '"').replace(/\\\\/gu, "\\");
+    }
+    const globM = cleaned.match(/\bglob\s*:\s*"((?:\\.|[^"\\])*)"/su);
+    if (globM?.[1]) {
+      out.glob = globM[1].replace(/\\"/gu, '"');
+    }
+    return out;
+  }
+
+  const nestedArguments = cleaned.match(
+    /\barguments\s*:\s*\{[\s\S]*?"pattern"\s*:\s*"((?:\\.|[^"\\])*)"/su,
+  );
+  if (nestedArguments?.[1] !== undefined && nestedArguments[1].length > 0) {
+    return {
+      pattern: nestedArguments[1]
+        .replace(/\\n/g, "\n")
+        .replace(/\\"/gu, '"')
+        .replace(/\\\\/gu, "\\"),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Recupera `{ pattern, path? }` quando o JSON da tool Grep/Glob veio partido ou usa `regex`/`query` em vez de `pattern`.
+ */
+function inferGrepOrGlobArguments(cleaned: string): Record<string, unknown> | null {
+  const patternKeyCandidates = ["pattern", "Pattern", "regex", "regexp", "query", "search", "q"];
+
+  for (const field of patternKeyCandidates) {
+    const escapedField = field.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const rich = cleaned.match(new RegExp(`"${escapedField}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, "su"));
+    if (rich?.[1] !== undefined && rich[1].length > 0) {
+      const pattern = rich[1]
+        .replace(/\\n/g, "\n")
+        .replace(/\\t/g, "\t")
+        .replace(/\\"/gu, '"')
+        .replace(/\\\\/gu, "\\");
+      const out: Record<string, unknown> = { pattern };
+      const pathRich = cleaned.match(/"path"\s*:\s*"((?:\\.|[^"\\])*)"/su);
+      if (pathRich?.[1]) {
+        out.path = pathRich[1].replace(/\\"/gu, '"').replace(/\\\\/gu, "\\");
+      }
+      const globRich = cleaned.match(/"glob"\s*:\s*"((?:\\.|[^"\\])*)"/su);
+      if (globRich?.[1]) {
+        out.glob = globRich[1].replace(/\\"/gu, '"');
+      }
+      return out;
+    }
+  }
+
+  const singleQuotedPattern = cleaned.match(/'pattern'\s*:\s*'((?:\\.|[^'\\])*)'/su);
+  if (singleQuotedPattern?.[1] !== undefined && singleQuotedPattern[1].length > 0) {
+    return { pattern: singleQuotedPattern[1].replace(/\\'/gu, "'") };
+  }
+
+  for (const field of patternKeyCandidates) {
+    const escapedField = field.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const simple = cleaned.match(new RegExp(`"${escapedField}"\\s*:\\s*"([^"]*)"`, "u"));
+    if (simple?.[1] !== undefined && simple[1].length > 0) {
+      return { pattern: simple[1] };
+    }
+  }
+
+  const looseObject = inferLooseGrepPatternObject(cleaned);
+  if (looseObject) {
+    return looseObject;
+  }
+
+  if (!cleaned.includes("{")) {
+    const single = inferSingleTextValue(cleaned);
+    return single ? { pattern: single } : null;
   }
 
   return null;

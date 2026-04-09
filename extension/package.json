@@ -24,7 +24,7 @@
   ],
   "qna": "https://github.com/github-community/community/discussions/categories/copilot",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.105.0"
   },
   "categories": [
     "AI",
@@ -63,8 +63,44 @@
       {
         "command": "cappy.clearChat",
         "title": "Cappy: Clear Chat"
+      },
+      {
+        "command": "cappy.launchOpenClaude",
+        "title": "Cappy: Launch OpenClaude CLI"
+      },
+      {
+        "command": "cappy.launchOpenClaudeWorkspaceRoot",
+        "title": "Cappy: Launch OpenClaude CLI (workspace root)"
+      },
+      {
+        "command": "cappy.openOpenClaudeProfile",
+        "title": "Cappy: Open OpenClaude workspace profile"
+      },
+      {
+        "command": "cappy.openOpenClaudeRepository",
+        "title": "Cappy: Open OpenClaude repository"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Cappy",
+      "properties": {
+        "cappy.openClaudeCli.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable commands that launch the OpenClaude CLI in an integrated terminal."
+        },
+        "cappy.openClaudeCli.command": {
+          "type": "string",
+          "default": "npx -y @gitlawb/openclaude",
+          "description": "Shell command run in the terminal (same idea as the OpenClaude VS Code extension)."
+        },
+        "cappy.openClaudeCli.terminalName": {
+          "type": "string",
+          "default": "OpenClaude",
+          "description": "Integrated terminal tab title for OpenClaude CLI sessions."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "pnpm run build",
@@ -76,13 +112,15 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "openai": "^6.3.0"
+    "diff": "^8.0.4",
+    "openai": "^6.34.0"
   },
   "devDependencies": {
-    "@types/node": "^22.15.20",
-    "@types/vscode": "^1.85.0",
+    "@types/diff": "^8.0.0",
+    "@types/node": "^25.5.2",
+    "@types/vscode": "~1.105.0",
     "@vscode/vsce": "3.7.1",
-    "esbuild": "^0.25.11",
-    "typescript": "^5.8.3"
+    "esbuild": "^0.28.0",
+    "typescript": "^6.0.2"
   }
 }

@@ -3,6 +3,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import type { Message } from "../lib/types";
+import { mergeFileDiffsForDisplay } from "../lib/mergeFileDiffs";
+import { FileDiffMini } from "./FileDiffMini";
 import styles from "./MessageList.module.css";
 
 interface MessageListProps {
@@ -63,9 +65,15 @@ function ToolGroup({ messages }: { messages: Message[] }): JSX.Element {
   const summary = messages.length === 1
     ? truncateToolContent(messages[0]!.content, 80)
     : `${messages.length} tool calls`;
+  const rawDiffs = messages.map((m) => m.fileDiff).filter((d): d is NonNullable<typeof d> => d !== undefined);
+  const mergedDiffs = mergeFileDiffsForDisplay(rawDiffs);
+  const uniqueFileCount = new Set(rawDiffs.map((d) => d.path)).size;
 
   return (
     <div className={styles.toolGroup}>
+      {mergedDiffs.map((diff, i) => (
+        <FileDiffMini key={`diff-${diff.path}-${i}`} diff={diff} />
+      ))}
       <button
         className={styles.toolToggle}
         onClick={() => setExpanded((prev) => !prev)}
@@ -81,6 +89,11 @@ function ToolGroup({ messages }: { messages: Message[] }): JSX.Element {
           ))}
         </div>
       )}
+      {uniqueFileCount > 0 ? (
+        <p className={styles.toolExploreHint}>
+          {uniqueFileCount === 1 ? "1 ficheiro alterado" : `${String(uniqueFileCount)} ficheiros alterados`}
+        </p>
+      ) : null}
     </div>
   );
 }

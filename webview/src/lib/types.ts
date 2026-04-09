@@ -16,6 +16,21 @@ export interface ImageAttachment {
 }
 
 /**
+ * Compact file diff for Write/Edit tool results (host-computed).
+ */
+export interface FileDiffPayload {
+  path: string;
+  additions: number;
+  deletions: number;
+  hunks: Array<{
+    lines: Array<{
+      type: "context" | "add" | "del";
+      text: string;
+    }>;
+  }>;
+}
+
+/**
  * Message model shared by the webview chat UI and bridge payloads.
  */
 export interface Message {
@@ -24,6 +39,8 @@ export interface Message {
   tool_call_id?: string;
   tool_calls?: ToolCall[];
   images?: ImageAttachment[];
+  /** Rich diff card when a file was written or edited. */
+  fileDiff?: FileDiffPayload;
 }
 
 /**
@@ -44,6 +61,11 @@ export interface McpTool {
 }
 
 /**
+ * Modo do input: Plain (só texto), Agent (tools + MCP), Ask (leitura/pesquisa).
+ */
+export type ChatUiMode = "plain" | "agent" | "ask";
+
+/**
  * Cappy runtime configuration payload.
  */
 export type ActiveAgent = "coder" | "planner" | "reviewer";
@@ -56,6 +78,9 @@ export interface CappyConfig {
     apiKey: string;
     model: string;
     visionModel: string;
+    /** Janela de contexto (tokens) — anel de contexto e orçamento no host. */
+    contextWindowTokens?: number;
+    reservedOutputTokens?: number;
   };
   agent: {
     activeAgent: ActiveAgent;
@@ -65,4 +90,15 @@ export interface CappyConfig {
   mcp: {
     servers: McpServerConfig[];
   };
+}
+
+/**
+ * Estimativa de uso de contexto enviada pelo host (alinhada ao orçamento OpenRouter / compactação).
+ */
+export interface ContextUsageSnapshot {
+  usedTokens: number;
+  limitTokens: number;
+  effectiveInputBudgetTokens: number;
+  didTrimForApi: boolean;
+  droppedMessageCount: number;
 }

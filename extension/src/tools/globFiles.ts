@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 
-import type { ToolDefinition } from "./index";
+import { coerceSearchPattern } from "./coercePattern";
+import type { ToolDefinition } from "./toolTypes";
 import { resolveWorkspacePath } from "./workspacePath";
 import { getRgPath } from "./ripgrep";
 
@@ -162,41 +163,55 @@ async function runGlobFiles(
   });
 }
 
+async function executeGlobFiles(params: GlobFilesParams): Promise<GlobFilesResult> {
+  const rawPattern = coerceSearchPattern(params as unknown as Record<string, unknown>, "glob");
+  if (rawPattern.length === 0) {
+    throw new Error('O parâmetro "pattern" não pode estar vazio (use pattern ou glob com texto).');
+  }
+
+  const targetPath = resolveWorkspacePath(params.path ?? ".");
+  const maxResults = Number.isFinite(params.maxResults)
+    ? Math.max(1, Math.trunc(params.maxResults ?? DEFAULT_LIMIT))
+    : DEFAULT_LIMIT;
+  const offset = Number.isFinite(params.offset) ? Math.max(0, Math.trunc(params.offset ?? 0)) : 0;
+
+  await ensureRipgrepAvailable();
+  const globResult = await runGlobFiles(targetPath, rawPattern, offset, maxResults);
+
+  return {
+    files: globResult.files,
+    truncated: globResult.truncated,
+  };
+}
+
+const globParameters = {
+  type: "object" as const,
+  properties: {
+    pattern: { type: "string" as const, description: "Glob pattern to match files." },
+    path: { type: "string" as const, description: "Base directory for the search." },
+    maxResults: { type: "number" as const, description: "Maximum files to return.", default: DEFAULT_LIMIT },
+    offset: { type: "number" as const, description: "Skip first N files before returning." },
+  },
+  required: ["pattern"],
+  additionalProperties: false,
+};
+
 /**
- * Finds files by glob pattern using ripgrep file listing mode.
+ * OpenClaude-style glob (`Glob`).
+ */
+export const globOpenClaudeTool: ToolDefinition<GlobFilesParams, GlobFilesResult> = {
+  name: "Glob",
+  description: "Finds files by glob pattern under a directory (ripgrep --files).",
+  parameters: globParameters,
+  execute: executeGlobFiles,
+};
+
+/**
+ * Finds files by glob pattern using ripgrep file listing mode (legacy name `globFiles`).
  */
 export const globFilesTool: ToolDefinition<GlobFilesParams, GlobFilesResult> = {
   name: "globFiles",
   description: "Find files by glob pattern (e.g. *.ts, **/README.md).",
-  parameters: {
-    type: "object",
-    properties: {
-      pattern: { type: "string", description: "Glob pattern to match files." },
-      path: { type: "string", description: "Base directory for the search." },
-      maxResults: { type: "number", description: "Maximum files to return.", default: DEFAULT_LIMIT },
-      offset: { type: "number", description: "Skip first N files before returning." },
-    },
-    required: ["pattern"],
-    additionalProperties: false,
-  },
-  async execute(params) {
-    const rawPattern = params.pattern.trim();
-    if (rawPattern.length === 0) {
-      throw new Error('O parâmetro "pattern" não pode estar vazio.');
-    }
-
-    const targetPath = resolveWorkspacePath(params.path ?? ".");
-    const maxResults = Number.isFinite(params.maxResults)
-      ? Math.max(1, Math.trunc(params.maxResults ?? DEFAULT_LIMIT))
-      : DEFAULT_LIMIT;
-    const offset = Number.isFinite(params.offset) ? Math.max(0, Math.trunc(params.offset ?? 0)) : 0;
-
-    await ensureRipgrepAvailable();
-    const globResult = await runGlobFiles(targetPath, rawPattern, offset, maxResults);
-
-    return {
-      files: globResult.files,
-      truncated: globResult.truncated,
-    };
-  },
+  parameters: globParameters,
+  execute: executeGlobFiles,
 };

@@ -36,22 +36,52 @@ interface CappyConfig {
 }
 
 interface AgentLoopLike {
-  run(messages: Message[], tools: AgentTool[], options?: { mcpTools?: McpTool[] }): Promise<Message[]>;
+  run(
+    messages: Message[],
+    tools: AgentTool[],
+    options?: { mcpTools?: McpTool[]; chatMode?: ChatUiMode },
+  ): Promise<Message[]>;
   approve(toolCallId: string): boolean;
   reject(toolCallId: string): boolean;
   on(eventName: "stream:token", listener: (token: string) => void): this;
   on(eventName: "stream:done", listener: () => void): this;
   on(eventName: "tool:confirm", listener: (toolCall: ToolCall) => void): this;
   on(eventName: "tool:executing", listener: (toolCall: ToolCall) => void): this;
-  on(eventName: "tool:result", listener: (toolCall: ToolCall, result: string) => void): this;
+  on(
+    eventName: "tool:result",
+    listener: (toolCall: ToolCall, result: string, fileDiff?: unknown) => void,
+  ): this;
   on(eventName: "tool:rejected", listener: (toolCall: ToolCall) => void): this;
+  on(
+    eventName: "context:usage",
+    listener: (payload: {
+      usedTokens: number;
+      limitTokens: number;
+      effectiveInputBudgetTokens: number;
+      didTrimForApi: boolean;
+      droppedMessageCount: number;
+    }) => void,
+  ): this;
   on(eventName: "error", listener: (error: Error) => void): this;
   off(eventName: "stream:token", listener: (token: string) => void): this;
   off(eventName: "stream:done", listener: () => void): this;
   off(eventName: "tool:confirm", listener: (toolCall: ToolCall) => void): this;
   off(eventName: "tool:executing", listener: (toolCall: ToolCall) => void): this;
-  off(eventName: "tool:result", listener: (toolCall: ToolCall, result: string) => void): this;
+  off(
+    eventName: "tool:result",
+    listener: (toolCall: ToolCall, result: string, fileDiff?: unknown) => void,
+  ): this;
   off(eventName: "tool:rejected", listener: (toolCall: ToolCall) => void): this;
+  off(
+    eventName: "context:usage",
+    listener: (payload: {
+      usedTokens: number;
+      limitTokens: number;
+      effectiveInputBudgetTokens: number;
+      didTrimForApi: boolean;
+      droppedMessageCount: number;
+    }) => void,
+  ): this;
   off(eventName: "error", listener: (error: Error) => void): this;
 }
 
@@ -86,10 +116,13 @@ interface ExtensionMcpModule {
   McpManager: new () => McpManagerLike;
 }
 
+type ChatUiMode = "plain" | "agent" | "ask";
+
 type IncomingWsMessage =
-  | { type: "chat:send"; messages: Message[] }
+  | { type: "chat:send"; messages: Message[]; mode?: ChatUiMode }
   | { type: "tool:approve"; toolCallId: string }
   | { type: "tool:reject"; toolCallId: string }
+  | { type: "file:open"; path: string }
   | { type: "config:load" }
   | { type: "config:save"; config: CappyConfig }
   | { type: "mcp:list" };
@@ -99,11 +132,19 @@ type OutgoingWsMessage =
   | { type: "stream:done" }
   | { type: "tool:confirm"; toolCall: ToolCall }
   | { type: "tool:executing"; toolCall: ToolCall }
-  | { type: "tool:result"; toolCall: ToolCall; result: string }
+  | { type: "tool:result"; toolCall: ToolCall; result: string; fileDiff?: unknown }
   | { type: "tool:rejected"; toolCall: ToolCall }
   | { type: "config:loaded"; config: CappyConfig }
   | { type: "config:saved" }
   | { type: "mcp:tools"; tools: McpTool[] }
+  | {
+      type: "context:usage";
+      usedTokens: number;
+      limitTokens: number;
+      effectiveInputBudgetTokens: number;
+      didTrimForApi: boolean;
+      droppedMessageCount: number;
+    }
   | { type: "error"; message: string };
 
 const PORT = 3333;
@@ -172,14 +213,35 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
   const toolExecutingListener = (toolCall: ToolCall) => {
     sendJson(socket, { type: "tool:executing", toolCall });
   };
-  const toolResultListener = (toolCall: ToolCall, result: string) => {
-    sendJson(socket, { type: "tool:result", toolCall, result });
+  const toolResultListener = (toolCall: ToolCall, result: string, fileDiff?: unknown) => {
+    sendJson(socket, {
+      type: "tool:result",
+      toolCall,
+      result,
+      ...(fileDiff !== undefined ? { fileDiff } : {}),
+    });
   };
   const toolRejectedListener = (toolCall: ToolCall) => {
     sendJson(socket, { type: "tool:rejected", toolCall });
   };
   const errorListener = (error: Error) => {
     sendJson(socket, { type: "error", message: error.message });
+  };
+  const contextUsageListener = (payload: {
+    usedTokens: number;
+    limitTokens: number;
+    effectiveInputBudgetTokens: number;
+    didTrimForApi: boolean;
+    droppedMessageCount: number;
+  }) => {
+    sendJson(socket, {
+      type: "context:usage",
+      usedTokens: payload.usedTokens,
+      limitTokens: payload.limitTokens,
+      effectiveInputBudgetTokens: payload.effectiveInputBudgetTokens,
+      didTrimForApi: payload.didTrimForApi,
+      droppedMessageCount: payload.droppedMessageCount,
+    });
   };
 
   agentLoop.on("stream:token", streamTokenListener);
@@ -189,6 +251,7 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
   agentLoop.on("tool:result", toolResultListener);
   agentLoop.on("tool:rejected", toolRejectedListener);
   agentLoop.on("error", errorListener);
+  agentLoop.on("context:usage", contextUsageListener);
 
   socket.on("message", (raw) => {
     let message: IncomingWsMessage | undefined;
@@ -208,7 +271,7 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
     }
 
     if (message.type === "chat:send") {
-      void runAgentLoop(agentLoop, message.messages, tools, mcpManager.listTools(), socket);
+      void runAgentLoop(agentLoop, message.messages, tools, mcpManager.listTools(), socket, message.mode);
       return;
     }
 
@@ -255,11 +318,22 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
       return;
     }
 
-    if (!agentLoop.reject(message.toolCallId)) {
+    if (message.type === "file:open") {
       sendJson(socket, {
         type: "error",
-        message: `Confirmacao pendente nao encontrada: ${message.toolCallId}`,
+        message: "Abrir ficheiro no editor so funciona na extensao Cappy (VS Code / Cursor).",
       });
+      return;
+    }
+
+    if (message.type === "tool:reject") {
+      if (!agentLoop.reject(message.toolCallId)) {
+        sendJson(socket, {
+          type: "error",
+          message: `Confirmacao pendente nao encontrada: ${message.toolCallId}`,
+        });
+      }
+      return;
     }
   });
 
@@ -271,6 +345,7 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
     agentLoop.off("tool:result", toolResultListener);
     agentLoop.off("tool:rejected", toolRejectedListener);
     agentLoop.off("error", errorListener);
+    agentLoop.off("context:usage", contextUsageListener);
     void mcpManager.disconnect();
   });
 }
@@ -284,9 +359,14 @@ async function runAgentLoop(
   tools: AgentTool[],
   mcpTools: McpTool[],
   socket: WebSocket,
+  modeRaw: unknown,
 ): Promise<void> {
   try {
-    await agentLoop.run(messages, tools, { mcpTools });
+    const deps = await extensionDependenciesPromise;
+    const mode = deps.parseChatUiMode(modeRaw);
+    const toolsForRun = deps.selectToolsForChatMode(mode, tools);
+    const mcpForRun = deps.mcpToolsForChatMode(mode, mcpTools);
+    await agentLoop.run(messages, toolsForRun, { mcpTools: mcpForRun, chatMode: mode });
   } catch {
     // The loop already emits a typed "error" event.
     if (socket.readyState === WebSocket.OPEN) {
@@ -304,7 +384,18 @@ function isIncomingWsMessage(value: unknown): value is IncomingWsMessage {
   }
 
   if (value.type === "chat:send") {
-    return Array.isArray(value.messages);
+    if (!Array.isArray(value.messages)) {
+      return false;
+    }
+    if (
+      value.mode !== undefined &&
+      value.mode !== "plain" &&
+      value.mode !== "agent" &&
+      value.mode !== "ask"
+    ) {
+      return false;
+    }
+    return true;
   }
 
   if (value.type === "tool:approve" || value.type === "tool:reject") {
@@ -321,6 +412,10 @@ function isIncomingWsMessage(value: unknown): value is IncomingWsMessage {
 
   if (value.type === "mcp:list") {
     return true;
+  }
+
+  if (value.type === "file:open") {
+    return typeof value.path === "string" && value.path.trim().length > 0;
   }
 
   return false;
@@ -376,12 +471,21 @@ async function respondTools(response: import("node:http").ServerResponse): Promi
 /**
  * Loads AgentLoop and tools from extension using relative module paths.
  */
+interface ExtensionChatModeModule {
+  parseChatUiMode(value: unknown): ChatUiMode;
+  selectToolsForChatMode(mode: ChatUiMode, allTools: AgentTool[]): AgentTool[];
+  mcpToolsForChatMode(mode: ChatUiMode, list: McpTool[]): McpTool[];
+}
+
 async function loadExtensionDependencies(): Promise<{
   AgentLoop: new () => AgentLoopLike;
   tools: AgentTool[];
   McpManager: new () => McpManagerLike;
   loadConfig(workspaceRoot: string): Promise<CappyConfig>;
   saveConfig(workspaceRoot: string, config: CappyConfig): Promise<void>;
+  parseChatUiMode: (value: unknown) => ChatUiMode;
+  selectToolsForChatMode: (mode: ChatUiMode, allTools: AgentTool[]) => AgentTool[];
+  mcpToolsForChatMode: (mode: ChatUiMode, list: McpTool[]) => McpTool[];
 }> {
   const loopModule = (await importFirst([
     "../../extension/src/agent/loop.ts",
@@ -407,12 +511,20 @@ async function loadExtensionDependencies(): Promise<{
     "../../extension/dist/mcp/client.js",
   ])) as ExtensionMcpModule;
 
+  const chatModeModule = (await importFirst([
+    "../../extension/src/bridge/chatMode.ts",
+    "../../extension/src/bridge/chatMode.js",
+  ])) as ExtensionChatModeModule;
+
   return {
     AgentLoop: loopModule.AgentLoop,
     tools: toolsModule.toolsRegistry,
     McpManager: mcpModule.McpManager,
     loadConfig: configModule.loadConfig,
     saveConfig: configModule.saveConfig,
+    parseChatUiMode: chatModeModule.parseChatUiMode,
+    selectToolsForChatMode: chatModeModule.selectToolsForChatMode,
+    mcpToolsForChatMode: chatModeModule.mcpToolsForChatMode,
   };
 }
 

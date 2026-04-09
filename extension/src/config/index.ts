@@ -9,6 +9,10 @@ interface OpenRouterConfig {
   apiKey: string;
   model: string;
   visionModel: string;
+  /** Janela de contexto em tokens (estimativa UI + orçamento de compactação). */
+  contextWindowTokens?: number;
+  /** Tokens reservados para a resposta do modelo. */
+  reservedOutputTokens?: number;
 }
 
 /**
@@ -23,6 +27,10 @@ interface AgentConfig {
   activeAgent: ActiveAgent;
   systemPrompt: string;
   maxIterations: number;
+  /**
+   * Se `true` (omissão), após falha de parse dos argumentos de uma tool tenta um pedido LLM curto para corrigir o JSON antes de reportar erro ao modelo principal.
+   */
+  recoverToolArgumentsWithLlm?: boolean;
 }
 
 /**
@@ -53,11 +61,14 @@ export function defaultConfig(): CappyConfig {
       apiKey: "",
       model: "openai/gpt-oss-120b",
       visionModel: "meta-llama/llama-3.2-11b-vision-instruct:free",
+      contextWindowTokens: 128_000,
+      reservedOutputTokens: 8192,
     },
     agent: {
       activeAgent: "coder",
       systemPrompt: "You are Cappy, an expert coding assistant.",
       maxIterations: 20,
+      recoverToolArgumentsWithLlm: true,
     },
     mcp: {
       servers: [],
@@ -138,6 +149,14 @@ function mergeWithDefaults(raw: unknown): CappyConfig {
       apiKey: typeof rawOpenRouter.apiKey === "string" ? rawOpenRouter.apiKey : defaults.openrouter.apiKey,
       model: typeof rawOpenRouter.model === "string" ? rawOpenRouter.model : defaults.openrouter.model,
       visionModel: typeof rawOpenRouter.visionModel === "string" ? rawOpenRouter.visionModel : defaults.openrouter.visionModel,
+      contextWindowTokens:
+        typeof rawOpenRouter.contextWindowTokens === "number" && rawOpenRouter.contextWindowTokens >= 4096
+          ? rawOpenRouter.contextWindowTokens
+          : defaults.openrouter.contextWindowTokens,
+      reservedOutputTokens:
+        typeof rawOpenRouter.reservedOutputTokens === "number" && rawOpenRouter.reservedOutputTokens >= 512
+          ? rawOpenRouter.reservedOutputTokens
+          : defaults.openrouter.reservedOutputTokens,
     },
     agent: {
       activeAgent: isActiveAgent(rawAgent.activeAgent) ? rawAgent.activeAgent : defaults.agent.activeAgent,
@@ -147,6 +166,10 @@ function mergeWithDefaults(raw: unknown): CappyConfig {
         typeof rawAgent.maxIterations === "number"
           ? rawAgent.maxIterations
           : defaults.agent.maxIterations,
+      recoverToolArgumentsWithLlm:
+        typeof rawAgent.recoverToolArgumentsWithLlm === "boolean"
+          ? rawAgent.recoverToolArgumentsWithLlm
+          : defaults.agent.recoverToolArgumentsWithLlm,
     },
     mcp: {
       servers: rawServers
