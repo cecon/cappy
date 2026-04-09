@@ -10,7 +10,7 @@ import type {
 
 import type { ChatUiMode } from "../bridge/chatMode";
 import { loadConfig } from "../config";
-import { coerceSearchPattern } from "../tools/coercePattern";
+import { coerceSearchPattern, mergeNestedPatternArgs } from "../tools/coercePattern";
 import type { McpTool } from "../mcp/client";
 import type { ToolDefinition } from "../tools/toolTypes";
 import type { FileDiffPayload } from "../utils/fileDiffPayload";
@@ -35,6 +35,7 @@ import {
   getPlanMode,
 } from "./sessionContext";
 import type { AgentEvents, AgentTool, Message, ToolCall } from "./types";
+import { recoverToolArgumentsWithLlm } from "./toolArgumentRecovery";
 import { loadWorkspaceSkillsPrompt } from "./workspaceSkills";
 
 /**
@@ -204,7 +205,7 @@ export class AgentLoop extends EventEmitter {
         completedLlmRounds += 1;
 
         const assistantContent = assistantTextParts.join("");
-        const toolCalls = this.finalizeToolCalls(pendingToolCalls);
+        const toolCalls = await this.resolveParsedToolCalls(pendingToolCalls, toolsByName);
 
         if (toolCalls.length === 0) {
           if (assistantContent.length > 0) {
@@ -236,10 +237,37 @@ export class AgentLoop extends EventEmitter {
             }
           }
 
+          if (toolCall.argumentsParseError) {
+            const snippet = truncateToolArgsSnippet(toolCall.rawArgumentsText ?? "", 4_000);
+            const parseFailContent = [
+              `[Erro de argumentos para tool "${toolCall.name}"]`,
+              toolCall.argumentsParseError,
+              "",
+              "--- Argumentos brutos (fragmento) ---",
+              snippet,
+            ].join("\n");
+            this.emitEvent("tool:executing", toolCall);
+            this.emitEvent("tool:result", toolCall, parseFailContent, undefined);
+            history.push({
+              role: "tool",
+              content: parseFailContent,
+              tool_call_id: toolCall.id,
+            });
+            continue;
+          }
+
           this.emitEvent("tool:executing", toolCall);
-          const result = await tool.execute(toolCall.arguments);
-          const serializedResult = serializeToolResult(result);
-          this.emitEvent("tool:result", toolCall, serializedResult, extractFileDiffPayload(result));
+          let serializedResult: string;
+          let fileDiffPayload: FileDiffPayload | undefined;
+          try {
+            const result = await tool.execute(toolCall.arguments);
+            serializedResult = serializeToolResult(result);
+            fileDiffPayload = extractFileDiffPayload(result);
+          } catch (execError) {
+            serializedResult = `[Erro ao executar tool "${toolCall.name}"] ${asError(execError).message}`;
+            fileDiffPayload = undefined;
+          }
+          this.emitEvent("tool:result", toolCall, serializedResult, fileDiffPayload);
           history.push({
             role: "tool",
             content: serializedResult,
@@ -511,21 +539,78 @@ export class AgentLoop extends EventEmitter {
   }
 
   /**
-   * Consolidates streamed partial tool-call chunks into complete tool calls.
+   * Parse dos argumentos em stream, com recuperação opcional via LLM e fallback para erro como resultado da tool.
    */
-  private finalizeToolCalls(pendingToolCalls: Map<number, PendingToolCallState>): ToolCall[] {
+  private async resolveParsedToolCalls(
+    pendingToolCalls: Map<number, PendingToolCallState>,
+    toolsByName: Map<string, AgentTool>,
+  ): Promise<ToolCall[]> {
     const orderedEntries = [...pendingToolCalls.entries()].sort(([a], [b]) => a - b);
-    return orderedEntries.map(([index, partial]) => {
+    const config = await loadConfig();
+    const allowLlmRecovery = config.agent.recoverToolArgumentsWithLlm !== false && !this.runOptions.silent;
+
+    let cachedClient: { client: OpenAI; model: string } | null = null;
+    const ensureClient = async (): Promise<{ client: OpenAI; model: string }> => {
+      if (!cachedClient) {
+        const resolved = await this.getClientAndModel();
+        cachedClient = { client: resolved.client, model: resolved.model };
+      }
+      return cachedClient;
+    };
+
+    const out: ToolCall[] = [];
+    for (const [index, partial] of orderedEntries) {
       if (!partial.name) {
         throw new Error(`Tool call no indice ${index} nao possui nome.`);
       }
-      const parsedArguments = parseToolArguments(partial.argumentsText, partial.name);
-      return {
-        id: partial.id || `tool_call_${index}`,
+      const id = partial.id || `tool_call_${index}`;
+      let parsed: Record<string, unknown> | undefined;
+      let parseFailureMessage: string | undefined;
+      try {
+        parsed = parseToolArguments(partial.argumentsText, partial.name);
+      } catch (firstError) {
+        parseFailureMessage = asError(firstError).message;
+      }
+
+      if (parsed !== undefined) {
+        out.push({ id, name: partial.name, arguments: parsed });
+        continue;
+      }
+
+      let recoveredJson: string | null = null;
+      if (allowLlmRecovery) {
+        const { client, model } = await ensureClient();
+        const toolMeta = toolsByName.get(partial.name);
+        recoveredJson = await recoverToolArgumentsWithLlm(
+          client,
+          model,
+          partial.name,
+          partial.argumentsText,
+          parseFailureMessage ?? "parse falhou",
+          toolMeta?.parameters,
+        );
+      }
+
+      if (recoveredJson) {
+        try {
+          parsed = parseToolArguments(recoveredJson, partial.name);
+          out.push({ id, name: partial.name, arguments: parsed });
+          continue;
+        } catch (secondError) {
+          parseFailureMessage = `${parseFailureMessage ?? "parse falhou"} | recuperacao LLM: ${asError(secondError).message}`;
+        }
+      }
+
+      out.push({
+        id,
         name: partial.name,
-        arguments: parsedArguments,
-      };
-    });
+        arguments: {},
+        argumentsParseError: parseFailureMessage ?? "Falha ao interpretar argumentos JSON.",
+        rawArgumentsText: partial.argumentsText,
+      });
+    }
+
+    return out;
   }
 
   /**
@@ -790,10 +875,23 @@ function toAgentToolSchema(schema: Record<string, unknown>): AgentTool["paramete
 }
 
 /**
+ * Trunca texto longo para o eco de argumentos brutos nas mensagens de tool.
+ */
+function truncateToolArgsSnippet(text: string, maxChars: number): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  const head = Math.max(32, Math.floor(maxChars / 2) - 2);
+  const tail = maxChars - head - 3;
+  return `${trimmed.slice(0, head)}…${trimmed.slice(-tail)}`;
+}
+
+/**
  * Parses model-provided function arguments into a JSON object.
  */
 function parseToolArguments(argumentsText: string, toolName: string): Record<string, unknown> {
-  const trimmedArguments = argumentsText.trim();
+  const trimmedArguments = normalizeSmartQuotes(argumentsText).trim();
   if (trimmedArguments.length === 0) {
     return {};
   }
@@ -812,9 +910,11 @@ function parseToolArguments(argumentsText: string, toolName: string): Record<str
           const name = toolName.toLowerCase();
           if (name === "grep" || name === "glob") {
             const kind = name === "grep" ? "grep" : "glob";
-            if (coerceSearchPattern(parsed, kind).length === 0) {
+            const merged = mergeNestedPatternArgs(parsed);
+            if (coerceSearchPattern(merged, kind).length === 0) {
               continue;
             }
+            return merged;
           }
           return parsed;
         }
@@ -830,6 +930,13 @@ function parseToolArguments(argumentsText: string, toolName: string): Record<str
   }
 
   throw new Error(`Argumentos JSON invalidos para tool "${toolName}".`);
+}
+
+/**
+ * Substitui aspas curvas tipográficas por ASCII para o JSON.parse aceitar.
+ */
+function normalizeSmartQuotes(text: string): string {
+  return text.replace(/\u201c|\u201d/gu, '"').replace(/\u2018|\u2019/gu, "'");
 }
 
 /**
@@ -982,6 +1089,46 @@ function inferFallbackArguments(rawArguments: string, toolName: string): Record<
 }
 
 /**
+ * Extrai `pattern` / `path` / `glob` quando o modelo envia pseudo-JSON (chave `pattern` sem aspas, etc.).
+ */
+function inferLooseGrepPatternObject(cleaned: string): Record<string, unknown> | null {
+  const unquoted =
+    cleaned.match(/\bpattern\s*:\s*"((?:\\.|[^"\\])*)"/su) ??
+    cleaned.match(/\bpattern\s*:\s*'((?:\\.|[^'\\])*)'/su);
+  if (unquoted?.[1] !== undefined && unquoted[1].length > 0) {
+    const pattern = unquoted[1]
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\"/gu, '"')
+      .replace(/\\\\/gu, "\\");
+    const out: Record<string, unknown> = { pattern };
+    const pathM = cleaned.match(/\bpath\s*:\s*"((?:\\.|[^"\\])*)"/su);
+    if (pathM?.[1]) {
+      out.path = pathM[1].replace(/\\"/gu, '"').replace(/\\\\/gu, "\\");
+    }
+    const globM = cleaned.match(/\bglob\s*:\s*"((?:\\.|[^"\\])*)"/su);
+    if (globM?.[1]) {
+      out.glob = globM[1].replace(/\\"/gu, '"');
+    }
+    return out;
+  }
+
+  const nestedArguments = cleaned.match(
+    /\barguments\s*:\s*\{[\s\S]*?"pattern"\s*:\s*"((?:\\.|[^"\\])*)"/su,
+  );
+  if (nestedArguments?.[1] !== undefined && nestedArguments[1].length > 0) {
+    return {
+      pattern: nestedArguments[1]
+        .replace(/\\n/g, "\n")
+        .replace(/\\"/gu, '"')
+        .replace(/\\\\/gu, "\\"),
+    };
+  }
+
+  return null;
+}
+
+/**
  * Recupera `{ pattern, path? }` quando o JSON da tool Grep/Glob veio partido ou usa `regex`/`query` em vez de `pattern`.
  */
 function inferGrepOrGlobArguments(cleaned: string): Record<string, unknown> | null {
@@ -1020,6 +1167,11 @@ function inferGrepOrGlobArguments(cleaned: string): Record<string, unknown> | nu
     if (simple?.[1] !== undefined && simple[1].length > 0) {
       return { pattern: simple[1] };
     }
+  }
+
+  const looseObject = inferLooseGrepPatternObject(cleaned);
+  if (looseObject) {
+    return looseObject;
   }
 
   if (!cleaned.includes("{")) {

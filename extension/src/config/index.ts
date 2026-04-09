@@ -27,6 +27,10 @@ interface AgentConfig {
   activeAgent: ActiveAgent;
   systemPrompt: string;
   maxIterations: number;
+  /**
+   * Se `true` (omissão), após falha de parse dos argumentos de uma tool tenta um pedido LLM curto para corrigir o JSON antes de reportar erro ao modelo principal.
+   */
+  recoverToolArgumentsWithLlm?: boolean;
 }
 
 /**
@@ -64,6 +68,7 @@ export function defaultConfig(): CappyConfig {
       activeAgent: "coder",
       systemPrompt: "You are Cappy, an expert coding assistant.",
       maxIterations: 20,
+      recoverToolArgumentsWithLlm: true,
     },
     mcp: {
       servers: [],
@@ -161,6 +166,10 @@ function mergeWithDefaults(raw: unknown): CappyConfig {
         typeof rawAgent.maxIterations === "number"
           ? rawAgent.maxIterations
           : defaults.agent.maxIterations,
+      recoverToolArgumentsWithLlm:
+        typeof rawAgent.recoverToolArgumentsWithLlm === "boolean"
+          ? rawAgent.recoverToolArgumentsWithLlm
+          : defaults.agent.recoverToolArgumentsWithLlm,
     },
     mcp: {
       servers: rawServers

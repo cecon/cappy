@@ -12,6 +12,10 @@ export interface ToolCall {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
+  /** Quando definido, o parse local (e opcionalmente o LLM) falhou; o loop envia erro como resultado da tool. */
+  argumentsParseError?: string;
+  /** Texto bruto dos argumentos em stream (eco para o modelo corrigir). */
+  rawArgumentsText?: string;
 }
 
 /**
