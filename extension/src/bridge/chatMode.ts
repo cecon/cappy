@@ -18,6 +18,8 @@ const ASK_ALLOWED_TOOL_NAMES = new Set<string>([
   "webFetch",
   "WebSearch",
   "TodoWrite",
+  "ListSkills",
+  "ReadSkill",
   "EnterPlanMode",
   "ExitPlanMode",
 ]);

@@ -8,6 +8,7 @@ import { McpManager, type McpTool } from "../mcp/client";
 import { toolsRegistry } from "../tools";
 import { type ChatUiMode, mcpToolsForChatMode, parseChatUiMode, selectToolsForChatMode } from "./chatMode";
 import type { FileDiffPayload } from "../utils/fileDiffPayload";
+import { logDebug, logError, logInfo, resetLoggerCache } from "../utils/logger";
 
 /**
  * Message sent from extension host to webview.
@@ -79,6 +80,7 @@ export function createWebviewBridge(webview: vscode.Webview): vscode.Disposable[
     void postToWebview(webview, { type: "tool:rejected", toolCall });
   };
   const errorListener = (error: Error) => {
+    logError(`Agent error event: ${error.message}`);
     void postToWebview(webview, { type: "error", message: error.message });
   };
   const contextUsageListener = (payload: ContextUsagePayload) => {
@@ -175,12 +177,13 @@ async function handleWebviewMessage(
       const mode = parseChatUiMode(raw.mode);
       const toolsForRun = selectToolsForChatMode(mode, tools);
       const mcpList = mcpManager.listTools();
+      logInfo(`chat:send received | mode=${mode} msgs=${raw.messages.length} tools=${toolsForRun.length} mcp=${mcpList.length}`);
       await agentLoop.run(raw.messages, toolsForRun, {
         mcpTools: mcpToolsForChatMode(mode, mcpList),
         chatMode: mode,
       });
-    } catch {
-      // The loop already emits a typed "error" event.
+    } catch (err) {
+      logError(`Agent loop error in bridge: ${err instanceof Error ? err.message : String(err)}`);
     }
     return;
   }
@@ -210,6 +213,7 @@ async function handleWebviewMessage(
   if (raw.type === "config:save") {
     try {
       await saveConfig(raw.config);
+      resetLoggerCache();
       await mcpManager.connect(raw.config.mcp.servers);
       await postToWebview(webview, { type: "config:saved" });
     } catch (error) {

@@ -50,6 +50,8 @@ export interface CappyConfig {
   mcp: {
     servers: McpServerConfig[];
   };
+  /** Habilita logs verbosos no Output Channel do Cappy. */
+  debug?: boolean | undefined;
 }
 
 /**
@@ -73,6 +75,7 @@ export function defaultConfig(): CappyConfig {
     mcp: {
       servers: [],
     },
+    debug: false,
   };
 }
 
@@ -180,6 +183,7 @@ function mergeWithDefaults(raw: unknown): CappyConfig {
         }))
         .filter((server) => server.name.length > 0 && server.url.length > 0),
     },
+    debug: typeof raw.debug === "boolean" ? raw.debug : defaults.debug,
   };
 }
 

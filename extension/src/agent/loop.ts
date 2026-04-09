@@ -37,6 +37,7 @@ import {
 import type { AgentEvents, AgentTool, Message, ToolCall } from "./types";
 import { recoverToolArgumentsWithLlm } from "./toolArgumentRecovery";
 import { loadWorkspaceSkillsPrompt } from "./workspaceSkills";
+import { logDebug, logError, logInfo } from "../utils/logger";
 
 /**
  * Tools that require explicit user confirmation before execution.
@@ -178,8 +179,13 @@ export class AgentLoop extends EventEmitter {
     const mergedTools = this.mergeTools(tools, options.mcpTools ?? []);
     const history = [...messages];
     const toolsByName = new Map<string, AgentTool>(mergedTools.map((tool) => [tool.name, tool]));
+    // Case-insensitive index for models that emit lowercase tool names (e.g. "edit" instead of "Edit")
+    const toolsByLowerName = new Map<string, AgentTool>(mergedTools.map((tool) => [tool.name.toLowerCase(), tool]));
     const maxRounds = options.maxLlmRounds;
     let completedLlmRounds = 0;
+
+    logInfo(`Agent run started | messages=${messages.length} tools=${mergedTools.length} mode=${options.chatMode ?? "agent"}`);
+    void logDebug(`Tool names: ${mergedTools.map((t) => t.name).join(", ")}`);
 
     try {
       while (true) {
@@ -198,19 +204,25 @@ export class AgentLoop extends EventEmitter {
         const assistantTextParts: string[] = [];
         const pendingToolCalls = new Map<number, PendingToolCallState>();
 
+        void logDebug(`LLM round ${completedLlmRounds + 1} | history=${history.length} messages`);
+
         for await (const chunk of stream) {
           this.consumeChunk(chunk, assistantTextParts, pendingToolCalls);
         }
 
+        void logDebug(`Stream consumed | chunks done, parsing tool calls...`);
         completedLlmRounds += 1;
 
         const assistantContent = assistantTextParts.join("");
         const toolCalls = await this.resolveParsedToolCalls(pendingToolCalls, toolsByName);
 
+        void logDebug(`LLM round ${completedLlmRounds} finished | toolCalls=${toolCalls.length} textLen=${assistantContent.length}`);
+
         if (toolCalls.length === 0) {
           if (assistantContent.length > 0) {
             history.push({ role: "assistant", content: assistantContent });
           }
+          logInfo("Agent run complete (no more tool calls)");
           this.emitEvent("stream:done");
           break;
         }
@@ -223,10 +235,12 @@ export class AgentLoop extends EventEmitter {
 
         let wasRejected = false;
         for (const toolCall of toolCalls) {
-          const tool = toolsByName.get(toolCall.name);
+          const tool = toolsByName.get(toolCall.name) ?? toolsByLowerName.get(toolCall.name.toLowerCase());
           if (!tool) {
             throw new Error(`Tool "${toolCall.name}" nao esta registrada.`);
           }
+          // Normalize to the canonical registered name
+          toolCall.name = tool.name;
 
           if (this.isDestructiveTool(toolCall.name)) {
             const approved = await this.confirm(toolCall);
@@ -257,15 +271,18 @@ export class AgentLoop extends EventEmitter {
           }
 
           this.emitEvent("tool:executing", toolCall);
+          void logDebug(`Executing tool: ${toolCall.name} id=${toolCall.id}`);
           let serializedResult: string;
           let fileDiffPayload: FileDiffPayload | undefined;
           try {
             const result = await tool.execute(toolCall.arguments);
             serializedResult = serializeToolResult(result);
             fileDiffPayload = extractFileDiffPayload(result);
+            void logDebug(`Tool ${toolCall.name} succeeded | resultLen=${serializedResult.length}`);
           } catch (execError) {
             serializedResult = `[Erro ao executar tool "${toolCall.name}"] ${asError(execError).message}`;
             fileDiffPayload = undefined;
+            logError(`Tool ${toolCall.name} failed: ${asError(execError).message}`);
           }
           this.emitEvent("tool:result", toolCall, serializedResult, fileDiffPayload);
           history.push({
@@ -276,14 +293,19 @@ export class AgentLoop extends EventEmitter {
         }
 
         if (wasRejected) {
+          logInfo("Agent run stopped (tool rejected)");
           this.emitEvent("stream:done");
           break;
         }
+
+        void logDebug(`All tools executed for round ${completedLlmRounds}, looping for next LLM call...`);
       }
 
+      logInfo(`Agent run finished | totalRounds=${completedLlmRounds} historyLen=${history.length}`);
       return history;
     } catch (error) {
       const normalizedError = asError(error);
+      logError(`Agent loop error: ${normalizedError.message}`);
       this.emitEvent("error", normalizedError);
       throw normalizedError;
     } finally {
@@ -408,6 +430,8 @@ export class AgentLoop extends EventEmitter {
     }
     const hasImages = validMessages.some((m) => m.images && m.images.length > 0);
     const selectedModel = hasImages ? visionModel : model;
+
+    void logDebug(`createStream | model=${selectedModel} msgs=${validMessages.length} budget=${effectiveBudget} trimmed=${String(didTrimForApi)} dropped=${droppedMessageCount}`);
 
     try {
       return await client.chat.completions.create({
@@ -563,28 +587,33 @@ export class AgentLoop extends EventEmitter {
       if (!partial.name) {
         throw new Error(`Tool call no indice ${index} nao possui nome.`);
       }
+      // Sanitize: some models emit control tokens like <|channel|>commentary after the tool name
+      const sanitizedName = partial.name.replace(/<\|.*$/u, "").trim();
+      if (!sanitizedName) {
+        throw new Error(`Tool call no indice ${index} possui nome invalido: "${partial.name}".`);
+      }
       const id = partial.id || `tool_call_${index}`;
       let parsed: Record<string, unknown> | undefined;
       let parseFailureMessage: string | undefined;
       try {
-        parsed = parseToolArguments(partial.argumentsText, partial.name);
+        parsed = parseToolArguments(partial.argumentsText, sanitizedName);
       } catch (firstError) {
         parseFailureMessage = asError(firstError).message;
       }
 
       if (parsed !== undefined) {
-        out.push({ id, name: partial.name, arguments: parsed });
+        out.push({ id, name: sanitizedName, arguments: parsed });
         continue;
       }
 
       let recoveredJson: string | null = null;
       if (allowLlmRecovery) {
         const { client, model } = await ensureClient();
-        const toolMeta = toolsByName.get(partial.name);
+        const toolMeta = toolsByName.get(sanitizedName);
         recoveredJson = await recoverToolArgumentsWithLlm(
           client,
           model,
-          partial.name,
+          sanitizedName,
           partial.argumentsText,
           parseFailureMessage ?? "parse falhou",
           toolMeta?.parameters,

@@ -9,6 +9,7 @@ import { enterPlanModeTool, exitPlanModeTool } from "./planModeTools";
 import { readFileTool, readOpenClaudeTool } from "./readFile";
 import { bashTool, runTerminalTool } from "./runTerminal";
 import { searchCodeTool } from "./searchCode";
+import { createSkillTool, listSkillsTool, readSkillTool } from "./skillTools";
 import { todoWriteTool } from "./todoWrite";
 import type { ToolDefinition } from "./toolTypes";
 import { webFetchTool } from "./webFetch";
@@ -33,6 +34,9 @@ export const toolsRegistry: ToolDefinition<any, unknown>[] = [
   grepTool,
   searchCodeTool,
   todoWriteTool,
+  listSkillsTool,
+  readSkillTool,
+  createSkillTool,
   enterPlanModeTool,
   exitPlanModeTool,
   webFetchTool,

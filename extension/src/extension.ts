@@ -6,6 +6,7 @@ import {
   openOpenClaudeRepository,
   openOpenClaudeWorkspaceProfile,
 } from "./openClaudeLauncher";
+import { disposeLogger, showLog } from "./utils/logger";
 
 const CHAT_VIEW_ID = "cappy.chatView";
 const SIDEBAR_CONTAINER_ID = "cappy-sidebar";
@@ -129,6 +130,10 @@ export function activate(context: vscode.ExtensionContext): void {
     await openOpenClaudeRepository();
   });
 
+  const showLogCommand = vscode.commands.registerCommand("cappy.showLog", () => {
+    showLog();
+  });
+
   extensionDisposables.push(
     provider,
     providerRegistration,
@@ -138,6 +143,7 @@ export function activate(context: vscode.ExtensionContext): void {
     launchOpenClaudeWorkspaceRootCommand,
     openOpenClaudeProfileCommand,
     openOpenClaudeRepoCommand,
+    showLogCommand,
   );
   context.subscriptions.push(...extensionDisposables);
 }
@@ -182,4 +188,5 @@ export function deactivate(): void {
     const disposable = extensionDisposables.pop();
     disposable?.dispose();
   }
+  disposeLogger();
 }
