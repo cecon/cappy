@@ -79,6 +79,9 @@ importers:
       '@mantine/hooks':
         specifier: ^7.17.8
         version: 7.17.8(react@18.3.1)
+      '@tabler/icons-react':
+        specifier: ^3.41.1
+        version: 3.41.1(react@18.3.1)
       '@xterm/addon-fit':
         specifier: ^0.11.0
         version: 0.11.0
@@ -972,6 +975,14 @@ packages:
   '@sindresorhus/merge-streams@2.3.0':
     resolution: {integrity: sha512-LtoMMhxAlorcGhmFYI+LhPgbPZCkgP6ra1YL604EeF6U98pLlQ3iWIGMdWSC+vWmPBWBNgmDBAhnAobLROJmwg==}
     engines: {node: '>=18'}
+
+  '@tabler/icons-react@3.41.1':
+    resolution: {integrity: sha512-kUgweE+DJtAlMZVIns1FTDdcbpRVnkK7ZpUOXmoxy3JAF0rSHj0TcP4VHF14+gMJGnF+psH2Zt26BLT6owetBA==}
+    peerDependencies:
+      react: '>= 16'
+
+  '@tabler/icons@3.41.1':
+    resolution: {integrity: sha512-OaRnVbRmH2nHtFeg+RmMJ/7m2oBIF9XCJAUD5gQnMrpK9f05ydj8MZrAf3NZQqOXyxGN1UBL0D5IKLLEUfr74Q==}
 
   '@textlint/ast-node-types@15.5.2':
     resolution: {integrity: sha512-fCaOxoup5LIyBEo7R1oYWE7V4bSX0KQeHh66twon9e9usaLE3ijgF8QjYsR6joCssdeCHVd0wHm7ppsEyTr6vg==}
@@ -3658,6 +3669,13 @@ snapshots:
   '@secretlint/types@10.2.2': {}
 
   '@sindresorhus/merge-streams@2.3.0': {}
+
+  '@tabler/icons-react@3.41.1(react@18.3.1)':
+    dependencies:
+      '@tabler/icons': 3.41.1
+      react: 18.3.1
+
+  '@tabler/icons@3.41.1': {}
 
   '@textlint/ast-node-types@15.5.2': {}
 

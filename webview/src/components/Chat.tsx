@@ -23,9 +23,9 @@ import type {
   ToolCall,
 } from "../lib/types";
 import { ChatTerminal } from "./ChatTerminal";
+import { HitlCard } from "./HitlCard";
 import { InputBar, type ContextFile } from "./InputBar";
 import { MessageList } from "./MessageList";
-import { ToolConfirmCard } from "./ToolConfirmCard";
 import { cappyPalette } from "../theme";
 
 const bridge = getBridge();
@@ -263,7 +263,7 @@ export function Chat(): JSX.Element {
       >
         <Stack gap="md" px={4} style={{ minHeight: "min-content" }}>
           <MessageList messages={messages} isStreaming={isStreaming} />
-          {isExtensionHost() ? (
+          {isExtensionHost() && (agentShellLog.trim().length > 0 || pendingTerminalHitl.length > 0) ? (
             <ChatTerminal
               chatSessionKey={draftSessionKey}
               log={agentShellLog}
@@ -282,12 +282,10 @@ export function Chat(): JSX.Element {
         {hitlForGenericCards.length > 0 ? (
           <Stack gap="xs" px={4}>
             {hitlForGenericCards.map((toolCall) => (
-              <ToolConfirmCard
+              <HitlCard
                 key={toolCall.id}
                 toolCall={toolCall}
                 onApprove={handleApprove}
-                onApproveSession={handleApproveSession}
-                onApprovePersist={handleApprovePersist}
                 onReject={handleReject}
               />
             ))}

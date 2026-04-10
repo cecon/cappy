@@ -1,0 +1,83 @@
+/* Base shell + parts para cartões HITL especializados. */
+
+.card {
+  max-width: 100%;
+  border-left-width: 3px;
+  border-left-style: solid;
+  transition: border-color 0.15s ease;
+}
+
+/* --- Header --- */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerIcon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.headerLabel {
+  flex-shrink: 0;
+}
+
+.headerMeta {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+
+/* --- Risk badge --- */
+.riskBadge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
+/* --- Body content --- */
+.body {
+  min-width: 0;
+}
+
+/* --- Specialized: command preview (shell, file-write) --- */
+.commandPreview {
+  font-size: 11px;
+  padding: 6px 8px;
+  background: var(--bg-sunken);
+  border-radius: 4px;
+}
+
+/* --- Specialized: file path highlight --- */
+.filePath {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-accent, var(--accent-fill));
+  word-break: break-all;
+}
+
+/* --- Specialized: diff summary --- */
+.diffSummary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.diffAdd {
+  color: var(--green-mid, #40c057);
+}
+
+.diffDel {
+  color: var(--red-soft, #e03131);
+}
