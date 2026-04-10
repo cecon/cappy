@@ -1,6 +1,21 @@
+import {
+  ActionIcon,
+  Box,
+  Button,
+  CloseButton,
+  Group,
+  Paper,
+  Popover,
+  Progress,
+  SegmentedControl,
+  Stack,
+  Text,
+  Textarea,
+} from "@mantine/core";
 import { FormEvent, KeyboardEvent, useCallback, useMemo, useRef, useState } from "react";
+
 import type { ChatUiMode, ContextUsageSnapshot, ImageAttachment } from "../lib/types";
-import styles from "./InputBar.module.css";
+import { cappyPalette } from "../theme";
 
 export interface ContextFile {
   path: string;
@@ -74,9 +89,15 @@ export function InputBar({
     const draftTokens = isStreaming ? 0 : Math.ceil(value.length / 4);
     const attachmentTokens = contextFiles.length * 4500;
     const previewUsed = Math.min(limitTokens * 1.5, baseUsed + draftTokens + attachmentTokens);
-    return { previewUsed, limitTokens, effectiveBudget: contextUsage?.effectiveInputBudgetTokens ?? null, didTrim: contextUsage?.didTrimForApi ?? false };
+    return {
+      previewUsed,
+      limitTokens,
+      effectiveBudget: contextUsage?.effectiveInputBudgetTokens ?? null,
+      didTrim: contextUsage?.didTrimForApi ?? false,
+    };
   }, [contextFiles.length, contextUsage, isStreaming, value.length]);
   const contextRatio = contextMetrics.previewUsed / contextMetrics.limitTokens;
+  const progressPct = Math.min(100, Math.max(0, contextRatio * 100));
 
   /**
    * Handles submit from input form.
@@ -191,185 +212,315 @@ export function InputBar({
     return file.path.toLowerCase().includes(atToken.toLowerCase());
   });
 
+  const modeSegmentData = useMemo(
+    () => MODE_ITEMS.map((item) => ({ label: item.label, value: item.id })),
+    [],
+  );
+
   return (
-    <form onSubmit={handleSubmit} className={styles.form}>
-      {contextFiles.length > 0 ? (
-        <div className={styles.contextChips}>
-          {contextFiles.map((file) => (
-            <div key={file.path} className={styles.contextChip}>
-              <span className={styles.contextFileIcon} aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M7 3.8h6l4 4V20.2H7z" />
-                  <path d="M13 3.8v4h4" />
-                </svg>
-              </span>
-              <span className={styles.contextFileName}>{file.name}</span>
-              <button
-                type="button"
-                className={styles.contextRemove}
-                onClick={() => onRemoveContextFile(file.path)}
-                aria-label={`Remover ${file.name}`}
+    <form onSubmit={handleSubmit} style={{ width: "100%", minWidth: 0, maxWidth: "100%" }}>
+      <Stack gap="xs">
+        {contextFiles.length > 0 ? (
+          <Group gap={6} wrap="wrap">
+            {contextFiles.map((file) => (
+              <Group
+                key={file.path}
+                gap={6}
+                wrap="nowrap"
+                px={8}
+                py={4}
+                style={{
+                  borderRadius: 5,
+                  border: `1px solid ${cappyPalette.borderSurface}`,
+                  background: cappyPalette.bgSurface,
+                }}
               >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <div className={styles.inputBox}>
-        {images.length > 0 && (
-          <div className={styles.imagePreviewRow}>
-            {images.map((img, i) => (
-              <div key={i} className={styles.imagePreview}>
-                <img src={img.dataUrl} alt={`Anexo ${i + 1}`} className={styles.imageThumb} />
-                <button
-                  type="button"
-                  className={styles.imageRemove}
-                  onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
-                  aria-label={`Remover imagem ${i + 1}`}
-                >
-                  ×
-                </button>
-              </div>
+                <Text size="xs" c="dimmed" truncate maw={200}>
+                  {file.name}
+                </Text>
+                <CloseButton size="xs" aria-label={`Remover ${file.name}`} onClick={() => onRemoveContextFile(file.path)} />
+              </Group>
             ))}
-          </div>
-        )}
-
-        <textarea
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={handleTextareaKeyDown}
-          onPaste={handlePaste}
-          placeholder={
-            chatMode === "plain"
-              ? "Mensagem em texto puro (sem tools)"
-              : chatMode === "ask"
-                ? "Pergunta: leitura e pesquisa no código e na web"
-                : "/ para comandos, @ para contexto — agente com ferramentas"
-          }
-          className={styles.textarea}
-          rows={3}
-        />
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleFileChange}
-          className={styles.hiddenFileInput}
-        />
-
-        {showSlashMenu ? (
-          <div className={styles.menu} role="listbox" aria-label="Comandos slash">
-            {COMMAND_ITEMS.map((command, index) => (
-              <button
-                key={command.value}
-                type="button"
-                className={`${styles.menuItem} ${index === activeCommandIndex ? styles.menuItemActive : ""}`}
-                onMouseEnter={() => setActiveCommandIndex(index)}
-                onClick={() => handleSelectCommand(command.value)}
-              >
-                <span className={styles.menuCommand}>{command.value}</span>
-                <span className={styles.menuDescription}>{command.description}</span>
-              </button>
-            ))}
-          </div>
+          </Group>
         ) : null}
 
-        {showAtMenu ? (
-          <div className={styles.menu} role="listbox" aria-label="Arquivos do workspace">
-            {availableContextFiles.map((file) => (
-              <button key={file.path} type="button" className={styles.menuItem} onClick={() => handleSelectContextFile(file)}>
-                <span className={styles.menuCommand}>@{file.name}</span>
-                <span className={styles.menuDescription}>{file.path}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        <div className={styles.toolbar}>
-          <div className={styles.toolbarLeft}>
-            <div className={styles.modeSwitch} role="tablist" aria-label="Modo do chat">
-              {MODE_ITEMS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={chatMode === item.id}
-                  title={item.hint}
-                  className={`${styles.modeSegment} ${chatMode === item.id ? styles.modeSegmentActive : ""}`}
-                  onClick={() => setChatMode(item.id)}
+        <Paper
+          withBorder
+          radius="md"
+          p={0}
+          pos="relative"
+          style={{
+            overflowX: "hidden",
+            overflowY: "visible",
+            minWidth: 0,
+            maxWidth: "100%",
+            backgroundColor: cappyPalette.bgSurface,
+            borderColor: cappyPalette.borderSurface,
+          }}
+        >
+          {images.length > 0 ? (
+            <Group gap={6} p="xs" pb={0} wrap="wrap">
+              {images.map((img, i) => (
+                <Box
+                  key={i}
+                  pos="relative"
+                  w={56}
+                  h={56}
+                  style={{ borderRadius: 6, overflow: "hidden", border: `1px solid ${cappyPalette.borderSurface}` }}
                 >
-                  {item.label}
-                </button>
+                  <img src={img.dataUrl} alt={`Anexo ${String(i + 1)}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <ActionIcon
+                    pos="absolute"
+                    top={2}
+                    right={2}
+                    size="xs"
+                    radius="xl"
+                    variant="filled"
+                    color="dark"
+                    onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
+                    aria-label={`Remover imagem ${String(i + 1)}`}
+                  >
+                    ×
+                  </ActionIcon>
+                </Box>
               ))}
-            </div>
-          </div>
+            </Group>
+          ) : null}
 
-          <div className={styles.toolbarRight}>
-            <div className={styles.contextRingArea}>
-              <button
-                type="button"
-                className={styles.contextRingButton}
-                aria-label="Contexto"
-                onClick={() => setShowContextTooltip((current) => !current)}
-              >
-                <ContextRing ratio={contextRatio} />
-              </button>
-              {showContextTooltip ? (
-                <div className={styles.contextTooltip}>
-                  <strong className={styles.contextTitle}>Contexto</strong>
-                  <span className={styles.contextNumbers}>
-                    ~{Math.round(contextMetrics.previewUsed).toLocaleString("pt-BR")} /{" "}
-                    {contextMetrics.limitTokens.toLocaleString("pt-BR")} tokens
-                  </span>
-                  {contextMetrics.effectiveBudget !== null ? (
-                    <span className={styles.contextBudgetHint}>
-                      Orçamento útil (~entrada): {Math.round(contextMetrics.effectiveBudget).toLocaleString("pt-BR")}
-                    </span>
-                  ) : null}
-                  {contextMetrics.didTrim ? (
-                    <span className={styles.contextTrimHint}>Histórico foi compactado para caber no modelo.</span>
-                  ) : null}
-                  <progress
-                    className={styles.contextProgress}
-                    value={Math.min(contextMetrics.previewUsed, contextMetrics.limitTokens)}
-                    max={contextMetrics.limitTokens}
-                  />
-                </div>
-              ) : null}
-            </div>
+          <Textarea
+            variant="unstyled"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            onKeyDown={handleTextareaKeyDown}
+            onPaste={handlePaste}
+            placeholder={
+              chatMode === "plain"
+                ? "Mensagem em texto puro (sem tools)"
+                : chatMode === "ask"
+                  ? "Pergunta: leitura e pesquisa no código e na web"
+                  : "/ para comandos, @ para contexto — agente com ferramentas"
+            }
+            minRows={3}
+            autosize
+            maxRows={12}
+            disabled={false}
+            styles={{
+              input: {
+                padding: "10px 12px 8px",
+                fontSize: 13,
+                lineHeight: 1.4,
+                color: cappyPalette.textPrimary,
+              },
+            }}
+          />
 
-            <button type="button" className={styles.ghostButton} aria-label="Anexar imagem" onClick={() => fileInputRef.current?.click()}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M8 12.5V8.3a4 4 0 1 1 8 0v7.5a5.5 5.5 0 0 1-11 0V9.8" />
-              </svg>
-            </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleFileChange}
+            style={{ display: "none" }}
+          />
 
-            <button
-              type="button"
-              className={`${styles.actionButton} ${
-                isStreaming ? styles.actionButtonStop : isSendState ? styles.actionButtonSend : styles.actionButtonIdle
-              }`}
-              onClick={handleActionButton}
-              aria-label={isStreaming ? "Parar resposta" : "Enviar mensagem"}
+          {showSlashMenu ? (
+            <Paper
+              pos="absolute"
+              left={8}
+              right={8}
+              bottom="calc(100% + 8px)"
+              shadow="md"
+              p={4}
+              radius="md"
+              withBorder
+              style={{ zIndex: 5, maxHeight: 220, overflow: "auto" }}
+              role="listbox"
+              aria-label="Comandos slash"
             >
+              <Stack gap={3}>
+                {COMMAND_ITEMS.map((command, index) => (
+                  <Button
+                    key={command.value}
+                    type="button"
+                    variant={index === activeCommandIndex ? "light" : "subtle"}
+                    color="ideAccent"
+                    size="compact-xs"
+                    justify="flex-start"
+                    h="auto"
+                    py={6}
+                    styles={{ inner: { flexDirection: "column", alignItems: "flex-start", gap: 2 } }}
+                    onMouseEnter={() => setActiveCommandIndex(index)}
+                    onClick={() => handleSelectCommand(command.value)}
+                  >
+                    <Text size="xs" fw={500}>
+                      {command.value}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {command.description}
+                    </Text>
+                  </Button>
+                ))}
+              </Stack>
+            </Paper>
+          ) : null}
+
+          {showAtMenu ? (
+            <Paper
+              pos="absolute"
+              left={8}
+              right={8}
+              bottom="calc(100% + 8px)"
+              shadow="md"
+              p={4}
+              radius="md"
+              withBorder
+              style={{ zIndex: 5, maxHeight: 220, overflow: "auto" }}
+              role="listbox"
+              aria-label="Arquivos do workspace"
+            >
+              <Stack gap={3}>
+                {availableContextFiles.map((file) => (
+                  <Button
+                    key={file.path}
+                    type="button"
+                    variant="subtle"
+                    color="gray"
+                    size="compact-xs"
+                    justify="flex-start"
+                    h="auto"
+                    py={6}
+                    styles={{ inner: { flexDirection: "column", alignItems: "flex-start", gap: 2 } }}
+                    onClick={() => handleSelectContextFile(file)}
+                  >
+                    <Text size="xs" fw={500}>
+                      @{file.name}
+                    </Text>
+                    <Text size="xs" c="dimmed" lineClamp={2}>
+                      {file.path}
+                    </Text>
+                  </Button>
+                ))}
+              </Stack>
+            </Paper>
+          ) : null}
+
+          <Group
+            justify="space-between"
+            align="center"
+            gap="sm"
+            wrap="wrap"
+            p={6}
+            style={{ borderTop: `1px solid ${cappyPalette.borderSubtle}` }}
+          >
+            <SegmentedControl
+              size="xs"
+              value={chatMode}
+              onChange={(v) => setChatMode(v as ChatUiMode)}
+              data={modeSegmentData}
+              aria-label="Modo do chat"
+            />
+
+            <Group gap={5} wrap="nowrap" ml="auto">
+              <Popover
+                width={260}
+                position="top-end"
+                shadow="md"
+                withArrow
+                opened={showContextTooltip}
+                onChange={setShowContextTooltip}
+              >
+                <Popover.Target>
+                  <ActionIcon
+                    variant="subtle"
+                    color="ideAccent"
+                    size="sm"
+                    aria-label="Contexto"
+                    onClick={() => setShowContextTooltip((current) => !current)}
+                  >
+                    <ContextRing ratio={contextRatio} />
+                  </ActionIcon>
+                </Popover.Target>
+                <Popover.Dropdown>
+                  <Stack gap="xs">
+                    <Text size="xs" fw={600}>
+                      Contexto
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      ~{Math.round(contextMetrics.previewUsed).toLocaleString("pt-BR")} /{" "}
+                      {contextMetrics.limitTokens.toLocaleString("pt-BR")} tokens
+                    </Text>
+                    {contextMetrics.effectiveBudget !== null ? (
+                      <Text size="xs" c="dimmed">
+                        Orçamento útil (~entrada): {Math.round(contextMetrics.effectiveBudget).toLocaleString("pt-BR")}
+                      </Text>
+                    ) : null}
+                    {contextMetrics.didTrim ? (
+                      <Text size="xs" c="yellow.4">
+                        Histórico foi compactado para caber no modelo.
+                      </Text>
+                    ) : null}
+                    <Progress value={progressPct} color={contextRatio < 0.6 ? "ideAccent" : contextRatio < 0.85 ? "yellow" : "red"} />
+                  </Stack>
+                </Popover.Dropdown>
+              </Popover>
+
+              <ActionIcon
+                variant="subtle"
+                color="ideAccent"
+                size="md"
+                aria-label="Anexar imagem"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" width={15} height={15}>
+                  <path
+                    d="M8 12.5V8.3a4 4 0 1 1 8 0v7.5a5.5 5.5 0 0 1-11 0V9.8"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </ActionIcon>
+
               {isStreaming ? (
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="5" y="5" width="14" height="14" rx="2.5" />
-                </svg>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="filled"
+                  color="red"
+                  leftSection={
+                    <svg viewBox="0 0 24 24" aria-hidden="true" width={14} height={14}>
+                      <rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" />
+                    </svg>
+                  }
+                  aria-label="Parar resposta"
+                  onClick={handleActionButton}
+                >
+                  Parar
+                </Button>
               ) : (
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 18V6" />
-                  <path d="M7 11l5-5l5 5" />
-                </svg>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant={isSendState ? "filled" : "light"}
+                  color="ideAccent"
+                  disabled={!isSendState}
+                  leftSection={
+                    <svg viewBox="0 0 24 24" aria-hidden="true" width={14} height={14}>
+                      <path d="M12 18V6" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+                      <path d="M7 11l5-5l5 5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+                    </svg>
+                  }
+                  aria-label="Enviar mensagem"
+                  onClick={handleActionButton}
+                >
+                  Enviar
+                </Button>
               )}
-            </button>
-          </div>
-        </div>
-      </div>
+            </Group>
+          </Group>
+        </Paper>
+      </Stack>
     </form>
   );
 }
@@ -401,17 +552,20 @@ function ContextRing({ ratio }: ContextRingProps): JSX.Element {
   const normalizedRadius = 7.6;
   const circumference = 2 * Math.PI * normalizedRadius;
   const strokeOffset = circumference - circumference * clampedRatio;
-  const ringClassName =
-    clampedRatio < 0.6 ? styles.contextRingFillLow : clampedRatio < 0.85 ? styles.contextRingFillMedium : styles.contextRingFillHigh;
+  const strokeColor =
+    clampedRatio < 0.6 ? cappyPalette.textAccent : clampedRatio < 0.85 ? cappyPalette.amber : cappyPalette.redSoft;
 
   return (
-    <svg viewBox="0 0 24 24" className={styles.contextRing} aria-hidden="true">
-      <circle className={styles.contextRingTrack} cx="12" cy="12" r={normalizedRadius} />
+    <svg viewBox="0 0 24 24" width={18} height={18} style={{ transform: "rotate(-90deg)" }} aria-hidden="true">
+      <circle cx="12" cy="12" r={normalizedRadius} fill="none" stroke={cappyPalette.borderSurface} strokeWidth={2.2} />
       <circle
-        className={`${styles.contextRingFill} ${ringClassName}`}
         cx="12"
         cy="12"
         r={normalizedRadius}
+        fill="none"
+        stroke={strokeColor}
+        strokeWidth={2.2}
+        strokeLinecap="round"
         strokeDasharray={circumference}
         strokeDashoffset={strokeOffset}
       />

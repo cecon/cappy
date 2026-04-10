@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 
-import { createWebviewBridge } from "./bridge/webview";
+import { createWebviewBridge, type WebviewBridgeOptions } from "./bridge/webview";
 import {
   launchOpenClaudeCli,
   openOpenClaudeRepository,
@@ -76,7 +76,13 @@ class CappyWebviewViewProvider implements vscode.WebviewViewProvider, vscode.Dis
     webviewView.webview.html = await loadWebviewHtml(webviewView.webview, webviewRoot);
 
     this.disposeBridge();
-    this.bridgeDisposables.push(...createWebviewBridge(webviewView.webview));
+    const bridgeOptions: WebviewBridgeOptions = {
+      onNewSession: async () => {
+        await this.clearChat();
+        this.reveal();
+      },
+    };
+    this.bridgeDisposables.push(...createWebviewBridge(webviewView.webview, bridgeOptions));
   }
 
   /**

@@ -1,5 +1,6 @@
+import { Button, Paper, ScrollArea, Stack, Text, Title } from "@mantine/core";
+
 import { getBridge } from "../lib/vscode-bridge";
-import styles from "./HistoryPanel.module.css";
 
 interface HistorySession {
   sessionId: string;
@@ -45,20 +46,36 @@ export function HistoryPanel(): JSX.Element {
   }
 
   return (
-    <section className={styles.container}>
-      <h2 className={styles.title}>Histórico</h2>
-      <ul className={styles.list}>
-        {MOCK_SESSIONS.map((session) => (
-          <li key={session.sessionId}>
-            <button type="button" className={styles.item} onClick={() => handleLoadHistory(session.sessionId)}>
-              <span className={styles.itemTitle}>{session.title}</span>
-              <span className={styles.itemMeta}>
+    <Paper p="md" radius="md" withBorder h="100%" style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <Title order={2} size="h4" mb="md">
+        Histórico
+      </Title>
+      <ScrollArea flex={1} offsetScrollbars type="auto">
+        <Stack gap={4}>
+          {MOCK_SESSIONS.map((session) => (
+            <Button
+              key={session.sessionId}
+              type="button"
+              variant="subtle"
+              color="gray"
+              justify="flex-start"
+              h="auto"
+              py="xs"
+              px="sm"
+              fullWidth
+              styles={{ inner: { alignItems: "flex-start", flexDirection: "column", gap: 4 } }}
+              onClick={() => handleLoadHistory(session.sessionId)}
+            >
+              <Text size="sm" fw={500} lineClamp={2} ta="left" c="var(--mantine-color-text)">
+                {session.title}
+              </Text>
+              <Text size="xs" c="dimmed" ta="left">
                 {session.relativeDate} · {session.messageCount} mensagens
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
+              </Text>
+            </Button>
+          ))}
+        </Stack>
+      </ScrollArea>
+    </Paper>
   );
 }

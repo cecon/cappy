@@ -16,7 +16,7 @@ body,
 body {
   background: var(--bg-base);
   color: var(--text-primary);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   margin: 0 !important;
   padding: 0 !important;
 }

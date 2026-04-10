@@ -1,5 +1,19 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { getBridge, type IncomingMessage } from "../lib/vscode-bridge";
+import { Box, Group, Loader, Paper, Stack, Text } from "@mantine/core";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
+
+import { getBridge, type HitlUiPolicy, type IncomingMessage } from "../lib/vscode-bridge";
+import { isTerminalHitlPresentation } from "../lib/hitlPresentation";
+import { CAPPY_NEW_SESSION_EVENT } from "../lib/session-events";
 import type {
   ChatUiMode,
   ContextUsageSnapshot,
@@ -8,12 +22,24 @@ import type {
   Message,
   ToolCall,
 } from "../lib/types";
+import { ChatTerminal } from "./ChatTerminal";
 import { InputBar, type ContextFile } from "./InputBar";
 import { MessageList } from "./MessageList";
 import { ToolConfirmCard } from "./ToolConfirmCard";
-import styles from "./Chat.module.css";
+import { cappyPalette } from "../theme";
 
 const bridge = getBridge();
+
+/** Painel integrado estilo terminal: só na extensão VS Code; no `pnpm dev` (browser) fica oculto. */
+function isExtensionHost(): boolean {
+  return typeof window.acquireVsCodeApi === "function";
+}
+
+/**
+ * Mostra o texto longo de exemplo no terminal quando não há log nem HITL (útil para testar scroll/layout).
+ * O painel do terminal está sempre visível no chat; com `false` vê-se só a linha `# Aguardando saída…`.
+ */
+const SHOW_CHAT_TERMINAL_IDLE_PREVIEW = false;
 
 type ActivityTone = "working" | "error";
 
@@ -39,9 +65,22 @@ export function Chat(): JSX.Element {
   const [activityTick, setActivityTick] = useState(0);
   const [contextFiles, setContextFiles] = useState<ContextFile[]>([]);
   const [contextUsage, setContextUsage] = useState<ContextUsageSnapshot | null>(null);
+  /** Incrementado em nova sessão para remontar o `InputBar` (limpa rascunho, anexos locais, modo). */
+  const [draftSessionKey, setDraftSessionKey] = useState(0);
+  /** Eco textual do mesmo `exec` usado pelas tools Bash/runTerminal (painel terminal). */
+  const [agentShellLog, setAgentShellLog] = useState("");
+  /** Política HITL do host: a UI auto-envia `tool:approve` quando `allow_all` ou sessão «aprovar todos». */
+  const hitlPolicyRef = useRef<HitlUiPolicy>({
+    destructiveTools: "confirm_each",
+    sessionAutoApproveDestructive: false,
+  });
+
+  const autoApproveHitl = useCallback((toolCallId: string) => {
+    bridge.send({ type: "tool:approve", toolCallId });
+  }, []);
 
   useEffect(() => {
-    bridge.onMessage((message: IncomingMessage) => {
+    const unsubscribe = bridge.onMessage((message: IncomingMessage) => {
       handleIncomingMessage(
         message,
         setMessages,
@@ -51,8 +90,34 @@ export function Chat(): JSX.Element {
         setActivity,
         setActivityTone,
         setContextUsage,
+        setContextFiles,
+        setAgentShellLog,
+        hitlPolicyRef,
+        autoApproveHitl,
       );
     });
+    return unsubscribe;
+  }, [autoApproveHitl]);
+
+  useEffect(() => {
+    const onNewSession = (): void => {
+      setMessages([]);
+      setPendingConfirms([]);
+      setIsStreaming(false);
+      setErrorMessage(null);
+      setActivity(null);
+      setActivityTone("working");
+      setContextUsage(null);
+      setContextFiles([]);
+      setAgentShellLog("");
+      hitlPolicyRef.current = {
+        destructiveTools: "confirm_each",
+        sessionAutoApproveDestructive: false,
+      };
+      setDraftSessionKey((k) => k + 1);
+    };
+    window.addEventListener(CAPPY_NEW_SESSION_EVENT, onNewSession);
+    return () => window.removeEventListener(CAPPY_NEW_SESSION_EVENT, onNewSession);
   }, []);
 
   useEffect(() => {
@@ -74,7 +139,7 @@ export function Chat(): JSX.Element {
       return;
     }
     el.scrollTop = el.scrollHeight;
-  }, [messages, isStreaming, pendingConfirms.length, activity?.primary]);
+  }, [messages, isStreaming, pendingConfirms.length, activity?.primary, agentShellLog]);
 
   const activityDetail = useMemo(() => {
     if (!activity) {
@@ -89,6 +154,22 @@ export function Chat(): JSX.Element {
     }
     return Math.max(0, Math.floor((Date.now() - activity.startedAtMs) / 1000));
   }, [activity, activityTick]);
+
+  /** Shell / Bash / runTerminal: HITL no painel Terminal; resto: caixa genérica. */
+  const pendingTerminalHitl = useMemo(
+    () => pendingConfirms.filter(isTerminalHitlPresentation),
+    [pendingConfirms],
+  );
+  const pendingGenericHitl = useMemo(
+    () => pendingConfirms.filter((toolCall) => !isTerminalHitlPresentation(toolCall)),
+    [pendingConfirms],
+  );
+
+  /** No browser, HITL de shell não tem painel terminal — usa os cartões genéricos. */
+  const hitlForGenericCards = useMemo(
+    () => (isExtensionHost() ? pendingGenericHitl : pendingConfirms),
+    [pendingConfirms, pendingGenericHitl],
+  );
 
   /**
    * Appends the user message and triggers one chat run.
@@ -134,6 +215,20 @@ export function Chat(): JSX.Element {
   }
 
   /**
+   * Aprova o pedido actual e activa auto-aprovação destrutiva até ao fim da sessão do agente.
+   */
+  function handleApproveSession(toolCallId: string): void {
+    bridge.send({ type: "hitl:approveSession", toolCallId });
+  }
+
+  /**
+   * Aprova e grava `allow_all` em `.cappy/agent-preferences.json` no workspace.
+   */
+  function handleApprovePersist(toolCallId: string): void {
+    bridge.send({ type: "hitl:approvePersist", toolCallId });
+  }
+
+  /**
    * Adds one context file if it is not already selected.
    */
   function handleAddContextFile(file: ContextFile): void {
@@ -153,52 +248,146 @@ export function Chat(): JSX.Element {
   }
 
   return (
-    <section className={styles.container}>
-      <div ref={messagesScrollRef} className={styles.messages}>
-        <MessageList messages={messages} isStreaming={isStreaming} />
-      </div>
-      <div className={styles.confirmList}>
-        {pendingConfirms.map((toolCall) => (
-          <ToolConfirmCard
-            key={toolCall.id}
-            toolCall={toolCall}
-            onApprove={handleApprove}
-            onReject={handleReject}
-          />
-        ))}
-      </div>
-      {activity ? (
-        <div className={`${styles.activity} ${activityTone === "error" ? styles.activityError : styles.activityWorking}`}>
-          <span className={styles.activityLabel}>CAPPY</span>
-          <div className={styles.activityBody}>
-            <span className={styles.activityText}>{activity.primary}</span>
-            {activityDetail ? <span className={styles.activityDetail}>{activityDetail}</span> : null}
-          </div>
-          {activity.repeats > 1 ? <span className={styles.activityRepeat}>x{activity.repeats}</span> : null}
-          {typeof elapsedSeconds === "number" ? <span className={styles.activityTime}>{elapsedSeconds}s</span> : null}
-          {activityTone === "working" ? (
-            <span className={styles.activityDots} aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </span>
+    <Stack gap={0} h="100%" style={{ minHeight: 0, minWidth: 0 }} justify="space-between">
+      <Box
+        ref={messagesScrollRef}
+        flex={1}
+        style={{
+          minHeight: 0,
+          minWidth: 0,
+          width: "100%",
+          overflowX: "hidden",
+          overflowY: "auto",
+          paddingBlock: 8,
+        }}
+      >
+        <Stack gap="md" px={4} style={{ minHeight: "min-content" }}>
+          <MessageList messages={messages} isStreaming={isStreaming} />
+          {isExtensionHost() ? (
+            <ChatTerminal
+              chatSessionKey={draftSessionKey}
+              log={agentShellLog}
+              pendingConfirms={pendingTerminalHitl}
+              showIdleSample={SHOW_CHAT_TERMINAL_IDLE_PREVIEW}
+              onApprove={handleApprove}
+              onApproveSession={handleApproveSession}
+              onApprovePersist={handleApprovePersist}
+              onReject={handleReject}
+            />
           ) : null}
-        </div>
-      ) : null}
-      {errorMessage ? <p className={styles.error}>{errorMessage}</p> : null}
-      <footer className={styles.inputArea}>
-        <InputBar
-          onSend={handleSend}
-          onStop={handleStop}
-          isStreaming={isStreaming}
-          contextFiles={contextFiles}
-          onAddContextFile={handleAddContextFile}
-          onRemoveContextFile={handleRemoveContextFile}
-          contextUsage={contextUsage}
-        />
-      </footer>
-    </section>
+        </Stack>
+      </Box>
+
+      <Stack gap="sm" style={{ flexShrink: 0, minWidth: 0 }}>
+        {hitlForGenericCards.length > 0 ? (
+          <Stack gap="xs" px={4}>
+            {hitlForGenericCards.map((toolCall) => (
+              <ToolConfirmCard
+                key={toolCall.id}
+                toolCall={toolCall}
+                onApprove={handleApprove}
+                onApproveSession={handleApproveSession}
+                onApprovePersist={handleApprovePersist}
+                onReject={handleReject}
+              />
+            ))}
+          </Stack>
+        ) : null}
+
+        {activity ? (
+          <Paper
+            p="sm"
+            radius="md"
+            withBorder
+            style={{
+              backgroundColor: activityTone === "error" ? cappyPalette.redBg : undefined,
+              borderColor: activityTone === "error" ? "#4b2323" : undefined,
+            }}
+          >
+            <Group gap="sm" align="flex-start" wrap="wrap">
+              <Text size="xs" tt="uppercase" lts={0.5} c="dimmed" style={{ flexShrink: 0 }}>
+                Cappy
+              </Text>
+              <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+                <Text size="sm" style={{ wordBreak: "break-word" }}>
+                  {activity.primary}
+                </Text>
+                {activityDetail ? (
+                  <Text size="xs" c="dimmed" style={{ wordBreak: "break-word" }}>
+                    {activityDetail}
+                  </Text>
+                ) : null}
+              </Stack>
+              <Group gap="xs" ml="auto" wrap="nowrap" align="center">
+                {activity.repeats > 1 ? (
+                  <Text size="xs" c="dimmed" px={6} py={2} style={{ border: `1px solid ${cappyPalette.borderSurface}`, borderRadius: 999 }}>
+                    x{activity.repeats}
+                  </Text>
+                ) : null}
+                {typeof elapsedSeconds === "number" ? (
+                  <Text size="xs" c="dimmed">
+                    {elapsedSeconds}s
+                  </Text>
+                ) : null}
+                {activityTone === "working" ? (
+                  <Loader size="xs" type="dots" color="ideAccent" aria-hidden />
+                ) : null}
+              </Group>
+            </Group>
+          </Paper>
+        ) : null}
+
+        {errorMessage ? (
+          <Text size="sm" c="red.4" px={4}>
+            {errorMessage}
+          </Text>
+        ) : null}
+
+        <Box pt="sm" style={{ borderTop: `1px solid ${cappyPalette.borderSubtle}` }}>
+          <InputBar
+            key={draftSessionKey}
+            onSend={handleSend}
+            onStop={handleStop}
+            isStreaming={isStreaming}
+            contextFiles={contextFiles}
+            onAddContextFile={handleAddContextFile}
+            onRemoveContextFile={handleRemoveContextFile}
+            contextUsage={contextUsage}
+          />
+        </Box>
+      </Stack>
+    </Stack>
   );
+}
+
+/**
+ * Formata o início de uma execução shell espelhada (mesmo comando que o agente corre).
+ */
+function formatAgentShellStart(message: { command: string; cwd?: string }): string {
+  const cwdLine = message.cwd ? `# cwd: ${message.cwd}\n` : "";
+  return `${cwdLine}$ ${message.command}\n`;
+}
+
+/**
+ * Formata stdout/stderr devolvidos pelo mesmo `exec` da tool.
+ */
+function formatAgentShellComplete(message: {
+  stdout: string;
+  stderr: string;
+  errorText?: string;
+}): string {
+  if (message.errorText !== undefined && message.errorText.length > 0) {
+    return `${message.errorText}\n`;
+  }
+  let block = "";
+  if (message.stdout.length > 0) {
+    block += message.stdout.endsWith("\n") ? message.stdout : `${message.stdout}\n`;
+  }
+  if (message.stderr.length > 0) {
+    block += "\n# stderr\n";
+    block += message.stderr.endsWith("\n") ? message.stderr : `${message.stderr}\n`;
+  }
+  return block;
 }
 
 /**
@@ -213,7 +402,46 @@ function handleIncomingMessage(
   setActivity: Dispatch<SetStateAction<ActivityState | null>>,
   setActivityTone: Dispatch<SetStateAction<ActivityTone>>,
   setContextUsage: Dispatch<SetStateAction<ContextUsageSnapshot | null>>,
+  setContextFiles: Dispatch<SetStateAction<ContextFile[]>>,
+  setAgentShellLog: Dispatch<SetStateAction<string>>,
+  hitlPolicyRef: MutableRefObject<HitlUiPolicy>,
+  autoApproveHitl: (toolCallId: string) => void,
 ): void {
+  if (message.type === "session:cleared") {
+    setMessages([]);
+    setPendingConfirms([]);
+    setIsStreaming(false);
+    setErrorMessage(null);
+    setActivity(null);
+    setActivityTone("working");
+    setContextUsage(null);
+    setContextFiles([]);
+    setAgentShellLog("");
+    hitlPolicyRef.current = {
+      destructiveTools: "confirm_each",
+      sessionAutoApproveDestructive: false,
+    };
+    return;
+  }
+
+  if (message.type === "hitl:policy") {
+    hitlPolicyRef.current = {
+      destructiveTools: message.destructiveTools,
+      sessionAutoApproveDestructive: message.sessionAutoApproveDestructive,
+    };
+    return;
+  }
+
+  if (message.type === "agent:shell:start") {
+    setAgentShellLog((previous) => `${previous}${formatAgentShellStart(message)}`);
+    return;
+  }
+
+  if (message.type === "agent:shell:complete") {
+    setAgentShellLog((previous) => `${previous}${formatAgentShellComplete(message)}`);
+    return;
+  }
+
   if (message.type === "stream:token") {
     setIsStreaming(true);
     setActivityTone("working");
@@ -229,15 +457,27 @@ function handleIncomingMessage(
   }
 
   if (message.type === "tool:confirm") {
-    setActivityTone("working");
-    setActivity(createActivity(`Aguardando aprovacao: ${message.toolCall.name}`, "Confirme para continuar"));
-    setMessages((previousMessages) =>
-      appendToolLogMessage(
-        previousMessages,
-        `Aguardando aprovacao para executar \`${message.toolCall.name}\``,
-        getToolLogDetail(message.toolCall),
-      ),
-    );
+    const policy = hitlPolicyRef.current;
+    if (policy.destructiveTools === "allow_all" || policy.sessionAutoApproveDestructive) {
+      autoApproveHitl(message.toolCall.id);
+      return;
+    }
+
+    /**
+     * Banner «CAPPY» + cartões Terminal / `ToolConfirmCard` diziam o mesmo (mock mostrava 2 blocos).
+     * Mantém-se só o painel adequado; opcionalmente uma linha no histórico quando não há Terminal dedicado.
+     */
+    const shellHitlInExtension =
+      typeof window.acquireVsCodeApi === "function" && isTerminalHitlPresentation(message.toolCall);
+    if (!shellHitlInExtension) {
+      setMessages((previousMessages) =>
+        appendToolLogMessage(
+          previousMessages,
+          `Aguardando aprovacao para executar \`${message.toolCall.name}\``,
+          getToolLogDetail(message.toolCall),
+        ),
+      );
+    }
     setPendingConfirms((previousConfirms) => {
       if (previousConfirms.some((toolCall) => toolCall.id === message.toolCall.id)) {
         return previousConfirms;

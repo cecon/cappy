@@ -3,12 +3,19 @@ import type { ContextUsagePayload } from "../agent/contextBudget";
 import { AgentLoop } from "../agent/loop";
 import type { AgentTool, Message, ToolCall } from "../agent/types";
 import { resetSessionContext } from "../agent/sessionContext";
+import { loadAgentPreferences } from "../agent/agentPreferences";
 import { type CappyConfig, loadConfig, saveConfig } from "../config";
 import { McpManager, type McpTool } from "../mcp/client";
 import { toolsRegistry } from "../tools";
 import { type ChatUiMode, mcpToolsForChatMode, parseChatUiMode, selectToolsForChatMode } from "./chatMode";
 import type { FileDiffPayload } from "../utils/fileDiffPayload";
 import { logDebug, logError, logInfo, resetLoggerCache } from "../utils/logger";
+import {
+  isAgentShellTool,
+  parseShellToolResultString,
+  shellToolMeta,
+  truncateShellText,
+} from "./agentShellMirror";
 
 /**
  * Message sent from extension host to webview.
@@ -16,6 +23,10 @@ import { logDebug, logError, logInfo, resetLoggerCache } from "../utils/logger";
 export type HostToWebviewMessage =
   | { type: "stream:token"; token: string }
   | { type: "stream:done" }
+  /** Eco do mesmo comando que o agente vai executar via Bash/runTerminal. */
+  | { type: "agent:shell:start"; command: string; cwd?: string }
+  /** Saída do mesmo `exec` que alimenta a tool (stdout/stderr). */
+  | { type: "agent:shell:complete"; command: string; stdout: string; stderr: string; errorText?: string }
   | { type: "tool:confirm"; toolCall: ToolCall }
   | { type: "tool:executing"; toolCall: ToolCall }
   | { type: "tool:result"; toolCall: ToolCall; result: string; fileDiff?: FileDiffPayload }
@@ -31,6 +42,11 @@ export type HostToWebviewMessage =
       didTrimForApi: boolean;
       droppedMessageCount: number;
     }
+  | {
+      type: "hitl:policy";
+      destructiveTools: "confirm_each" | "allow_all";
+      sessionAutoApproveDestructive: boolean;
+    }
   | { type: "error"; message: string };
 
 /**
@@ -39,7 +55,13 @@ export type HostToWebviewMessage =
 export type WebviewToHostMessage =
   | { type: "chat:send"; messages: Message[]; mode?: ChatUiMode }
   | { type: "chat:stop" }
+  /** Nova sessão: `onNewSession` no bridge ou comando `cappy.clearChat` (fallback). */
+  | { type: "session:new" }
   | { type: "tool:approve"; toolCallId: string }
+  /** Aprovar o pedido actual e todos os destrutivos até ao fim da sessão (mesmo AgentLoop). */
+  | { type: "hitl:approveSession"; toolCallId: string }
+  /** Aprovar e gravar `allow_all` em `.cappy/agent-preferences.json`. */
+  | { type: "hitl:approvePersist"; toolCallId: string }
   | { type: "tool:reject"; toolCallId: string }
   | { type: "file:open"; path: string }
   | { type: "config:load" }
@@ -47,14 +69,27 @@ export type WebviewToHostMessage =
   | { type: "mcp:list" };
 
 /**
+ * Opções do bridge; use `onNewSession` para nova sessão sem reentrância de comandos.
+ */
+export interface WebviewBridgeOptions {
+  /**
+   * Chamado em `session:new` — deve recarregar o webview (ex.: `provider.clearChat`).
+   * Preferível a `executeCommand("cappy.clearChat")` dentro do handler de mensagens.
+   */
+  onNewSession?: () => Promise<void>;
+}
+
+/**
  * Creates a message bridge for a VS Code webview with AgentLoop integration.
  */
-export function createWebviewBridge(webview: vscode.Webview): vscode.Disposable[] {
+export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBridgeOptions): vscode.Disposable[] {
   const mcpManager = new McpManager();
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (workspaceRoot) {
     process.env.CAPPY_WORKSPACE_ROOT = workspaceRoot;
   }
+  /** Estado espelhado no webview para auto-aprovar HITL na camada UI. */
+  const hitlUiSessionState = { sessionAutoApproveDestructive: false };
   const agentLoop = new AgentLoop({
     ...(workspaceRoot ? { workspaceRoot } : {}),
     onMcpCall: async (serverName, toolName, args) => mcpManager.callTool(serverName, toolName, args),
@@ -73,9 +108,33 @@ export function createWebviewBridge(webview: vscode.Webview): vscode.Disposable[
   };
   const toolExecutingListener = (toolCall: ToolCall) => {
     void postToWebview(webview, { type: "tool:executing", toolCall });
+    if (isAgentShellTool(toolCall.name)) {
+      const { command, cwd } = shellToolMeta(toolCall);
+      void postToWebview(webview, { type: "agent:shell:start", command, ...(cwd !== undefined ? { cwd } : {}) });
+    }
   };
   const toolResultListener = (toolCall: ToolCall, result: string, fileDiff?: FileDiffPayload) => {
     void postToWebview(webview, { type: "tool:result", toolCall, result, ...(fileDiff ? { fileDiff } : {}) });
+    if (isAgentShellTool(toolCall.name)) {
+      const { command } = shellToolMeta(toolCall);
+      const parsed = parseShellToolResultString(result);
+      if (parsed) {
+        void postToWebview(webview, {
+          type: "agent:shell:complete",
+          command,
+          stdout: truncateShellText(parsed.stdout),
+          stderr: truncateShellText(parsed.stderr),
+        });
+      } else {
+        void postToWebview(webview, {
+          type: "agent:shell:complete",
+          command,
+          stdout: "",
+          stderr: "",
+          errorText: truncateShellText(result),
+        });
+      }
+    }
   };
   const toolRejectedListener = (toolCall: ToolCall) => {
     void postToWebview(webview, { type: "tool:rejected", toolCall });
@@ -104,9 +163,11 @@ export function createWebviewBridge(webview: vscode.Webview): vscode.Disposable[
   agentLoop.on("error", errorListener);
   agentLoop.on("context:usage", contextUsageListener);
 
+  void pushHitlPolicyToWebview(webview, workspaceRoot, hitlUiSessionState);
+
   bridgeDisposables.push(
     webview.onDidReceiveMessage((raw: unknown) => {
-      void handleWebviewMessage(raw, agentLoop, webview, tools, mcpManager);
+      void handleWebviewMessage(raw, agentLoop, webview, tools, mcpManager, options, workspaceRoot, hitlUiSessionState);
     }),
   );
 
@@ -159,6 +220,26 @@ async function openWorkspaceRelativeFile(webview: vscode.Webview, relativePath: 
 }
 
 /**
+ * Envia política HITL actual (ficheiro `.cappy` + «aprovar todos nesta sessão») para o webview aplicar auto-aprovação na UI.
+ */
+async function pushHitlPolicyToWebview(
+  webview: vscode.Webview,
+  workspaceRoot: string | undefined,
+  hitlUiSessionState: { sessionAutoApproveDestructive: boolean },
+): Promise<void> {
+  let destructiveTools: "confirm_each" | "allow_all" = "confirm_each";
+  if (workspaceRoot) {
+    const prefs = await loadAgentPreferences(workspaceRoot);
+    destructiveTools = prefs?.hitl.destructiveTools ?? "confirm_each";
+  }
+  await postToWebview(webview, {
+    type: "hitl:policy",
+    destructiveTools,
+    sessionAutoApproveDestructive: hitlUiSessionState.sessionAutoApproveDestructive,
+  });
+}
+
+/**
  * Handles one inbound webview message and forwards to the AgentLoop.
  */
 async function handleWebviewMessage(
@@ -167,6 +248,9 @@ async function handleWebviewMessage(
   webview: vscode.Webview,
   tools: AgentTool[],
   mcpManager: McpManager,
+  options: WebviewBridgeOptions | undefined,
+  workspaceRoot: string | undefined,
+  hitlUiSessionState: { sessionAutoApproveDestructive: boolean },
 ): Promise<void> {
   if (!isWebviewToHostMessage(raw)) {
     await postToWebview(webview, { type: "error", message: "Mensagem invalida recebida do webview." });
@@ -195,6 +279,36 @@ async function handleWebviewMessage(
     return;
   }
 
+  if (raw.type === "session:new") {
+    logInfo("session:new received");
+    agentLoop.abort();
+    const webviewRef = webview;
+    const onNewSession = options?.onNewSession;
+    /**
+     * Adia o reload para depois do retorno do handler — evita reentrância com
+     * `executeCommand` / substituição do webview no meio do processamento da mensagem.
+     */
+    void setTimeout(() => {
+      void (async () => {
+        try {
+          if (onNewSession) {
+            await onNewSession();
+          } else {
+            await vscode.commands.executeCommand("cappy.clearChat");
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          logError(`session:new failed: ${message}`);
+          void postToWebview(webviewRef, {
+            type: "error",
+            message: `Nova sessao: ${message}`,
+          });
+        }
+      })();
+    }, 0);
+    return;
+  }
+
   if (raw.type === "tool:approve") {
     if (!agentLoop.approve(raw.toolCallId)) {
       await postToWebview(webview, {
@@ -205,11 +319,51 @@ async function handleWebviewMessage(
     return;
   }
 
+  if (raw.type === "hitl:approveSession") {
+    if (!agentLoop.approveSessionAutoDestructive(raw.toolCallId)) {
+      await postToWebview(webview, {
+        type: "error",
+        message: `Confirmacao pendente nao encontrada: ${raw.toolCallId}`,
+      });
+      return;
+    }
+    hitlUiSessionState.sessionAutoApproveDestructive = true;
+    await pushHitlPolicyToWebview(webview, workspaceRoot, hitlUiSessionState);
+    return;
+  }
+
+  if (raw.type === "hitl:approvePersist") {
+    if (!workspaceRoot) {
+      await postToWebview(webview, {
+        type: "error",
+        message: "Abra uma pasta de workspace para guardar preferencias em .cappy/agent-preferences.json.",
+      });
+      return;
+    }
+    try {
+      const ok = await agentLoop.persistAllowAllDestructive(raw.toolCallId);
+      if (!ok) {
+        await postToWebview(webview, {
+          type: "error",
+          message: `Confirmacao pendente nao encontrada: ${raw.toolCallId}`,
+        });
+        return;
+      }
+      hitlUiSessionState.sessionAutoApproveDestructive = true;
+      await pushHitlPolicyToWebview(webview, workspaceRoot, hitlUiSessionState);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await postToWebview(webview, { type: "error", message: `Falha ao gravar preferencias: ${message}` });
+    }
+    return;
+  }
+
   if (raw.type === "config:load") {
     try {
       const config = await loadConfig();
       await mcpManager.connect(config.mcp.servers);
       await postToWebview(webview, { type: "config:loaded", config });
+      await pushHitlPolicyToWebview(webview, workspaceRoot, hitlUiSessionState);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao carregar configuracao.";
       await postToWebview(webview, { type: "error", message });
@@ -281,7 +435,15 @@ function isWebviewToHostMessage(value: unknown): value is WebviewToHostMessage {
     return typeof value.toolCallId === "string" && value.toolCallId.length > 0;
   }
 
+  if (value.type === "hitl:approveSession" || value.type === "hitl:approvePersist") {
+    return typeof value.toolCallId === "string" && value.toolCallId.length > 0;
+  }
+
   if (value.type === "chat:stop") {
+    return true;
+  }
+
+  if (value.type === "session:new") {
     return true;
   }
 

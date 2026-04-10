@@ -1,8 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 
+import "@mantine/core/styles.css";
+import { MantineProvider } from "@mantine/core";
+
 import "./styles/tokens.css";
+import "./styles/mantine-bridge.css";
 import "./styles/reset.css";
+import { cappyCssVariablesResolver, cappyMantineTheme } from "./theme";
 import App from "./App";
 
 /**
@@ -15,7 +20,13 @@ function bootstrap(): void {
   }
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <App />
+      <MantineProvider
+        theme={cappyMantineTheme}
+        cssVariablesResolver={cappyCssVariablesResolver}
+        defaultColorScheme="dark"
+      >
+        <App />
+      </MantineProvider>
     </React.StrictMode>,
   );
 }

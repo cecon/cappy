@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "node run-dev.cjs",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "start": "node run-start.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "vscode": "file:./stubs/vscode",
     "ws": "^8.18.2"
   },
   "devDependencies": {

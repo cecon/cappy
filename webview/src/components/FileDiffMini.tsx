@@ -1,4 +1,6 @@
+import { Box, Group, Paper, Text } from "@mantine/core";
 import type { KeyboardEvent } from "react";
+
 import { getBridge } from "../lib/vscode-bridge";
 import type { FileDiffPayload } from "../lib/types";
 import styles from "./FileDiffMini.module.css";
@@ -36,27 +38,52 @@ export function FileDiffMini({ diff }: FileDiffMiniProps): JSX.Element {
   }
 
   return (
-    <div
-      className={styles.card}
+    <Paper
+      radius="md"
+      withBorder
+      mb="sm"
+      style={{ maxWidth: "100%", cursor: "pointer", overflow: "hidden" }}
       role="button"
       tabIndex={0}
       onClick={handleOpen}
       onKeyDown={handleOpenKeyDown}
       title="Clique para abrir no editor"
     >
-      <header className={styles.header}>
-        <span className={styles.fileIcon} aria-hidden="true">
-          {iconLabel}
-        </span>
-        <span className={styles.fileName} title={diff.path}>
-          {label}
-        </span>
-        <span className={styles.stats}>
-          {diff.additions > 0 ? <span className={styles.add}>+{diff.additions}</span> : null}
-          {diff.deletions > 0 ? <span className={styles.del}>-{diff.deletions}</span> : null}
-          {diff.additions === 0 && diff.deletions === 0 ? <span className={styles.neutral}>0</span> : null}
-        </span>
-      </header>
+      <Group
+        component="header"
+        gap="sm"
+        px="sm"
+        py={6}
+        wrap="nowrap"
+        justify="space-between"
+        style={{ borderBottom: "1px solid var(--border-subtle)" }}
+      >
+        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+          <Box className={styles.fileIcon ?? ""} aria-hidden>
+            {iconLabel}
+          </Box>
+          <Text size="xs" fw={500} truncate style={{ flex: 1 }} title={diff.path}>
+            {label}
+          </Text>
+        </Group>
+        <Group gap={6} wrap="nowrap" fz="xs" style={{ fontVariantNumeric: "tabular-nums" }}>
+          {diff.additions > 0 ? (
+            <Text span c="green.4" fw={600}>
+              +{diff.additions}
+            </Text>
+          ) : null}
+          {diff.deletions > 0 ? (
+            <Text span c="red.4" fw={600}>
+              -{diff.deletions}
+            </Text>
+          ) : null}
+          {diff.additions === 0 && diff.deletions === 0 ? (
+            <Text span c="dimmed">
+              0
+            </Text>
+          ) : null}
+        </Group>
+      </Group>
       {diff.hunks.length > 0 ? (
         <div className={styles.hunks}>
           {diff.hunks.map((hunk, hi) => (
@@ -75,6 +102,6 @@ export function FileDiffMini({ diff }: FileDiffMiniProps): JSX.Element {
           ))}
         </div>
       ) : null}
-    </div>
+    </Paper>
   );
 }

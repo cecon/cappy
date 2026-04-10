@@ -1,22 +1,37 @@
+/**
+ * Tokens semânticos alinhados ao tema do IDE (webview herda --vscode-*).
+ * Fallbacks neutros (Dark+) para `pnpm dev` / Simple Browser sem --vscode-* injetadas.
+ */
 :root {
-  --bg-base: #1a1a1f;
-  --bg-surface: #22222c;
-  --bg-sunken: #13131a;
-  --bg-hover: #2a2a38;
-  --bg-accent: #2a2560;
-  --border-subtle: #2a2a35;
-  --border-surface: #2a2a38;
-  --border-focus: #534ab7;
-  --text-primary: #e2e2f0;
-  --text-secondary: #888799;
-  --text-muted: #555566;
-  --text-disabled: #3a3a4a;
-  --text-accent: #afa9ec;
-  --purple-mid: #7f77dd;
-  --purple-dark: #534ab7;
-  --green-mid: #1d9e75;
-  --amber: #ef9f27;
-  --red-soft: #f09595;
-  --red-bg: #2a1515;
-  --tool-border: #ef9f27;
+  /* Superfícies: mesma ordem de luminância que VS Code Dark+ (sidebar ≥ editor) */
+  --bg-base: var(--vscode-sideBar-background, #252526);
+  --bg-surface: var(--vscode-editor-background, #1e1e1e);
+  --bg-sunken: var(--vscode-input-background, #3c3c3c);
+  --bg-hover: var(--vscode-list-hoverBackground, #2a2d2e);
+  --bg-accent: var(--vscode-list-activeSelectionBackground, #094771);
+
+  --border-subtle: var(--vscode-sideBar-border, var(--vscode-widget-border, #303031));
+  --border-surface: var(--vscode-widget-border, #303031);
+  --border-focus: var(--vscode-focusBorder, #007fd4);
+
+  --text-primary: var(--vscode-sideBar-foreground, #cccccc);
+  --text-secondary: var(--vscode-descriptionForeground, #858585);
+  --text-muted: var(--vscode-disabledForeground, #656565);
+  --text-disabled: var(--vscode-disabledForeground, #656565);
+  /** Cor de links / acento: vem do tema (azul, verde, etc.) — sem roxo fixo */
+  --text-accent: var(--vscode-textLink-foreground, #3794ff);
+
+  /* Preenchimentos de botão / logo: cores padrão do IDE */
+  --accent-fill: var(--vscode-button-background, #0e639c);
+  --accent-fill-hover: var(--vscode-button-hoverBackground, #1177bb);
+
+  --green-mid: var(--vscode-testing-iconPassed, #1d9e75);
+  --amber: var(--vscode-editorWarning-foreground, #ef9f27);
+  --red-soft: var(--vscode-errorForeground, #f09595);
+  --red-bg: var(--vscode-inputValidation-errorBackground, #2a1515);
+  --tool-border: var(--vscode-editorWarning-foreground, #ef9f27);
+
+  /* Tipografia do IDE quando disponível */
+  --font-ui: var(--vscode-font-family, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  --font-mono: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
 }

@@ -1,0 +1,28 @@
+/**
+ * Mantine + VS Code: corpo, texto e escala `ideAccent` derivam do tema (links/botões).
+ */
+[data-mantine-color-scheme="dark"] {
+  --mantine-color-body: var(--bg-base);
+  --mantine-color-text: var(--text-primary);
+  --mantine-color-bright: var(--text-primary);
+  --mantine-color-dimmed: var(--text-secondary);
+  --mantine-color-default: var(--bg-surface);
+  --mantine-color-default-hover: var(--bg-hover);
+  --mantine-color-default-border: var(--border-surface);
+  --mantine-color-default-color: var(--text-primary);
+  --mantine-color-anchor: var(--text-accent);
+
+  /**
+   * Tons do primário Mantine: misturam link do tema com o fundo (sem paleta roxa).
+   */
+  --mantine-color-ideAccent-0: color-mix(in srgb, var(--text-accent, #3794ff) 14%, var(--bg-base, #252526));
+  --mantine-color-ideAccent-1: color-mix(in srgb, var(--text-accent, #3794ff) 22%, var(--bg-base, #252526));
+  --mantine-color-ideAccent-2: color-mix(in srgb, var(--text-accent, #3794ff) 32%, var(--bg-base, #252526));
+  --mantine-color-ideAccent-3: color-mix(in srgb, var(--text-accent, #3794ff) 44%, var(--bg-base, #252526));
+  --mantine-color-ideAccent-4: color-mix(in srgb, var(--text-accent, #3794ff) 56%, var(--bg-base, #252526));
+  --mantine-color-ideAccent-5: var(--text-accent, #3794ff);
+  --mantine-color-ideAccent-6: var(--text-accent, #3794ff);
+  --mantine-color-ideAccent-7: var(--accent-fill, #0e639c);
+  --mantine-color-ideAccent-8: color-mix(in srgb, var(--accent-fill, #0e639c) 88%, var(--bg-base, #000));
+  --mantine-color-ideAccent-9: color-mix(in srgb, var(--accent-fill, #0e639c) 72%, var(--bg-base, #000));
+}

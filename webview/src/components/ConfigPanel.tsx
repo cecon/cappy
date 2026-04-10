@@ -1,7 +1,22 @@
+import {
+  Button,
+  Divider,
+  Group,
+  NumberInput,
+  Paper,
+  PasswordInput,
+  Select,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { useEffect, useMemo, useRef, useState } from "react";
+
 import { getBridge, type IncomingMessage } from "../lib/vscode-bridge";
 import type { ActiveAgent, CappyConfig } from "../lib/types";
-import styles from "./ConfigPanel.module.css";
+import { cappyPalette } from "../theme";
 
 const bridge = getBridge();
 const SAVE_SUCCESS_MS = 2000;
@@ -57,7 +72,6 @@ export function ConfigPanel(): JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isAddingServer, setIsAddingServer] = useState(false);
   const [newServerName, setNewServerName] = useState("");
@@ -65,7 +79,7 @@ export function ConfigPanel(): JSX.Element {
   const saveFeedbackTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    bridge.onMessage((message: IncomingMessage) => {
+    const unsubscribe = bridge.onMessage((message: IncomingMessage) => {
       if (message.type === "config:loaded") {
         setConfig(message.config);
         setErrorMessage(null);
@@ -96,6 +110,7 @@ export function ConfigPanel(): JSX.Element {
     bridge.send({ type: "config:load" });
 
     return () => {
+      unsubscribe();
       if (saveFeedbackTimeoutRef.current) {
         window.clearTimeout(saveFeedbackTimeoutRef.current);
         saveFeedbackTimeoutRef.current = null;
@@ -106,6 +121,7 @@ export function ConfigPanel(): JSX.Element {
   const canAddServer = useMemo(() => {
     return newServerName.trim().length > 0 && newServerUrl.trim().length > 0;
   }, [newServerName, newServerUrl]);
+
   const availableModelOptions = useMemo(() => {
     if (modelOptions.includes(config.openrouter.model)) {
       return modelOptions;
@@ -119,6 +135,19 @@ export function ConfigPanel(): JSX.Element {
     }
     return [config.openrouter.visionModel, ...modelOptions];
   }, [config.openrouter.visionModel, modelOptions]);
+
+  const modelSelectData = useMemo(
+    () => availableModelOptions.map((m) => ({ value: m, label: m })),
+    [availableModelOptions],
+  );
+  const visionSelectData = useMemo(
+    () => availableVisionModelOptions.map((m) => ({ value: m, label: m })),
+    [availableVisionModelOptions],
+  );
+  const agentSelectData = useMemo(
+    () => AGENT_OPTIONS.map((a) => ({ value: a, label: a })),
+    [],
+  );
 
   useEffect(() => {
     let isDisposed = false;
@@ -197,20 +226,26 @@ export function ConfigPanel(): JSX.Element {
   }
 
   return (
-    <section className={styles.container}>
-      <h2 className={styles.title}>Configurações</h2>
-      {isLoading ? <p className={styles.loading}>Carregando configuração...</p> : null}
+    <Stack gap="md" h="100%" style={{ overflow: "auto" }}>
+      <Paper p="md" radius="md" withBorder>
+        <Title order={2} size="h4" mb="sm">
+          Configurações
+        </Title>
+        {isLoading ? (
+          <Text size="sm" c="dimmed">
+            Carregando configuração...
+          </Text>
+        ) : null}
+      </Paper>
 
-      <div className={styles.section}>
-        <h3>OpenRouter</h3>
-        <label className={styles.label} htmlFor="openrouter-api-key">
-          API Key
-        </label>
-        <div className={styles.apiKeyRow}>
-          <input
+      <Paper p="md" radius="md" withBorder>
+        <Title order={3} size="xs" tt="uppercase" lts={0.5} c="dimmed" mb="sm">
+          OpenRouter
+        </Title>
+        <Stack gap="sm">
+          <PasswordInput
+            label="API Key"
             id="openrouter-api-key"
-            className={styles.input}
-            type={showApiKey ? "text" : "password"}
             value={config.openrouter.apiKey}
             onChange={(event) =>
               setConfig((previousConfig) => ({
@@ -219,241 +254,265 @@ export function ConfigPanel(): JSX.Element {
               }))
             }
             disabled={isLoading || isSaving}
+            w="100%"
           />
-          <button
-            type="button"
-            className={styles.secondaryButton}
-            onClick={() => setShowApiKey((value) => !value)}
+
+          <Select
+            label="Modelo"
+            id="openrouter-model"
+            data={modelSelectData}
+            value={config.openrouter.model}
+            onChange={(value) => {
+              if (value === null) {
+                return;
+              }
+              setConfig((previousConfig) => ({
+                ...previousConfig,
+                openrouter: { ...previousConfig.openrouter, model: value },
+              }));
+            }}
             disabled={isLoading || isSaving}
-          >
-            {showApiKey ? "Ocultar" : "Mostrar"}
-          </button>
-        </div>
+            searchable
+            nothingFoundMessage="Nenhum modelo"
+            w="100%"
+          />
+          {isLoadingModels ? (
+            <Text size="xs" c="dimmed">
+              Carregando modelos da OpenRouter...
+            </Text>
+          ) : null}
+          {modelLoadError ? (
+            <Text size="xs" c="yellow.4">
+              {modelLoadError}
+            </Text>
+          ) : null}
 
-        <label className={styles.label} htmlFor="openrouter-model">
-          Modelo
-        </label>
-        <select
-          id="openrouter-model"
-          className={styles.input}
-          value={config.openrouter.model}
-          onChange={(event) =>
-            setConfig((previousConfig) => ({
-              ...previousConfig,
-              openrouter: { ...previousConfig.openrouter, model: event.target.value },
-            }))
-          }
-          disabled={isLoading || isSaving}
-        >
-          {availableModelOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        {isLoadingModels ? <p className={styles.infoText}>Carregando modelos da OpenRouter...</p> : null}
-        {modelLoadError ? <p className={styles.warningText}>{modelLoadError}</p> : null}
+          <Select
+            label="Modelo de visão"
+            id="openrouter-vision-model"
+            data={visionSelectData}
+            value={config.openrouter.visionModel}
+            onChange={(value) => {
+              if (value === null) {
+                return;
+              }
+              setConfig((previousConfig) => ({
+                ...previousConfig,
+                openrouter: { ...previousConfig.openrouter, visionModel: value },
+              }));
+            }}
+            disabled={isLoading || isSaving}
+            searchable
+            w="100%"
+          />
+        </Stack>
+      </Paper>
 
-        <label className={styles.label} htmlFor="openrouter-vision-model">
-          Modelo de Visão
-        </label>
-        <select
-          id="openrouter-vision-model"
-          className={styles.input}
-          value={config.openrouter.visionModel}
-          onChange={(event) =>
-            setConfig((previousConfig) => ({
-              ...previousConfig,
-              openrouter: { ...previousConfig.openrouter, visionModel: event.target.value },
-            }))
-          }
-          disabled={isLoading || isSaving}
-        >
-          {availableVisionModelOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Paper p="md" radius="md" withBorder>
+        <Title order={3} size="xs" tt="uppercase" lts={0.5} c="dimmed" mb="sm">
+          Agent
+        </Title>
+        <Stack gap="sm">
+          <Select
+            label="Agente ativo"
+            id="agent-active-agent"
+            data={agentSelectData}
+            value={config.agent.activeAgent}
+            onChange={(value) => {
+              const nextAgent = parseActiveAgent(value);
+              if (!nextAgent) {
+                return;
+              }
+              setConfig((previousConfig) => ({
+                ...previousConfig,
+                agent: {
+                  ...previousConfig.agent,
+                  activeAgent: nextAgent,
+                  systemPrompt: AGENT_PROMPTS[nextAgent],
+                },
+              }));
+            }}
+            disabled={isLoading || isSaving}
+            w="100%"
+          />
 
-      <div className={styles.section}>
-        <h3>Agent</h3>
-        <label className={styles.label} htmlFor="agent-active-agent">
-          Agente Ativo
-        </label>
-        <select
-          id="agent-active-agent"
-          className={styles.input}
-          value={config.agent.activeAgent}
-          onChange={(event) => {
-            const nextAgent = parseActiveAgent(event.target.value);
-            if (!nextAgent) {
-              return;
+          <Textarea
+            label="System prompt"
+            id="agent-system-prompt"
+            autosize={false}
+            minRows={4}
+            value={config.agent.systemPrompt}
+            onChange={(event) =>
+              setConfig((previousConfig) => ({
+                ...previousConfig,
+                agent: { ...previousConfig.agent, systemPrompt: event.target.value },
+              }))
             }
-            setConfig((previousConfig) => ({
-              ...previousConfig,
-              agent: {
-                ...previousConfig.agent,
-                activeAgent: nextAgent,
-                systemPrompt: AGENT_PROMPTS[nextAgent],
-              },
-            }));
-          }}
-          disabled={isLoading || isSaving}
-        >
-          {AGENT_OPTIONS.map((agentOption) => (
-            <option key={agentOption} value={agentOption}>
-              {agentOption}
-            </option>
-          ))}
-        </select>
-
-        <label className={styles.label} htmlFor="agent-system-prompt">
-          System Prompt
-        </label>
-        <textarea
-          id="agent-system-prompt"
-          className={styles.textarea}
-          rows={4}
-          value={config.agent.systemPrompt}
-          onChange={(event) =>
-            setConfig((previousConfig) => ({
-              ...previousConfig,
-              agent: { ...previousConfig.agent, systemPrompt: event.target.value },
-            }))
-          }
-          disabled={isLoading || isSaving}
-        />
-
-        <label className={styles.label} htmlFor="agent-max-iterations">
-          Max Iterations
-        </label>
-        <input
-          id="agent-max-iterations"
-          className={styles.input}
-          type="number"
-          min={1}
-          max={100}
-          value={config.agent.maxIterations}
-          onChange={(event) =>
-            setConfig((previousConfig) => ({
-              ...previousConfig,
-              agent: {
-                ...previousConfig.agent,
-                maxIterations: clampNumber(event.target.value, 1, 100, previousConfig.agent.maxIterations),
-              },
-            }))
-          }
-          disabled={isLoading || isSaving}
-        />
-      </div>
-
-      <div className={styles.section}>
-        <h3>MCP Servers</h3>
-        {config.mcp.servers.length === 0 ? <p className={styles.emptyText}>Nenhum servidor configurado.</p> : null}
-        <ul className={styles.serverList}>
-          {config.mcp.servers.map((server, index) => (
-            <li key={`${server.name}-${index}`} className={styles.serverItem}>
-              <div className={styles.serverInfo}>
-                <strong>{server.name}</strong>
-                <span>{server.url}</span>
-              </div>
-              <button
-                type="button"
-                className={styles.dangerButton}
-                onClick={() => handleRemoveServer(index)}
-                disabled={isLoading || isSaving}
-              >
-                Remover
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        {isAddingServer ? (
-          <div className={styles.inlineForm}>
-            <input
-              className={styles.input}
-              placeholder="Nome do servidor"
-              value={newServerName}
-              onChange={(event) => setNewServerName(event.target.value)}
-              disabled={isLoading || isSaving}
-            />
-            <input
-              className={styles.input}
-              placeholder="URL do servidor"
-              value={newServerUrl}
-              onChange={(event) => setNewServerUrl(event.target.value)}
-              disabled={isLoading || isSaving}
-            />
-            <div className={styles.inlineActions}>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={handleAddServer}
-                disabled={!canAddServer || isLoading || isSaving}
-              >
-                Confirmar
-              </button>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={() => {
-                  setIsAddingServer(false);
-                  setNewServerName("");
-                  setNewServerUrl("");
-                }}
-                disabled={isLoading || isSaving}
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className={styles.secondaryButton}
-            onClick={() => setIsAddingServer(true)}
             disabled={isLoading || isSaving}
-          >
-            Adicionar servidor
-          </button>
-        )}
-      </div>
+            w="100%"
+          />
 
-      <footer className={styles.footer}>
-        {errorMessage ? <span className={styles.error}>{errorMessage}</span> : null}
-        {showSavedFeedback ? <span className={styles.saved}>Configurações salvas</span> : null}
-        <button type="button" className={styles.primaryButton} onClick={handleSave} disabled={isLoading || isSaving}>
-          {isSaving ? "Salvando..." : "Salvar"}
-        </button>
-      </footer>
-    </section>
+          <NumberInput
+            label="Max iterations"
+            id="agent-max-iterations"
+            min={1}
+            max={100}
+            value={config.agent.maxIterations}
+            onChange={(value) =>
+              setConfig((previousConfig) => ({
+                ...previousConfig,
+                agent: {
+                  ...previousConfig.agent,
+                  maxIterations: clampNumber(value ?? "", 1, 100, previousConfig.agent.maxIterations),
+                },
+              }))
+            }
+            disabled={isLoading || isSaving}
+            w="100%"
+          />
+        </Stack>
+      </Paper>
+
+      <Paper p="md" radius="md" withBorder>
+        <Title order={3} size="xs" tt="uppercase" lts={0.5} c="dimmed" mb="sm">
+          MCP servers
+        </Title>
+        <Stack gap="sm">
+          {config.mcp.servers.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              Nenhum servidor configurado.
+            </Text>
+          ) : null}
+          <Stack gap="xs">
+            {config.mcp.servers.map((server, index) => (
+              <Paper key={`${server.name}-${String(index)}`} p="sm" withBorder radius="sm" bg={cappyPalette.bgSurface}>
+                <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
+                  <Stack gap={2} style={{ minWidth: 0 }}>
+                    <Text size="sm" fw={600} truncate>
+                      {server.name}
+                    </Text>
+                    <Text size="xs" c="dimmed" style={{ wordBreak: "break-all" }}>
+                      {server.url}
+                    </Text>
+                  </Stack>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="light"
+                    color="red"
+                    onClick={() => handleRemoveServer(index)}
+                    disabled={isLoading || isSaving}
+                    flex="none"
+                  >
+                    Remover
+                  </Button>
+                </Group>
+              </Paper>
+            ))}
+          </Stack>
+
+          {isAddingServer ? (
+            <Stack gap="xs">
+              <TextInput
+                placeholder="Nome do servidor"
+                value={newServerName}
+                onChange={(event) => setNewServerName(event.target.value)}
+                disabled={isLoading || isSaving}
+              />
+              <TextInput
+                placeholder="URL do servidor"
+                value={newServerUrl}
+                onChange={(event) => setNewServerUrl(event.target.value)}
+                disabled={isLoading || isSaving}
+              />
+              <Group gap="xs">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="light"
+                  onClick={handleAddServer}
+                  disabled={!canAddServer || isLoading || isSaving}
+                >
+                  Confirmar
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="subtle"
+                  onClick={() => {
+                    setIsAddingServer(false);
+                    setNewServerName("");
+                    setNewServerUrl("");
+                  }}
+                  disabled={isLoading || isSaving}
+                >
+                  Cancelar
+                </Button>
+              </Group>
+            </Stack>
+          ) : (
+            <Button
+              type="button"
+              size="xs"
+              variant="light"
+              onClick={() => setIsAddingServer(true)}
+              disabled={isLoading || isSaving}
+            >
+              Adicionar servidor
+            </Button>
+          )}
+        </Stack>
+      </Paper>
+
+      <Paper p="md" radius="md" withBorder>
+        <Divider mb="md" color={cappyPalette.borderSubtle} />
+        <Group justify="space-between" align="center" gap="md" wrap="wrap">
+          <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+            {errorMessage ? (
+              <Text size="sm" c="red.4">
+                {errorMessage}
+              </Text>
+            ) : null}
+            {showSavedFeedback ? (
+              <Text size="sm" c="teal.4">
+                Configurações salvas
+              </Text>
+            ) : null}
+          </Stack>
+          <Button type="button" onClick={handleSave} disabled={isLoading || isSaving} loading={isSaving}>
+            {isSaving ? "Salvando..." : "Salvar"}
+          </Button>
+        </Group>
+      </Paper>
+    </Stack>
   );
 }
 
 /**
  * Parses and clamps one numeric input value.
  */
-function clampNumber(rawValue: string, min: number, max: number, fallback: number): number {
-  const parsedValue = Number(rawValue);
-  if (!Number.isFinite(parsedValue)) {
+function clampNumber(rawValue: string | number, min: number, max: number, fallback: number): number {
+  if (rawValue === "") {
     return fallback;
   }
-  if (parsedValue < min) {
+  const n = typeof rawValue === "number" ? rawValue : Number(rawValue);
+  if (!Number.isFinite(n)) {
+    return fallback;
+  }
+  const t = Math.trunc(n);
+  if (t < min) {
     return min;
   }
-  if (parsedValue > max) {
+  if (t > max) {
     return max;
   }
-  return Math.trunc(parsedValue);
+  return t;
 }
 
 /**
  * Parses one string value as ActiveAgent.
  */
-function parseActiveAgent(value: string): ActiveAgent | null {
+function parseActiveAgent(value: string | null): ActiveAgent | null {
   if (value === "coder" || value === "planner" || value === "reviewer") {
     return value;
   }

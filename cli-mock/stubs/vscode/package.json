@@ -1,0 +1,7 @@
+{
+  "name": "vscode",
+  "version": "0.0.0-stub",
+  "private": true,
+  "description": "Stub só para o cli-mock (Node/tsx fora do VS Code). Não publicar.",
+  "main": "index.cjs"
+}

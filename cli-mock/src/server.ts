@@ -1,6 +1,13 @@
 import { createServer } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 
+import {
+  getLastUserText,
+  matchMockScenario,
+  nextMockToolCallId,
+  type MockKeywordScenario,
+} from "./mock-keywords.js";
+
 interface ToolCall {
   id: string;
   name: string;
@@ -41,8 +48,13 @@ interface AgentLoopLike {
     tools: AgentTool[],
     options?: { mcpTools?: McpTool[]; chatMode?: ChatUiMode },
   ): Promise<Message[]>;
+  abort(): void;
   approve(toolCallId: string): boolean;
+  approveSessionAutoDestructive(toolCallId: string): boolean;
+  persistAllowAllDestructive(toolCallId: string): Promise<boolean>;
   reject(toolCallId: string): boolean;
+  /** Cenários `@mock:hitl` / `@mock:write` — HITL sem LLM. */
+  requestDestructiveConfirmationMock(toolCall: ToolCall): Promise<boolean>;
   on(eventName: "stream:token", listener: (token: string) => void): this;
   on(eventName: "stream:done", listener: () => void): this;
   on(eventName: "tool:confirm", listener: (toolCall: ToolCall) => void): this;
@@ -98,6 +110,10 @@ interface ExtensionConfigModule {
   saveConfig(workspaceRoot: string, config: CappyConfig): Promise<void>;
 }
 
+interface ExtensionAgentPreferencesModule {
+  loadAgentPreferences: (workspaceRoot: string) => Promise<{ hitl: { destructiveTools: "confirm_each" | "allow_all" } } | null>;
+}
+
 interface McpTool {
   serverName: string;
   name: string;
@@ -120,7 +136,10 @@ type ChatUiMode = "plain" | "agent" | "ask";
 
 type IncomingWsMessage =
   | { type: "chat:send"; messages: Message[]; mode?: ChatUiMode }
+  | { type: "session:new" }
   | { type: "tool:approve"; toolCallId: string }
+  | { type: "hitl:approveSession"; toolCallId: string }
+  | { type: "hitl:approvePersist"; toolCallId: string }
   | { type: "tool:reject"; toolCallId: string }
   | { type: "file:open"; path: string }
   | { type: "config:load" }
@@ -130,10 +149,19 @@ type IncomingWsMessage =
 type OutgoingWsMessage =
   | { type: "stream:token"; token: string }
   | { type: "stream:done" }
+  | { type: "session:cleared" }
   | { type: "tool:confirm"; toolCall: ToolCall }
   | { type: "tool:executing"; toolCall: ToolCall }
   | { type: "tool:result"; toolCall: ToolCall; result: string; fileDiff?: unknown }
   | { type: "tool:rejected"; toolCall: ToolCall }
+  | { type: "agent:shell:start"; command: string; cwd?: string }
+  | {
+      type: "agent:shell:complete";
+      command: string;
+      stdout: string;
+      stderr: string;
+      errorText?: string;
+    }
   | { type: "config:loaded"; config: CappyConfig }
   | { type: "config:saved" }
   | { type: "mcp:tools"; tools: McpTool[] }
@@ -145,9 +173,15 @@ type OutgoingWsMessage =
       didTrimForApi: boolean;
       droppedMessageCount: number;
     }
+  | {
+      type: "hitl:policy";
+      destructiveTools: "confirm_each" | "allow_all";
+      sessionAutoApproveDestructive: boolean;
+    }
   | { type: "error"; message: string };
 
-const PORT = 3333;
+/** Porta HTTP/WebSocket do mock; alinhar com `CAPPY_CLI_MOCK_PORT` no `pnpm dev` (Vite injeta no webview). */
+const PORT = Number.parseInt(process.env.CAPPY_CLI_MOCK_PORT ?? process.env.PORT ?? "3333", 10);
 const extensionDependenciesPromise = loadExtensionDependencies();
 
 /**
@@ -179,10 +213,54 @@ wsServer.on("connection", (socket) => {
   void initializeSocketConnection(socket);
 });
 
+function handleListenError(err: NodeJS.ErrnoException): void {
+  if (err.code === "EADDRINUSE") {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[cli-mock] Porta ${PORT} já está em uso (outro cli-mock ou processo). Encerre-o, por exemplo:\n` +
+        `  lsof -ti :${PORT} | xargs kill\n` +
+        `Ou use outra porta na mesma sessão (webview + mock):\n` +
+        `  CAPPY_CLI_MOCK_PORT=3334 pnpm dev`,
+    );
+    process.exit(1);
+  }
+  // eslint-disable-next-line no-console
+  console.error("[cli-mock] Erro no servidor:", err);
+  process.exit(1);
+}
+
+/** `listen` pode emitir em `http.Server` e/ou em `WebSocketServer` — regista ambos para evitar unhandled. */
+server.on("error", handleListenError);
+wsServer.on("error", handleListenError);
+
 server.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`cli-mock listening on http://localhost:${PORT}`);
 });
+
+let shuttingDown = false;
+
+/**
+ * Fecha clientes WebSocket e o HTTP server para o processo sair de imediato com Ctrl+C
+ * (evita "Process didn't exit" do tsx watch).
+ */
+function shutdown(): void {
+  if (shuttingDown) {
+    return;
+  }
+  shuttingDown = true;
+  wsServer.close(() => {
+    server.close(() => {
+      process.exit(0);
+    });
+  });
+  setTimeout(() => {
+    process.exit(0);
+  }, 2000).unref();
+}
+
+process.once("SIGINT", shutdown);
+process.once("SIGTERM", shutdown);
 
 /**
  * Initializes one websocket connection with AgentLoop wiring.
@@ -200,6 +278,20 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
   const mcpManager = new dependencies.McpManager();
   const tools = dependencies.tools;
   const workspaceRoot = process.cwd();
+  const hitlUiSessionState = { sessionAutoApproveDestructive: false };
+
+  const pushHitlPolicy = async (): Promise<void> => {
+    if (socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    const prefs = await dependencies.loadAgentPreferences(workspaceRoot);
+    const destructiveTools = prefs?.hitl.destructiveTools ?? "confirm_each";
+    sendJson(socket, {
+      type: "hitl:policy",
+      destructiveTools,
+      sessionAutoApproveDestructive: hitlUiSessionState.sessionAutoApproveDestructive,
+    });
+  };
 
   const streamTokenListener = (token: string) => {
     sendJson(socket, { type: "stream:token", token });
@@ -253,6 +345,8 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
   agentLoop.on("error", errorListener);
   agentLoop.on("context:usage", contextUsageListener);
 
+  void pushHitlPolicy();
+
   socket.on("message", (raw) => {
     let message: IncomingWsMessage | undefined;
     try {
@@ -271,7 +365,21 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
     }
 
     if (message.type === "chat:send") {
+      const lastUser = getLastUserText(message.messages);
+      const mockScenario = matchMockScenario(lastUser);
+      if (mockScenario !== null) {
+        void runMockKeywordScenario(socket, agentLoop, mockScenario);
+        return;
+      }
       void runAgentLoop(agentLoop, message.messages, tools, mcpManager.listTools(), socket, message.mode);
+      return;
+    }
+
+    if (message.type === "session:new") {
+      agentLoop.abort();
+      hitlUiSessionState.sessionAutoApproveDestructive = false;
+      sendJson(socket, { type: "session:cleared" });
+      void pushHitlPolicy();
       return;
     }
 
@@ -291,6 +399,7 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
         .then(async (config) => {
           await mcpManager.connect(config.mcp.servers);
           sendJson(socket, { type: "config:loaded", config });
+          void pushHitlPolicy();
         })
         .catch((error: unknown) => {
           const errorMessage = error instanceof Error ? error.message : "Falha ao carregar configuracao.";
@@ -335,6 +444,34 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
       }
       return;
     }
+
+    if (message.type === "hitl:approveSession") {
+      if (!agentLoop.approveSessionAutoDestructive(message.toolCallId)) {
+        sendJson(socket, {
+          type: "error",
+          message: `Confirmacao pendente nao encontrada: ${message.toolCallId}`,
+        });
+      } else {
+        hitlUiSessionState.sessionAutoApproveDestructive = true;
+        void pushHitlPolicy();
+      }
+      return;
+    }
+
+    if (message.type === "hitl:approvePersist") {
+      void agentLoop.persistAllowAllDestructive(message.toolCallId).then((ok) => {
+        if (!ok && socket.readyState === WebSocket.OPEN) {
+          sendJson(socket, {
+            type: "error",
+            message: `Confirmacao pendente nao encontrada: ${message.toolCallId}`,
+          });
+        } else if (ok) {
+          hitlUiSessionState.sessionAutoApproveDestructive = true;
+          void pushHitlPolicy();
+        }
+      });
+      return;
+    }
   });
 
   socket.on("close", () => {
@@ -348,6 +485,103 @@ async function initializeSocketConnection(socket: WebSocket): Promise<void> {
     agentLoop.off("context:usage", contextUsageListener);
     void mcpManager.disconnect();
   });
+}
+
+/**
+ * Cenários `@mock:…` — emite mensagens WebSocket alinhadas ao bridge, sem LLM.
+ */
+async function runMockKeywordScenario(
+  socket: WebSocket,
+  agentLoop: AgentLoopLike,
+  scenario: MockKeywordScenario,
+): Promise<void> {
+  try {
+    switch (scenario) {
+      case "stream-only": {
+        sendJson(socket, { type: "stream:token", token: "[mock:stream] Resposta simulada sem tools.\n" });
+        sendJson(socket, { type: "stream:done" });
+        return;
+      }
+      case "context-usage": {
+        sendJson(socket, {
+          type: "context:usage",
+          usedTokens: 4200,
+          limitTokens: 128_000,
+          effectiveInputBudgetTokens: 120_000,
+          didTrimForApi: false,
+          droppedMessageCount: 0,
+        });
+        sendJson(socket, { type: "stream:token", token: "[mock:usage] Snapshot de contexto enviado.\n" });
+        sendJson(socket, { type: "stream:done" });
+        return;
+      }
+      case "hitl-shell": {
+        const command = "echo 'cli-mock @mock:hitl'";
+        const toolCall: ToolCall = {
+          id: nextMockToolCallId("mock-bash"),
+          name: "Bash",
+          arguments: { command },
+        };
+        sendJson(socket, { type: "stream:token", token: "[mock:hitl] Pedido de shell (HITL)…\n" });
+        sendJson(socket, { type: "stream:done" });
+        const approved = await agentLoop.requestDestructiveConfirmationMock(toolCall);
+        if (!approved) {
+          sendJson(socket, { type: "tool:rejected", toolCall });
+          return;
+        }
+        sendJson(socket, { type: "tool:executing", toolCall });
+        sendJson(socket, { type: "agent:shell:start", command });
+        sendJson(socket, {
+          type: "agent:shell:complete",
+          command,
+          stdout: "cli-mock @mock:hitl\n",
+          stderr: "",
+        });
+        sendJson(socket, {
+          type: "tool:result",
+          toolCall,
+          result: "cli-mock @mock:hitl\n",
+        });
+        sendJson(socket, { type: "stream:token", token: "\n[mock] Comando concluído.\n" });
+        sendJson(socket, { type: "stream:done" });
+        return;
+      }
+      case "hitl-write": {
+        const toolCall: ToolCall = {
+          id: nextMockToolCallId("mock-write"),
+          name: "Write",
+          arguments: {
+            path: "mock/output.txt",
+            content: "conteudo ficticio (cli-mock @mock:write)",
+          },
+        };
+        sendJson(socket, { type: "stream:token", token: "[mock:write] Pedido de escrita (HITL)…\n" });
+        sendJson(socket, { type: "stream:done" });
+        const approved = await agentLoop.requestDestructiveConfirmationMock(toolCall);
+        if (!approved) {
+          sendJson(socket, { type: "tool:rejected", toolCall });
+          return;
+        }
+        sendJson(socket, { type: "tool:executing", toolCall });
+        sendJson(socket, {
+          type: "tool:result",
+          toolCall,
+          result: "Ficheiro escrito (simulado).",
+        });
+        sendJson(socket, { type: "stream:token", token: "\n[mock] Write concluido.\n" });
+        sendJson(socket, { type: "stream:done" });
+        return;
+      }
+      default: {
+        const _exhaustive: never = scenario;
+        void _exhaustive;
+      }
+    }
+  } catch {
+    if (socket.readyState === WebSocket.OPEN) {
+      sendJson(socket, { type: "error", message: "Falha no cenario mock." });
+    }
+  }
 }
 
 /**
@@ -398,7 +632,15 @@ function isIncomingWsMessage(value: unknown): value is IncomingWsMessage {
     return true;
   }
 
+  if (value.type === "session:new") {
+    return true;
+  }
+
   if (value.type === "tool:approve" || value.type === "tool:reject") {
+    return typeof value.toolCallId === "string" && value.toolCallId.length > 0;
+  }
+
+  if (value.type === "hitl:approveSession" || value.type === "hitl:approvePersist") {
     return typeof value.toolCallId === "string" && value.toolCallId.length > 0;
   }
 
@@ -483,6 +725,7 @@ async function loadExtensionDependencies(): Promise<{
   McpManager: new () => McpManagerLike;
   loadConfig(workspaceRoot: string): Promise<CappyConfig>;
   saveConfig(workspaceRoot: string, config: CappyConfig): Promise<void>;
+  loadAgentPreferences: ExtensionAgentPreferencesModule["loadAgentPreferences"];
   parseChatUiMode: (value: unknown) => ChatUiMode;
   selectToolsForChatMode: (mode: ChatUiMode, allTools: AgentTool[]) => AgentTool[];
   mcpToolsForChatMode: (mode: ChatUiMode, list: McpTool[]) => McpTool[];
@@ -516,12 +759,18 @@ async function loadExtensionDependencies(): Promise<{
     "../../extension/src/bridge/chatMode.js",
   ])) as ExtensionChatModeModule;
 
+  const agentPreferencesModule = (await importFirst([
+    "../../extension/src/agent/agentPreferences.ts",
+    "../../extension/src/agent/agentPreferences.js",
+  ])) as ExtensionAgentPreferencesModule;
+
   return {
     AgentLoop: loopModule.AgentLoop,
     tools: toolsModule.toolsRegistry,
     McpManager: mcpModule.McpManager,
     loadConfig: configModule.loadConfig,
     saveConfig: configModule.saveConfig,
+    loadAgentPreferences: agentPreferencesModule.loadAgentPreferences,
     parseChatUiMode: chatModeModule.parseChatUiMode,
     selectToolsForChatMode: chatModeModule.selectToolsForChatMode,
     mcpToolsForChatMode: chatModeModule.mcpToolsForChatMode,

@@ -1,9 +1,11 @@
+import { Box, Button, Group, Paper, Stack, Text } from "@mantine/core";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import type { Message } from "../lib/types";
 import { mergeFileDiffsForDisplay } from "../lib/mergeFileDiffs";
+import { cappyPalette } from "../theme";
 import { FileDiffMini } from "./FileDiffMini";
 import styles from "./MessageList.module.css";
 
@@ -17,84 +19,163 @@ export function MessageList({ messages, isStreaming }: MessageListProps): JSX.El
   const grouped = groupMessages(messages);
 
   return (
-    <div className={styles.container} aria-live="polite">
-      {messages.length === 0 ? <div className={styles.empty}>Nenhuma mensagem ainda.</div> : null}
+    <Stack gap="md" className={styles.container ?? ""} aria-live="polite">
+      {messages.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          Nenhuma mensagem ainda.
+        </Text>
+      ) : null}
       {grouped.map((group, gi) => {
         if (group.type === "user") {
           const hasImages = group.message.images && group.message.images.length > 0;
           return (
-            <article key={`user-${gi}`} className={`${styles.row} ${styles.rowUser}`}>
-              <span className={styles.label}>USER</span>
-              <div className={`${styles.bubble} ${styles.bubbleUser}`}>
-                {hasImages && (
-                  <div className={styles.messageImages}>
-                    {group.message.images!.map((img, i) => (
-                      <img key={i} src={img.dataUrl} alt={`Anexo ${i + 1}`} className={styles.messageImage} />
-                    ))}
-                  </div>
-                )}
-                <span className={styles.content}>{group.message.content}</span>
-              </div>
-            </article>
+            <Box
+              key={`user-${String(gi)}`}
+              component="article"
+              style={{ alignSelf: "flex-end", maxWidth: "min(92%, 100%)" }}
+            >
+              <Stack gap={4} align="flex-end">
+                <Text size="10px" tt="uppercase" lts={0.6} c="dimmed">
+                  User
+                </Text>
+                <Paper
+                  radius="md"
+                  p="sm"
+                  style={{
+                    borderRadius: "10px 10px 2px 10px",
+                    background: cappyPalette.bgAccent,
+                    color: cappyPalette.textAccent,
+                    maxWidth: "100%",
+                  }}
+                >
+                  <Stack gap="xs" align="flex-end">
+                    {hasImages ? (
+                      <Group gap={6}>
+                        {group.message.images!.map((img, i) => (
+                          <img
+                            key={i}
+                            src={img.dataUrl}
+                            alt={`Anexo ${String(i + 1)}`}
+                            className={styles.messageImage}
+                          />
+                        ))}
+                      </Group>
+                    ) : null}
+                    <Text size="sm" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                      {group.message.content}
+                    </Text>
+                  </Stack>
+                </Paper>
+              </Stack>
+            </Box>
           );
         }
         if (group.type === "tools") {
-          return <ToolGroup key={`tools-${gi}`} messages={group.messages} />;
+          return <ToolGroup key={`tools-${String(gi)}`} messages={group.messages} />;
         }
-        // assistant
         return (
-          <article key={`assistant-${gi}`} className={`${styles.row} ${styles.rowAssistant}`}>
-            <span className={styles.label}>ASSISTANT</span>
-            <div className={`${styles.bubble} ${styles.bubbleAssistant}`}>
-              <div className={styles.markdown}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{group.message.content}</ReactMarkdown>
-              </div>
-              {isStreaming && group.originalIndex === lastAssistantMessageIndex ? (
-                <span className={styles.cursor} aria-hidden="true" />
-              ) : null}
-            </div>
-          </article>
+          <Box key={`assistant-${String(gi)}`} component="article" w="100%" style={{ alignSelf: "flex-start" }}>
+            <Stack gap={4} align="flex-start">
+              <Text size="10px" tt="uppercase" lts={0.6} c="dimmed">
+                Assistant
+              </Text>
+              <Paper
+                radius="md"
+                p="sm"
+                withBorder
+                style={{
+                  borderRadius: "10px 10px 10px 2px",
+                  background: cappyPalette.bgSurface,
+                  borderColor: cappyPalette.borderSurface,
+                  color: cappyPalette.textPrimary,
+                  width: "100%",
+                  maxWidth: "100%",
+                }}
+              >
+                <Group gap={6} align="flex-end" wrap="nowrap" style={{ minWidth: 0 }}>
+                  <Box className={styles.markdown ?? ""} style={{ flex: 1, minWidth: 0 }}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{group.message.content}</ReactMarkdown>
+                  </Box>
+                  {isStreaming && group.originalIndex === lastAssistantMessageIndex ? (
+                    <span className={styles.cursor} aria-hidden="true" />
+                  ) : null}
+                </Group>
+              </Paper>
+            </Stack>
+          </Box>
         );
       })}
-    </div>
+    </Stack>
   );
 }
 
 function ToolGroup({ messages }: { messages: Message[] }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
-  const summary = messages.length === 1
-    ? truncateToolContent(messages[0]!.content, 80)
-    : `${messages.length} tool calls`;
+  const summary =
+    messages.length === 1
+      ? truncateToolContent(messages[0]!.content, 80)
+      : `${String(messages.length)} tool calls`;
   const rawDiffs = messages.map((m) => m.fileDiff).filter((d): d is NonNullable<typeof d> => d !== undefined);
   const mergedDiffs = mergeFileDiffsForDisplay(rawDiffs);
   const uniqueFileCount = new Set(rawDiffs.map((d) => d.path)).size;
 
   return (
-    <div className={styles.toolGroup}>
+    <Stack gap="xs" style={{ alignSelf: "flex-start", maxWidth: "100%" }}>
       {mergedDiffs.map((diff, i) => (
-        <FileDiffMini key={`diff-${diff.path}-${i}`} diff={diff} />
+        <FileDiffMini key={`diff-${diff.path}-${String(i)}`} diff={diff} />
       ))}
-      <button
-        className={styles.toolToggle}
-        onClick={() => setExpanded((prev) => !prev)}
+      <Button
         type="button"
+        variant="default"
+        size="compact-xs"
+        justify="flex-start"
+        h="auto"
+        py={4}
+        px="sm"
+        onClick={() => setExpanded((prev) => !prev)}
+        styles={{
+          root: {
+            background: cappyPalette.bgSunken,
+            borderColor: cappyPalette.borderSubtle,
+          },
+        }}
       >
-        <span className={styles.toolIcon}>{expanded ? "▾" : "▸"}</span>
-        <span className={styles.toolSummary}>{summary}</span>
-      </button>
-      {expanded && (
-        <div className={styles.toolDetails}>
+        <Group gap={6} wrap="nowrap">
+          <Text span size="xs" c="dimmed">
+            {expanded ? "▾" : "▸"}
+          </Text>
+          <Text span size="xs" c="dimmed" truncate>
+            {summary}
+          </Text>
+        </Group>
+      </Button>
+      {expanded ? (
+        <Paper withBorder radius="sm" p={0} style={{ maxHeight: 200, overflow: "auto", background: cappyPalette.bgSunken }}>
           {messages.map((msg, i) => (
-            <pre key={i} className={styles.toolPre}>{msg.content}</pre>
+            <Text
+              key={i}
+              component="pre"
+              size="xs"
+              c="dimmed"
+              p="sm"
+              style={{
+                margin: 0,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all",
+                borderBottom: `1px solid ${cappyPalette.borderSubtle}`,
+              }}
+            >
+              {msg.content}
+            </Text>
           ))}
-        </div>
-      )}
-      {uniqueFileCount > 0 ? (
-        <p className={styles.toolExploreHint}>
-          {uniqueFileCount === 1 ? "1 ficheiro alterado" : `${String(uniqueFileCount)} ficheiros alterados`}
-        </p>
+        </Paper>
       ) : null}
-    </div>
+      {uniqueFileCount > 0 ? (
+        <Text size="xs" c="dimmed" ml={4}>
+          {uniqueFileCount === 1 ? "1 ficheiro alterado" : `${String(uniqueFileCount)} ficheiros alterados`}
+        </Text>
+      ) : null}
+    </Stack>
   );
 }
 

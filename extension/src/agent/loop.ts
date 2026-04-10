@@ -36,6 +36,13 @@ import {
 } from "./sessionContext";
 import type { AgentEvents, AgentTool, Message, ToolCall } from "./types";
 import { recoverToolArgumentsWithLlm } from "./toolArgumentRecovery";
+import {
+  ensureDefaultAgentPreferencesFile,
+  formatAgentPreferencesPromptBlock,
+  loadAgentPreferences,
+  saveAgentPreferences,
+  type AgentPreferences,
+} from "./agentPreferences";
 import { loadWorkspaceSkillsPrompt } from "./workspaceSkills";
 import { logDebug, logError, logInfo } from "../utils/logger";
 
@@ -131,6 +138,12 @@ export class AgentLoop extends EventEmitter {
    */
   private workspaceSkillsBlock = "";
 
+  /** Bloco injectado com `.cappy/agent-preferences.json`. */
+  private agentPreferencesBlock = "";
+
+  /** Política lida do disco no início de cada `run()` (prompt do modelo). A auto-aprovação na UI é responsabilidade do webview. */
+  private hitlPersistedDestructive: AgentPreferences["hitl"]["destructiveTools"] = "confirm_each";
+
   /**
    * Creates a loop instance bound to one workspace root.
    */
@@ -145,6 +158,31 @@ export class AgentLoop extends EventEmitter {
    */
   public override on<K extends keyof AgentEvents>(eventName: K, listener: AgentEvents[K]): this {
     return super.on(eventName, listener);
+  }
+
+  /**
+   * Aprova o pedido pendente. A política «aprovar todos nesta sessão» é aplicada no webview (`hitl:policy`).
+   */
+  public approveSessionAutoDestructive(toolCallId: string): boolean {
+    return this.approve(toolCallId);
+  }
+
+  /**
+   * Aprova o pedido actual, grava `allow_all` em `.cappy/agent-preferences.json` e activa auto-aprovação.
+   */
+  public async persistAllowAllDestructive(toolCallId: string): Promise<boolean> {
+    const ok = this.approve(toolCallId);
+    if (!ok) {
+      return false;
+    }
+    this.hitlPersistedDestructive = "allow_all";
+    const prefs: AgentPreferences = {
+      version: 1,
+      hitl: { destructiveTools: "allow_all" },
+    };
+    await saveAgentPreferences(this.workspaceRoot, prefs);
+    this.agentPreferencesBlock = formatAgentPreferencesPromptBlock(prefs);
+    return true;
   }
 
   /**
@@ -195,6 +233,10 @@ export class AgentLoop extends EventEmitter {
     this.runOptions = options;
     this.runAbort = new AbortController();
     this.workspaceSkillsBlock = await loadWorkspaceSkillsPrompt(this.workspaceRoot);
+    await ensureDefaultAgentPreferencesFile(this.workspaceRoot);
+    const prefs = await loadAgentPreferences(this.workspaceRoot);
+    this.hitlPersistedDestructive = prefs?.hitl.destructiveTools ?? "confirm_each";
+    this.agentPreferencesBlock = formatAgentPreferencesPromptBlock(prefs);
     const mergedTools = this.mergeTools(tools, options.mcpTools ?? []);
     const history = [...messages];
     const toolsByName = new Map<string, AgentTool>(mergedTools.map((tool) => [tool.name, tool]));
@@ -373,6 +415,7 @@ export class AgentLoop extends EventEmitter {
       this.runAbort = null;
       this.runOptions = {};
       this.workspaceSkillsBlock = "";
+      this.agentPreferencesBlock = "";
     }
   }
 
@@ -556,6 +599,10 @@ export class AgentLoop extends EventEmitter {
       this.workspaceSkillsBlock.length > 0
         ? [{ role: "system", content: this.workspaceSkillsBlock }]
         : [];
+    const agentPreferences: ChatCompletionMessageParam[] =
+      this.agentPreferencesBlock.length > 0
+        ? [{ role: "system", content: this.agentPreferencesBlock }]
+        : [];
     const prefix = this.runOptions.systemPromptPrefix;
     const plan =
       !this.runOptions.ignorePlanMode && getPlanMode() ? [{ role: "system" as const, content: PLAN_MODE_SYSTEM_PROMPT }] : [];
@@ -563,13 +610,22 @@ export class AgentLoop extends EventEmitter {
     if (
       modeSystem.length === 0 &&
       workspaceSkills.length === 0 &&
+      agentPreferences.length === 0 &&
       compactionSystem.length === 0 &&
       extra.length === 0 &&
       plan.length === 0
     ) {
       return core;
     }
-    return [...modeSystem, ...workspaceSkills, ...compactionSystem, ...extra, ...plan, ...core];
+    return [
+      ...modeSystem,
+      ...workspaceSkills,
+      ...agentPreferences,
+      ...compactionSystem,
+      ...extra,
+      ...plan,
+      ...core,
+    ];
   }
 
   /**
@@ -768,6 +824,15 @@ export class AgentLoop extends EventEmitter {
       this.pendingConfirmations.set(toolCall.id, resolve);
       this.emitEvent("tool:confirm", toolCall);
     });
+  }
+
+  /**
+   * Cenário do cli-mock (`@mock:…`): emite `tool:confirm` e aguarda aprovação na UI sem passar pelo LLM.
+   *
+   * @returns `true` se o utilizador aprovou, `false` se rejeitou ou `abort()`.
+   */
+  public async requestDestructiveConfirmationMock(toolCall: ToolCall): Promise<boolean> {
+    return await this.confirm(toolCall);
   }
 
   /**

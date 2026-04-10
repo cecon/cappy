@@ -1,8 +1,8 @@
+import { Badge, Paper, Stack, Text, Title } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 
 import { getBridge, type IncomingMessage } from "../lib/vscode-bridge";
 import type { McpTool } from "../lib/types";
-import styles from "./McpToolsPanel.module.css";
 
 const bridge = getBridge();
 const DESTRUCTIVE_KEYWORDS = ["write", "delete", "remove", "create", "execute", "run"] as const;
@@ -14,13 +14,14 @@ export function McpToolsPanel(): JSX.Element {
   const [tools, setTools] = useState<McpTool[]>([]);
 
   useEffect(() => {
-    bridge.onMessage((message: IncomingMessage) => {
+    const unsubscribe = bridge.onMessage((message: IncomingMessage) => {
       if (message.type === "mcp:tools") {
         setTools(message.tools);
       }
     });
 
     bridge.send({ type: "mcp:list" });
+    return unsubscribe;
   }, []);
 
   const groupedTools = useMemo(() => {
@@ -35,32 +36,46 @@ export function McpToolsPanel(): JSX.Element {
   const serverNames = useMemo(() => Object.keys(groupedTools).sort(), [groupedTools]);
 
   return (
-    <section className={styles.container}>
-      <h2 className={styles.title}>Tools MCP</h2>
-      {serverNames.length === 0 ? <p className={styles.empty}>Nenhuma tool MCP disponível.</p> : null}
+    <Stack gap="md" h="100%" style={{ overflow: "auto" }}>
+      <Title order={2} size="h4">
+        Tools MCP
+      </Title>
+      {serverNames.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          Nenhuma tool MCP disponível.
+        </Text>
+      ) : null}
 
       {serverNames.map((serverName) => (
-        <article key={serverName} className={styles.serverCard}>
-          <h3 className={styles.serverName}>{serverName}</h3>
-          <ul className={styles.toolList}>
+        <Paper key={serverName} p="md" radius="md" withBorder>
+          <Title order={3} size="md" mb="sm">
+            {serverName}
+          </Title>
+          <Stack gap="sm">
             {(groupedTools[serverName] ?? []).map((tool) => {
               const destructive = isDestructiveTool(tool.name);
               return (
-                <li key={`${tool.serverName}__${tool.name}`} className={styles.toolItem}>
-                  <div className={styles.toolHeader}>
-                    <strong className={styles.toolName}>{tool.name}</strong>
-                    <span className={destructive ? styles.badgeDestructive : styles.badgeSafe}>
-                      {destructive ? "Destrutiva" : "Segura"}
-                    </span>
-                  </div>
-                  <p className={styles.toolDescription}>{tool.description || "Sem descrição."}</p>
-                </li>
+                <Paper key={`${tool.serverName}__${tool.name}`} p="sm" radius="sm" withBorder bg="dark.7">
+                  <Stack gap={6}>
+                    <Stack gap={4} align="flex-start">
+                      <Text size="sm" fw={600} style={{ wordBreak: "break-word" }}>
+                        {tool.name}
+                      </Text>
+                      <Badge size="sm" color={destructive ? "red" : "teal"} variant="light">
+                        {destructive ? "Destrutiva" : "Segura"}
+                      </Badge>
+                    </Stack>
+                    <Text size="sm" c="dimmed" style={{ wordBreak: "break-word" }}>
+                      {tool.description || "Sem descrição."}
+                    </Text>
+                  </Stack>
+                </Paper>
               );
             })}
-          </ul>
-        </article>
+          </Stack>
+        </Paper>
       ))}
-    </section>
+    </Stack>
   );
 }
 
