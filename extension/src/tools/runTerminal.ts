@@ -27,6 +27,7 @@ async function executeTerminal(params: RunTerminalParams): Promise<{ stdout: str
   const { stdout, stderr } = await execAsync(params.command, {
     cwd: resolvedCwd,
     maxBuffer: 1024 * 1024,
+    shell: process.platform === "win32" ? "powershell.exe" : "/bin/sh",
   });
   return { stdout, stderr };
 }
@@ -37,7 +38,7 @@ async function executeTerminal(params: RunTerminalParams): Promise<{ stdout: str
 export const bashTool: ToolDefinition<RunTerminalParams, { stdout: string; stderr: string }> = {
   name: "Bash",
   description:
-    "Runs a shell command in the workspace. Prefer Glob, Grep, Read, Edit, Write for file operations when possible.",
+    "Runs a shell command in the workspace (PowerShell on Windows, sh on Linux/macOS). Prefer Glob, Grep, Read, Edit, Write for file operations when possible.",
   parameters: {
     type: "object",
     properties: {
@@ -55,7 +56,7 @@ export const bashTool: ToolDefinition<RunTerminalParams, { stdout: string; stder
  */
 export const runTerminalTool: ToolDefinition<RunTerminalParams, { stdout: string; stderr: string }> = {
   name: "runTerminal",
-  description: "Runs a terminal command in the local machine.",
+  description: "Runs a terminal command (PowerShell on Windows, sh on Linux/macOS).",
   parameters: {
     type: "object",
     properties: {

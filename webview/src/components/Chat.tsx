@@ -118,6 +118,15 @@ export function Chat(): JSX.Element {
   }
 
   /**
+   * Stops the current agent run.
+   */
+  function handleStop(): void {
+    bridge.send({ type: "chat:stop" });
+    setIsStreaming(false);
+    setActivity(null);
+  }
+
+  /**
    * Rejects one pending tool execution by id.
    */
   function handleReject(toolCallId: string): void {
@@ -180,6 +189,7 @@ export function Chat(): JSX.Element {
       <footer className={styles.inputArea}>
         <InputBar
           onSend={handleSend}
+          onStop={handleStop}
           isStreaming={isStreaming}
           contextFiles={contextFiles}
           onAddContextFile={handleAddContextFile}

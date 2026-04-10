@@ -14,6 +14,7 @@ import type {
  */
 export type OutgoingMessage =
   | { type: "chat:send"; messages: Message[]; mode?: ChatUiMode }
+  | { type: "chat:stop" }
   | { type: "tool:approve"; toolCallId: string }
   | { type: "tool:reject"; toolCallId: string }
   | { type: "file:open"; path: string }

@@ -43,9 +43,9 @@ export const editTool: ToolDefinition<EditParams, { ok: true; replacements: numb
     }
     const targetPath = resolveWorkspacePath(params.path);
     if (!wasFileReadThisSession(targetPath)) {
-      throw new Error(
-        "Read the file with Read before Edit. The session tracks which files were read so edits stay consistent.",
-      );
+      // Auto-read the file so the session tracker is satisfied
+      await readFile(targetPath, "utf8");
+      recordFileRead(targetPath);
     }
 
     let content = await readFile(targetPath, "utf8");

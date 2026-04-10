@@ -9,6 +9,7 @@ export interface ContextFile {
 
 interface InputBarProps {
   onSend: (text: string, mode: ChatUiMode, images?: ImageAttachment[]) => void;
+  onStop: () => void;
   isStreaming: boolean;
   contextFiles: ContextFile[];
   onAddContextFile: (file: ContextFile) => void;
@@ -47,6 +48,7 @@ const COMMAND_ITEMS: CommandItem[] = [
  */
 export function InputBar({
   onSend,
+  onStop,
   isStreaming,
   contextFiles,
   onAddContextFile,
@@ -108,6 +110,7 @@ export function InputBar({
    */
   function handleActionButton(): void {
     if (isStreaming) {
+      onStop();
       return;
     }
     if (!isSendState) {

@@ -38,6 +38,7 @@ export type HostToWebviewMessage =
  */
 export type WebviewToHostMessage =
   | { type: "chat:send"; messages: Message[]; mode?: ChatUiMode }
+  | { type: "chat:stop" }
   | { type: "tool:approve"; toolCallId: string }
   | { type: "tool:reject"; toolCallId: string }
   | { type: "file:open"; path: string }
@@ -188,6 +189,12 @@ async function handleWebviewMessage(
     return;
   }
 
+  if (raw.type === "chat:stop") {
+    logInfo("chat:stop received, aborting agent loop");
+    agentLoop.abort();
+    return;
+  }
+
   if (raw.type === "tool:approve") {
     if (!agentLoop.approve(raw.toolCallId)) {
       await postToWebview(webview, {
@@ -272,6 +279,10 @@ function isWebviewToHostMessage(value: unknown): value is WebviewToHostMessage {
 
   if (value.type === "tool:approve" || value.type === "tool:reject") {
     return typeof value.toolCallId === "string" && value.toolCallId.length > 0;
+  }
+
+  if (value.type === "chat:stop") {
+    return true;
   }
 
   if (value.type === "config:load") {

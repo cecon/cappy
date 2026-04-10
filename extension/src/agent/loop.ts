@@ -120,6 +120,9 @@ export class AgentLoop extends EventEmitter {
 
   private readonly pendingConfirmations = new Map<string, (approved: boolean) => void>();
 
+  /** AbortController for the current run; cancelled via abort(). */
+  private runAbort: AbortController | null = null;
+
   /** Per-`run()` options; cleared after each run. */
   private runOptions: AgentRunOptions = {};
 
@@ -158,6 +161,21 @@ export class AgentLoop extends EventEmitter {
   }
 
   /**
+   * Aborts the current agent run (stop button).
+   */
+  public abort(): void {
+    if (this.runAbort) {
+      this.runAbort.abort();
+      this.runAbort = null;
+    }
+    // Also reject any pending confirmations so the loop unblocks
+    for (const [id, resolver] of this.pendingConfirmations) {
+      resolver(false);
+      this.pendingConfirmations.delete(id);
+    }
+  }
+
+  /**
    * Rejects one pending destructive tool execution.
    */
   public reject(toolCallId: string): boolean {
@@ -175,6 +193,7 @@ export class AgentLoop extends EventEmitter {
    */
   public async run(messages: Message[], tools: AgentTool[], options: AgentRunOptions = {}): Promise<Message[]> {
     this.runOptions = options;
+    this.runAbort = new AbortController();
     this.workspaceSkillsBlock = await loadWorkspaceSkillsPrompt(this.workspaceRoot);
     const mergedTools = this.mergeTools(tools, options.mcpTools ?? []);
     const history = [...messages];
@@ -189,6 +208,11 @@ export class AgentLoop extends EventEmitter {
 
     try {
       while (true) {
+        if (this.runAbort?.signal.aborted) {
+          logInfo("Agent run aborted by user");
+          this.emitEvent("stream:done");
+          break;
+        }
         if (maxRounds !== undefined && completedLlmRounds >= maxRounds) {
           history.push({
             role: "assistant",
@@ -200,14 +224,41 @@ export class AgentLoop extends EventEmitter {
           break;
         }
 
-        const stream = await this.createStream(history, mergedTools);
         const assistantTextParts: string[] = [];
         const pendingToolCalls = new Map<number, PendingToolCallState>();
 
         void logDebug(`LLM round ${completedLlmRounds + 1} | history=${history.length} messages`);
 
-        for await (const chunk of stream) {
-          this.consumeChunk(chunk, assistantTextParts, pendingToolCalls);
+        const MAX_STREAM_RETRIES = 2;
+        let streamAttempt = 0;
+        while (true) {
+          try {
+            const stream = await this.createStream(history, mergedTools);
+            for await (const chunk of stream) {
+              if (this.runAbort?.signal.aborted) {
+                break;
+              }
+              this.consumeChunk(chunk, assistantTextParts, pendingToolCalls);
+            }
+            break;
+          } catch (streamErr) {
+            const errMsg = asError(streamErr).message.toLowerCase();
+            const isTransient =
+              errMsg.includes("terminated") ||
+              errMsg.includes("econnreset") ||
+              errMsg.includes("socket hang up") ||
+              errMsg.includes("network") ||
+              errMsg.includes("fetch failed") ||
+              errMsg.includes("aborted");
+            if (isTransient && streamAttempt < MAX_STREAM_RETRIES) {
+              streamAttempt += 1;
+              logInfo(`Stream transient error "${asError(streamErr).message}", retrying (${streamAttempt}/${MAX_STREAM_RETRIES})...`);
+              assistantTextParts.length = 0;
+              pendingToolCalls.clear();
+              continue;
+            }
+            throw streamErr;
+          }
         }
 
         void logDebug(`Stream consumed | chunks done, parsing tool calls...`);
@@ -305,10 +356,21 @@ export class AgentLoop extends EventEmitter {
       return history;
     } catch (error) {
       const normalizedError = asError(error);
+      const msg = normalizedError.message.toLowerCase();
+      const isTransient =
+        msg.includes("terminated") ||
+        msg.includes("econnreset") ||
+        msg.includes("socket hang up") ||
+        msg.includes("fetch failed");
+      const userMessage = isTransient
+        ? `Conexão com a API foi interrompida (${normalizedError.message}). Tente novamente.`
+        : normalizedError.message;
       logError(`Agent loop error: ${normalizedError.message}`);
-      this.emitEvent("error", normalizedError);
-      throw normalizedError;
+      const reported = new Error(userMessage);
+      this.emitEvent("error", reported);
+      throw reported;
     } finally {
+      this.runAbort = null;
       this.runOptions = {};
       this.workspaceSkillsBlock = "";
     }
