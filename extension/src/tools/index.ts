@@ -16,6 +16,7 @@ import { webFetchTool } from "./webFetch";
 import { webSearchTool } from "./webSearch";
 import { writeFileTool, writeOpenClaudeTool } from "./writeFile";
 import { listKnowledgeTool, readKnowledgeTool, writeKnowledgeTool } from "./knowledgeTools";
+import { semanticSearchTool, indexCodebaseTool } from "./semanticSearch";
 
 /**
  * Full agent surface: OpenClaude-style names plus ExploreAgent subagent.
@@ -45,4 +46,6 @@ export const toolsRegistry: ToolDefinition<any, unknown>[] = [
   listKnowledgeTool,
   readKnowledgeTool,
   writeKnowledgeTool,
+  semanticSearchTool,
+  indexCodebaseTool,
 ];

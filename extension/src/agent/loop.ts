@@ -77,9 +77,43 @@ const READONLY_TOOL_NAMES = new Set<string>([
   "Grep", "searchCode",
   "ListSkills", "ReadSkill",
   "ListKnowledge", "ReadKnowledge",
+  "SemanticSearch",
   "WebFetch", "WebSearch",
   "ExploreAgent",
 ]);
+
+/**
+ * Number of consecutive tool errors that trigger the Smart Loop Breaker.
+ */
+const MAX_CONSECUTIVE_TOOL_ERRORS = 3;
+
+/**
+ * Cost per 1M tokens (input/output) for common OpenRouter models (USD).
+ * Used for per-run cost estimates emitted via stream:system.
+ */
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "openai/gpt-4o":                           { input: 5.00,  output: 15.00 },
+  "openai/gpt-4o-mini":                      { input: 0.15,  output: 0.60  },
+  "openai/gpt-4-turbo":                      { input: 10.00, output: 30.00 },
+  "openai/gpt-3.5-turbo":                    { input: 0.50,  output: 1.50  },
+  "openai/gpt-oss-120b":                     { input: 2.00,  output: 8.00  },
+  "anthropic/claude-3-5-sonnet":             { input: 3.00,  output: 15.00 },
+  "anthropic/claude-3-5-sonnet-20241022":    { input: 3.00,  output: 15.00 },
+  "anthropic/claude-3-7-sonnet":             { input: 3.00,  output: 15.00 },
+  "anthropic/claude-3-haiku":                { input: 0.25,  output: 1.25  },
+  "anthropic/claude-3-opus":                 { input: 15.00, output: 75.00 },
+  "google/gemini-2.0-flash":                 { input: 0.10,  output: 0.40  },
+  "google/gemini-1.5-pro":                   { input: 1.25,  output: 5.00  },
+  "google/gemini-1.5-flash":                 { input: 0.075, output: 0.30  },
+  "meta-llama/llama-3.1-70b-instruct":       { input: 0.88,  output: 0.88  },
+  "meta-llama/llama-3.1-8b-instruct":        { input: 0.18,  output: 0.18  },
+  "meta-llama/llama-3.3-70b-instruct":       { input: 0.59,  output: 0.79  },
+  "deepseek/deepseek-chat":                  { input: 0.27,  output: 1.10  },
+  "deepseek/deepseek-r1":                    { input: 0.55,  output: 2.19  },
+  "mistralai/mistral-small":                 { input: 0.20,  output: 0.60  },
+  "mistralai/mistral-large":                 { input: 2.00,  output: 6.00  },
+  "qwen/qwen-2.5-72b-instruct":              { input: 0.35,  output: 0.40  },
+};
 
 /**
  * Injected while plan mode is active (OpenClaude-style EnterPlanMode).
@@ -176,6 +210,9 @@ export class AgentLoop extends EventEmitter {
 
   /** Política lida do disco no início de cada `run()` (prompt do modelo). A auto-aprovação na UI é responsabilidade do webview. */
   private hitlPersistedDestructive: AgentPreferences["hitl"]["destructiveTools"] = "confirm_each";
+
+  /** Usage from the last streaming completion chunk (for cost tracking). */
+  private lastRunUsage: { promptTokens: number; completionTokens: number } | null = null;
 
   /**
    * Creates a loop instance bound to one workspace root.
@@ -289,6 +326,9 @@ export class AgentLoop extends EventEmitter {
     const toolResultCache = new Map<string, string>();
     const maxRounds = options.maxLlmRounds;
     let completedLlmRounds = 0;
+    let consecutiveToolErrors = 0;
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
 
     logInfo(`Agent run started | messages=${messages.length} tools=${mergedTools.length} mode=${options.chatMode ?? "agent"}`);
     void logDebug(`Tool names: ${mergedTools.map((t) => t.name).join(", ")}`);
@@ -350,6 +390,13 @@ export class AgentLoop extends EventEmitter {
 
         void logDebug(`Stream consumed | chunks done, parsing tool calls...`);
         completedLlmRounds += 1;
+
+        // Accumulate token usage for cost tracking
+        if (this.lastRunUsage) {
+          totalPromptTokens += this.lastRunUsage.promptTokens;
+          totalCompletionTokens += this.lastRunUsage.completionTokens;
+          this.lastRunUsage = null;
+        }
 
         const assistantContent = assistantTextParts.join("");
         const toolCalls = await this.resolveParsedToolCalls(pendingToolCalls, toolsByName, runConfig);
@@ -424,6 +471,7 @@ export class AgentLoop extends EventEmitter {
           // allSettled preserves index order → history integrity is maintained
           const settlements = await Promise.allSettled(execPromises);
 
+          let parallelHadError = false;
           for (let i = 0; i < toolCalls.length; i++) {
             const toolCall = toolCalls[i]!;
             const settlement = settlements[i]!;
@@ -442,9 +490,15 @@ export class AgentLoop extends EventEmitter {
             } else {
               serializedResult = `[Erro ao executar tool "${toolCall.name}"] ${asError(settlement.reason).message}`;
               logError(`Tool ${toolCall.name} failed: ${asError(settlement.reason).message}`);
+              parallelHadError = true;
             }
             this.emitEvent("tool:result", toolCall, serializedResult, fileDiffPayload);
             history.push({ role: "tool", content: serializedResult, tool_call_id: toolCall.id });
+          }
+          if (parallelHadError) {
+            consecutiveToolErrors++;
+          } else {
+            consecutiveToolErrors = 0;
           }
         } else {
           // Sequential path — original logic with cache support
@@ -511,16 +565,29 @@ export class AgentLoop extends EventEmitter {
                   // Any destructive tool invalidates the entire cache to prevent stale reads
                   toolResultCache.clear();
                 }
+                consecutiveToolErrors = 0;
               } catch (execError) {
                 serializedResult = `[Erro ao executar tool "${toolCall.name}"] ${asError(execError).message}`;
                 fileDiffPayload = undefined;
                 logError(`Tool ${toolCall.name} failed: ${asError(execError).message}`);
+                consecutiveToolErrors++;
               }
             }
 
             this.emitEvent("tool:result", toolCall, serializedResult, fileDiffPayload);
             history.push({ role: "tool", content: serializedResult, tool_call_id: toolCall.id });
           }
+        }
+
+        if (consecutiveToolErrors >= MAX_CONSECUTIVE_TOOL_ERRORS) {
+          this.emitEvent(
+            "stream:system",
+            `Smart Loop Breaker: ${MAX_CONSECUTIVE_TOOL_ERRORS} erros consecutivos de tools. ` +
+            "O agente parou para evitar loop infinito. Revê os erros acima e reinicia.",
+          );
+          logInfo(`Agent stopped by Smart Loop Breaker after ${consecutiveToolErrors} consecutive tool errors`);
+          this.emitEvent("stream:done");
+          break;
         }
 
         if (wasRejected) {
@@ -530,6 +597,17 @@ export class AgentLoop extends EventEmitter {
         }
 
         void logDebug(`All tools executed for round ${completedLlmRounds}, looping for next LLM call...`);
+      }
+
+      if (!options.silent && totalPromptTokens > 0) {
+        const pricing = MODEL_PRICING[runConfig.openrouter.model];
+        const costStr = pricing
+          ? ` (~$${((totalPromptTokens * pricing.input + totalCompletionTokens * pricing.output) / 1_000_000).toFixed(4)})`
+          : "";
+        this.emitEvent(
+          "stream:system",
+          `Tokens: ${totalPromptTokens.toLocaleString()} entrada + ${totalCompletionTokens.toLocaleString()} saída${costStr} | ${completedLlmRounds} rounds`,
+        );
       }
 
       logInfo(`Agent run finished | totalRounds=${completedLlmRounds} historyLen=${history.length}`);
@@ -556,6 +634,7 @@ export class AgentLoop extends EventEmitter {
       this.agentPreferencesBlock = "";
       this.workspaceTreeBlock = "";
       this.workspaceKnowledgeBlock = "";
+      this.lastRunUsage = null;
       // Clear cached client so the next run picks up fresh config (API key, model changes)
       this.client = null;
       this.model = null;
@@ -685,6 +764,7 @@ export class AgentLoop extends EventEmitter {
       return await client.chat.completions.create({
         model: selectedModel,
         stream: true,
+        stream_options: { include_usage: true },
         messages: this.buildOpenAiMessages(validMessages),
         tools: tools.map((tool) => toChatTool(tool)),
       });
@@ -696,6 +776,7 @@ export class AgentLoop extends EventEmitter {
         return client.chat.completions.create({
           model,
           stream: true,
+          stream_options: { include_usage: true },
           messages: this.buildOpenAiMessages(stripped),
           tools: tools.map((tool) => toChatTool(tool)),
         });
@@ -706,6 +787,7 @@ export class AgentLoop extends EventEmitter {
         return client.chat.completions.create({
           model,
           stream: true,
+          stream_options: { include_usage: true },
           messages: this.buildOpenAiMessages(stripped),
           tools: tools.map((tool) => toChatTool(tool)),
         });
@@ -791,6 +873,14 @@ export class AgentLoop extends EventEmitter {
     assistantTextParts: string[],
     pendingToolCalls: Map<number, PendingToolCallState>,
   ): void {
+    // Capture usage from the final chunk (sent when stream_options.include_usage = true)
+    if (chunk.usage) {
+      this.lastRunUsage = {
+        promptTokens: chunk.usage.prompt_tokens,
+        completionTokens: chunk.usage.completion_tokens,
+      };
+    }
+
     const choice = chunk.choices[0];
     if (!choice) {
       return;

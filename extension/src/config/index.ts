@@ -13,6 +13,8 @@ interface OpenRouterConfig {
   contextWindowTokens?: number | undefined;
   /** Tokens reservados para a resposta do modelo. */
   reservedOutputTokens?: number | undefined;
+  /** Modelo de embeddings para indexação semântica da codebase. */
+  embeddingModel?: string | undefined;
 }
 
 /**
@@ -160,6 +162,10 @@ function mergeWithDefaults(raw: unknown): CappyConfig {
         typeof rawOpenRouter.reservedOutputTokens === "number" && rawOpenRouter.reservedOutputTokens >= 512
           ? rawOpenRouter.reservedOutputTokens
           : defaults.openrouter.reservedOutputTokens,
+      embeddingModel:
+        typeof rawOpenRouter.embeddingModel === "string" && rawOpenRouter.embeddingModel.length > 0
+          ? rawOpenRouter.embeddingModel
+          : undefined,
     },
     agent: {
       activeAgent: isActiveAgent(rawAgent.activeAgent) ? rawAgent.activeAgent : defaults.agent.activeAgent,
