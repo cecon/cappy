@@ -35,7 +35,7 @@ interface HitlHeaderProps {
   title: string;
   risk: HITLRisk;
   denyLabel?: string;
-  onDeny?: () => void;
+  onDeny?: (() => void) | undefined;
   status: HITLStatus;
 }
 
@@ -76,7 +76,7 @@ export function HitlHeader({
 interface HitlActionsProps {
   status: HITLStatus;
   allowLabel?: string;
-  onAllow?: () => void;
+  onAllow?: (() => void) | undefined;
 }
 
 export function HitlActions({ status, allowLabel = "Permitir", onAllow }: HitlActionsProps) {
@@ -145,7 +145,7 @@ export function HitlCardShell({ header, footer, children }: HitlCardShellProps) 
 // Shared helper: KVRow
 // ─────────────────────────────────────────────
 
-function KVRow({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "warn" | "danger" }) {
+function KVRow({ label, value, tone }: { label: string; value: React.ReactNode; tone?: ("warn" | "danger") | undefined }) {
   const color = tone === "danger" ? "red.4" : tone === "warn" ? "yellow.4" : "dark.1";
   return (
     <Group justify="space-between" gap="xs" wrap="nowrap">
@@ -184,8 +184,8 @@ interface HitlShellCommandApprovalProps {
   accessLevel?: "read" | "write" | "admin";
   risk?: HITLRisk;
   status?: HITLStatus;
-  onAllow?: () => void;
-  onDeny?: () => void;
+  onAllow?: (() => void) | undefined;
+  onDeny?: (() => void) | undefined;
 }
 
 export function HitlShellCommandApproval({
@@ -243,8 +243,8 @@ interface HitlCodeDiffReviewProps {
   preview?: DiffLine[];
   risk?: HITLRisk;
   status?: HITLStatus;
-  onAllow?: () => void;
-  onDeny?: () => void;
+  onAllow?: (() => void) | undefined;
+  onDeny?: (() => void) | undefined;
 }
 
 export function HitlCodeDiffReview({
@@ -292,19 +292,19 @@ export function HitlCodeDiffReview({
 type FileWriteOp = "create" | "overwrite" | "append";
 
 const FILE_OP_TONE: Record<FileWriteOp, "warn" | "danger" | undefined> = {
-  create:    undefined,
-  overwrite: "warn",
-  append:    undefined,
+  create:    undefined as undefined,
+  overwrite: "warn" as const,
+  append:    undefined as undefined,
 };
 
 interface HitlFileWriteApprovalProps {
   filePath: string;
   operation: FileWriteOp;
-  sizeLabel?: string;
+  sizeLabel?: string | undefined;
   risk?: HITLRisk;
   status?: HITLStatus;
-  onAllow?: () => void;
-  onDeny?: () => void;
+  onAllow?: (() => void) | undefined;
+  onDeny?: (() => void) | undefined;
 }
 
 export function HitlFileWriteApproval({
@@ -340,8 +340,8 @@ interface HitlSecretAccessApprovalProps {
   requestedBy?: string;
   risk?: HITLRisk;
   status?: HITLStatus;
-  onAllow?: () => void;
-  onDeny?: () => void;
+  onAllow?: (() => void) | undefined;
+  onDeny?: (() => void) | undefined;
 }
 
 export function HitlSecretAccessApproval({
@@ -379,8 +379,8 @@ interface HitlDatabaseMutationApprovalProps {
   database?: string;
   risk?: HITLRisk;
   status?: HITLStatus;
-  onAllow?: () => void;
-  onDeny?: () => void;
+  onAllow?: (() => void) | undefined;
+  onDeny?: (() => void) | undefined;
 }
 
 export function HitlDatabaseMutationApproval({
@@ -431,9 +431,9 @@ export function HitlDatabaseMutationApproval({
 type DeployEnv = "development" | "staging" | "production";
 
 const ENV_TONE: Record<DeployEnv, "warn" | "danger" | undefined> = {
-  development: undefined,
-  staging:     "warn",
-  production:  "danger",
+  development: undefined as undefined,
+  staging:     "warn" as const,
+  production:  "danger" as const,
 };
 
 interface HitlDeployApprovalProps {
@@ -444,8 +444,8 @@ interface HitlDeployApprovalProps {
   strategy?: string;
   risk?: HITLRisk;
   status?: HITLStatus;
-  onAllow?: () => void;
-  onDeny?: () => void;
+  onAllow?: (() => void) | undefined;
+  onDeny?: (() => void) | undefined;
 }
 
 export function HitlDeployApproval({
@@ -487,8 +487,8 @@ interface HitlExternalActionApprovalProps {
   timeout?: string;
   risk?: HITLRisk;
   status?: HITLStatus;
-  onAllow?: () => void;
-  onDeny?: () => void;
+  onAllow?: (() => void) | undefined;
+  onDeny?: (() => void) | undefined;
 }
 
 export function HitlExternalActionApproval({
