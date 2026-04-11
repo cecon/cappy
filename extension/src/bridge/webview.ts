@@ -103,6 +103,9 @@ export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBr
   const streamDoneListener = () => {
     void postToWebview(webview, { type: "stream:done" });
   };
+  const streamSystemListener = (message: string) => {
+    void postToWebview(webview, { type: "stream:system", message });
+  };
   const toolConfirmListener = (toolCall: ToolCall) => {
     void postToWebview(webview, { type: "tool:confirm", toolCall });
   };
@@ -156,6 +159,7 @@ export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBr
 
   agentLoop.on("stream:token", streamTokenListener);
   agentLoop.on("stream:done", streamDoneListener);
+  agentLoop.on("stream:system", streamSystemListener);
   agentLoop.on("tool:confirm", toolConfirmListener);
   agentLoop.on("tool:executing", toolExecutingListener);
   agentLoop.on("tool:result", toolResultListener);
@@ -176,6 +180,7 @@ export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBr
       dispose: () => {
       agentLoop.off("stream:token", streamTokenListener);
       agentLoop.off("stream:done", streamDoneListener);
+      agentLoop.off("stream:system", streamSystemListener);
       agentLoop.off("tool:confirm", toolConfirmListener);
       agentLoop.off("tool:executing", toolExecutingListener);
       agentLoop.off("tool:result", toolResultListener);

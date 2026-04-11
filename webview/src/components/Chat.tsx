@@ -534,6 +534,13 @@ function handleIncomingMessage(
     return;
   }
 
+  if (message.type === "stream:system") {
+    setMessages((previousMessages) =>
+      appendToolLogMessage(previousMessages, "Aviso do sistema", message.message),
+    );
+    return;
+  }
+
   if (message.type === "tool:confirm") {
     const policy = hitlPolicyRef.current;
     if (policy.destructiveTools === "allow_all" || policy.sessionAutoApproveDestructive) {

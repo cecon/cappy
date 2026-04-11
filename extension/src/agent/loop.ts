@@ -9,7 +9,7 @@ import type {
 } from "openai/resources/chat/completions";
 
 import type { ChatUiMode } from "../bridge/chatMode";
-import { loadConfig } from "../config";
+import { loadConfig, type CappyConfig } from "../config";
 import { coerceSearchPattern, mergeNestedPatternArgs } from "../tools/coercePattern";
 import type { McpTool } from "../mcp/client";
 import type { ToolDefinition } from "../tools/toolTypes";
@@ -47,10 +47,20 @@ import { loadWorkspaceSkillsPrompt } from "./workspaceSkills";
 import { logDebug, logError, logInfo } from "../utils/logger";
 
 /**
+ * Hard timeout for a single tool execution (5 minutes).
+ * Prevents the loop from hanging indefinitely on stuck tool calls (e.g. runTerminal waiting on stdin).
+ */
+const TOOL_EXECUTION_TIMEOUT_MS = 300_000;
+
+/**
  * Tools that require explicit user confirmation before execution.
  */
 const DESTRUCTIVE_TOOLS = ["writeFile", "Write", "runTerminal", "Bash", "Edit"] as const;
-const MCP_DESTRUCTIVE_KEYWORDS = ["write", "delete", "remove", "create", "execute", "run"] as const;
+const MCP_DESTRUCTIVE_KEYWORDS = [
+  "write", "delete", "remove", "create", "execute", "run",
+  "truncate", "drop", "overwrite", "update", "patch",
+  "destroy", "insert", "modify", "deploy", "push", "migrate",
+] as const;
 
 const DESTRUCTIVE_TOOL_SET = new Set<string>(DESTRUCTIVE_TOOLS);
 
@@ -237,6 +247,8 @@ export class AgentLoop extends EventEmitter {
     const prefs = await loadAgentPreferences(this.workspaceRoot);
     this.hitlPersistedDestructive = prefs?.hitl.destructiveTools ?? "confirm_each";
     this.agentPreferencesBlock = formatAgentPreferencesPromptBlock(prefs);
+    // Load config once per run — avoids repeated disk reads inside createStream / resolveParsedToolCalls
+    const runConfig = await loadConfig();
     const mergedTools = this.mergeTools(tools, options.mcpTools ?? []);
     const history = [...messages];
     const toolsByName = new Map<string, AgentTool>(mergedTools.map((tool) => [tool.name, tool]));
@@ -275,7 +287,7 @@ export class AgentLoop extends EventEmitter {
         let streamAttempt = 0;
         while (true) {
           try {
-            const stream = await this.createStream(history, mergedTools);
+            const stream = await this.createStream(history, mergedTools, runConfig);
             for await (const chunk of stream) {
               if (this.runAbort?.signal.aborted) {
                 break;
@@ -307,7 +319,7 @@ export class AgentLoop extends EventEmitter {
         completedLlmRounds += 1;
 
         const assistantContent = assistantTextParts.join("");
-        const toolCalls = await this.resolveParsedToolCalls(pendingToolCalls, toolsByName);
+        const toolCalls = await this.resolveParsedToolCalls(pendingToolCalls, toolsByName, runConfig);
 
         void logDebug(`LLM round ${completedLlmRounds} finished | toolCalls=${toolCalls.length} textLen=${assistantContent.length}`);
 
@@ -368,7 +380,20 @@ export class AgentLoop extends EventEmitter {
           let serializedResult: string;
           let fileDiffPayload: FileDiffPayload | undefined;
           try {
-            const result = await tool.execute(toolCall.arguments);
+            const result = await Promise.race([
+              tool.execute(toolCall.arguments),
+              new Promise<never>((_, reject) =>
+                setTimeout(
+                  () =>
+                    reject(
+                      new Error(
+                        `Tool "${toolCall.name}" excedeu o limite de ${TOOL_EXECUTION_TIMEOUT_MS / 1000}s`,
+                      ),
+                    ),
+                  TOOL_EXECUTION_TIMEOUT_MS,
+                ),
+              ),
+            ]);
             serializedResult = serializeToolResult(result);
             fileDiffPayload = extractFileDiffPayload(result);
             void logDebug(`Tool ${toolCall.name} succeeded | resultLen=${serializedResult.length}`);
@@ -416,15 +441,18 @@ export class AgentLoop extends EventEmitter {
       this.runOptions = {};
       this.workspaceSkillsBlock = "";
       this.agentPreferencesBlock = "";
+      // Clear cached client so the next run picks up fresh config (API key, model changes)
+      this.client = null;
+      this.model = null;
+      this.visionModel = null;
     }
   }
 
   /**
    * Creates one streaming completion request to OpenRouter.
    */
-  private async createStream(messages: Message[], tools: AgentTool[]) {
+  private async createStream(messages: Message[], tools: AgentTool[], config: CappyConfig) {
     const { client, model, visionModel } = await this.getClientAndModel();
-    const config = await loadConfig();
     const contextWindow =
       typeof config.openrouter.contextWindowTokens === "number" && config.openrouter.contextWindowTokens >= 4096
         ? config.openrouter.contextWindowTokens
@@ -548,7 +576,7 @@ export class AgentLoop extends EventEmitter {
     } catch (error) {
       const errorMessage = asError(error).message;
       if (errorMessage.includes("image input") || errorMessage.includes("image_url")) {
-        this.emitEvent("stream:token", "\n> ⚠️ Modelo de visão não suporta imagens. Enviando apenas texto.\n\n");
+        this.emitEvent("stream:system", "Modelo de visão não suporta imagens. Enviando apenas texto.");
         const stripped = validMessages.map(stripImages);
         return client.chat.completions.create({
           model,
@@ -558,7 +586,7 @@ export class AgentLoop extends EventEmitter {
         });
       }
       if (errorMessage.includes("tool use") || errorMessage.includes("tool_use")) {
-        this.emitEvent("stream:token", `\n> ⚠️ Modelo \`${selectedModel}\` não suporta tools. Reenviando com modelo principal.\n\n`);
+        this.emitEvent("stream:system", `Modelo \`${selectedModel}\` não suporta tools. Reenviando com modelo principal.`);
         const stripped = validMessages.map(stripImages);
         return client.chat.completions.create({
           model,
@@ -686,9 +714,9 @@ export class AgentLoop extends EventEmitter {
   private async resolveParsedToolCalls(
     pendingToolCalls: Map<number, PendingToolCallState>,
     toolsByName: Map<string, AgentTool>,
+    config: CappyConfig,
   ): Promise<ToolCall[]> {
     const orderedEntries = [...pendingToolCalls.entries()].sort(([a], [b]) => a - b);
-    const config = await loadConfig();
     const allowLlmRecovery = config.agent.recoverToolArgumentsWithLlm !== false && !this.runOptions.silent;
 
     let cachedClient: { client: OpenAI; model: string } | null = null;
@@ -865,14 +893,54 @@ export async function runAgentLoop(messages: Message[], tools: ToolDefinition[])
 }
 
 /**
- * Removes orphan tool messages (missing tool_call_id) and their
- * corresponding assistant tool_calls entries from history.
- * This prevents API errors when history is carried across sessions.
+ * Removes inconsistencies from the message history to prevent API 400 errors.
+ * Handles three cases:
+ * 1. Tool messages without tool_call_id (orphan results).
+ * 2. Tool results whose tool_call_id has no corresponding call in any assistant message.
+ * 3. Tool calls in assistant messages that have no corresponding tool result (e.g. after
+ *    a HITL rejection mid-batch — the assistant message was pushed before confirmation).
  */
 function sanitizeHistory(messages: Message[]): Message[] {
+  // Collect IDs that have a tool result in history
+  const resolvedIds = new Set<string>();
+  for (const msg of messages) {
+    if (msg.role === "tool" && msg.tool_call_id) {
+      resolvedIds.add(msg.tool_call_id);
+    }
+  }
+  // Collect IDs that are referenced by assistant tool_calls
+  const requestedIds = new Set<string>();
+  for (const msg of messages) {
+    if (msg.role === "assistant" && msg.tool_calls) {
+      for (const tc of msg.tool_calls) {
+        requestedIds.add(tc.id);
+      }
+    }
+  }
+
   const result: Message[] = [];
   for (const msg of messages) {
+    // Drop orphan tool messages (no tool_call_id)
     if (msg.role === "tool" && !msg.tool_call_id) {
+      continue;
+    }
+    // Drop tool results whose call doesn't exist in any assistant message
+    if (msg.role === "tool" && msg.tool_call_id && !requestedIds.has(msg.tool_call_id)) {
+      continue;
+    }
+    // For assistant messages: strip tool_calls that were never resolved (rejected / aborted mid-batch)
+    if (msg.role === "assistant" && msg.tool_calls && msg.tool_calls.length > 0) {
+      const completeCalls = msg.tool_calls.filter((tc) => resolvedIds.has(tc.id));
+      if (completeCalls.length === 0) {
+        // No completed calls — keep message text but drop the tool_calls array
+        const { tool_calls: _dropped, ...rest } = msg;
+        result.push(rest as Message);
+      } else if (completeCalls.length !== msg.tool_calls.length) {
+        // Partial completion — keep only the resolved calls
+        result.push({ ...msg, tool_calls: completeCalls });
+      } else {
+        result.push(msg);
+      }
       continue;
     }
     result.push(msg);
