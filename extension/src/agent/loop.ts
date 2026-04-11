@@ -44,6 +44,7 @@ import {
   type AgentPreferences,
 } from "./agentPreferences";
 import { loadWorkspaceSkillsPrompt } from "./workspaceSkills";
+import { buildWorkspaceTreePromptBlock } from "./workspaceTree";
 import { logDebug, logError, logInfo } from "../utils/logger";
 
 /**
@@ -63,6 +64,20 @@ const MCP_DESTRUCTIVE_KEYWORDS = [
 ] as const;
 
 const DESTRUCTIVE_TOOL_SET = new Set<string>(DESTRUCTIVE_TOOLS);
+
+/**
+ * Tools that are safe to execute in parallel (no side-effects on workspace state).
+ * For MCP tools the heuristic is: not matching any MCP_DESTRUCTIVE_KEYWORDS.
+ */
+const READONLY_TOOL_NAMES = new Set<string>([
+  "Read", "readFile",
+  "Glob", "globFiles",
+  "listDir",
+  "Grep", "searchCode",
+  "ListSkills", "ReadSkill",
+  "WebFetch", "WebSearch",
+  "ExploreAgent",
+]);
 
 /**
  * Injected while plan mode is active (OpenClaude-style EnterPlanMode).
@@ -150,6 +165,9 @@ export class AgentLoop extends EventEmitter {
 
   /** Bloco injectado com `.cappy/agent-preferences.json`. */
   private agentPreferencesBlock = "";
+
+  /** Árvore compacta do workspace injectada no system prompt (apenas runs não-silenciosos). */
+  private workspaceTreeBlock = "";
 
   /** Política lida do disco no início de cada `run()` (prompt do modelo). A auto-aprovação na UI é responsabilidade do webview. */
   private hitlPersistedDestructive: AgentPreferences["hitl"]["destructiveTools"] = "confirm_each";
@@ -243,6 +261,12 @@ export class AgentLoop extends EventEmitter {
     this.runOptions = options;
     this.runAbort = new AbortController();
     this.workspaceSkillsBlock = await loadWorkspaceSkillsPrompt(this.workspaceRoot);
+    // Build workspace tree only for interactive runs — subagents skip this to save tokens
+    if (!options.silent) {
+      this.workspaceTreeBlock = await buildWorkspaceTreePromptBlock(this.workspaceRoot);
+    } else {
+      this.workspaceTreeBlock = "";
+    }
     await ensureDefaultAgentPreferencesFile(this.workspaceRoot);
     const prefs = await loadAgentPreferences(this.workspaceRoot);
     this.hitlPersistedDestructive = prefs?.hitl.destructiveTools ?? "confirm_each";
@@ -254,6 +278,8 @@ export class AgentLoop extends EventEmitter {
     const toolsByName = new Map<string, AgentTool>(mergedTools.map((tool) => [tool.name, tool]));
     // Case-insensitive index for models that emit lowercase tool names (e.g. "edit" instead of "Edit")
     const toolsByLowerName = new Map<string, AgentTool>(mergedTools.map((tool) => [tool.name.toLowerCase(), tool]));
+    /** Per-run cache for readonly tool results. Keyed by "toolName:stableArgs". Cleared after any destructive tool. */
+    const toolResultCache = new Map<string, string>();
     const maxRounds = options.maxLlmRounds;
     let completedLlmRounds = 0;
 
@@ -339,48 +365,40 @@ export class AgentLoop extends EventEmitter {
         });
 
         let wasRejected = false;
+
+        // Validation pass: resolve canonical tool names before any execution
         for (const toolCall of toolCalls) {
           const tool = toolsByName.get(toolCall.name) ?? toolsByLowerName.get(toolCall.name.toLowerCase());
           if (!tool) {
             throw new Error(`Tool "${toolCall.name}" nao esta registrada.`);
           }
-          // Normalize to the canonical registered name
           toolCall.name = tool.name;
+        }
 
-          if (this.isDestructiveTool(toolCall.name)) {
-            const approved = await this.confirm(toolCall);
-            if (!approved) {
-              this.emitEvent("tool:rejected", toolCall);
-              wasRejected = true;
-              break;
-            }
-          }
+        // All-readonly batch with no parse errors → execute in parallel
+        const batchIsAllReadonly =
+          toolCalls.length > 1 &&
+          toolCalls.every((tc) => !tc.argumentsParseError && this.isReadonlyTool(tc.name));
 
-          if (toolCall.argumentsParseError) {
-            const snippet = truncateToolArgsSnippet(toolCall.rawArgumentsText ?? "", 4_000);
-            const parseFailContent = [
-              `[Erro de argumentos para tool "${toolCall.name}"]`,
-              toolCall.argumentsParseError,
-              "",
-              "--- Argumentos brutos (fragmento) ---",
-              snippet,
-            ].join("\n");
+        if (batchIsAllReadonly) {
+          // Pre-check cache per slot so cache hits resolve immediately without I/O
+          const cachedBySlot: (string | null)[] = toolCalls.map(
+            (tc) => toolResultCache.get(`${tc.name}:${stableJsonKey(tc.arguments)}`) ?? null,
+          );
+
+          // Emit tool:executing for all tools in order before any execution starts
+          for (const toolCall of toolCalls) {
             this.emitEvent("tool:executing", toolCall);
-            this.emitEvent("tool:result", toolCall, parseFailContent, undefined);
-            history.push({
-              role: "tool",
-              content: parseFailContent,
-              tool_call_id: toolCall.id,
-            });
-            continue;
+            void logDebug(`Executing tool (parallel): ${toolCall.name} id=${toolCall.id}`);
           }
 
-          this.emitEvent("tool:executing", toolCall);
-          void logDebug(`Executing tool: ${toolCall.name} id=${toolCall.id}`);
-          let serializedResult: string;
-          let fileDiffPayload: FileDiffPayload | undefined;
-          try {
-            const result = await Promise.race([
+          // Launch all executions concurrently; cache hits resolve synchronously
+          const execPromises = toolCalls.map((toolCall, i) => {
+            if (cachedBySlot[i] !== null) {
+              return Promise.resolve(cachedBySlot[i] as unknown);
+            }
+            const tool = toolsByName.get(toolCall.name)!;
+            return Promise.race([
               tool.execute(toolCall.arguments),
               new Promise<never>((_, reject) =>
                 setTimeout(
@@ -394,20 +412,108 @@ export class AgentLoop extends EventEmitter {
                 ),
               ),
             ]);
-            serializedResult = serializeToolResult(result);
-            fileDiffPayload = extractFileDiffPayload(result);
-            void logDebug(`Tool ${toolCall.name} succeeded | resultLen=${serializedResult.length}`);
-          } catch (execError) {
-            serializedResult = `[Erro ao executar tool "${toolCall.name}"] ${asError(execError).message}`;
-            fileDiffPayload = undefined;
-            logError(`Tool ${toolCall.name} failed: ${asError(execError).message}`);
-          }
-          this.emitEvent("tool:result", toolCall, serializedResult, fileDiffPayload);
-          history.push({
-            role: "tool",
-            content: serializedResult,
-            tool_call_id: toolCall.id,
           });
+
+          // allSettled preserves index order → history integrity is maintained
+          const settlements = await Promise.allSettled(execPromises);
+
+          for (let i = 0; i < toolCalls.length; i++) {
+            const toolCall = toolCalls[i]!;
+            const settlement = settlements[i]!;
+            let serializedResult: string;
+            let fileDiffPayload: FileDiffPayload | undefined;
+            if (settlement.status === "fulfilled") {
+              if (cachedBySlot[i] !== null) {
+                serializedResult = cachedBySlot[i]!;
+                void logDebug(`Tool ${toolCall.name} cache hit (parallel)`);
+              } else {
+                serializedResult = serializeToolResult(settlement.value);
+                fileDiffPayload = extractFileDiffPayload(settlement.value);
+                toolResultCache.set(`${toolCall.name}:${stableJsonKey(toolCall.arguments)}`, serializedResult);
+                void logDebug(`Tool ${toolCall.name} succeeded | resultLen=${serializedResult.length}`);
+              }
+            } else {
+              serializedResult = `[Erro ao executar tool "${toolCall.name}"] ${asError(settlement.reason).message}`;
+              logError(`Tool ${toolCall.name} failed: ${asError(settlement.reason).message}`);
+            }
+            this.emitEvent("tool:result", toolCall, serializedResult, fileDiffPayload);
+            history.push({ role: "tool", content: serializedResult, tool_call_id: toolCall.id });
+          }
+        } else {
+          // Sequential path — original logic with cache support
+          for (const toolCall of toolCalls) {
+            if (this.isDestructiveTool(toolCall.name)) {
+              const approved = await this.confirm(toolCall);
+              if (!approved) {
+                this.emitEvent("tool:rejected", toolCall);
+                wasRejected = true;
+                break;
+              }
+            }
+
+            if (toolCall.argumentsParseError) {
+              const snippet = truncateToolArgsSnippet(toolCall.rawArgumentsText ?? "", 4_000);
+              const parseFailContent = [
+                `[Erro de argumentos para tool "${toolCall.name}"]`,
+                toolCall.argumentsParseError,
+                "",
+                "--- Argumentos brutos (fragmento) ---",
+                snippet,
+              ].join("\n");
+              this.emitEvent("tool:executing", toolCall);
+              this.emitEvent("tool:result", toolCall, parseFailContent, undefined);
+              history.push({ role: "tool", content: parseFailContent, tool_call_id: toolCall.id });
+              continue;
+            }
+
+            // Check cache for readonly tools before executing
+            const cacheKey = `${toolCall.name}:${stableJsonKey(toolCall.arguments)}`;
+            const cachedResult = this.isReadonlyTool(toolCall.name) ? toolResultCache.get(cacheKey) : undefined;
+
+            this.emitEvent("tool:executing", toolCall);
+            void logDebug(`Executing tool: ${toolCall.name} id=${toolCall.id}`);
+            let serializedResult: string;
+            let fileDiffPayload: FileDiffPayload | undefined;
+
+            if (cachedResult !== undefined) {
+              void logDebug(`Tool ${toolCall.name} cache hit`);
+              serializedResult = cachedResult;
+            } else {
+              const tool = toolsByName.get(toolCall.name)!;
+              try {
+                const result = await Promise.race([
+                  tool.execute(toolCall.arguments),
+                  new Promise<never>((_, reject) =>
+                    setTimeout(
+                      () =>
+                        reject(
+                          new Error(
+                            `Tool "${toolCall.name}" excedeu o limite de ${TOOL_EXECUTION_TIMEOUT_MS / 1000}s`,
+                          ),
+                        ),
+                      TOOL_EXECUTION_TIMEOUT_MS,
+                    ),
+                  ),
+                ]);
+                serializedResult = serializeToolResult(result);
+                fileDiffPayload = extractFileDiffPayload(result);
+                void logDebug(`Tool ${toolCall.name} succeeded | resultLen=${serializedResult.length}`);
+                if (this.isReadonlyTool(toolCall.name)) {
+                  toolResultCache.set(cacheKey, serializedResult);
+                } else {
+                  // Any destructive tool invalidates the entire cache to prevent stale reads
+                  toolResultCache.clear();
+                }
+              } catch (execError) {
+                serializedResult = `[Erro ao executar tool "${toolCall.name}"] ${asError(execError).message}`;
+                fileDiffPayload = undefined;
+                logError(`Tool ${toolCall.name} failed: ${asError(execError).message}`);
+              }
+            }
+
+            this.emitEvent("tool:result", toolCall, serializedResult, fileDiffPayload);
+            history.push({ role: "tool", content: serializedResult, tool_call_id: toolCall.id });
+          }
         }
 
         if (wasRejected) {
@@ -441,6 +547,7 @@ export class AgentLoop extends EventEmitter {
       this.runOptions = {};
       this.workspaceSkillsBlock = "";
       this.agentPreferencesBlock = "";
+      this.workspaceTreeBlock = "";
       // Clear cached client so the next run picks up fresh config (API key, model changes)
       this.client = null;
       this.model = null;
@@ -635,13 +742,18 @@ export class AgentLoop extends EventEmitter {
     const plan =
       !this.runOptions.ignorePlanMode && getPlanMode() ? [{ role: "system" as const, content: PLAN_MODE_SYSTEM_PROMPT }] : [];
     const extra = prefix && prefix.length > 0 ? [{ role: "system" as const, content: prefix }] : [];
+    const workspaceTree: ChatCompletionMessageParam[] =
+      this.workspaceTreeBlock.length > 0
+        ? [{ role: "system", content: this.workspaceTreeBlock }]
+        : [];
     if (
       modeSystem.length === 0 &&
       workspaceSkills.length === 0 &&
       agentPreferences.length === 0 &&
       compactionSystem.length === 0 &&
       extra.length === 0 &&
-      plan.length === 0
+      plan.length === 0 &&
+      workspaceTree.length === 0
     ) {
       return core;
     }
@@ -652,6 +764,7 @@ export class AgentLoop extends EventEmitter {
       ...compactionSystem,
       ...extra,
       ...plan,
+      ...workspaceTree,
       ...core,
     ];
   }
@@ -823,6 +936,18 @@ export class AgentLoop extends EventEmitter {
 
     const normalizedToolName = toolName.toLowerCase();
     return MCP_DESTRUCTIVE_KEYWORDS.some((keyword) => normalizedToolName.includes(keyword));
+  }
+
+  /**
+   * Returns true when the tool has no side-effects and is safe to run in parallel / cache.
+   * For MCP tools: readonly if not matching any destructive keyword.
+   */
+  private isReadonlyTool(toolName: string): boolean {
+    if (READONLY_TOOL_NAMES.has(toolName)) {
+      return true;
+    }
+    // MCP tools: readonly if not destructive
+    return !this.isDestructiveTool(toolName);
   }
 
   /**
@@ -1040,6 +1165,24 @@ function toChatTool(tool: AgentTool): ChatCompletionTool {
  */
 function formatMcpToolName(serverName: string, toolName: string): string {
   return `${serverName}__${toolName}`;
+}
+
+/**
+ * Produces a deterministic JSON key for tool arguments by sorting object keys recursively.
+ * Ensures {a:1,b:2} and {b:2,a:1} map to the same cache key.
+ */
+function stableJsonKey(args: Record<string, unknown>): string {
+  const sortKeys = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+      return value.map(sortKeys);
+    }
+    if (value !== null && typeof value === "object") {
+      const obj = value as Record<string, unknown>;
+      return Object.fromEntries(Object.keys(obj).sort().map((k) => [k, sortKeys(obj[k])]));
+    }
+    return value;
+  };
+  return JSON.stringify(sortKeys(args));
 }
 
 /**

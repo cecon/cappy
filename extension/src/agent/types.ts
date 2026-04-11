@@ -72,4 +72,9 @@ export interface AgentTool {
   description: string;
   parameters: ToolJsonSchema;
   execute: (params: Record<string, unknown>) => Promise<unknown>;
+  /**
+   * When true, the tool has no side-effects on workspace state.
+   * Readonly tools may be executed in parallel and their results cached within a run.
+   */
+  readonly?: boolean;
 }
