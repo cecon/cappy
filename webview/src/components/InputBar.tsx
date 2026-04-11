@@ -7,7 +7,7 @@ import {
   Paper,
   Popover,
   Progress,
-  SegmentedControl,
+  Select,
   Stack,
   Text,
   Textarea,
@@ -31,6 +31,14 @@ interface InputBarProps {
   onRemoveContextFile: (path: string) => void;
   /** Estimativa do host; quando ausente, usa limite por defeito. */
   contextUsage: ContextUsageSnapshot | null;
+  /** Modelo OpenRouter actual (`openrouter.model` em `~/.cappy/config.json`). */
+  selectedModel: string;
+  /** IDs disponíveis no select (API + fallback + modelo actual se ausente da lista). */
+  modelOptions: string[];
+  /** Chamado ao escolher outro modelo; o pai grava a config. */
+  onModelChange: (modelId: string) => void;
+  /** Enquanto a config inicial não chegou do host. */
+  configReady?: boolean;
 }
 
 const MODE_ITEMS: { id: ChatUiMode; label: string; hint: string }[] = [
@@ -69,6 +77,10 @@ export function InputBar({
   onAddContextFile,
   onRemoveContextFile,
   contextUsage,
+  selectedModel,
+  modelOptions,
+  onModelChange,
+  configReady = true,
 }: InputBarProps): JSX.Element {
   const [value, setValue] = useState("");
   const [chatMode, setChatMode] = useState<ChatUiMode>("agent");
@@ -212,9 +224,14 @@ export function InputBar({
     return file.path.toLowerCase().includes(atToken.toLowerCase());
   });
 
-  const modeSegmentData = useMemo(
+  const modeSelectData = useMemo(
     () => MODE_ITEMS.map((item) => ({ label: item.label, value: item.id })),
     [],
+  );
+
+  const modelSelectData = useMemo(
+    () => modelOptions.map((id) => ({ value: id, label: id })),
+    [modelOptions],
   );
 
   return (
@@ -405,22 +422,56 @@ export function InputBar({
           ) : null}
 
           <Group
-            justify="space-between"
             align="center"
-            gap="sm"
-            wrap="wrap"
+            gap={6}
+            wrap="nowrap"
             p={6}
-            style={{ borderTop: `1px solid ${cappyPalette.borderSubtle}` }}
+            style={{
+              borderTop: `1px solid ${cappyPalette.borderSubtle}`,
+              minWidth: 0,
+              overflow: "hidden",
+            }}
           >
-            <SegmentedControl
+            <Select
               size="xs"
+              w={92}
+              style={{ flexShrink: 0 }}
+              data={modeSelectData}
               value={chatMode}
-              onChange={(v) => setChatMode(v as ChatUiMode)}
-              data={modeSegmentData}
+              onChange={(value) => {
+                if (value === "plain" || value === "agent" || value === "ask") {
+                  setChatMode(value);
+                }
+              }}
+              disabled={isStreaming}
               aria-label="Modo do chat"
+              comboboxProps={{ withinPortal: true }}
+            />
+            <Select
+              size="xs"
+              style={{ flex: "1 1 0", minWidth: 0 }}
+              styles={{
+                input: {
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                },
+              }}
+              data={modelSelectData}
+              value={selectedModel}
+              onChange={(value) => {
+                if (value !== null && value.length > 0) {
+                  onModelChange(value);
+                }
+              }}
+              disabled={!configReady || isStreaming}
+              searchable
+              nothingFoundMessage="Nenhum modelo"
+              aria-label="Modelo OpenRouter"
+              comboboxProps={{ withinPortal: true }}
             />
 
-            <Group gap={5} wrap="nowrap" ml="auto">
+            <Group gap={5} wrap="nowrap" style={{ flexShrink: 0 }}>
               <Popover
                 width={260}
                 position="top-end"
@@ -483,39 +534,33 @@ export function InputBar({
               </ActionIcon>
 
               {isStreaming ? (
-                <Button
+                <ActionIcon
                   type="button"
-                  size="xs"
+                  size="md"
                   variant="filled"
                   color="red"
-                  leftSection={
-                    <svg viewBox="0 0 24 24" aria-hidden="true" width={14} height={14}>
-                      <rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" />
-                    </svg>
-                  }
                   aria-label="Parar resposta"
                   onClick={handleActionButton}
                 >
-                  Parar
-                </Button>
+                  <svg viewBox="0 0 24 24" aria-hidden="true" width={14} height={14}>
+                    <rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" />
+                  </svg>
+                </ActionIcon>
               ) : (
-                <Button
+                <ActionIcon
                   type="button"
-                  size="xs"
+                  size="md"
                   variant={isSendState ? "filled" : "light"}
                   color="ideAccent"
                   disabled={!isSendState}
-                  leftSection={
-                    <svg viewBox="0 0 24 24" aria-hidden="true" width={14} height={14}>
-                      <path d="M12 18V6" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
-                      <path d="M7 11l5-5l5 5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
-                    </svg>
-                  }
                   aria-label="Enviar mensagem"
                   onClick={handleActionButton}
                 >
-                  Enviar
-                </Button>
+                  <svg viewBox="0 0 24 24" aria-hidden="true" width={14} height={14}>
+                    <path d="M12 18V6" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+                    <path d="M7 11l5-5l5 5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+                  </svg>
+                </ActionIcon>
               )}
             </Group>
           </Group>

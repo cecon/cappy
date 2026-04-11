@@ -1,10 +1,13 @@
 import {
   Button,
+  Code,
   Divider,
   Group,
+  Modal,
   NumberInput,
   Paper,
   PasswordInput,
+  ScrollArea,
   Select,
   Stack,
   Text,
@@ -14,31 +17,85 @@ import {
 } from "@mantine/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { AGENT_PROMPTS } from "../lib/agent-presets";
+import { FALLBACK_MODEL_OPTIONS, loadOpenRouterModels } from "../lib/openrouter-models";
 import { getBridge, type IncomingMessage } from "../lib/vscode-bridge";
-import type { ActiveAgent, CappyConfig } from "../lib/types";
+import type { CappyConfig } from "../lib/types";
 import { cappyPalette } from "../theme";
 
 const bridge = getBridge();
 const SAVE_SUCCESS_MS = 2000;
-const OPENROUTER_MODELS_ENDPOINT = "https://openrouter.ai/api/v1/models";
-const FALLBACK_MODEL_OPTIONS = [
-  "openai/gpt-oss-120b",
-  "anthropic/claude-opus-4-5",
-  "openai/gpt-4o",
-  "openai/gpt-4o-mini",
-  "google/gemini-2.0-flash-001",
-  "meta-llama/llama-3.3-70b-instruct",
-  "deepseek/deepseek-r1",
-] as const;
-const AGENT_OPTIONS: ActiveAgent[] = ["coder", "planner", "reviewer"];
-const AGENT_PROMPTS: Record<ActiveAgent, string> = {
-  coder:
-    "You are Cappy, an expert coding assistant. You write clean, well-typed TypeScript and follow best practices.",
-  planner:
-    "You are Cappy, a technical planning assistant. You break down complex tasks into clear steps, create structured plans, and document decisions.",
-  reviewer:
-    "You are Cappy, a code review assistant. You identify bugs, suggest improvements, enforce best practices, and explain your reasoning.",
-};
+
+type TestResult =
+  | { status: "success"; model: string; reply: string; latencyMs: number }
+  | { status: "error"; model: string; apiKey: string; errorMessage: string; detail: string };
+
+/**
+ * Chama a API OpenRouter com "olá" e retorna o resultado do teste.
+ */
+async function runConnectionTest(apiKey: string, model: string): Promise<TestResult> {
+  const start = Date.now();
+  const maskedKey = apiKey.length > 8 ? `${apiKey.slice(0, 4)}…${apiKey.slice(-4)}` : "****";
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: "olá" }],
+        max_tokens: 64,
+      }),
+    });
+    const payload = (await response.json()) as unknown;
+    if (!response.ok) {
+      const errMsg =
+        typeof payload === "object" &&
+        payload !== null &&
+        "error" in payload &&
+        typeof (payload as Record<string, unknown>).error === "object"
+          ? JSON.stringify((payload as Record<string, unknown>).error, null, 2)
+          : JSON.stringify(payload, null, 2);
+      return {
+        status: "error",
+        model,
+        apiKey: maskedKey,
+        errorMessage: `HTTP ${String(response.status)} ${response.statusText}`,
+        detail: errMsg,
+      };
+    }
+    const choice =
+      typeof payload === "object" &&
+      payload !== null &&
+      "choices" in payload &&
+      Array.isArray((payload as Record<string, unknown>).choices)
+        ? ((payload as Record<string, unknown>).choices as unknown[])[0]
+        : null;
+    const reply =
+      typeof choice === "object" &&
+      choice !== null &&
+      "message" in choice &&
+      typeof (choice as Record<string, unknown>).message === "object"
+        ? ((choice as Record<string, unknown>).message as Record<string, unknown>).content
+        : null;
+    return {
+      status: "success",
+      model,
+      reply: typeof reply === "string" ? reply : "(sem resposta textual)",
+      latencyMs: Date.now() - start,
+    };
+  } catch (err) {
+    return {
+      status: "error",
+      model,
+      apiKey: maskedKey,
+      errorMessage: err instanceof Error ? err.message : String(err),
+      detail: "",
+    };
+  }
+}
 
 /**
  * Returns local default config while host data has not loaded yet.
@@ -76,6 +133,8 @@ export function ConfigPanel(): JSX.Element {
   const [isAddingServer, setIsAddingServer] = useState(false);
   const [newServerName, setNewServerName] = useState("");
   const [newServerUrl, setNewServerUrl] = useState("");
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
   const saveFeedbackTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -144,10 +203,6 @@ export function ConfigPanel(): JSX.Element {
     () => availableVisionModelOptions.map((m) => ({ value: m, label: m })),
     [availableVisionModelOptions],
   );
-  const agentSelectData = useMemo(
-    () => AGENT_OPTIONS.map((a) => ({ value: a, label: a })),
-    [],
-  );
 
   useEffect(() => {
     let isDisposed = false;
@@ -178,6 +233,17 @@ export function ConfigPanel(): JSX.Element {
       isDisposed = true;
     };
   }, []);
+
+  /**
+   * Testa a conexão com a OpenRouter enviando "olá".
+   */
+  async function handleTest(): Promise<void> {
+    setIsTesting(true);
+    setTestResult(null);
+    const result = await runConnectionTest(config.openrouter.apiKey, config.openrouter.model);
+    setTestResult(result);
+    setIsTesting(false);
+  }
 
   /**
    * Persists the current in-memory config through bridge.
@@ -227,6 +293,61 @@ export function ConfigPanel(): JSX.Element {
 
   return (
     <Stack gap="md" h="100%" style={{ overflow: "auto" }}>
+      <Modal
+        opened={testResult !== null}
+        onClose={() => setTestResult(null)}
+        title={
+          testResult?.status === "success" ? (
+            <Text fw={600} c="teal.4">Conexão bem-sucedida</Text>
+          ) : (
+            <Text fw={600} c="red.4">Falha na conexão</Text>
+          )
+        }
+        size="lg"
+        centered
+        withinPortal
+      >
+        {testResult?.status === "success" ? (
+          <Stack gap="sm">
+            <Group gap="xs">
+              <Text size="sm" c="dimmed">Modelo:</Text>
+              <Text size="sm" fw={500}>{testResult.model}</Text>
+            </Group>
+            <Group gap="xs">
+              <Text size="sm" c="dimmed">Latência:</Text>
+              <Text size="sm" fw={500}>{testResult.latencyMs}ms</Text>
+            </Group>
+            <Text size="sm" c="dimmed" mt={4}>Resposta:</Text>
+            <Paper p="sm" radius="sm" withBorder bg={cappyPalette.bgSurface}>
+              <Text size="sm" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                {testResult.reply}
+              </Text>
+            </Paper>
+          </Stack>
+        ) : testResult?.status === "error" ? (
+          <Stack gap="sm">
+            <Group gap="xs">
+              <Text size="sm" c="dimmed">Modelo:</Text>
+              <Text size="sm" fw={500}>{testResult.model}</Text>
+            </Group>
+            <Group gap="xs">
+              <Text size="sm" c="dimmed">API Key:</Text>
+              <Text size="sm" fw={500} ff="monospace">{testResult.apiKey}</Text>
+            </Group>
+            <Text size="sm" c="red.4" fw={500}>{testResult.errorMessage}</Text>
+            {testResult.detail.length > 0 ? (
+              <>
+                <Text size="xs" c="dimmed">Detalhe:</Text>
+                <ScrollArea h={160}>
+                  <Code block style={{ fontSize: 11, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                    {testResult.detail}
+                  </Code>
+                </ScrollArea>
+              </>
+            ) : null}
+          </Stack>
+        ) : null}
+      </Modal>
       <Paper p="md" radius="md" withBorder>
         <Title order={2} size="h4" mb="sm">
           Configurações
@@ -287,6 +408,18 @@ export function ConfigPanel(): JSX.Element {
             </Text>
           ) : null}
 
+          <Button
+            type="button"
+            size="xs"
+            variant="light"
+            color="ideAccent"
+            loading={isTesting}
+            disabled={isLoading || isSaving || config.openrouter.apiKey.trim().length === 0}
+            onClick={() => { void handleTest(); }}
+          >
+            {isTesting ? "Testando..." : "Testar conexão"}
+          </Button>
+
           <Select
             label="Modelo de visão"
             id="openrouter-vision-model"
@@ -313,29 +446,6 @@ export function ConfigPanel(): JSX.Element {
           Agent
         </Title>
         <Stack gap="sm">
-          <Select
-            label="Agente ativo"
-            id="agent-active-agent"
-            data={agentSelectData}
-            value={config.agent.activeAgent}
-            onChange={(value) => {
-              const nextAgent = parseActiveAgent(value);
-              if (!nextAgent) {
-                return;
-              }
-              setConfig((previousConfig) => ({
-                ...previousConfig,
-                agent: {
-                  ...previousConfig.agent,
-                  activeAgent: nextAgent,
-                  systemPrompt: AGENT_PROMPTS[nextAgent],
-                },
-              }));
-            }}
-            disabled={isLoading || isSaving}
-            w="100%"
-          />
-
           <Textarea
             label="System prompt"
             id="agent-system-prompt"
@@ -507,72 +617,4 @@ function clampNumber(rawValue: string | number, min: number, max: number, fallba
     return max;
   }
   return t;
-}
-
-/**
- * Parses one string value as ActiveAgent.
- */
-function parseActiveAgent(value: string | null): ActiveAgent | null {
-  if (value === "coder" || value === "planner" || value === "reviewer") {
-    return value;
-  }
-  return null;
-}
-
-interface LoadOpenRouterModelsCallbacks {
-  onStart: () => void;
-  onSuccess: (models: string[]) => void;
-  onError: () => void;
-  onFinally: () => void;
-}
-
-/**
- * Loads model IDs from OpenRouter public models endpoint.
- */
-async function loadOpenRouterModels(callbacks: LoadOpenRouterModelsCallbacks): Promise<void> {
-  callbacks.onStart();
-  try {
-    const response = await fetch(OPENROUTER_MODELS_ENDPOINT);
-    if (!response.ok) {
-      callbacks.onError();
-      return;
-    }
-    const payload = (await response.json()) as unknown;
-    const models = extractModelIds(payload);
-    if (models.length === 0) {
-      callbacks.onError();
-      return;
-    }
-    callbacks.onSuccess(models);
-  } catch {
-    callbacks.onError();
-  } finally {
-    callbacks.onFinally();
-  }
-}
-
-/**
- * Extracts and sorts model IDs from unknown API payload.
- */
-function extractModelIds(payload: unknown): string[] {
-  if (!isRecord(payload) || !Array.isArray(payload.data)) {
-    return [];
-  }
-  const modelIds = payload.data
-    .map((model) => {
-      if (!isRecord(model) || typeof model.id !== "string") {
-        return null;
-      }
-      return model.id;
-    })
-    .filter((modelId): modelId is string => Boolean(modelId));
-  const uniqueModelIds = Array.from(new Set(modelIds));
-  return uniqueModelIds.sort((left, right) => left.localeCompare(right));
-}
-
-/**
- * Narrows unknown values to plain object records.
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

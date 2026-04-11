@@ -6,6 +6,8 @@ import remarkGfm from "remark-gfm";
 import type { Message } from "../lib/types";
 import { mergeFileDiffsForDisplay } from "../lib/mergeFileDiffs";
 import { cappyPalette } from "../theme";
+import { CodeBlock } from "./CodeBlock";
+import { CopyButton } from "./CopyButton";
 import { FileDiffMini } from "./FileDiffMini";
 import styles from "./MessageList.module.css";
 
@@ -32,6 +34,7 @@ export function MessageList({ messages, isStreaming }: MessageListProps): JSX.El
             <Box
               key={`user-${String(gi)}`}
               component="article"
+              className={styles.messageWrapper ?? ""}
               style={{ alignSelf: "flex-end", maxWidth: "min(92%, 100%)" }}
             >
               <Stack gap={4} align="flex-end">
@@ -66,6 +69,9 @@ export function MessageList({ messages, isStreaming }: MessageListProps): JSX.El
                     </Text>
                   </Stack>
                 </Paper>
+                <Box className={styles.copyRowUser ?? ""}>
+                  <CopyButton value={group.message.content} />
+                </Box>
               </Stack>
             </Box>
           );
@@ -74,7 +80,13 @@ export function MessageList({ messages, isStreaming }: MessageListProps): JSX.El
           return <ToolGroup key={`tools-${String(gi)}`} messages={group.messages} />;
         }
         return (
-          <Box key={`assistant-${String(gi)}`} component="article" w="100%" style={{ alignSelf: "flex-start" }}>
+          <Box
+            key={`assistant-${String(gi)}`}
+            component="article"
+            w="100%"
+            className={styles.messageWrapper ?? ""}
+            style={{ alignSelf: "flex-start" }}
+          >
             <Stack gap={4} align="flex-start">
               <Text size="10px" tt="uppercase" lts={0.6} c="dimmed">
                 Assistant
@@ -94,13 +106,21 @@ export function MessageList({ messages, isStreaming }: MessageListProps): JSX.El
               >
                 <Group gap={6} align="flex-end" wrap="nowrap" style={{ minWidth: 0 }}>
                   <Box className={styles.markdown ?? ""} style={{ flex: 1, minWidth: 0 }}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{group.message.content}</ReactMarkdown>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{ pre: CodeBlock }}
+                    >
+                      {group.message.content}
+                    </ReactMarkdown>
                   </Box>
                   {isStreaming && group.originalIndex === lastAssistantMessageIndex ? (
                     <span className={styles.cursor} aria-hidden="true" />
                   ) : null}
                 </Group>
               </Paper>
+              <Box className={styles.copyRowAssistant ?? ""}>
+                <CopyButton value={group.message.content} />
+              </Box>
             </Stack>
           </Box>
         );
@@ -150,23 +170,30 @@ function ToolGroup({ messages }: { messages: Message[] }): JSX.Element {
         </Group>
       </Button>
       {expanded ? (
-        <Paper withBorder radius="sm" p={0} style={{ maxHeight: 200, overflow: "auto", background: cappyPalette.bgSunken }}>
+        <Paper withBorder radius="sm" p={0} style={{ maxHeight: 80, overflow: "auto", background: cappyPalette.bgSunken }}>
           {messages.map((msg, i) => (
-            <Text
+            <Box
               key={i}
-              component="pre"
-              size="xs"
-              c="dimmed"
-              p="sm"
-              style={{
-                margin: 0,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-all",
-                borderBottom: `1px solid ${cappyPalette.borderSubtle}`,
-              }}
+              className={styles.toolItem ?? ""}
             >
-              {msg.content}
-            </Text>
+              <Text
+                component="pre"
+                size="xs"
+                c="dimmed"
+                p="sm"
+                style={{
+                  margin: 0,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-all",
+                  flex: 1,
+                }}
+              >
+                {msg.content}
+              </Text>
+              <Box className={styles.toolCopyBtn ?? ""}>
+                <CopyButton value={msg.content} />
+              </Box>
+            </Box>
           ))}
         </Paper>
       ) : null}

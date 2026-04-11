@@ -11,12 +11,14 @@ import {
   type SetStateAction,
 } from "react";
 
+import { FALLBACK_MODEL_OPTIONS, loadOpenRouterModels } from "../lib/openrouter-models";
 import { getBridge, type HitlUiPolicy, type IncomingMessage } from "../lib/vscode-bridge";
 import { isTerminalHitlPresentation } from "../lib/hitlPresentation";
 import { CAPPY_NEW_SESSION_EVENT } from "../lib/session-events";
 import type {
   ChatUiMode,
   ContextUsageSnapshot,
+  CappyConfig,
   FileDiffPayload,
   ImageAttachment,
   Message,
@@ -67,6 +69,10 @@ export function Chat(): JSX.Element {
   const [contextUsage, setContextUsage] = useState<ContextUsageSnapshot | null>(null);
   /** Incrementado em nova sessão para remontar o `InputBar` (limpa rascunho, anexos locais, modo). */
   const [draftSessionKey, setDraftSessionKey] = useState(0);
+  /** Config carregada do host (modelo no input, etc.). */
+  const [runtimeConfig, setRuntimeConfig] = useState<CappyConfig | null>(null);
+  /** IDs para o select de modelo (OpenRouter API + fallback). */
+  const [modelOptionsList, setModelOptionsList] = useState<string[]>([...FALLBACK_MODEL_OPTIONS]);
   /** Eco textual do mesmo `exec` usado pelas tools Bash/runTerminal (painel terminal). */
   const [agentShellLog, setAgentShellLog] = useState("");
   /** Política HITL do host: a UI auto-envia `tool:approve` quando `allow_all` ou sessão «aprovar todos». */
@@ -92,12 +98,44 @@ export function Chat(): JSX.Element {
         setContextUsage,
         setContextFiles,
         setAgentShellLog,
+        setRuntimeConfig,
         hitlPolicyRef,
         autoApproveHitl,
       );
     });
     return unsubscribe;
   }, [autoApproveHitl]);
+
+  useEffect(() => {
+    bridge.send({ type: "config:load" });
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    void loadOpenRouterModels({
+      onStart: () => {},
+      onSuccess: (models) => {
+        if (!disposed) {
+          setModelOptionsList(models);
+        }
+      },
+      onError: () => {
+        /* mantém FALLBACK_MODEL_OPTIONS já em modelOptionsList */
+      },
+      onFinally: () => {},
+    });
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  const availableChatModelOptions = useMemo(() => {
+    const current = runtimeConfig?.openrouter.model ?? "openai/gpt-oss-120b";
+    if (modelOptionsList.includes(current)) {
+      return modelOptionsList;
+    }
+    return [current, ...modelOptionsList];
+  }, [modelOptionsList, runtimeConfig?.openrouter.model]);
 
   useEffect(() => {
     const onNewSession = (): void => {
@@ -247,8 +285,35 @@ export function Chat(): JSX.Element {
     setContextFiles((previousFiles) => previousFiles.filter((file) => file.path !== path));
   }
 
+  /**
+   * Persiste `openrouter.model` ao mudar o select de modelo no input.
+   */
+  const handleModelChange = useCallback((modelId: string): void => {
+    setRuntimeConfig((previousConfig) => {
+      if (!previousConfig) {
+        return previousConfig;
+      }
+      const updated: CappyConfig = {
+        ...previousConfig,
+        openrouter: { ...previousConfig.openrouter, model: modelId },
+      };
+      bridge.send({ type: "config:save", config: updated });
+      return updated;
+    });
+  }, []);
+
   return (
-    <Stack gap={0} h="100%" style={{ minHeight: 0, minWidth: 0 }} justify="space-between">
+    <Stack
+      gap={0}
+      h="100%"
+      style={{
+        minHeight: 0,
+        minWidth: "var(--cappy-chat-min-width, 400px)",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+      justify="space-between"
+    >
       <Box
         ref={messagesScrollRef}
         flex={1}
@@ -351,6 +416,10 @@ export function Chat(): JSX.Element {
             onAddContextFile={handleAddContextFile}
             onRemoveContextFile={handleRemoveContextFile}
             contextUsage={contextUsage}
+            selectedModel={runtimeConfig?.openrouter.model ?? "openai/gpt-oss-120b"}
+            modelOptions={availableChatModelOptions}
+            onModelChange={handleModelChange}
+            configReady={runtimeConfig !== null}
           />
         </Box>
       </Stack>
@@ -402,9 +471,20 @@ function handleIncomingMessage(
   setContextUsage: Dispatch<SetStateAction<ContextUsageSnapshot | null>>,
   setContextFiles: Dispatch<SetStateAction<ContextFile[]>>,
   setAgentShellLog: Dispatch<SetStateAction<string>>,
+  setRuntimeConfig: Dispatch<SetStateAction<CappyConfig | null>>,
   hitlPolicyRef: MutableRefObject<HitlUiPolicy>,
   autoApproveHitl: (toolCallId: string) => void,
 ): void {
+  if (message.type === "config:loaded") {
+    setRuntimeConfig(message.config);
+    return;
+  }
+
+  if (message.type === "config:saved") {
+    bridge.send({ type: "config:load" });
+    return;
+  }
+
   if (message.type === "session:cleared") {
     setMessages([]);
     setPendingConfirms([]);

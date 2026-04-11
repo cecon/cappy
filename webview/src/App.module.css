@@ -5,6 +5,8 @@
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
+  /** Sobrescreve no host se quiseres outro mínimo para o painel do chat. */
+  --cappy-chat-min-width: 400px;
 }
 
 .shellBrowser {
@@ -76,5 +78,10 @@
   min-width: 0;
   width: 100%;
   padding: 12px 10px 10px;
-  overflow: hidden;
+  /**
+   * Com `min-width` no painel do chat (ver `Chat.tsx`), painéis mais estreitos que esse
+   * mínimo passam a ter scroll horizontal em vez de comprimir a UI.
+   */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
