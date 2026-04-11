@@ -45,6 +45,7 @@ import {
 } from "./agentPreferences";
 import { loadWorkspaceSkillsPrompt } from "./workspaceSkills";
 import { buildWorkspaceTreePromptBlock } from "./workspaceTree";
+import { buildKnowledgePromptBlock } from "./knowledgeBase";
 import { logDebug, logError, logInfo } from "../utils/logger";
 
 /**
@@ -75,6 +76,7 @@ const READONLY_TOOL_NAMES = new Set<string>([
   "listDir",
   "Grep", "searchCode",
   "ListSkills", "ReadSkill",
+  "ListKnowledge", "ReadKnowledge",
   "WebFetch", "WebSearch",
   "ExploreAgent",
 ]);
@@ -169,6 +171,9 @@ export class AgentLoop extends EventEmitter {
   /** Árvore compacta do workspace injectada no system prompt (apenas runs não-silenciosos). */
   private workspaceTreeBlock = "";
 
+  /** Catálogo compacto de Knowledge Items injectado no system prompt (apenas runs não-silenciosos). */
+  private workspaceKnowledgeBlock = "";
+
   /** Política lida do disco no início de cada `run()` (prompt do modelo). A auto-aprovação na UI é responsabilidade do webview. */
   private hitlPersistedDestructive: AgentPreferences["hitl"]["destructiveTools"] = "confirm_each";
 
@@ -261,11 +266,13 @@ export class AgentLoop extends EventEmitter {
     this.runOptions = options;
     this.runAbort = new AbortController();
     this.workspaceSkillsBlock = await loadWorkspaceSkillsPrompt(this.workspaceRoot);
-    // Build workspace tree only for interactive runs — subagents skip this to save tokens
+    // Build workspace tree and knowledge catalog only for interactive runs — subagents skip this to save tokens
     if (!options.silent) {
       this.workspaceTreeBlock = await buildWorkspaceTreePromptBlock(this.workspaceRoot);
+      this.workspaceKnowledgeBlock = await buildKnowledgePromptBlock(this.workspaceRoot);
     } else {
       this.workspaceTreeBlock = "";
+      this.workspaceKnowledgeBlock = "";
     }
     await ensureDefaultAgentPreferencesFile(this.workspaceRoot);
     const prefs = await loadAgentPreferences(this.workspaceRoot);
@@ -548,6 +555,7 @@ export class AgentLoop extends EventEmitter {
       this.workspaceSkillsBlock = "";
       this.agentPreferencesBlock = "";
       this.workspaceTreeBlock = "";
+      this.workspaceKnowledgeBlock = "";
       // Clear cached client so the next run picks up fresh config (API key, model changes)
       this.client = null;
       this.model = null;
@@ -746,9 +754,14 @@ export class AgentLoop extends EventEmitter {
       this.workspaceTreeBlock.length > 0
         ? [{ role: "system", content: this.workspaceTreeBlock }]
         : [];
+    const knowledge: ChatCompletionMessageParam[] =
+      this.workspaceKnowledgeBlock.length > 0
+        ? [{ role: "system", content: this.workspaceKnowledgeBlock }]
+        : [];
     if (
       modeSystem.length === 0 &&
       workspaceSkills.length === 0 &&
+      knowledge.length === 0 &&
       agentPreferences.length === 0 &&
       compactionSystem.length === 0 &&
       extra.length === 0 &&
@@ -760,6 +773,7 @@ export class AgentLoop extends EventEmitter {
     return [
       ...modeSystem,
       ...workspaceSkills,
+      ...knowledge,
       ...agentPreferences,
       ...compactionSystem,
       ...extra,

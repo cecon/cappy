@@ -26,4 +26,9 @@ export interface ToolDefinition<TParams = any, TResult = unknown> {
   description: string;
   parameters: JsonSchema;
   execute: (params: TParams) => Promise<TResult>;
+  /**
+   * When true, the tool has no side-effects on workspace state.
+   * Readonly tools may be executed in parallel and their results cached within a run.
+   */
+  readonly?: boolean;
 }
