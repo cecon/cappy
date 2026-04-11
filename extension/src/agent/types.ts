@@ -43,6 +43,8 @@ export interface Message {
 export interface AgentEvents {
   "stream:token": (token: string) => void;
   "stream:done": () => void;
+  /** Non-persisted system notice (e.g. model fallback warnings). Not stored in message history. */
+  "stream:system": (message: string) => void;
   "context:usage": (payload: import("./contextBudget").ContextUsagePayload) => void;
   "tool:confirm": (toolCall: ToolCall) => void;
   "tool:executing": (toolCall: ToolCall) => void;

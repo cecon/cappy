@@ -40,6 +40,8 @@ export type OutgoingMessage =
 export type IncomingMessage =
   | { type: "stream:token"; token: string }
   | { type: "stream:done" }
+  /** Non-persisted system notice (model fallback warnings, etc.). Not stored in message history. */
+  | { type: "stream:system"; message: string }
   /** Dev (cli-mock): estado local do chat reposto sem reload da página. */
   | { type: "session:cleared" }
   | { type: "tool:confirm"; toolCall: ToolCall }
@@ -306,6 +308,10 @@ function isIncomingMessage(value: unknown): value is IncomingMessage {
 
   if (value.type === "stream:done") {
     return true;
+  }
+
+  if (value.type === "stream:system") {
+    return typeof value.message === "string";
   }
 
   if (value.type === "session:cleared") {
