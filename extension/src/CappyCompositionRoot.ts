@@ -81,7 +81,17 @@ export function createCappyBridge(
       watcher.onDidCreate((uri) => { void ragIndexer.indexFile(uri.fsPath); });
       watcher.onDidDelete((uri) => { void ragIndexer.removeFile(uri.fsPath); });
 
-      disposables.push(watcher, new vscode.Disposable(() => ragIndexer.dispose()));
+      // Re-index after git operations (merge, checkout, rebase, pull).
+      // .git/index changes on every commit/merge/checkout; HEAD changes on branch switch.
+      // Both together cover all cases that bulk-modify workspace files.
+      const gitWatcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(workspaceRoot, ".git/{HEAD,index}"),
+      );
+      const onGitChange = debounce(() => { void ragIndexer.indexAll(); }, 2000);
+      gitWatcher.onDidChange(onGitChange);
+      gitWatcher.onDidCreate(onGitChange);
+
+      disposables.push(watcher, gitWatcher, new vscode.Disposable(() => ragIndexer.dispose()));
     }
   });
 
@@ -266,3 +276,12 @@ function parseChatMode(v: unknown): ChatUiMode {
 
 function post(webview: vscode.Webview, m: Record<string, unknown>): void { void webview.postMessage(m); }
 function isRecord(v: unknown): v is Record<string, unknown> { return typeof v === "object" && v !== null; }
+
+/** Returns a debounced version of `fn` that delays invocation by `ms` milliseconds. */
+function debounce(fn: () => void, ms: number): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = setTimeout(() => { timer = undefined; fn(); }, ms);
+  };
+}

@@ -58,6 +58,10 @@ export interface RagIndexSnapshot {
   dimensions: number;
   files: Record<string, IndexedFileEntry>; // key = absolute filePath
   chunks: IndexedChunk[];
+  /** Last git commit SHA that was fully indexed (used for smart git-diff delta). */
+  lastIndexedHeadSha?: string;
+  /** Branch name at last full index (branch switch triggers full re-index). */
+  lastIndexedBranch?: string;
 }
 
 /** A single hit returned by the ragSearch tool. */

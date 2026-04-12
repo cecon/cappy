@@ -15,6 +15,7 @@ import * as vscode from "vscode";
 
 import { extractSymbols } from "./AstSymbolExtractor";
 import { EmbeddingService } from "./EmbeddingService";
+import { getCurrentBranch, getChangedFiles, readHeadSha } from "./GitHeadTracker";
 import { regexChunk } from "./RegexChunker";
 import { VectorStore } from "./VectorStore";
 import type { AstSymbol, IndexedChunk, RagConfig } from "./types";
@@ -59,8 +60,14 @@ export class RagIndexer {
   // ── Public indexing API ────────────────────────────────────────────────────
 
   /**
-   * Full workspace scan. Skips files whose content hash hasn't changed.
-   * Removes index entries for files that no longer exist.
+   * Smart workspace scan triggered by the git watcher (HEAD/index changes).
+   *
+   * Strategy:
+   *  1. Read current HEAD SHA and branch name.
+   *  2. If the branch changed OR oldSha is unknown → full scan (O(workspace)).
+   *  3. If same branch and oldSha is known → git diff delta (O(changed files only)).
+   *  4. Always prune stale entries and persist the new HEAD SHA.
+   *
    * Safe to call without await — errors are logged, not thrown.
    */
   async indexAll(): Promise<void> {
@@ -70,34 +77,91 @@ export class RagIndexer {
 
       // If the embedding model changed, wipe the entire index.
       if (this.store.modelChanged(this.config.embeddingModel, this.config.dimensions)) {
-        logInfo("[RAG] Embedding model changed — clearing index.");
-        // Re-create store to clear all state.
-        await this.store.load(); // reload clears only via model change guard — handled in indexFile loops
+        logInfo("[RAG] Embedding model changed — full re-index.");
+        await this.fullScan();
+        return;
       }
 
-      const files = await this.discoverFiles();
-      const existingPaths = new Set(this.store.getAllIndexedPaths());
+      const currentSha = await readHeadSha(this.workspaceRoot);
+      const currentBranch = await getCurrentBranch(this.workspaceRoot);
+      const previousSha = this.store.lastIndexedHeadSha;
+      const previousBranch = this.store.lastIndexedBranch;
 
-      for (const filePath of files) {
+      // Same commit as last index — nothing to do.
+      if (currentSha !== null && currentSha === previousSha) {
+        logInfo("[RAG] HEAD unchanged — skipping re-index.");
+        return;
+      }
+
+      // Branch switch or no prior SHA → full scan to handle file additions/deletions.
+      const branchChanged = currentBranch !== previousBranch;
+      if (branchChanged || previousSha === undefined || currentSha === null) {
+        logInfo(`[RAG] ${branchChanged ? "Branch changed" : "No prior SHA"} — full scan.`);
+        await this.fullScan(currentSha ?? undefined, currentBranch ?? undefined);
+        return;
+      }
+
+      // Same branch, known previous SHA → delta via git diff.
+      const changedFiles = await getChangedFiles(
+        this.workspaceRoot,
+        previousSha,
+        this.config.includeExtensions,
+      );
+
+      if (changedFiles.length === 0) {
+        // git diff returned nothing (e.g. only non-indexed files changed).
+        logInfo("[RAG] Git delta — no indexed files changed.");
+        this.store.lastIndexedHeadSha = currentSha;
+        await this.store.save(this.config.embeddingModel, this.config.dimensions);
+        return;
+      }
+
+      logInfo(`[RAG] Git delta — re-indexing ${changedFiles.length} changed file(s).`);
+      for (const filePath of changedFiles) {
         if (this.cancelled) break;
         try {
           await this.indexFileIfChanged(filePath);
         } catch (err) {
           logError(`[RAG] Failed to index ${filePath}: ${String(err)}`);
         }
-        existingPaths.delete(filePath);
       }
 
-      // Remove entries for deleted files.
-      for (const stale of existingPaths) {
-        this.store.deleteFileEntry(stale);
-      }
-
+      this.store.lastIndexedHeadSha = currentSha;
+      if (currentBranch !== null) this.store.lastIndexedBranch = currentBranch;
       await this.store.save(this.config.embeddingModel, this.config.dimensions);
-      logInfo(`[RAG] Index complete — ${this.store.chunkCount} chunks / ${this.store.fileCount} files.`);
+      logInfo(`[RAG] Delta complete — ${this.store.chunkCount} chunks / ${this.store.fileCount} files.`);
     } catch (err) {
       logError(`[RAG] indexAll failed: ${String(err)}`);
     }
+  }
+
+  /**
+   * Full workspace scan (O(workspace)). Re-indexes every file whose hash
+   * has changed; removes stale entries for deleted files.
+   */
+  private async fullScan(headSha?: string, branch?: string): Promise<void> {
+    const files = await this.discoverFiles();
+    const existingPaths = new Set(this.store.getAllIndexedPaths());
+
+    for (const filePath of files) {
+      if (this.cancelled) break;
+      try {
+        await this.indexFileIfChanged(filePath);
+      } catch (err) {
+        logError(`[RAG] Failed to index ${filePath}: ${String(err)}`);
+      }
+      existingPaths.delete(filePath);
+    }
+
+    // Remove entries for deleted files.
+    for (const stale of existingPaths) {
+      this.store.deleteFileEntry(stale);
+    }
+
+    if (headSha !== undefined) this.store.lastIndexedHeadSha = headSha;
+    if (branch !== undefined) this.store.lastIndexedBranch = branch;
+    await this.store.save(this.config.embeddingModel, this.config.dimensions);
+    logInfo(`[RAG] Full scan complete — ${this.store.chunkCount} chunks / ${this.store.fileCount} files.`);
   }
 
   /**

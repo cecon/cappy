@@ -15,8 +15,16 @@ export class VectorStore {
   private files: Record<string, IndexedFileEntry> = {};
   private embeddingModel = "";
   private dimensions = 512;
+  private _lastIndexedHeadSha: string | undefined = undefined;
+  private _lastIndexedBranch: string | undefined = undefined;
 
   constructor(private readonly workspaceRoot: string) {}
+
+  get lastIndexedHeadSha(): string | undefined { return this._lastIndexedHeadSha; }
+  set lastIndexedHeadSha(sha: string | undefined) { this._lastIndexedHeadSha = sha; }
+
+  get lastIndexedBranch(): string | undefined { return this._lastIndexedBranch; }
+  set lastIndexedBranch(branch: string | undefined) { this._lastIndexedBranch = branch; }
 
   // ── Persistence ────────────────────────────────────────────────────────────
 
@@ -30,6 +38,8 @@ export class VectorStore {
         this.files = snapshot.files;
         this.embeddingModel = snapshot.embeddingModel;
         this.dimensions = snapshot.dimensions;
+        this._lastIndexedHeadSha = snapshot.lastIndexedHeadSha;
+        this._lastIndexedBranch = snapshot.lastIndexedBranch;
       }
     } catch {
       // File does not exist yet — start with empty index.
@@ -45,6 +55,8 @@ export class VectorStore {
       dimensions,
       files: this.files,
       chunks: this.chunks,
+      ...(this._lastIndexedHeadSha !== undefined ? { lastIndexedHeadSha: this._lastIndexedHeadSha } : {}),
+      ...(this._lastIndexedBranch !== undefined ? { lastIndexedBranch: this._lastIndexedBranch } : {}),
     };
     await writeFile(indexPath, `${JSON.stringify(snapshot)}\n`, "utf8");
   }
