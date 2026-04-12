@@ -19,6 +19,8 @@ export interface RunAgentInput {
   ignorePlanMode?: boolean;
   /** Maximum LLM rounds; undefined = unlimited. */
   maxLlmRounds?: number;
+  /** Injected workspace skills prompt (loaded per-request by the bridge). */
+  workspaceSkillsPrompt?: string;
 }
 
 // ── Events emitted during a run ────────────────────────────────────────────

@@ -86,7 +86,7 @@ export class ExecuteToolUseCase {
     const fileDiff = extractFileDiff(result);
     this.logger.debug(`Tool ${toolCall.name} succeeded | resultLen=${serialized.length}`);
 
-    return { serialized, fileDiff };
+    return { serialized, ...(fileDiff !== undefined ? { fileDiff } : {}) };
   }
 }
 

@@ -10,8 +10,8 @@ import {
   DEFAULT_RESERVED_OUTPUT_TOKENS,
   AUTOCOMPACT_BUFFER_TOKENS,
   SYSTEM_PROMPT_OVERHEAD_TOKENS,
-} from "../agent/contextBudget.ts";
-import type { Message } from "../agent/types.ts";
+} from "../agent/contextBudget";
+import type { Message } from "../agent/types";
 
 describe("estimateTextTokens", () => {
   it("retorna 0 para string vazia", () => {

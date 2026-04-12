@@ -119,23 +119,26 @@ function mergeConfig(raw: unknown): CappyConfig {
       apiKey: typeof or.apiKey === "string" ? or.apiKey : DEFAULT_CONFIG.openrouter.apiKey,
       model: typeof or.model === "string" ? or.model : DEFAULT_CONFIG.openrouter.model,
       visionModel: typeof or.visionModel === "string" ? or.visionModel : DEFAULT_CONFIG.openrouter.visionModel,
-      contextWindowTokens:
-        typeof or.contextWindowTokens === "number" && or.contextWindowTokens >= 4096
-          ? or.contextWindowTokens
-          : DEFAULT_CONFIG.openrouter.contextWindowTokens,
-      reservedOutputTokens:
-        typeof or.reservedOutputTokens === "number" && or.reservedOutputTokens >= 512
-          ? or.reservedOutputTokens
-          : DEFAULT_CONFIG.openrouter.reservedOutputTokens,
+      ...(typeof or.contextWindowTokens === "number" && or.contextWindowTokens >= 4096
+        ? { contextWindowTokens: or.contextWindowTokens }
+        : DEFAULT_CONFIG.openrouter.contextWindowTokens !== undefined
+          ? { contextWindowTokens: DEFAULT_CONFIG.openrouter.contextWindowTokens }
+          : {}),
+      ...(typeof or.reservedOutputTokens === "number" && or.reservedOutputTokens >= 512
+        ? { reservedOutputTokens: or.reservedOutputTokens }
+        : DEFAULT_CONFIG.openrouter.reservedOutputTokens !== undefined
+          ? { reservedOutputTokens: DEFAULT_CONFIG.openrouter.reservedOutputTokens }
+          : {}),
     },
     agent: {
       activeAgent: isActiveAgent(ag.activeAgent) ? ag.activeAgent : DEFAULT_CONFIG.agent.activeAgent,
       systemPrompt: typeof ag.systemPrompt === "string" ? ag.systemPrompt : DEFAULT_CONFIG.agent.systemPrompt,
       maxIterations: typeof ag.maxIterations === "number" ? ag.maxIterations : DEFAULT_CONFIG.agent.maxIterations,
-      recoverToolArgumentsWithLlm:
-        typeof ag.recoverToolArgumentsWithLlm === "boolean"
-          ? ag.recoverToolArgumentsWithLlm
-          : DEFAULT_CONFIG.agent.recoverToolArgumentsWithLlm,
+      ...(typeof ag.recoverToolArgumentsWithLlm === "boolean"
+        ? { recoverToolArgumentsWithLlm: ag.recoverToolArgumentsWithLlm }
+        : DEFAULT_CONFIG.agent.recoverToolArgumentsWithLlm !== undefined
+          ? { recoverToolArgumentsWithLlm: DEFAULT_CONFIG.agent.recoverToolArgumentsWithLlm }
+          : {}),
     },
     mcp: {
       servers: servers
@@ -143,6 +146,10 @@ function mergeConfig(raw: unknown): CappyConfig {
         .map((s) => ({ name: typeof s.name === "string" ? s.name : "", url: typeof s.url === "string" ? s.url : "" }))
         .filter((s) => s.name && s.url),
     },
-    debug: typeof raw.debug === "boolean" ? raw.debug : DEFAULT_CONFIG.debug,
+    ...(typeof raw.debug === "boolean"
+      ? { debug: raw.debug }
+      : DEFAULT_CONFIG.debug !== undefined
+        ? { debug: DEFAULT_CONFIG.debug }
+        : {}),
   };
 }

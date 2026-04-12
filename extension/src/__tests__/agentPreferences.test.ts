@@ -9,7 +9,7 @@ import {
   formatAgentPreferencesPromptBlock,
   AGENT_PREFERENCES_RELATIVE,
   type AgentPreferences,
-} from "../agent/agentPreferences.ts";
+} from "../agent/agentPreferences";
 
 let tmpDir: string;
 

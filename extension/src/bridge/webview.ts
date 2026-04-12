@@ -23,6 +23,7 @@ import {
 export type HostToWebviewMessage =
   | { type: "stream:token"; token: string }
   | { type: "stream:done" }
+  | { type: "stream:system"; message: string }
   /** Eco do mesmo comando que o agente vai executar via Bash/runTerminal. */
   | { type: "agent:shell:start"; command: string; cwd?: string }
   /** Saída do mesmo `exec` que alimenta a tool (stdout/stderr). */

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   mergeNestedPatternArgs,
   coerceSearchPattern,
-} from "../tools/coercePattern.ts";
+} from "../tools/coercePattern";
 
 describe("mergeNestedPatternArgs", () => {
   it("retorna cópia do objeto quando não há chaves aninhadas", () => {

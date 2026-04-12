@@ -50,7 +50,7 @@ export function createCappyBridge(
   const session = new SessionContext();
   const mcpManager = new McpManager();
 
-  const agent = new RunAgentUseCase({ llm, configRepo, session, logger, workspaceRoot });
+  const agent = new RunAgentUseCase({ llm, configRepo, session, logger, ...(workspaceRoot !== undefined ? { workspaceRoot } : {}) });
   const tools = toolsRegistry as unknown as AgentTool[];
   const hitlState = { sessionAutoApprove: false };
   const disposables: vscode.Disposable[] = [];
@@ -188,7 +188,7 @@ async function handleChatSend(
     logInfo(`chat:send | mode=${mode} msgs=${messages.length} tools=${mergedTools.length}`);
     await agent.run(
       messages, mergedTools,
-      { chatMode: mode, silent: false, workspaceSkillsPrompt: skillsPrompt } as import("./application/dto/AgentDtos").RunAgentInput,
+      { messages, chatMode: mode, silent: false, workspaceSkillsPrompt: skillsPrompt },
       (event) => routeAgentEvent(event, webview, new VsCodeLogger()),
     );
   } catch (err) {

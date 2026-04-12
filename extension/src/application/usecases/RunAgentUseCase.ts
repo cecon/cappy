@@ -97,7 +97,7 @@ export class RunAgentUseCase {
           onEvent({ type: "context:usage", payload: this.budget.buildUsagePayload(history, ctxWin, resOut, droppedCount, didTrim) });
         }
 
-        const sysMessages = this.sysBuilder.build(input, this.deps.session, prefs, this.deps.workspaceSkillsPrompt ?? "");
+        const sysMessages = this.sysBuilder.build(input, this.deps.session, prefs, input.workspaceSkillsPrompt ?? this.deps.workspaceSkillsPrompt ?? "");
         const { textParts, pendingCalls } = await this.streamRound(compressed, tools, config, sysMessages, signal, onEvent, input.silent ?? false);
         completedRounds++;
 
@@ -126,7 +126,7 @@ export class RunAgentUseCase {
           );
 
           if (result.wasRejected) { onEvent({ type: "tool:rejected", toolCall }); rejected = true; break; }
-          onEvent({ type: "tool:result", toolCall, result: result.serialized, fileDiff: result.fileDiff });
+          onEvent({ type: "tool:result", toolCall, result: result.serialized, ...(result.fileDiff !== undefined ? { fileDiff: result.fileDiff } : {}) });
           history.push({ role: "tool", content: result.serialized, tool_call_id: toolCall.id });
         }
         if (rejected) { onEvent({ type: "stream:done" }); break; }
@@ -190,7 +190,7 @@ export class RunAgentUseCase {
           else { args = {}; parseError = errMsg; }
         } else { args = {}; parseError = errMsg; }
       }
-      result.push({ id: p.id, name: p.name, arguments: args, argumentsParseError: parseError, rawArgumentsText: p.argsText });
+      result.push({ id: p.id, name: p.name, arguments: args, rawArgumentsText: p.argsText, ...(parseError !== undefined ? { argumentsParseError: parseError } : {}) });
     }
     return result;
   }

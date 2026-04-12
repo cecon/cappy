@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { recoverToolArgumentsWithLlm } from "../agent/toolArgumentRecovery.ts";
+import { recoverToolArgumentsWithLlm } from "../agent/toolArgumentRecovery";
 import type OpenAI from "openai";
 
 function makeClient(responseContent: string | null): OpenAI {

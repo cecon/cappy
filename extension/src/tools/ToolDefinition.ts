@@ -28,13 +28,13 @@ export interface JsonSchema {
  *   external side effects. Used by HitlPolicyService; eliminates DESTRUCTIVE_TOOLS lists.
  * - `readOnly` — true for tools safe in Ask mode (read, glob, grep, web fetch).
  */
-export interface ToolDefinition<TParams = Record<string, unknown>, TResult = unknown> {
+export interface ToolDefinition<TParams = any, TResult = unknown> {
   name: string;
   description: string;
   parameters: JsonSchema;
   /** Whether this tool writes files, runs shell, or has external side effects. */
-  destructive: boolean;
+  destructive?: boolean;
   /** Whether this tool is purely read-only (allowed in Ask mode). */
-  readOnly: boolean;
+  readOnly?: boolean;
   execute: (params: TParams) => Promise<TResult>;
 }

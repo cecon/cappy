@@ -4,8 +4,8 @@ import {
   summarizeDroppedMessagesForMainAgent,
   MIN_DROPPED_TOKENS_TO_SUMMARIZE,
   MAX_CONTEXT_SANITIZE_ITERATIONS,
-} from "../agent/contextSanitize.ts";
-import type { Message } from "../agent/types.ts";
+} from "../agent/contextSanitize";
+import type { Message } from "../agent/types";
 import type OpenAI from "openai";
 
 describe("serializeMessagesForSummary", () => {
