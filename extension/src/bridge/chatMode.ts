@@ -21,6 +21,8 @@ const ASK_ALLOWED_TOOL_NAMES = new Set<string>([
   "TodoWrite",
   "ListSkills",
   "ReadSkill",
+  "MemoryList",
+  "MemoryRead",
   "EnterPlanMode",
   "ExitPlanMode",
 ]);

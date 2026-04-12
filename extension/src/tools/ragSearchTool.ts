@@ -10,6 +10,7 @@ import path from "node:path";
 
 import type { ToolDefinition } from "./ToolDefinition";
 import type { RagSearchMatch } from "../rag/types";
+import { tokenizeForLexical } from "../rag/lexicalTokenizer";
 import { getWorkspaceRoot } from "./workspacePath";
 
 // The RagIndexer singleton is set by CappyCompositionRoot after it creates one.
@@ -117,7 +118,8 @@ export const ragSearchTool: ToolDefinition<RagSearchParams, RagSearchResult> = {
       };
     }
 
-    let results = store.search(queryEmbedding, topK, minSimilarity);
+    const queryTokens = tokenizeForLexical(params.query);
+    let results = store.search(queryEmbedding, topK, minSimilarity, queryTokens);
 
     // Apply optional file pattern filter.
     if (params.filePattern) {

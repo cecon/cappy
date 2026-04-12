@@ -42,6 +42,8 @@ export interface IndexedChunk {
   content: string;
   /** L2-normalised embedding vector (cosine = dot product when normalised). */
   embedding: number[];
+  /** Deduplicated lowercase tokens for lexical (keyword) scoring. Generated at index time. */
+  lexicalTokens?: string[];
 }
 
 /** Per-file tracking entry for incremental re-indexing. */
@@ -72,6 +74,12 @@ export interface RagIndexSnapshot {
   lastIndexedHeadSha?: string;
   /** Branch name at last full index (branch switch triggers full re-index). */
   lastIndexedBranch?: string;
+  /**
+   * Inverted lexical index: token → chunkId[].
+   * Serialised as a plain object for JSON persistence; rebuilt to a Map<string, Set<number>>
+   * in VectorStore at load time. Absent in older snapshots — rebuilt from lexicalTokens then.
+   */
+  lexicalIndex?: Record<string, string[]>;
 }
 
 /** A single hit returned by the ragSearch tool. */

@@ -17,6 +17,7 @@ import { extractSymbols } from "./AstSymbolExtractor";
 import { extractRawEdges, resolveEdges } from "./AstGraphBuilder";
 import { EmbeddingService } from "./EmbeddingService";
 import { getCurrentBranch, getChangedFiles, readHeadSha } from "./GitHeadTracker";
+import { tokenizeForLexical } from "./lexicalTokenizer";
 import { regexChunk } from "./RegexChunker";
 import { VectorStore } from "./VectorStore";
 import type { AstEdge, AstSymbol, IndexedChunk, RagConfig } from "./types";
@@ -241,6 +242,7 @@ export class RagIndexer {
       symbolKind: sym.kindLabel,
       content: texts[i] ?? "",
       embedding: embeddings[i] ?? [],
+      lexicalTokens: tokenizeForLexical(texts[i] ?? ""),
     }));
 
     this.store.addChunks(chunks);

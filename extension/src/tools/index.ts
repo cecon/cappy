@@ -9,6 +9,8 @@ import { listDirTool } from "./listDir";
 import { enterPlanModeTool, exitPlanModeTool } from "./planModeTools";
 import { readFileTool, readOpenClaudeTool } from "./readFile";
 import { bashTool, runTerminalTool } from "./runTerminal";
+import { memoryDeleteTool, memoryListTool, memoryReadTool, memoryWriteTool } from "./memoryTools";
+import { ragSearchTool } from "./ragSearchTool";
 import { searchCodeTool } from "./searchCode";
 import { sendMessageTool } from "./sendMessageTool";
 import { createSkillTool, listSkillsTool, readSkillTool } from "./skillTools";
@@ -47,4 +49,9 @@ export const toolsRegistry: ToolDefinition<any, unknown>[] = [
   exitPlanModeTool,
   webFetchTool,
   webSearchTool,
+  ragSearchTool,
+  memoryListTool,
+  memoryReadTool,
+  memoryWriteTool,
+  memoryDeleteTool,
 ];

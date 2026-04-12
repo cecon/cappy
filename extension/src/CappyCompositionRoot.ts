@@ -12,13 +12,14 @@ import { JsonConfigAdapter } from "./adapters/config/JsonConfigAdapter";
 import { SessionContext } from "./domain/entities/SessionContext";
 import type { CappyConfig, ChatUiMode } from "./domain/entities/AgentConfig";
 import type { ILogger } from "./domain/ports/ILogger";
-import { toolsRegistry } from "./tools/registry";
+import { toolsRegistry } from "./tools/index";
 import { McpManager } from "./mcp/client";
 import { loadWorkspaceSkillsPrompt } from "./agent/workspaceSkills";
 import { routeAgentEvent } from "./bridge/AgentEventRouter";
 import { logError, logInfo, resetLoggerCache } from "./utils/logger";
 import { RagIndexer } from "./rag/RagIndexer";
 import { setRagIndexer } from "./tools/ragSearchTool";
+import { MemoryStore, setMemoryStore } from "./memory/MemoryStore";
 
 // ── VS Code logger adapter ─────────────────────────────────────────────────
 
@@ -56,6 +57,13 @@ export function createCappyBridge(
   const tools = toolsRegistry as unknown as AgentTool[];
   const hitlState = { sessionAutoApprove: false };
   const disposables: vscode.Disposable[] = [];
+
+  // ── Memory Store (always initialised when workspace is open) ────────────
+  if (workspaceRoot) {
+    const memoryStore = new MemoryStore();
+    setMemoryStore(memoryStore);
+    void memoryStore.ensureDefaults(workspaceRoot);
+  }
 
   // ── RAG indexer (background, only when enabled) ──────────────────────────
   void configRepo.loadConfig().then((config) => {
@@ -262,7 +270,7 @@ async function openFile(webview: vscode.Webview, relativePath: string): Promise<
   catch (e) { post(webview, { type: "error", message: e instanceof Error ? e.message : "Erro ao abrir ficheiro." }); }
 }
 
-const ASK_ALLOWED = new Set(["ExploreAgent","Read","readFile","Grep","Glob","globFiles","listDir","searchCode","ragSearch","webFetch","WebSearch","TodoWrite","ListSkills","ReadSkill","EnterPlanMode","ExitPlanMode"]);
+const ASK_ALLOWED = new Set(["ExploreAgent","Read","readFile","Grep","Glob","globFiles","listDir","searchCode","ragSearch","webFetch","WebSearch","TodoWrite","ListSkills","ReadSkill","MemoryList","MemoryRead","EnterPlanMode","ExitPlanMode"]);
 
 function filterByMode(mode: ChatUiMode, tools: AgentTool[]): AgentTool[] {
   if (mode === "plain") return [];
