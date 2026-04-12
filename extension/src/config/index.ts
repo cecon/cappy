@@ -91,7 +91,7 @@ export function defaultConfig(): CappyConfig {
       servers: [],
     },
     rag: {
-      enabled: false,
+      enabled: true,
       embeddingModel: "text-embedding-3-small",
       dimensions: 512,
       chunkMaxChars: 1500,

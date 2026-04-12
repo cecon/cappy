@@ -45,6 +45,7 @@ import {
   type AgentPreferences,
 } from "./agentPreferences";
 import { loadWorkspaceSkillsPrompt } from "./workspaceSkills";
+import { getMemoryStore, type MemoryFileSummary } from "../memory/MemoryStore";
 import { logDebug, logError, logInfo } from "../utils/logger";
 
 /**
@@ -56,7 +57,7 @@ const TOOL_EXECUTION_TIMEOUT_MS = 300_000;
 /**
  * Tools that require explicit user confirmation before execution.
  */
-const DESTRUCTIVE_TOOLS = ["writeFile", "Write", "runTerminal", "Bash", "Edit"] as const;
+const DESTRUCTIVE_TOOLS = ["writeFile", "Write", "runTerminal", "Bash", "Edit", "MemoryWrite", "MemoryDelete"] as const;
 const MCP_DESTRUCTIVE_KEYWORDS = [
   "write", "delete", "remove", "create", "execute", "run",
   "truncate", "drop", "overwrite", "update", "patch",
@@ -148,6 +149,9 @@ export class AgentLoop extends EventEmitter {
    * Bloco injectado a partir de `.cappy/skill` (ficheiros `.md`, recursivo; recarregado em cada `run()`).
    */
   private workspaceSkillsBlock = "";
+
+  /** Catálogo compacto dos ficheiros em `.cappy/memory/` (recarregado em cada `run()`). */
+  private memoryBlock = "";
 
   /** Bloco injectado com `.cappy/agent-preferences.json`. */
   private agentPreferencesBlock = "";
@@ -244,6 +248,7 @@ export class AgentLoop extends EventEmitter {
     this.runOptions = options;
     this.runAbort = new AbortController();
     this.workspaceSkillsBlock = await loadWorkspaceSkillsPrompt(this.workspaceRoot);
+    this.memoryBlock = await loadMemoryBlock(this.workspaceRoot);
     await ensureDefaultAgentPreferencesFile(this.workspaceRoot);
     const prefs = await loadAgentPreferences(this.workspaceRoot);
     this.hitlPersistedDestructive = prefs?.hitl.destructiveTools ?? "confirm_each";
@@ -449,6 +454,7 @@ export class AgentLoop extends EventEmitter {
       this.runAbort = null;
       this.runOptions = {};
       this.workspaceSkillsBlock = "";
+      this.memoryBlock = "";
       this.agentPreferencesBlock = "";
       // Clear cached client so the next run picks up fresh config (API key, model changes)
       this.client = null;
@@ -636,6 +642,10 @@ export class AgentLoop extends EventEmitter {
       this.workspaceSkillsBlock.length > 0
         ? [{ role: "system", content: this.workspaceSkillsBlock }]
         : [];
+    const memoryMessages: ChatCompletionMessageParam[] =
+      this.memoryBlock.length > 0
+        ? [{ role: "system", content: this.memoryBlock }]
+        : [];
     const agentPreferences: ChatCompletionMessageParam[] =
       this.agentPreferencesBlock.length > 0
         ? [{ role: "system", content: this.agentPreferencesBlock }]
@@ -647,6 +657,7 @@ export class AgentLoop extends EventEmitter {
     if (
       modeSystem.length === 0 &&
       workspaceSkills.length === 0 &&
+      memoryMessages.length === 0 &&
       agentPreferences.length === 0 &&
       compactionSystem.length === 0 &&
       extra.length === 0 &&
@@ -657,6 +668,7 @@ export class AgentLoop extends EventEmitter {
     return [
       ...modeSystem,
       ...workspaceSkills,
+      ...memoryMessages,
       ...agentPreferences,
       ...compactionSystem,
       ...extra,
@@ -871,6 +883,38 @@ export class AgentLoop extends EventEmitter {
     ...args: Parameters<AgentEvents[K]>
   ): void {
     super.emit(eventName, ...args);
+  }
+}
+
+/**
+ * Loads the compact memory catalog from `.cappy/memory/` and formats it as a system prompt block.
+ * Returns an empty string if no memory files exist or the MemoryStore is not initialised.
+ * Maximum 4 000 characters to avoid context bloat.
+ */
+async function loadMemoryBlock(workspaceRoot: string): Promise<string> {
+  try {
+    const entries: MemoryFileSummary[] = await getMemoryStore().list(workspaceRoot);
+    if (entries.length === 0) return "";
+
+    const MAX_CHARS = 4_000;
+    const header = [
+      "# Memória do projeto",
+      "Ficheiros em `.cappy/memory/`. Usa `MemoryRead` para conteúdo completo.",
+      "",
+      "| Ficheiro | Resumo |",
+      "|----------|--------|",
+    ].join("\n");
+
+    let out = header;
+    for (const entry of entries) {
+      const row = `\n| ${entry.name} | ${entry.summary.slice(0, 80)} |`;
+      if (out.length + row.length > MAX_CHARS) break;
+      out += row;
+    }
+    return out;
+  } catch {
+    // MemoryStore not initialised or workspace has no memory directory — silent fallback.
+    return "";
   }
 }
 
