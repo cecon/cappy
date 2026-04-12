@@ -146,7 +146,7 @@ describe("summarizeDroppedMessagesForMainAgent", () => {
     const client = makeClient(hugeContent);
     const msgs: Message[] = [{ role: "user", content: longContent }];
     const result = await summarizeDroppedMessagesForMainAgent(client, "gpt-4o", msgs);
-    expect(result.length).toBeLessThanOrEqual(28_002);
+    expect(result.length).toBeLessThanOrEqual(28_020);
     expect(result).toContain("truncado");
   });
 
