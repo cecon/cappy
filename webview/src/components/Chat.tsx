@@ -49,7 +49,10 @@ export function Chat(): JSX.Element {
   useLayoutEffect(() => {
     const el = messagesScrollRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom < 80) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [state.messages, state.isStreaming, state.pendingConfirms.length, state.activity?.primary, state.agentShellLog]);
 
   const elapsedSeconds = useMemo(() => {
