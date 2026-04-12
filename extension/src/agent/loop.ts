@@ -342,7 +342,15 @@ export class AgentLoop extends EventEmitter {
         for (const toolCall of toolCalls) {
           const tool = toolsByName.get(toolCall.name) ?? toolsByLowerName.get(toolCall.name.toLowerCase());
           if (!tool) {
-            throw new Error(`Tool "${toolCall.name}" nao esta registrada.`);
+            const notFoundMsg = `Tool "${toolCall.name}" nao esta registrada.`;
+            this.emitEvent("tool:executing", toolCall);
+            this.emitEvent("tool:result", toolCall, notFoundMsg, undefined);
+            history.push({
+              role: "tool",
+              content: notFoundMsg,
+              tool_call_id: toolCall.id,
+            });
+            continue;
           }
           // Normalize to the canonical registered name
           toolCall.name = tool.name;
