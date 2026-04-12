@@ -128,11 +128,44 @@ export const ragSearchTool: ToolDefinition<RagSearchParams, RagSearchResult> = {
       });
     }
 
+    // ── Graph expansion (1-hop) ──────────────────────────────────────────────
+    // For each file in the direct results, find neighbor files connected via
+    // import/extends/implements edges and include their best matching chunks.
+    const directFiles = new Set(results.map((r) => r.filePath));
+    const expandedMatches: Array<RagSearchMatch & { relPath: string }> = [];
+    const seenFiles = new Set(directFiles);
+
+    for (const filePath of directFiles) {
+      const neighbors = store.getNeighborFiles(filePath);    // outgoing (imports)
+      const importers = store.getImporterFiles(filePath);    // incoming (importers)
+      const candidates = [...neighbors, ...importers].filter((f) => !seenFiles.has(f));
+
+      // Limit: at most 3 neighbor files per direct-hit file.
+      for (const neighborFile of candidates.slice(0, 3)) {
+        seenFiles.add(neighborFile);
+        const neighborChunks = store.searchInFile(neighborFile, queryEmbedding, 2);
+        if (neighborChunks.length === 0) continue;
+
+        // Determine primary edge kind from direct file to this neighbor.
+        const kinds = store.getEdgeKinds(filePath, neighborFile);
+        const kind = kinds[0] ?? store.getEdgeKinds(neighborFile, filePath)[0];
+
+        for (const chunk of neighborChunks) {
+          const match: RagSearchMatch & { relPath: string } = {
+            ...chunk,
+            relPath: path.relative(workspaceRoot, chunk.filePath),
+          };
+          if (kind !== undefined) match.graphRelation = kind;
+          expandedMatches.push(match);
+        }
+      }
+    }
+
     return {
-      matches: results.map((r) => ({
-        ...r,
-        relPath: path.relative(workspaceRoot, r.filePath),
-      })),
+      matches: [
+        ...results.map((r) => ({ ...r, relPath: path.relative(workspaceRoot, r.filePath) })),
+        ...expandedMatches,
+      ],
       totalIndexed: store.chunkCount,
       indexReady: true,
     };
