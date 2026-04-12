@@ -112,7 +112,9 @@
     "build:ext": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node18 --external:vscode --outfile=out/extension.js",
     "build:webview": "cd ../webview && pnpm run build && cd ..",
     "watch": "tsc -watch -p tsconfig.json --outDir out",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -124,8 +126,10 @@
     "@types/diff": "^8.0.0",
     "@types/node": "^25.5.2",
     "@types/vscode": "~1.105.0",
+    "@vitest/coverage-v8": "^4.1.4",
     "@vscode/vsce": "3.7.1",
     "esbuild": "^0.28.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
   }
 }
