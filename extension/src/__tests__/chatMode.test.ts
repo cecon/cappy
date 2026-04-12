@@ -4,9 +4,9 @@ import {
   selectToolsForChatMode,
   mcpToolsForChatMode,
   type ChatUiMode,
-} from "../../bridge/chatMode";
-import type { AgentTool } from "../../agent/types";
-import type { McpTool } from "../../mcp/client";
+} from "../bridge/chatMode.ts";
+import type { AgentTool } from "../agent/types.ts";
+import type { McpTool } from "../mcp/client.ts";
 
 const makeAgentTool = (name: string): AgentTool => ({
   name,

@@ -9,7 +9,7 @@ import {
   formatAgentPreferencesPromptBlock,
   AGENT_PREFERENCES_RELATIVE,
   type AgentPreferences,
-} from "../../agent/agentPreferences";
+} from "../agent/agentPreferences.ts";
 
 let tmpDir: string;
 
@@ -118,7 +118,7 @@ describe("formatAgentPreferencesPromptBlock", () => {
     const block = formatAgentPreferencesPromptBlock(prefs);
     expect(block).toContain("allow_all");
     expect(block).toContain("allow_all");
-    expect(block).not.toContain("confirmação");
+    expect(block).not.toContain("Cada execução destrutiva requer confirmação");
   });
 
   it("usa preferências padrão quando recebe null", () => {

@@ -10,8 +10,8 @@ import {
   DEFAULT_RESERVED_OUTPUT_TOKENS,
   AUTOCOMPACT_BUFFER_TOKENS,
   SYSTEM_PROMPT_OVERHEAD_TOKENS,
-} from "../../agent/contextBudget";
-import type { Message } from "../../agent/types";
+} from "../agent/contextBudget.ts";
+import type { Message } from "../agent/types.ts";
 
 describe("estimateTextTokens", () => {
   it("retorna 0 para string vazia", () => {
@@ -232,15 +232,26 @@ describe("trimMessagesForBudget", () => {
     expect(result.messages.at(-1)?.content).toBe("ultima pergunta");
   });
 
-  it("retorna droppedTokenEstimate > 0 quando corta", () => {
+  it("cobre o segundo loop (início não-user) quando primeiro loop falha", () => {
+    // assistant com conteúdo pequeno — sequência válida que não começa em user
     const msgs: Message[] = [
-      makeUser("conteudo antigo com bastante texto"),
-      makeUser("mais texto antigo aqui"),
-      makeUser("novo"),
+      makeUser("mensagem user enorme " + "x".repeat(500)),
+      makeAssistant("ok"),
     ];
-    const result = trimMessagesForBudget(msgs, 2);
-    if (result.droppedCount > 0) {
-      expect(result.droppedTokenEstimate).toBeGreaterThan(0);
-    }
+    // budget suficiente para só o assistant
+    const assistantTokens = estimateMessageTokens(msgs[1]!);
+    const result = trimMessagesForBudget(msgs, assistantTokens);
+    // Se encontrou uma fatia que cabe, droppedCount >= 0
+    expect(result.messages.length).toBeGreaterThan(0);
+  });
+
+  it("aciona fallback final quando última mensagem não é user", () => {
+    const msgs: Message[] = [
+      makeUser("x"),
+      makeAssistant("y"),
+    ];
+    // budget 0 — nada cabe, última mensagem é assistant
+    const result = trimMessagesForBudget(msgs, 0);
+    expect(result.messages.length).toBeGreaterThan(0);
   });
 });

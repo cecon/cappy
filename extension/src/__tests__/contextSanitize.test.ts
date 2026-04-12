@@ -1,10 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   serializeMessagesForSummary,
+  summarizeDroppedMessagesForMainAgent,
   MIN_DROPPED_TOKENS_TO_SUMMARIZE,
   MAX_CONTEXT_SANITIZE_ITERATIONS,
-} from "../../agent/contextSanitize";
-import type { Message } from "../../agent/types";
+} from "../agent/contextSanitize.ts";
+import type { Message } from "../agent/types.ts";
+import type OpenAI from "openai";
 
 describe("serializeMessagesForSummary", () => {
   it("serializa mensagem user", () => {
@@ -92,5 +94,66 @@ describe("constantes exportadas", () => {
 
   it("MAX_CONTEXT_SANITIZE_ITERATIONS é > 0", () => {
     expect(MAX_CONTEXT_SANITIZE_ITERATIONS).toBeGreaterThan(0);
+  });
+});
+
+function makeClient(content: string): OpenAI {
+  return {
+    chat: {
+      completions: {
+        create: vi.fn().mockResolvedValue({
+          choices: [{ message: { content } }],
+        }),
+      },
+    },
+  } as unknown as OpenAI;
+}
+
+describe("summarizeDroppedMessagesForMainAgent", () => {
+  const longContent = "conteúdo relevante de código e comentários explicativos ".repeat(35);
+
+  it("retorna string vazia para lista vazia", async () => {
+    const client = makeClient("resumo");
+    const result = await summarizeDroppedMessagesForMainAgent(client, "gpt-4o", []);
+    expect(result).toBe("");
+  });
+
+  it("retorna string vazia quando serialização é muito curta", async () => {
+    const client = makeClient("resumo");
+    const msgs: Message[] = [{ role: "user", content: "oi" }];
+    const result = await summarizeDroppedMessagesForMainAgent(client, "gpt-4o", msgs);
+    expect(result).toBe("");
+  });
+
+  it("retorna string vazia quando tokens estimados abaixo do mínimo", async () => {
+    const client = makeClient("resumo");
+    const msgs: Message[] = [{ role: "user", content: "x".repeat(100) }];
+    // 100 chars = 25 tokens < MIN_DROPPED_TOKENS_TO_SUMMARIZE (400)
+    const result = await summarizeDroppedMessagesForMainAgent(client, "gpt-4o", msgs);
+    expect(result).toBe("");
+  });
+
+  it("chama o modelo e retorna resumo quando há conteúdo suficiente", async () => {
+    const expected = "# Resumo\n\nObjectivos: refatorar o módulo X.";
+    const client = makeClient(expected);
+    const msgs: Message[] = [{ role: "user", content: longContent }];
+    const result = await summarizeDroppedMessagesForMainAgent(client, "gpt-4o", msgs);
+    expect(result).toBe(expected);
+  });
+
+  it("trunca resumo muito longo retornado pelo modelo", async () => {
+    const hugeContent = "x".repeat(30_000);
+    const client = makeClient(hugeContent);
+    const msgs: Message[] = [{ role: "user", content: longContent }];
+    const result = await summarizeDroppedMessagesForMainAgent(client, "gpt-4o", msgs);
+    expect(result.length).toBeLessThanOrEqual(28_002);
+    expect(result).toContain("truncado");
+  });
+
+  it("retorna string vazia quando modelo retorna conteúdo vazio", async () => {
+    const client = makeClient("   ");
+    const msgs: Message[] = [{ role: "user", content: longContent }];
+    const result = await summarizeDroppedMessagesForMainAgent(client, "gpt-4o", msgs);
+    expect(result).toBe("");
   });
 });
