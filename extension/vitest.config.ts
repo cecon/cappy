@@ -24,6 +24,7 @@ export default defineConfig({
     },
   },
   resolve: {
+    extensions: [".ts", ".tsx", ".js", ".json"],
     alias: {
       vscode: new URL("./src/__mocks__/vscode.ts", import.meta.url).pathname,
     },

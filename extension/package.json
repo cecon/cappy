@@ -126,10 +126,10 @@
     "@types/diff": "^8.0.0",
     "@types/node": "^25.5.2",
     "@types/vscode": "~1.105.0",
-    "@vitest/coverage-v8": "^4.1.4",
+    "@vitest/coverage-v8": "^2.1.9",
     "@vscode/vsce": "3.7.1",
     "esbuild": "^0.28.0",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.4"
+    "vitest": "^2.1.9"
   }
 }

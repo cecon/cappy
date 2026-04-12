@@ -10,6 +10,7 @@ webview/node_modules/.vite/
 *.vsix
 
 .cappy/config.json
+.pnpm-store/
 .env
 
 .DS_Store
