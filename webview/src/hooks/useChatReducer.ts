@@ -46,7 +46,7 @@ export type ChatAction =
 
 // ── Reducer ────────────────────────────────────────────────────────────────
 
-function chatReducer(state: ChatState, action: ChatAction): ChatState {
+export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case "SEND_START":
       return {

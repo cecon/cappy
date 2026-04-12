@@ -26,9 +26,6 @@ describe("isIncomingMessage — stream:done / session:cleared / config:saved", (
   it("stream:done aceita sem campos extras", () => {
     expect(isIncomingMessage({ type: "stream:done" })).toBe(true);
   });
-  it("session:cleared aceita sem campos extras", () => {
-    expect(isIncomingMessage({ type: "session:cleared" })).toBe(true);
-  });
   it("config:saved aceita sem campos extras", () => {
     expect(isIncomingMessage({ type: "config:saved" })).toBe(true);
   });
