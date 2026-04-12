@@ -42,6 +42,20 @@ export interface McpServerConfig {
 }
 
 /**
+ * RAG subsystem configuration block.
+ */
+export interface RagConfig {
+  enabled: boolean;
+  embeddingModel: string;
+  dimensions: number;
+  chunkMaxChars: number;
+  chunkOverlapChars: number;
+  embeddingBatchSize: number;
+  ignorePatterns: string[];
+  includeExtensions: string[];
+}
+
+/**
  * Full Cappy runtime configuration.
  */
 export interface CappyConfig {
@@ -50,6 +64,7 @@ export interface CappyConfig {
   mcp: {
     servers: McpServerConfig[];
   };
+  rag?: RagConfig;
   /** Habilita logs verbosos no Output Channel do Cappy. */
   debug?: boolean | undefined;
 }
@@ -74,6 +89,19 @@ export function defaultConfig(): CappyConfig {
     },
     mcp: {
       servers: [],
+    },
+    rag: {
+      enabled: false,
+      embeddingModel: "text-embedding-3-small",
+      dimensions: 512,
+      chunkMaxChars: 1500,
+      chunkOverlapChars: 150,
+      embeddingBatchSize: 20,
+      ignorePatterns: [
+        "**/node_modules/**", "**/dist/**", "**/build/**", "**/out/**",
+        "**/coverage/**", "**/.git/**", "**/*.min.js", "**/*.d.ts", "**/*.map",
+      ],
+      includeExtensions: [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".cs", ".rs", ".md"],
     },
     debug: false,
   };
@@ -183,7 +211,22 @@ function mergeWithDefaults(raw: unknown): CappyConfig {
         }))
         .filter((server) => server.name.length > 0 && server.url.length > 0),
     },
+    rag: mergeRagConfig(raw.rag, defaults.rag!),
     debug: typeof raw.debug === "boolean" ? raw.debug : defaults.debug,
+  };
+}
+
+function mergeRagConfig(raw: unknown, defaults: RagConfig): RagConfig {
+  if (!isRecord(raw)) return defaults;
+  return {
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : defaults.enabled,
+    embeddingModel: typeof raw.embeddingModel === "string" ? raw.embeddingModel : defaults.embeddingModel,
+    dimensions: typeof raw.dimensions === "number" && raw.dimensions > 0 ? raw.dimensions : defaults.dimensions,
+    chunkMaxChars: typeof raw.chunkMaxChars === "number" && raw.chunkMaxChars > 0 ? raw.chunkMaxChars : defaults.chunkMaxChars,
+    chunkOverlapChars: typeof raw.chunkOverlapChars === "number" ? raw.chunkOverlapChars : defaults.chunkOverlapChars,
+    embeddingBatchSize: typeof raw.embeddingBatchSize === "number" && raw.embeddingBatchSize > 0 ? raw.embeddingBatchSize : defaults.embeddingBatchSize,
+    ignorePatterns: Array.isArray(raw.ignorePatterns) ? (raw.ignorePatterns as string[]).filter((p) => typeof p === "string") : defaults.ignorePatterns,
+    includeExtensions: Array.isArray(raw.includeExtensions) ? (raw.includeExtensions as string[]).filter((p) => typeof p === "string") : defaults.includeExtensions,
   };
 }
 

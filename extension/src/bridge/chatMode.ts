@@ -15,6 +15,7 @@ const ASK_ALLOWED_TOOL_NAMES = new Set<string>([
   "globFiles",
   "listDir",
   "searchCode",
+  "ragSearch",
   "webFetch",
   "WebSearch",
   "TodoWrite",

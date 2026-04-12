@@ -20,6 +20,7 @@ import { todoWriteTool } from "./todoWrite";
 import { webFetchTool } from "./webFetch";
 import { webSearchTool } from "./webSearch";
 import { writeFileTool, writeOpenClaudeTool } from "./writeFile";
+import { ragSearchTool } from "./ragSearchTool";
 
 /** All registered built-in tools. */
 export const toolsRegistry: ToolDefinition[] = [
@@ -44,6 +45,7 @@ export const toolsRegistry: ToolDefinition[] = [
   exitPlanModeTool,
   webFetchTool,
   webSearchTool,
+  ragSearchTool,
 ];
 
 /** Exact-name lookup map. */

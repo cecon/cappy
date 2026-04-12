@@ -14,6 +14,20 @@ const CAPPY_DIR = ".cappy";
 const CONFIG_FILE = "config.json";
 const PREFS_FILE = "agent-preferences.json";
 
+const DEFAULT_RAG: CappyConfig["rag"] = {
+  enabled: false,
+  embeddingModel: "text-embedding-3-small",
+  dimensions: 512,
+  chunkMaxChars: 1500,
+  chunkOverlapChars: 150,
+  embeddingBatchSize: 20,
+  ignorePatterns: [
+    "**/node_modules/**", "**/dist/**", "**/build/**", "**/out/**",
+    "**/coverage/**", "**/.git/**", "**/*.min.js", "**/*.d.ts", "**/*.map",
+  ],
+  includeExtensions: [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".cs", ".rs", ".md"],
+};
+
 const DEFAULT_CONFIG: CappyConfig = {
   openrouter: {
     apiKey: "",
@@ -29,6 +43,7 @@ const DEFAULT_CONFIG: CappyConfig = {
     recoverToolArgumentsWithLlm: true,
   },
   mcp: { servers: [] },
+  rag: DEFAULT_RAG,
   debug: false,
 };
 
@@ -146,10 +161,26 @@ function mergeConfig(raw: unknown): CappyConfig {
         .map((s) => ({ name: typeof s.name === "string" ? s.name : "", url: typeof s.url === "string" ? s.url : "" }))
         .filter((s) => s.name && s.url),
     },
+    rag: mergeRag(raw.rag),
     ...(typeof raw.debug === "boolean"
       ? { debug: raw.debug }
       : DEFAULT_CONFIG.debug !== undefined
         ? { debug: DEFAULT_CONFIG.debug }
         : {}),
+  };
+}
+
+function mergeRag(raw: unknown): Required<CappyConfig>["rag"] {
+  const d = DEFAULT_RAG as Required<CappyConfig>["rag"];
+  if (!isRecord(raw)) return { ...d };
+  return {
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : d.enabled,
+    embeddingModel: typeof raw.embeddingModel === "string" ? raw.embeddingModel : d.embeddingModel,
+    dimensions: typeof raw.dimensions === "number" && raw.dimensions > 0 ? raw.dimensions : d.dimensions,
+    chunkMaxChars: typeof raw.chunkMaxChars === "number" && raw.chunkMaxChars > 0 ? raw.chunkMaxChars : d.chunkMaxChars,
+    chunkOverlapChars: typeof raw.chunkOverlapChars === "number" ? raw.chunkOverlapChars : d.chunkOverlapChars,
+    embeddingBatchSize: typeof raw.embeddingBatchSize === "number" && raw.embeddingBatchSize > 0 ? raw.embeddingBatchSize : d.embeddingBatchSize,
+    ignorePatterns: Array.isArray(raw.ignorePatterns) ? (raw.ignorePatterns as string[]).filter((p) => typeof p === "string") : d.ignorePatterns,
+    includeExtensions: Array.isArray(raw.includeExtensions) ? (raw.includeExtensions as string[]).filter((p) => typeof p === "string") : d.includeExtensions,
   };
 }

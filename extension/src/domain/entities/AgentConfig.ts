@@ -26,10 +26,22 @@ export interface McpServerConfig {
   url: string;
 }
 
+export interface RagConfig {
+  enabled: boolean;
+  embeddingModel: string;
+  dimensions: number;
+  chunkMaxChars: number;
+  chunkOverlapChars: number;
+  embeddingBatchSize: number;
+  ignorePatterns: string[];
+  includeExtensions: string[];
+}
+
 export interface CappyConfig {
   openrouter: OpenRouterConfig;
   agent: AgentRuntimeConfig;
   mcp: { servers: McpServerConfig[] };
+  rag?: RagConfig;
   debug?: boolean;
 }
 

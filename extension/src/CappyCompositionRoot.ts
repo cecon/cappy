@@ -17,6 +17,8 @@ import { McpManager } from "./mcp/client";
 import { loadWorkspaceSkillsPrompt } from "./agent/workspaceSkills";
 import { routeAgentEvent } from "./bridge/AgentEventRouter";
 import { logError, logInfo, resetLoggerCache } from "./utils/logger";
+import { RagIndexer } from "./rag/RagIndexer";
+import { setRagIndexer } from "./tools/ragSearchTool";
 
 // ── VS Code logger adapter ─────────────────────────────────────────────────
 
@@ -54,6 +56,34 @@ export function createCappyBridge(
   const tools = toolsRegistry as unknown as AgentTool[];
   const hitlState = { sessionAutoApprove: false };
   const disposables: vscode.Disposable[] = [];
+
+  // ── RAG indexer (background, only when enabled) ──────────────────────────
+  void configRepo.loadConfig().then((config) => {
+    const ragCfg = config.rag;
+    if (workspaceRoot && ragCfg?.enabled) {
+      const apiKey = config.openrouter.apiKey;
+      const ragIndexer = new RagIndexer(workspaceRoot, ragCfg, apiKey);
+      setRagIndexer(ragIndexer);
+
+      // Expose model/dims to the tool via env (avoids circular imports).
+      process.env.CAPPY_RAG_MODEL = ragCfg.embeddingModel;
+      process.env.CAPPY_RAG_DIMS = String(ragCfg.dimensions);
+
+      // Full scan in background — does not block UI.
+      void ragIndexer.indexAll();
+
+      // Incremental updates on file save/create/delete.
+      const exts = ragCfg.includeExtensions.map((e) => e.replace(/^\./u, "")).join(",");
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(workspaceRoot, `**/*.{${exts}}`),
+      );
+      watcher.onDidChange((uri) => { void ragIndexer.indexFile(uri.fsPath); });
+      watcher.onDidCreate((uri) => { void ragIndexer.indexFile(uri.fsPath); });
+      watcher.onDidDelete((uri) => { void ragIndexer.removeFile(uri.fsPath); });
+
+      disposables.push(watcher, new vscode.Disposable(() => ragIndexer.dispose()));
+    }
+  });
 
   void loadAndPushHitlPolicy(webview, configRepo, workspaceRoot, hitlState);
 
@@ -222,7 +252,7 @@ async function openFile(webview: vscode.Webview, relativePath: string): Promise<
   catch (e) { post(webview, { type: "error", message: e instanceof Error ? e.message : "Erro ao abrir ficheiro." }); }
 }
 
-const ASK_ALLOWED = new Set(["ExploreAgent","Read","readFile","Grep","Glob","globFiles","listDir","searchCode","webFetch","WebSearch","TodoWrite","ListSkills","ReadSkill","EnterPlanMode","ExitPlanMode"]);
+const ASK_ALLOWED = new Set(["ExploreAgent","Read","readFile","Grep","Glob","globFiles","listDir","searchCode","ragSearch","webFetch","WebSearch","TodoWrite","ListSkills","ReadSkill","EnterPlanMode","ExitPlanMode"]);
 
 function filterByMode(mode: ChatUiMode, tools: AgentTool[]): AgentTool[] {
   if (mode === "plain") return [];
