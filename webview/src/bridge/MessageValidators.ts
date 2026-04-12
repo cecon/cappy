@@ -24,7 +24,6 @@ export function isIncomingMessage(value: unknown): value is IncomingMessage {
     case "stream:token":    return typeof v.token === "string";
     case "stream:done":     return true;
     case "stream:system":   return typeof v.message === "string";
-    case "session:cleared": return true;
     case "config:saved":    return true;
     case "tool:confirm":
     case "tool:executing":

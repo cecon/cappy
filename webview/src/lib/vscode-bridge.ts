@@ -22,7 +22,6 @@ export interface HitlUiPolicy {
 export type OutgoingMessage =
   | { type: "chat:send"; messages: Message[]; mode?: ChatUiMode }
   | { type: "chat:stop" }
-  /** Pedido ao host para nova sessão (reload do webview na extensão; mock envia `session:cleared`). */
   | { type: "session:new" }
   | { type: "tool:approve"; toolCallId: string }
   | { type: "hitl:approveSession"; toolCallId: string }
@@ -42,8 +41,6 @@ export type IncomingMessage =
   | { type: "stream:done" }
   /** Non-persisted system notice (model fallback warnings, etc.). Not stored in message history. */
   | { type: "stream:system"; message: string }
-  /** Dev (cli-mock): estado local do chat reposto sem reload da página. */
-  | { type: "session:cleared" }
   | { type: "tool:confirm"; toolCall: ToolCall }
   | { type: "tool:executing"; toolCall: ToolCall }
   | { type: "tool:result"; toolCall: ToolCall; result: string; fileDiff?: FileDiffPayload }
@@ -83,7 +80,7 @@ declare global {
 
 /**
  * Estado partilhado do bridge no browser (Vite HMR recria módulos; isto mantém
- * uma única ligação WebSocket e um único listener `message` sem depender de hacks por ficheiro).
+ * um único listener `message` sem depender de hacks por ficheiro).
  */
 const BRIDGE_STATE = Symbol.for("@cappy/webview-bridge-state");
 /** Garante um único `addEventListener("message")` mesmo com múltiplas avaliações do módulo (HMR / chunks). */
@@ -91,9 +88,6 @@ const WINDOW_MESSAGE_FN = Symbol.for("@cappy/webview-bridge-window-message-fn");
 
 interface SharedBridgeState {
   incomingHandlers: Set<(message: IncomingMessage) => void>;
-  devSocket: WebSocket | null;
-  devApi: VsCodeLikeApi | null;
-  wsFailureNotified: boolean;
 }
 
 function dispatchIncomingToHandlers(event: MessageEvent<unknown>): void {
@@ -130,108 +124,14 @@ function getSharedBridgeState(): SharedBridgeState {
   const globalRecord = globalThis as typeof globalThis & Record<symbol, SharedBridgeState | undefined>;
   let state = globalRecord[BRIDGE_STATE];
   if (!state) {
-    state = {
-      incomingHandlers: new Set(),
-      devSocket: null,
-      devApi: null,
-      wsFailureNotified: false,
-    };
+    state = { incomingHandlers: new Set() };
     globalRecord[BRIDGE_STATE] = state;
   }
   attachWindowMessageListenerOnce();
   return state;
 }
 
-function getCliMockWebSocketUrl(): string {
-  const port = import.meta.env.VITE_CAPPY_CLI_MOCK_PORT ?? "3333";
-  return `ws://localhost:${port}`;
-}
-
-/**
- * Uma única ligação ao cli-mock por aba; reutilizada entre recargas HMR do bundle.
- */
-function getOrCreateDevHostApi(shared: SharedBridgeState): VsCodeLikeApi {
-  if (shared.devApi && shared.devSocket) {
-    const rs = shared.devSocket.readyState;
-    /** Evita fechar um socket ainda a ligar quando o módulo é avaliado mais do que uma vez (duplicaria eventos). */
-    if (rs === WebSocket.OPEN || rs === WebSocket.CONNECTING) {
-      return shared.devApi;
-    }
-  }
-  if (shared.devSocket) {
-    shared.devSocket.close();
-    shared.devSocket = null;
-    shared.devApi = null;
-  }
-
-  const url = getCliMockWebSocketUrl();
-  const socket = new WebSocket(url);
-  shared.devSocket = socket;
-
-  let hasOpened = false;
-
-  const notifyDevServerMissing = (): void => {
-    if (shared.wsFailureNotified || hasOpened) {
-      return;
-    }
-    shared.wsFailureNotified = true;
-    window.postMessage(
-      {
-        type: "error",
-        message: `Sem ligação ao cli-mock em ${url}. Na raiz do repo execute \`pnpm dev\` (inicia webview + cli-mock) ou noutro terminal \`pnpm dev:mock\`.`,
-      } satisfies IncomingMessage,
-      "*",
-    );
-  };
-
-  socket.addEventListener("message", (event) => {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(String(event.data));
-    } catch {
-      return;
-    }
-    if (!isIncomingMessage(parsed)) {
-      return;
-    }
-    window.postMessage(parsed, "*");
-  });
-
-  socket.addEventListener("open", () => {
-    hasOpened = true;
-  });
-
-  socket.addEventListener("error", notifyDevServerMissing);
-  socket.addEventListener("close", () => {
-    if (socket !== shared.devSocket) {
-      return;
-    }
-    if (!hasOpened) {
-      notifyDevServerMissing();
-    }
-  });
-
-  const api: VsCodeLikeApi = {
-    postMessage(message: OutgoingMessage): void {
-      const payload = JSON.stringify(message);
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(payload);
-        return;
-      }
-      socket.addEventListener(
-        "open",
-        () => {
-          socket.send(payload);
-        },
-        { once: true },
-      );
-    },
-  };
-  shared.devApi = api;
-  return api;
-}
-
-function resolveHostApi(shared: SharedBridgeState): VsCodeLikeApi {
+function resolveHostApi(): VsCodeLikeApi {
   if (typeof window.acquireVsCodeApi === "function") {
     const vscodeApi = window.acquireVsCodeApi();
     return {
@@ -240,11 +140,15 @@ function resolveHostApi(shared: SharedBridgeState): VsCodeLikeApi {
       },
     };
   }
-  return getOrCreateDevHostApi(shared);
+  return {
+    postMessage(): void {
+      // No-op: webview loaded outside VS Code.
+    },
+  };
 }
 
 const sharedBridge = getSharedBridgeState();
-const vscodeApi = resolveHostApi(sharedBridge);
+const vscodeApi = resolveHostApi();
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
@@ -260,11 +164,6 @@ if (import.meta.hot) {
       return;
     }
     state.incomingHandlers.clear();
-    if (state.devSocket) {
-      state.devSocket.close();
-      state.devSocket = null;
-    }
-    state.devApi = null;
     delete globalRecord[BRIDGE_STATE];
   });
 }
@@ -312,10 +211,6 @@ function isIncomingMessage(value: unknown): value is IncomingMessage {
 
   if (value.type === "stream:system") {
     return typeof value.message === "string";
-  }
-
-  if (value.type === "session:cleared") {
-    return true;
   }
 
   if (value.type === "tool:confirm" || value.type === "tool:executing" || value.type === "tool:rejected") {

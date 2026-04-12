@@ -863,15 +863,6 @@ export class AgentLoop extends EventEmitter {
   }
 
   /**
-   * Cenário do cli-mock (`@mock:…`): emite `tool:confirm` e aguarda aprovação na UI sem passar pelo LLM.
-   *
-   * @returns `true` se o utilizador aprovou, `false` se rejeitou ou `abort()`.
-   */
-  public async requestDestructiveConfirmationMock(toolCall: ToolCall): Promise<boolean> {
-    return await this.confirm(toolCall);
-  }
-
-  /**
    * Internal typed event emitter helper.
    */
   private emitEvent<K extends keyof AgentEvents>(
