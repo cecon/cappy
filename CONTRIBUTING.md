@@ -23,7 +23,6 @@ npm run dev
 
 - `extension/`: VS Code extension host (commands, agent loop, tool execution bridge)
 - `webview/`: React + Vite UI used inside VS Code
-- `cli-mock/`: local server for browser/dev workflows
 
 ## Code Conventions
 

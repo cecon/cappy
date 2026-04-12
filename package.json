@@ -5,14 +5,12 @@
   "packageManager": "pnpm@10.27.0",
   "workspaces": [
     "extension",
-    "webview",
-    "cli-mock"
+    "webview"
   ],
   "scripts": {
-    "dev": "concurrently -k -n webview,cli-mock -c blue,green \"pnpm --filter @cappy/webview dev\" \"pnpm --filter @cappy/cli-mock dev\"",
-    "dev:mock": "pnpm --filter @cappy/cli-mock dev",
+    "dev": "pnpm --filter @cappy/webview dev",
     "dev:vite": "pnpm --filter @cappy/webview dev",
-    "build": "pnpm --filter cappy build && pnpm --filter @cappy/webview build && pnpm --filter @cappy/cli-mock build",
+    "build": "pnpm --filter cappy build && pnpm --filter @cappy/webview build",
     "package": "pnpm run build && cd extension && pnpm exec vsce package --no-dependencies --allow-package-all-secrets --allow-package-env-file -o eduardocecon.cappy-$(node -p \"require('./package.json').version\").vsix",
     "typecheck": "pnpm -r --if-present typecheck"
   },

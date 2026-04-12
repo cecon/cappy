@@ -1,7 +1,6 @@
 packages:
   - extension
   - webview
-  - cli-mock
 
 ignoredBuiltDependencies:
   - '@vscode/vsce-sign'

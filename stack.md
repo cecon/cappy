@@ -1,11 +1,10 @@
 # Arquitetura do Projeto Cappy
 
 ## Visão Geral
-O projeto **Cappy** é uma extensão para o Visual Studio Code que fornece uma interface de chat baseada em LLMs, com suporte a ferramentas (MCP), histórico, configuração e integração com o webview.  Ele está organizado em três áreas principais:
+O projeto **Cappy** é uma extensão para o Visual Studio Code que fornece uma interface de chat baseada em LLMs, com suporte a ferramentas (MCP), histórico, configuração e integração com o webview.  Ele está organizado em duas áreas principais:
 
 1. **extension** – código da extensão VS Code (backend)
 2. **webview** – aplicação React que roda dentro do painel da extensão
-3. **cli‑mock** – servidor mock usado para testes/local development
 
 A seguir detalhamos a estrutura de diretórios, principais módulos e como eles se comunicam.
 
@@ -80,18 +79,7 @@ webview/
 
 ---
 
-## 3. CLI Mock (servidor local)
-```
-cli-mock/
-├─ src/server.ts                # Express server que simula endpoints da API LLM
-├─ package.json
-└─ tsconfig.json
-```
-Usado apenas para desenvolvimento; pode ser iniciado com `npm run dev` e a extensão pode apontar para ele via configuração `apiBaseUrl`.
-
----
-
-## 4. Build & Deploy
+## 3. Build & Deploy
 - **Extension**: `pnpm run compile` (tsc) → gera JavaScript em `out/` (não versionado).  O VSIX é empacotado com `vsce package`.
 - **Webview**: `pnpm run build` dentro da pasta `webview` usa Vite para produzir arquivos estáticos em `dist/`.  O `extension/bridge/webview.ts` aponta para `webview/dist/index.html`.
 - **CI**: GitHub Actions (`.github/workflows/cappy-publish.yml`) executa lint, test, build e publica o VSIX como release.
@@ -107,7 +95,6 @@ Usado apenas para desenvolvimento; pode ser iniciado com `npm run dev` e a exten
 | Webview | `react`, `react-dom` | UI declarativa |
 | | `vite` | bundling rápido para webview |
 | | `typescript` | tipagem estática |
-| CLI Mock | `express` | servidor mock de completions |
 
 ---
 

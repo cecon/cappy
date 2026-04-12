@@ -47,10 +47,6 @@ export function useBridgeMessages(
           bridge.send({ type: "config:load" });
           break;
 
-        case "session:cleared":
-          dispatch({ type: "SESSION_RESET" });
-          break;
-
         case "hitl:policy":
           dispatch({
             type: "HITL_POLICY",

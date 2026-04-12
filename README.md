@@ -104,7 +104,7 @@ Open VS Code, go to **Extensions**, click the `...` menu, then choose **Install 
 npm install
 ```
 
-3. Run browser development mode with `cli-mock`:
+3. Run webview dev server:
 
 ```powershell
 npm run dev
@@ -123,7 +123,6 @@ High-level monorepo layout:
 cappy/
 |- extension/   # VS Code extension host (commands, agent loop, tool bridge)
 |- webview/     # React/Vite chat UI
-|- cli-mock/    # Local mock server for browser/dev mode
 `- .cappy/      # User-local config (not committed)
 ```
 

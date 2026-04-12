@@ -18,7 +18,7 @@ Executar build local confiavel da extensao e instalar a VSIX no VS Code com `--f
 
 O projeto usa **pnpm** como package manager.
 
-1) Build completo (extensao + webview + cli-mock), a partir do root do workspace:
+1) Build completo (extensao + webview), a partir do root do workspace:
 
 ```powershell
 cd D:\projetos\cappy
