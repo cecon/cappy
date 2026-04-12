@@ -6,7 +6,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { IndexedChunk, IndexedFileEntry, RagIndexSnapshot, RagSearchMatch } from "./types";
+import type { AstEdge, IndexedChunk, IndexedFileEntry, RagIndexSnapshot, RagSearchMatch } from "./types";
 
 const INDEX_FILE = ".cappy/rag-index.json";
 
@@ -17,6 +17,11 @@ export class VectorStore {
   private dimensions = 512;
   private _lastIndexedHeadSha: string | undefined = undefined;
   private _lastIndexedBranch: string | undefined = undefined;
+  private edges: AstEdge[] = [];
+
+  // Adjacency indexes rebuilt from this.edges for O(1) lookups.
+  private outgoing = new Map<string, AstEdge[]>(); // from → edges
+  private incoming = new Map<string, AstEdge[]>(); // to   → edges
 
   constructor(private readonly workspaceRoot: string) {}
 
@@ -40,6 +45,7 @@ export class VectorStore {
         this.dimensions = snapshot.dimensions;
         this._lastIndexedHeadSha = snapshot.lastIndexedHeadSha;
         this._lastIndexedBranch = snapshot.lastIndexedBranch;
+        if (snapshot.edges) this.setEdges(snapshot.edges);
       }
     } catch {
       // File does not exist yet — start with empty index.
@@ -57,6 +63,7 @@ export class VectorStore {
       chunks: this.chunks,
       ...(this._lastIndexedHeadSha !== undefined ? { lastIndexedHeadSha: this._lastIndexedHeadSha } : {}),
       ...(this._lastIndexedBranch !== undefined ? { lastIndexedBranch: this._lastIndexedBranch } : {}),
+      ...(this.edges.length > 0 ? { edges: this.edges } : {}),
     };
     await writeFile(indexPath, `${JSON.stringify(snapshot)}\n`, "utf8");
   }
@@ -102,6 +109,74 @@ export class VectorStore {
     return Object.keys(this.files).length;
   }
 
+  get edgeCount(): number {
+    return this.edges.length;
+  }
+
+  // ── Graph (dependency edges) ────────────────────────────────────────────────
+
+  /**
+   * Replaces the entire edge set and rebuilds adjacency indexes.
+   */
+  setEdges(newEdges: AstEdge[]): void {
+    this.edges = newEdges;
+    this.rebuildAdjacency();
+  }
+
+  /**
+   * Appends edges for one file (call `removeEdgesForSource` first when
+   * updating a previously indexed file).
+   */
+  addEdgesForFile(fileEdges: AstEdge[]): void {
+    this.edges.push(...fileEdges);
+    for (const e of fileEdges) {
+      pushToMap(this.outgoing, e.from, e);
+      pushToMap(this.incoming, e.to, e);
+    }
+  }
+
+  /** Removes all edges where `from === filePath`. */
+  removeEdgesForSource(filePath: string): void {
+    const removed = this.outgoing.get(filePath) ?? [];
+    this.edges = this.edges.filter((e) => e.from !== filePath);
+    this.outgoing.delete(filePath);
+    for (const e of removed) {
+      const list = this.incoming.get(e.to);
+      if (list) {
+        const idx = list.indexOf(e);
+        if (idx !== -1) list.splice(idx, 1);
+      }
+    }
+  }
+
+  /**
+   * Returns files that `filePath` imports / extends / implements (outgoing).
+   * If `kind` is provided, filters to only edges of that kind.
+   */
+  getNeighborFiles(filePath: string, kind?: AstEdge["kind"]): string[] {
+    const edges = this.outgoing.get(filePath) ?? [];
+    const filtered = kind ? edges.filter((e) => e.kind === kind) : edges;
+    return [...new Set(filtered.map((e) => e.to))];
+  }
+
+  /**
+   * Returns files that import / extend / implement `filePath` (incoming).
+   */
+  getImporterFiles(filePath: string, kind?: AstEdge["kind"]): string[] {
+    const edges = this.incoming.get(filePath) ?? [];
+    const filtered = kind ? edges.filter((e) => e.kind === kind) : edges;
+    return [...new Set(filtered.map((e) => e.from))];
+  }
+
+  /**
+   * Returns the edge kind(s) connecting `from` to `to`, or [] if unrelated.
+   */
+  getEdgeKinds(from: string, to: string): AstEdge["kind"][] {
+    return (this.outgoing.get(from) ?? [])
+      .filter((e) => e.to === to)
+      .map((e) => e.kind);
+  }
+
   // ── Search ─────────────────────────────────────────────────────────────────
 
   /**
@@ -129,6 +204,31 @@ export class VectorStore {
       });
   }
 
+  /**
+   * Returns up to `topK` chunks from a specific file, ranked by similarity.
+   * Used by graph expansion in ragSearchTool.
+   */
+  searchInFile(filePath: string, queryEmbedding: number[], topK: number): RagSearchMatch[] {
+    const q = l2Normalize(queryEmbedding);
+    return this.chunks
+      .filter((c) => c.filePath === filePath)
+      .map((chunk) => ({ chunk, score: dotProduct(q, chunk.embedding) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topK)
+      .map((r) => {
+        const match: RagSearchMatch = {
+          filePath: r.chunk.filePath,
+          startLine: r.chunk.startLine,
+          endLine: r.chunk.endLine,
+          content: r.chunk.content,
+          score: Math.round(r.score * 1000) / 1000,
+        };
+        if (r.chunk.symbolName !== undefined) match.symbolName = r.chunk.symbolName;
+        if (r.chunk.symbolKind !== undefined) match.symbolKind = r.chunk.symbolKind;
+        return match;
+      });
+  }
+
   /** Returns true if the stored index was built with a different model. */
   modelChanged(model: string, dims: number): boolean {
     return (
@@ -136,6 +236,23 @@ export class VectorStore {
       (this.embeddingModel !== model || this.dimensions !== dims)
     );
   }
+
+  private rebuildAdjacency(): void {
+    this.outgoing.clear();
+    this.incoming.clear();
+    for (const e of this.edges) {
+      pushToMap(this.outgoing, e.from, e);
+      pushToMap(this.incoming, e.to, e);
+    }
+  }
+}
+
+// ── Module-level helpers ───────────────────────────────────────────────────
+
+function pushToMap<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
 }
 
 // ── Pure math helpers ──────────────────────────────────────────────────────

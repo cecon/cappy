@@ -51,6 +51,14 @@ export interface IndexedFileEntry {
   chunkIds: string[];  // IDs of chunks produced from this file
 }
 
+/** A dependency edge between two indexed files. */
+export interface AstEdge {
+  from: string;  // absolute source file path
+  to: string;    // absolute target file path
+  /** Relationship type derived from the source code. */
+  kind: "imports" | "extends" | "implements";
+}
+
 /** Full index snapshot persisted to .cappy/rag-index.json. */
 export interface RagIndexSnapshot {
   version: 1;
@@ -58,6 +66,8 @@ export interface RagIndexSnapshot {
   dimensions: number;
   files: Record<string, IndexedFileEntry>; // key = absolute filePath
   chunks: IndexedChunk[];
+  /** Dependency graph between indexed files (import/extends/implements edges). */
+  edges?: AstEdge[];
   /** Last git commit SHA that was fully indexed (used for smart git-diff delta). */
   lastIndexedHeadSha?: string;
   /** Branch name at last full index (branch switch triggers full re-index). */
@@ -74,4 +84,9 @@ export interface RagSearchMatch {
   content: string;
   /** Cosine similarity score in [0, 1]. */
   score: number;
+  /**
+   * Set when this result was included via graph expansion (not a direct
+   * embedding hit). Describes how the source file relates to a direct hit.
+   */
+  graphRelation?: AstEdge["kind"];
 }

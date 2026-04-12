@@ -14,11 +14,12 @@ import path from "node:path";
 import * as vscode from "vscode";
 
 import { extractSymbols } from "./AstSymbolExtractor";
+import { extractRawEdges, resolveEdges } from "./AstGraphBuilder";
 import { EmbeddingService } from "./EmbeddingService";
 import { getCurrentBranch, getChangedFiles, readHeadSha } from "./GitHeadTracker";
 import { regexChunk } from "./RegexChunker";
 import { VectorStore } from "./VectorStore";
-import type { AstSymbol, IndexedChunk, RagConfig } from "./types";
+import type { AstEdge, AstSymbol, IndexedChunk, RagConfig } from "./types";
 import { logInfo, logError } from "../utils/logger";
 
 /** Extensions that typically have an active Language Server in VS Code. */
@@ -33,6 +34,8 @@ export class RagIndexer {
   private readonly store: VectorStore;
   private readonly embedding: EmbeddingService;
   private cancelled = false;
+  /** Raw (unresolved) edges accumulated during indexing, keyed by file path. */
+  private readonly rawEdgesCache = new Map<string, ReturnType<typeof extractRawEdges>>();
 
   constructor(
     private readonly workspaceRoot: string,
@@ -126,10 +129,11 @@ export class RagIndexer {
         }
       }
 
+      this.updateGraphEdgesFor(changedFiles);
       this.store.lastIndexedHeadSha = currentSha;
       if (currentBranch !== null) this.store.lastIndexedBranch = currentBranch;
       await this.store.save(this.config.embeddingModel, this.config.dimensions);
-      logInfo(`[RAG] Delta complete — ${this.store.chunkCount} chunks / ${this.store.fileCount} files.`);
+      logInfo(`[RAG] Delta complete — ${this.store.chunkCount} chunks / ${this.store.fileCount} files / ${this.store.edgeCount} edges.`);
     } catch (err) {
       logError(`[RAG] indexAll failed: ${String(err)}`);
     }
@@ -158,10 +162,11 @@ export class RagIndexer {
       this.store.deleteFileEntry(stale);
     }
 
+    this.buildGraphEdges();
     if (headSha !== undefined) this.store.lastIndexedHeadSha = headSha;
     if (branch !== undefined) this.store.lastIndexedBranch = branch;
     await this.store.save(this.config.embeddingModel, this.config.dimensions);
-    logInfo(`[RAG] Full scan complete — ${this.store.chunkCount} chunks / ${this.store.fileCount} files.`);
+    logInfo(`[RAG] Full scan complete — ${this.store.chunkCount} chunks / ${this.store.fileCount} files / ${this.store.edgeCount} edges.`);
   }
 
   /**
@@ -173,6 +178,7 @@ export class RagIndexer {
     try {
       await this.store.load(); // ensure store is in memory
       await this.indexFileIfChanged(filePath);
+      this.updateGraphEdgesFor([filePath]);
       await this.store.save(this.config.embeddingModel, this.config.dimensions);
     } catch (err) {
       logError(`[RAG] indexFile(${filePath}) failed: ${String(err)}`);
@@ -243,6 +249,42 @@ export class RagIndexer {
       indexedAt: Date.now(),
       chunkIds: chunks.map((c) => c.id),
     });
+
+    // Cache raw dependency edges for later graph resolution.
+    this.rawEdgesCache.set(filePath, extractRawEdges(filePath, content));
+  }
+
+  // ── Graph helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * Rebuilds the full dependency graph for ALL indexed files.
+   * Called after fullScan() so the complete file set is available.
+   */
+  private buildGraphEdges(): void {
+    const indexedFiles = new Set(this.store.getAllIndexedPaths());
+    const allEdges: AstEdge[] = [];
+
+    for (const [filePath, rawEdges] of this.rawEdgesCache) {
+      const resolved = resolveEdges(rawEdges, indexedFiles, this.config.includeExtensions);
+      allEdges.push(...resolved);
+    }
+
+    this.store.setEdges(allEdges);
+    logInfo(`[RAG] Graph: ${allEdges.length} edges across ${this.rawEdgesCache.size} files.`);
+  }
+
+  /**
+   * Updates dependency edges for a subset of files (delta scan).
+   * Preserves edges for unchanged files.
+   */
+  private updateGraphEdgesFor(changedFiles: string[]): void {
+    const indexedFiles = new Set(this.store.getAllIndexedPaths());
+    for (const filePath of changedFiles) {
+      this.store.removeEdgesForSource(filePath);
+      const rawEdges = this.rawEdgesCache.get(filePath) ?? [];
+      const resolved = resolveEdges(rawEdges, indexedFiles, this.config.includeExtensions);
+      if (resolved.length > 0) this.store.addEdgesForFile(resolved);
+    }
   }
 
   private async extractChunkSymbols(filePath: string, content: string): Promise<AstSymbol[]> {
