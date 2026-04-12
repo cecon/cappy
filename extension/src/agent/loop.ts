@@ -36,6 +36,7 @@ import {
 } from "./sessionContext";
 import type { AgentEvents, AgentTool, Message, ToolCall } from "./types";
 import { recoverToolArgumentsWithLlm } from "./toolArgumentRecovery";
+import { agentRunContext } from "./agentRunContext";
 import {
   ensureDefaultAgentPreferencesFile,
   formatAgentPreferencesPromptBlock,
@@ -389,7 +390,7 @@ export class AgentLoop extends EventEmitter {
           let fileDiffPayload: FileDiffPayload | undefined;
           try {
             const result = await Promise.race([
-              tool.execute(toolCall.arguments),
+              agentRunContext.run(history, () => tool.execute(toolCall.arguments)),
               new Promise<never>((_, reject) =>
                 setTimeout(
                   () =>
