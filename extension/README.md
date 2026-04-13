@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="assets/cappy-icon.png" alt="Cappy" width="120" />
+  <img src="media/icon.png" alt="Cappy" width="120" />
 </p>
 
 <h1 align="center">Cappy</h1>
 
 <p align="center">
-  <b>Your AI dev companion inside the IDE.</b><br/>
-  <i>Code smarter. Ship faster.</i>
+  <b>The open-source AI agent that turns your IDE into an autonomous development environment.</b><br/>
+  <i>Multi-agent swarms · Semantic code search · Persistent memory · Human-in-the-loop safety</i>
 </p>
 
 <p align="center">
@@ -27,55 +27,110 @@
 
 You're deep in a coding session. New work arrives from multiple channels. You context-switch between issue tracker, terminal, docs, and the editor. **Flow is lost.**
 
-What if one agent inside your IDE could plan, execute, and validate tasks with full project context?
+What if an agent team inside your IDE could plan, execute, and validate tasks — with full project context and your approval?
 
 ## The Solution: Meet Cappy
 
-**Cappy** is an AI-powered VS Code extension focused on planning and agent execution directly in your workspace. It's not just another coding assistant — it's a **full dev companion** that lives where you already are: in your editor.
+**Cappy** is not just another coding assistant. It's a **full autonomous agent runtime** living inside VS Code — with multi-agent swarms, semantic code search, persistent project memory, and human-in-the-loop safety built in from day one.
+
+Pick any model on OpenRouter. Extend with MCP servers. Stay in control.
 
 ---
 
 ## Key Features
 
-### Native Agent Experience
-*Plan and execute without leaving the editor.*
+### Multi-Agent Swarms
+*One agent is good. A coordinated team is unstoppable.*
 
-- **Native chat participant (`@cappy`)** in IDE chat
-- **Agent mode with tool calls** and approval flow
-- **Streaming responses** with live progress
-- **Session continuity** between native chat and dashboard
+Cappy's **Coordinator Mode** decomposes complex tasks into independent sub-tasks and delegates them to parallel worker agents — automatically.
 
-### AI Planning Agent
-*From idea to structured plan in seconds.*
+| Agent | Role |
+|-------|------|
+| **Coder** | Writes, edits, and refactors code with full tool access |
+| **Planner** | Designs architecture and breaks tasks into actionable steps |
+| **Reviewer** | Analyzes code quality, security, and performance |
+| **Coordinator** | Orchestrates multi-agent swarms for large-scale tasks |
+| **Explorer** | Read-only subagent for codebase and web research |
 
-Mention `@cappy` in any AI chat and get intelligent, context-aware planning:
+Agents communicate through a **mailbox-based swarm protocol** with broadcast and point-to-point messaging.
 
-```
-@cappy implement JWT authentication with refresh tokens
-@cappy refactor the payment module to use the strategy pattern
-@cappy help me fix the flaky tests in src/auth/
-```
+### Semantic Code Search (RAG)
+*Search by meaning, not just text.*
 
-Cappy analyzes your codebase, asks clarifying questions, and generates **structured task files** with implementation checklists, acceptance criteria, and step-by-step guidance.
+Cappy indexes your codebase with AI embeddings and understands your architecture:
+
+- **Git-aware incremental indexing** — only re-indexes changed files
+- **AST-powered dependency graphs** — understands imports, inheritance, and module structure
+- **Natural language queries** — "where is user authentication handled?"
+- **Configurable embedding model** — `text-embedding-3-small` by default
+
+### 25+ Built-in Tools
+*Everything you need without leaving the chat.*
+
+| Category | Tools |
+|----------|-------|
+| **File ops** | Read, Write, Edit, Glob, ListDir |
+| **Code search** | Grep (ripgrep), Semantic search, RAG search |
+| **Web** | WebSearch (DuckDuckGo), WebFetch |
+| **Execution** | Bash / PowerShell terminal |
+| **Planning** | EnterPlanMode, ExitPlanMode, TodoWrite |
+| **Memory** | MemoryList, MemoryRead, MemoryWrite, MemoryDelete |
+| **Skills** | ListSkills, ReadSkill, CreateSkill |
+| **Multi-agent** | Agent, TeamCreate, SendMessage, ExploreAgent |
+
+### Persistent Project Memory
+*Cappy gets smarter the more you use it.*
+
+The memory system stores structured knowledge in `.cappy/memory/` — project overview, architecture decisions, conventions, known pitfalls, and active workstreams. Memory is automatically injected into every session.
+
+### Workspace Skills
+*Teach Cappy your team's playbooks.*
+
+Create markdown skill files in `.cappy/skills/` to share project-specific workflows. Skills are automatically discovered and offered to the agent as domain knowledge — perfect for onboarding, deployment runbooks, or custom code generation patterns.
+
+### Human-in-the-Loop Safety
+*Full autonomy when you want it. Full control when you need it.*
+
+Every destructive operation requires your explicit approval:
+- **`confirm_each`** (default) — pause before every file write, shell command, or MCP call
+- **`allow_all`** — trust mode for experienced users
+
+**Plan Mode** adds an extra guard: the agent reasons freely, but all mutations are blocked until you exit planning.
+
+### Smart Context Management
+*Long conversations, handled gracefully.*
+
+- **128K token context window** with automatic trimming
+- **LLM-based compression** — dropped messages are summarized and re-injected
+- **Tool argument recovery** — malformed JSON is auto-repaired
+
+### Three Chat Modes
+
+| Mode | Description | Tools |
+|------|-------------|-------|
+| **Agent** | Full autonomous execution | All 25+ native + MCP tools |
+| **Ask** | Read-only research | Read, Grep, Glob, Web, Memory, Skills |
+| **Plain** | Simple conversation | No tools |
+
+### MCP Protocol Support
+*Extend Cappy with any tool server.*
+
+Connect multiple [Model Context Protocol](https://modelcontextprotocol.io/) servers simultaneously. SSE and Stdio transports supported. Automatic destructive-tool detection. Sandboxed by chat mode.
+
+### OpenClaude CLI Integration
+
+Launch the OpenClaude CLI directly from VS Code with workspace-aware configuration. Switch seamlessly between Cappy's visual dashboard and the terminal CLI.
 
 ### Live Dashboard
 *Everything at a glance.*
 
-A sleek sidebar dashboard shows you real-time status:
-- Session list with pin/archive/search
-- Tool-call timeline and streaming progress
-- Quick settings and configuration
-
-### Powerful Built-in Tools
-
-| Tool | What it does |
-|------|-------------|
-| `grep_search` | Search across your entire workspace |
-| `read_file` | Read any file with smart line ranges |
-| `fetch_web` | Pull content from URLs |
-| `create_task_file` | Generate structured task plans |
-| `run_terminal_command` | Execute commands directly |
-| `create_todo` | Quick task tracking |
+A sleek sidebar dashboard built with React + Mantine:
+- **Streaming responses** with live progress and elapsed time
+- **HITL confirmation cards** with approve/reject in one click
+- **Session history** with search, pin, and archive
+- **Tool-call timeline** showing every action taken
+- **Inline file diffs** for every code change
+- **Config & MCP panels** for quick settings access
 
 ---
 
@@ -83,31 +138,67 @@ A sleek sidebar dashboard shows you real-time status:
 
 ### Install
 
-Search for **"Cappy"** in the VS Code / Cursor Marketplace, or:
+Search for **"Cappy"** in the VS Code Marketplace, or:
 
 ```bash
 code --install-extension eduardocecon.cappy
 ```
 
-### Open Dashboard
+### Configure
 
-1. Open the Cappy Dashboard (sidebar icon)
-2. Configure provider/model in settings
-3. Start planning and executing tasks with Cappy
+1. Open the Cappy sidebar (Activity Bar icon)
+2. Go to the **Config** tab
+3. Enter your [OpenRouter](https://openrouter.ai/) API key
+4. Choose a model and start chatting
 
-### Use the AI Agent
+### Example Workflows
 
-Type `@cappy` followed by your request in any AI chat panel.
+*Feature implementation with agent swarm*
+```
+You: "Implement JWT authentication with refresh tokens.
+      Use a coordinator to split the work."
+Cappy: [spawns workers for token service, middleware, and tests — 
+        runs them in parallel, merges results]
+```
+
+*Semantic code search*
+```
+You: "Find all the places where we handle payment errors"
+Cappy: [uses RAG embeddings to locate semantically relevant code]
+```
+
+*Architecture planning*
+```
+You: "Plan the migration from REST to GraphQL for the user module"
+Cappy: [enters Plan Mode, analyzes dependencies, generates step-by-step plan]
+```
+
+---
+
+## Configuration Reference
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `openrouterApiKey` | Your OpenRouter API key | — |
+| `model` | LLM model to use | `openai/gpt-oss-120b` |
+| `visionModel` | Vision model for image inputs | `meta-llama/llama-3.2-11b-vision-instruct:free` |
+| `contextWindow` | Max context window tokens | `128000` |
+| `agent` | Default agent mode | `coder` |
+| `maxIterations` | Max agent loop iterations | `20` |
+| `mcpServers` | External MCP tool servers | `[]` |
+| `rag.enabled` | Enable semantic code search | `true` |
+| `rag.embeddingModel` | Embedding model | `text-embedding-3-small` |
 
 ---
 
 ## Development
 
 ```bash
-npm install
-npm run compile
-npm test
-npm run package
+git clone https://github.com/cecon/cappy.git
+cd cappy
+pnpm install
+pnpm dev       # Start webview dev server
+# Press F5 in VS Code to launch Extension Development Host
 ```
 
 ---

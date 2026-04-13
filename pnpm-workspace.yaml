@@ -1,6 +1,7 @@
 packages:
   - extension
   - webview
+  - cli
 
 ignoredBuiltDependencies:
   - '@vscode/vsce-sign'

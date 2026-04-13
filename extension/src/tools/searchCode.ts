@@ -1,8 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
 import { spawn } from "node:child_process";
-import * as vscode from "vscode";
-
 import type { ToolDefinition } from "./toolTypes";
 import { resolveWorkspacePath } from "./workspacePath";
 import { getRgPath } from "./ripgrep";
@@ -241,7 +239,7 @@ async function ensureRipgrepAvailable(): Promise<void> {
       if (isNodeErrorWithCode(error) && error.code === "ENOENT") {
         reject(
           new Error(
-            `ripgrep não encontrado em "${rgBin}". appRoot="${vscode.env.appRoot}", execPath="${process.execPath}". Instale com "brew install ripgrep" (macOS) ou "winget install BurntSushi.ripgrep" (Windows).`,
+            `ripgrep não encontrado em "${rgBin}". execPath="${process.execPath}". Instale com "brew install ripgrep" (macOS) ou "winget install BurntSushi.ripgrep" (Windows).`,
           ),
         );
         return;

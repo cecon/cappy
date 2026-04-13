@@ -1,6 +1,5 @@
 import path from "node:path";
 import fs from "node:fs";
-import * as vscode from "vscode";
 
 let _rgPathCache: string | undefined;
 
@@ -30,21 +29,22 @@ export function getRgPath(): string {
   const isWindows = process.platform === "win32";
   const bin = isWindows ? "rg.exe" : "rg";
 
-  // 1. Try the official API (available in newer VS Code versions)
+  // 1. Try the official VS Code API (available in newer VS Code versions)
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const vscode = require("vscode") as typeof import("vscode");
     const rgPath = (vscode.env as any).ripgrepPath;
     if (rgPath && fs.existsSync(rgPath)) {
       _rgPathCache = rgPath;
       return rgPath;
     }
+    // 2. Search from appRoot upward (VS Code bundles rg next to the app)
+    const fromAppRoot = findRgInTree(vscode.env.appRoot, bin);
+    if (fromAppRoot) {
+      _rgPathCache = fromAppRoot;
+      return fromAppRoot;
+    }
   } catch {}
-
-  // 2. Search from appRoot upward
-  const fromAppRoot = findRgInTree(vscode.env.appRoot, bin);
-  if (fromAppRoot) {
-    _rgPathCache = fromAppRoot;
-    return fromAppRoot;
-  }
 
   // 3. Search from the Code executable directory upward
   const execDir = path.dirname(process.execPath);
