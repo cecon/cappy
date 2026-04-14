@@ -37,6 +37,13 @@ export interface Message {
   images?: ImageAttachment[];
 }
 
+/** Payload broadcast whenever plan mode is entered, updated, or exited. */
+export interface PlanStatePayload {
+  active: boolean;
+  filePath: string | null;
+  content: string | null;
+}
+
 /**
  * Events emitted by the agent loop lifecycle.
  */
@@ -50,6 +57,8 @@ export interface AgentEvents {
   "tool:executing": (toolCall: ToolCall) => void;
   "tool:result": (toolCall: ToolCall, result: string, fileDiff?: FileDiffPayload) => void;
   "tool:rejected": (toolCall: ToolCall) => void;
+  /** Emitted after EnterPlanMode, PlanWrite, or ExitPlanMode to sync the webview plan panel. */
+  "plan:state": (payload: PlanStatePayload) => void;
   error: (err: Error) => void;
 }
 

@@ -104,6 +104,10 @@ export function useBridgeMessages(
           });
           break;
 
+        case "plan:state":
+          dispatch({ type: "PLAN_STATE", active: message.active, content: message.content, filePath: message.filePath });
+          break;
+
         case "error":
           dispatch({ type: "ERROR", message: message.message });
           break;
