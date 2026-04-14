@@ -240,7 +240,7 @@ async function handleChatSend(
     logInfo(`chat:send | mode=${mode} msgs=${messages.length} tools=${mergedTools.length} agent=${config.agent.activeAgent}`);
     await agent.run(
       messages, mergedTools,
-      { messages, chatMode: mode, silent: false, workspaceSkillsPrompt: skillsPrompt, systemPromptPrefix: agentSystemPrompt },
+      { messages, chatMode: mode, workspaceSkillsPrompt: skillsPrompt, systemPromptPrefix: agentSystemPrompt },
       (event) => routeAgentEvent(event, webview, new VsCodeLogger()),
     );
   } catch (err) {
