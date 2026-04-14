@@ -16,6 +16,7 @@ export interface JsonSchema {
   properties: Record<string, JsonSchemaProperty | Record<string, unknown>>;
   required?: string[];
   additionalProperties?: boolean;
+  [key: string]: unknown;
 }
 
 /**

@@ -24,6 +24,9 @@ importers:
       '@types/node':
         specifier: ^25.5.2
         version: 25.5.2
+      '@types/vscode':
+        specifier: ^1.105.0
+        version: 1.105.0
       esbuild:
         specifier: ^0.28.0
         version: 0.28.0
