@@ -1,3 +1,4 @@
+import React from "react";
 import { Box, Paper, Stack, Text } from "@mantine/core";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -9,6 +10,62 @@ import { CodeBlock } from "./CodeBlock";
 import { CopyButton } from "./CopyButton";
 import { ToolPartDisplay } from "./ToolPartDisplay";
 import styles from "./MessageList.module.css";
+
+// ── TableListView — substitui <table> por cards no estilo mobile ──────────────
+
+type AnyElement = React.ReactElement<{ children: React.ReactNode }>;
+
+function getCellChildren(node: React.ReactNode): React.ReactNode {
+  if (!React.isValidElement(node)) return node;
+  return (node as AnyElement).props.children;
+}
+
+function TableListView({ children }: { children?: React.ReactNode }): JSX.Element {
+  const headers: React.ReactNode[] = [];
+  const rows: React.ReactNode[][] = [];
+
+  React.Children.forEach(children, (section) => {
+    if (!React.isValidElement(section)) return;
+    const sectionEl = section as AnyElement;
+    const sectionType = sectionEl.type as string;
+
+    React.Children.forEach(sectionEl.props.children, (tr) => {
+      if (!React.isValidElement(tr)) return;
+      const trEl = tr as AnyElement;
+      const cells = React.Children.toArray(trEl.props.children);
+
+      if (sectionType === "thead") {
+        cells.forEach((cell) => headers.push(getCellChildren(cell)));
+      } else if (sectionType === "tbody") {
+        const row = cells.map((cell) => getCellChildren(cell));
+        if (row.length > 0) rows.push(row);
+      }
+    });
+  });
+
+  if (rows.length === 0) {
+    return <table>{children}</table>;
+  }
+
+  return (
+    <div className={styles.tableList}>
+      {rows.map((row, ri) => (
+        <div key={ri} className={styles.tableCard}>
+          {row.map((cell, ci) => (
+            <div key={ci} className={ci === 0 ? styles.tableCardTitle : styles.tableCardRow}>
+              {ci > 0 && headers[ci] != null && (
+                <span className={styles.tableLabel}>{headers[ci]}</span>
+              )}
+              <span className={ci === 0 ? styles.tableCardTitleText : styles.tableCardValue}>
+                {cell}
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface MessageListProps {
   messages: Message[];
@@ -149,7 +206,7 @@ function AssistantTurn({ message, toolSlots, toolRows, isStreaming }: AssistantT
           >
             <Box style={{ display: "flex", gap: 6, alignItems: "flex-end", minWidth: 0 }}>
               <Box className={styles.markdown ?? ""} style={{ flex: 1, minWidth: 0 }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock, table: TableListView as React.ComponentType<React.HTMLAttributes<HTMLTableElement>> }}>
                   {message.content}
                 </ReactMarkdown>
               </Box>
