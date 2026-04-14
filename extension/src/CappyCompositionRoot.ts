@@ -17,6 +17,7 @@ import { McpManager } from "./mcp/client";
 import { loadWorkspaceSkillsPrompt } from "./agent/workspaceSkills";
 import { routeAgentEvent } from "./bridge/AgentEventRouter";
 import { logError, logInfo, resetLoggerCache } from "./utils/logger";
+import { debounce } from "./utils/debounce";
 import { RagIndexer } from "./rag/RagIndexer";
 import { setRagIndexer } from "./tools/ragSearchTool";
 import { MemoryStore, setMemoryStore } from "./memory/MemoryStore";
@@ -288,11 +289,3 @@ function parseChatMode(v: unknown): ChatUiMode {
 function post(webview: vscode.Webview, m: Record<string, unknown>): void { void webview.postMessage(m); }
 function isRecord(v: unknown): v is Record<string, unknown> { return typeof v === "object" && v !== null; }
 
-/** Returns a debounced version of `fn` that delays invocation by `ms` milliseconds. */
-function debounce(fn: () => void, ms: number): () => void {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return () => {
-    if (timer !== undefined) clearTimeout(timer);
-    timer = setTimeout(() => { timer = undefined; fn(); }, ms);
-  };
-}

@@ -10,6 +10,9 @@ import { toolsRegistry } from "../tools";
 import { type ChatUiMode, mcpToolsForChatMode, parseChatUiMode, selectToolsForChatMode } from "./chatMode";
 import type { FileDiffPayload } from "../utils/fileDiffPayload";
 import { logDebug, logError, logInfo, resetLoggerCache } from "../utils/logger";
+import { debounce } from "../utils/debounce";
+import { RagIndexer } from "../rag/RagIndexer";
+import { setRagIndexer } from "../tools/ragSearchTool";
 import {
   isAgentShellTool,
   parseShellToolResultString,
@@ -175,6 +178,39 @@ export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBr
   agentLoop.on("context:usage", contextUsageListener);
 
   void pushHitlPolicyToWebview(webview, workspaceRoot, hitlUiSessionState);
+
+  // ── RAG indexer (background, only when enabled) ───────────────────────────
+  if (workspaceRoot) {
+    void loadConfig().then((config) => {
+      const ragCfg = config.rag;
+      if (!ragCfg?.enabled) return;
+
+      const ragIndexer = new RagIndexer(workspaceRoot, ragCfg, config.openrouter.apiKey);
+      setRagIndexer(ragIndexer);
+
+      process.env.CAPPY_RAG_MODEL = ragCfg.embeddingModel;
+      process.env.CAPPY_RAG_DIMS = String(ragCfg.dimensions);
+
+      void ragIndexer.indexAll();
+
+      const exts = ragCfg.includeExtensions.map((e) => e.replace(/^\./u, "")).join(",");
+      const fileWatcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(workspaceRoot, `**/*.{${exts}}`),
+      );
+      fileWatcher.onDidChange((uri) => { void ragIndexer.indexFile(uri.fsPath); });
+      fileWatcher.onDidCreate((uri) => { void ragIndexer.indexFile(uri.fsPath); });
+      fileWatcher.onDidDelete((uri) => { void ragIndexer.removeFile(uri.fsPath); });
+
+      const gitWatcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(workspaceRoot, ".git/{HEAD,index}"),
+      );
+      const onGitChange = debounce(() => { void ragIndexer.indexAll(); }, 2000);
+      gitWatcher.onDidChange(onGitChange);
+      gitWatcher.onDidCreate(onGitChange);
+
+      bridgeDisposables.push(fileWatcher, gitWatcher, new vscode.Disposable(() => ragIndexer.dispose()));
+    });
+  }
 
   bridgeDisposables.push(
     webview.onDidReceiveMessage((raw: unknown) => {
