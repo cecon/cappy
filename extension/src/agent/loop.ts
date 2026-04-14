@@ -32,6 +32,8 @@ import {
 import {
   appendCompactionNote,
   getConversationCompactionSummary,
+  getPlanContent,
+  getPlanFilePath,
   getPlanMode,
 } from "./sessionContext";
 import type { AgentEvents, AgentTool, Message, ToolCall } from "./types";
@@ -70,10 +72,10 @@ const DESTRUCTIVE_TOOL_SET = new Set<string>(DESTRUCTIVE_TOOLS);
  * Injected while plan mode is active (OpenClaude-style EnterPlanMode).
  */
 const PLAN_MODE_SYSTEM_PROMPT =
-  "You are in PLAN MODE. Explore the codebase, read files, and design an approach. " +
-  "Do not use Write, writeFile, Edit, Bash, or runTerminal until you call ExitPlanMode or the user explicitly asks for implementation. " +
-  "You may use ExploreAgent for read-only deep code/web search. Use TodoWrite to track steps. " +
-  "Use WebFetch or WebSearch for quick public lookups when helpful.";
+  "Você está em PLAN MODE. Explore livremente o código e a web: use Read, Grep, Glob, WebSearch, WebFetch, RAG (ragSearch), MCP tools de leitura e ExploreAgent. " +
+  "Use PlanWrite para registar o plano progressivamente em ficheiro de sessão (fora do projeto). " +
+  "Tentativas de usar Write, writeFile, Edit, Bash ou runTerminal serão bloqueadas automaticamente até chamar ExitPlanMode. " +
+  "Use TodoWrite para rastrear as etapas do plano.";
 
 interface PendingToolCallState {
   id: string;
@@ -417,6 +419,14 @@ export class AgentLoop extends EventEmitter {
             logError(`Tool ${toolCall.name} failed: ${asError(execError).message}`);
           }
           this.emitEvent("tool:result", toolCall, serializedResult, fileDiffPayload);
+          // Sync plan panel in the webview after any plan-mode lifecycle tool.
+          if (["EnterPlanMode", "ExitPlanMode", "PlanWrite"].includes(toolCall.name)) {
+            this.emitEvent("plan:state", {
+              active: getPlanMode(),
+              filePath: getPlanFilePath(),
+              content: getPlanContent(),
+            });
+          }
           history.push({
             role: "tool",
             content: serializedResult,

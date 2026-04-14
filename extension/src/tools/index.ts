@@ -6,7 +6,7 @@ import { exploreAgentTool } from "./exploreAgent";
 import { globFilesTool, globOpenClaudeTool } from "./globFiles";
 import { grepTool } from "./grepTool";
 import { listDirTool } from "./listDir";
-import { enterPlanModeTool, exitPlanModeTool } from "./planModeTools";
+import { enterPlanModeTool, exitPlanModeTool, planWriteTool } from "./planModeTools";
 import { readFileTool, readOpenClaudeTool } from "./readFile";
 import { bashTool, runTerminalTool } from "./runTerminal";
 import { memoryDeleteTool, memoryListTool, memoryReadTool, memoryWriteTool } from "./memoryTools";
@@ -46,6 +46,7 @@ export const toolsRegistry: ToolDefinition<any, unknown>[] = [
   readSkillTool,
   createSkillTool,
   enterPlanModeTool,
+  planWriteTool,
   exitPlanModeTool,
   webFetchTool,
   webSearchTool,

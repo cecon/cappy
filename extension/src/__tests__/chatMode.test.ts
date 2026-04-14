@@ -84,6 +84,21 @@ describe("selectToolsForChatMode", () => {
     expect(result).toHaveLength(tools.length);
   });
 
+  it("'ask' inclui EnterPlanMode, PlanWrite e ExitPlanMode", () => {
+    const tools = [
+      makeAgentTool("EnterPlanMode"),
+      makeAgentTool("PlanWrite"),
+      makeAgentTool("ExitPlanMode"),
+      makeAgentTool("writeFile"), // deve ser excluído
+    ];
+    const result = selectToolsForChatMode("ask", tools);
+    const names = result.map((t) => t.name);
+    expect(names).toContain("EnterPlanMode");
+    expect(names).toContain("PlanWrite");
+    expect(names).toContain("ExitPlanMode");
+    expect(names).not.toContain("writeFile");
+  });
+
   it("'ask' com lista vazia retorna lista vazia", () => {
     expect(selectToolsForChatMode("ask", [])).toHaveLength(0);
   });

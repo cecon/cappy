@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { ContextUsagePayload } from "../agent/contextBudget";
 import { AgentLoop } from "../agent/loop";
-import type { AgentTool, Message, ToolCall } from "../agent/types";
+import type { AgentTool, Message, PlanStatePayload, ToolCall } from "../agent/types";
 import { resetSessionContext } from "../agent/sessionContext";
 import { loadAgentPreferences } from "../agent/agentPreferences";
 import { type CappyConfig, loadConfig, saveConfig } from "../config";
@@ -48,7 +48,9 @@ export type HostToWebviewMessage =
       destructiveTools: "confirm_each" | "allow_all";
       sessionAutoApproveDestructive: boolean;
     }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  /** Plan mode lifecycle: entered, content updated, or exited. */
+  | { type: "plan:state"; active: boolean; filePath: string | null; content: string | null };
 
 /**
  * Message sent from webview to extension host.
@@ -143,6 +145,9 @@ export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBr
   const toolRejectedListener = (toolCall: ToolCall) => {
     void postToWebview(webview, { type: "tool:rejected", toolCall });
   };
+  const planStateListener = (payload: PlanStatePayload) => {
+    void postToWebview(webview, { type: "plan:state", ...payload });
+  };
   const errorListener = (error: Error) => {
     logError(`Agent error event: ${error.message}`);
     void postToWebview(webview, { type: "error", message: error.message });
@@ -165,6 +170,7 @@ export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBr
   agentLoop.on("tool:executing", toolExecutingListener);
   agentLoop.on("tool:result", toolResultListener);
   agentLoop.on("tool:rejected", toolRejectedListener);
+  agentLoop.on("plan:state", planStateListener);
   agentLoop.on("error", errorListener);
   agentLoop.on("context:usage", contextUsageListener);
 
@@ -186,6 +192,7 @@ export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBr
       agentLoop.off("tool:executing", toolExecutingListener);
       agentLoop.off("tool:result", toolResultListener);
       agentLoop.off("tool:rejected", toolRejectedListener);
+      agentLoop.off("plan:state", planStateListener);
       agentLoop.off("error", errorListener);
       agentLoop.off("context:usage", contextUsageListener);
       void mcpManager.disconnect();

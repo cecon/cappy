@@ -44,7 +44,8 @@ export type ChatAction =
   | { type: "HITL_POLICY"; policy: HitlUiPolicy }
   | { type: "MODEL_CHANGE"; modelId: string }
   | { type: "ADD_CONTEXT_FILE"; file: ContextFile }
-  | { type: "REMOVE_CONTEXT_FILE"; path: string };
+  | { type: "REMOVE_CONTEXT_FILE"; path: string }
+  | { type: "PLAN_STATE"; active: boolean; content: string | null; filePath: string | null };
 
 // ── Reducer helpers ────────────────────────────────────────────────────────
 
@@ -90,6 +91,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...INITIAL_CHAT_STATE,
         draftSessionKey: state.draftSessionKey + 1,
         runtimeConfig: state.runtimeConfig,
+        planMode: false,
+        planContent: null,
+        planFilePath: null,
       };
 
     case "STREAM_TOKEN":
@@ -207,6 +211,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case "REMOVE_CONTEXT_FILE":
       return { ...state, contextFiles: state.contextFiles.filter((f) => f.path !== action.path) };
+
+    case "PLAN_STATE":
+      return { ...state, planMode: action.active, planContent: action.content, planFilePath: action.filePath };
 
     default:
       return state;

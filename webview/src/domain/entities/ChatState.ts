@@ -58,6 +58,12 @@ export interface ChatState {
   draftSessionKey: number;
   runtimeConfig: CappyConfig | null;
   hitlPolicy: HitlUiPolicy;
+  /** Whether the agent is currently in plan mode. */
+  planMode: boolean;
+  /** Markdown content of the current plan (null = no plan written yet). */
+  planContent: string | null;
+  /** Absolute path of the session plan file on disk (null = not yet created). */
+  planFilePath: string | null;
 }
 
 export const DEFAULT_HITL_POLICY: HitlUiPolicy = {
@@ -78,4 +84,7 @@ export const INITIAL_CHAT_STATE: ChatState = {
   draftSessionKey: 0,
   runtimeConfig: null,
   hitlPolicy: DEFAULT_HITL_POLICY,
+  planMode: false,
+  planContent: null,
+  planFilePath: null,
 };

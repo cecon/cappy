@@ -24,6 +24,7 @@ const ASK_ALLOWED_TOOL_NAMES = new Set<string>([
   "MemoryList",
   "MemoryRead",
   "EnterPlanMode",
+  "PlanWrite",
   "ExitPlanMode",
 ]);
 

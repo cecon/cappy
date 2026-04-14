@@ -54,7 +54,9 @@ export type IncomingMessage =
   | { type: "agent:shell:start"; command: string; cwd?: string }
   /** Stdout/stderr do mesmo `exec` usado pela tool. */
   | { type: "agent:shell:complete"; command: string; stdout: string; stderr: string; errorText?: string }
-  | ({ type: "hitl:policy" } & HitlUiPolicy);
+  | ({ type: "hitl:policy" } & HitlUiPolicy)
+  /** Plan mode lifecycle: entered, content updated, or exited. */
+  | { type: "plan:state"; active: boolean; filePath: string | null; content: string | null };
 
 /**
  * Bridge contract used by the webview UI.

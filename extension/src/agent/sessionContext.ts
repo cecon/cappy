@@ -3,6 +3,10 @@
  * Reset when the webview bridge is disposed (clear chat / reload).
  */
 
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
+
 export type TodoStatus = "pending" | "in_progress" | "completed";
 
 /**
@@ -14,7 +18,19 @@ export interface TodoItem {
   activeForm: string;
 }
 
+function generateSessionId(): string {
+  return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
+}
+
+/** Returns the plan file path for a given session id. */
+export function getSessionPlanPath(id: string): string {
+  return path.join(os.homedir(), ".cappy", "sessions", id, "plan.md");
+}
+
+let sessionId: string = generateSessionId();
 let planMode = false;
+let planFilePath: string | null = null;
+let planContent: string | null = null;
 
 let todos: TodoItem[] = [];
 
@@ -34,7 +50,10 @@ const readPaths = new Set<string>();
  * Clears plan mode and todos for a new chat session.
  */
 export function resetSessionContext(): void {
+  sessionId = generateSessionId();
   planMode = false;
+  planFilePath = null;
+  planContent = null;
   todos = [];
   readPaths.clear();
   conversationCompactionSummary = "";
@@ -97,6 +116,60 @@ export function getPlanMode(): boolean {
  */
 export function setPlanMode(value: boolean): void {
   planMode = value;
+}
+
+/** Current session id (regenerated on reset). */
+export function getSessionId(): string {
+  return sessionId;
+}
+
+/** Absolute path to the session plan file, or null if not yet created. */
+export function getPlanFilePath(): string | null {
+  return planFilePath;
+}
+
+export function setPlanFilePath(p: string | null): void {
+  planFilePath = p;
+}
+
+/** Markdown content of the plan, kept in memory for webview sync. */
+export function getPlanContent(): string | null {
+  return planContent;
+}
+
+export function setPlanContent(c: string | null): void {
+  planContent = c;
+}
+
+/**
+ * Initialises the session plan file at ~/.cappy/sessions/<id>/plan.md.
+ * Creates the directory and an empty file if it doesn't exist yet.
+ * Returns the absolute path.
+ */
+export async function initSessionPlanFile(): Promise<string> {
+  const p = getSessionPlanPath(sessionId);
+  await fs.mkdir(path.dirname(p), { recursive: true });
+  // Write empty file only if it doesn't exist yet
+  try {
+    await fs.access(p);
+  } catch {
+    await fs.writeFile(p, "", "utf-8");
+  }
+  planFilePath = p;
+  planContent = planContent ?? "";
+  return p;
+}
+
+/**
+ * Writes the given markdown content to the session plan file and keeps it in
+ * memory so the webview can render it without re-reading the disk.
+ */
+export async function writeSessionPlan(content: string): Promise<string> {
+  const p = planFilePath ?? (await initSessionPlanFile());
+  await fs.writeFile(p, content, "utf-8");
+  planFilePath = p;
+  planContent = content;
+  return p;
 }
 
 /**

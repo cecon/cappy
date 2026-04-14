@@ -10,6 +10,7 @@ import { useModelOptions } from "../hooks/useModelOptions";
 import { InputBar, type ContextFile } from "./InputBar";
 import { MessageList } from "./MessageList";
 import { PermissionDock } from "./PermissionDock";
+import { PlanModePanel } from "./PlanModePanel";
 import { cappyPalette } from "../theme";
 
 const bridge = getBridge();
@@ -141,6 +142,20 @@ export function Chat(): JSX.Element {
               onApproveSession={handleApproveSession}
               onApprovePersist={handleApprovePersist}
               remainingCount={state.pendingConfirms.length - 1}
+            />
+          </Box>
+        ) : null}
+
+        {/* Plan mode panel — shown above InputBar while agent is in plan mode */}
+        {state.planMode ? (
+          <Box px={4}>
+            <PlanModePanel
+              content={state.planContent}
+              filePath={state.planFilePath}
+              onOpenFile={() => {
+                if (state.planFilePath) bridge.send({ type: "file:open", path: state.planFilePath });
+              }}
+              onApprove={() => handleSend("O plano está aprovado. Pode implementar.", "agent")}
             />
           </Box>
         ) : null}
