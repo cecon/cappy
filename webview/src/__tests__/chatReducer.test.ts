@@ -269,3 +269,78 @@ describe("chatReducer — ação desconhecida", () => {
     expect(next).toBe(initialState);
   });
 });
+
+describe("chatReducer — PLAN_STATE", () => {
+  it("activa plan mode e guarda conteúdo e caminho", () => {
+    const next = chatReducer(initialState, {
+      type: "PLAN_STATE",
+      active: true,
+      content: "# Plano\n- Passo 1",
+      filePath: "/home/user/.cappy/sessions/abc123/plan.md",
+    });
+    expect(next.planMode).toBe(true);
+    expect(next.planContent).toBe("# Plano\n- Passo 1");
+    expect(next.planFilePath).toBe("/home/user/.cappy/sessions/abc123/plan.md");
+  });
+
+  it("desactiva plan mode mas mantém conteúdo e caminho para referência", () => {
+    const state: ChatState = {
+      ...initialState,
+      planMode: true,
+      planContent: "# Plano antigo",
+      planFilePath: "/home/user/.cappy/sessions/abc/plan.md",
+    };
+    const next = chatReducer(state, {
+      type: "PLAN_STATE",
+      active: false,
+      content: "# Plano antigo",
+      filePath: "/home/user/.cappy/sessions/abc/plan.md",
+    });
+    expect(next.planMode).toBe(false);
+    expect(next.planContent).toBe("# Plano antigo");
+    expect(next.planFilePath).toBe("/home/user/.cappy/sessions/abc/plan.md");
+  });
+
+  it("actualiza conteúdo do plano (PlanWrite progressivo)", () => {
+    let state = chatReducer(initialState, {
+      type: "PLAN_STATE",
+      active: true,
+      content: "# v1",
+      filePath: "/p/plan.md",
+    });
+    state = chatReducer(state, {
+      type: "PLAN_STATE",
+      active: true,
+      content: "# v2 com mais detalhe",
+      filePath: "/p/plan.md",
+    });
+    expect(state.planContent).toBe("# v2 com mais detalhe");
+  });
+
+  it("aceita content null antes de PlanWrite ser chamado", () => {
+    const next = chatReducer(initialState, {
+      type: "PLAN_STATE",
+      active: true,
+      content: null,
+      filePath: "/p/plan.md",
+    });
+    expect(next.planMode).toBe(true);
+    expect(next.planContent).toBeNull();
+  });
+});
+
+describe("chatReducer — SESSION_RESET reseta plan mode", () => {
+  it("limpa planMode, planContent e planFilePath na nova sessão", () => {
+    const state: ChatState = {
+      ...initialState,
+      planMode: true,
+      planContent: "# Plano",
+      planFilePath: "/p/plan.md",
+      draftSessionKey: 1,
+    };
+    const next = chatReducer(state, { type: "SESSION_RESET" });
+    expect(next.planMode).toBe(false);
+    expect(next.planContent).toBeNull();
+    expect(next.planFilePath).toBeNull();
+  });
+});
