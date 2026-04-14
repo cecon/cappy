@@ -233,10 +233,13 @@ async function handleChatSend(
         execute: async (p: Record<string, unknown>) => mcpManager.callTool(m.serverName, m.name, p),
       })),
     ];
-    logInfo(`chat:send | mode=${mode} msgs=${messages.length} tools=${mergedTools.length}`);
+    // Inject the active agent's system prompt so role-specific behaviour
+    // (including the Strategist chain-of-thought) is enforced on every run.
+    const agentSystemPrompt = config.agent.systemPrompt?.trim() || undefined;
+    logInfo(`chat:send | mode=${mode} msgs=${messages.length} tools=${mergedTools.length} agent=${config.agent.activeAgent}`);
     await agent.run(
       messages, mergedTools,
-      { messages, chatMode: mode, silent: false, workspaceSkillsPrompt: skillsPrompt },
+      { messages, chatMode: mode, silent: false, workspaceSkillsPrompt: skillsPrompt, systemPromptPrefix: agentSystemPrompt },
       (event) => routeAgentEvent(event, webview, new VsCodeLogger()),
     );
   } catch (err) {
