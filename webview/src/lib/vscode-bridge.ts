@@ -273,6 +273,14 @@ function isIncomingMessage(value: unknown): value is IncomingMessage {
     );
   }
 
+  if (value.type === "plan:state") {
+    return (
+      typeof value.active === "boolean" &&
+      (value.filePath === null || typeof value.filePath === "string") &&
+      (value.content === null || typeof value.content === "string")
+    );
+  }
+
   return false;
 }
 
