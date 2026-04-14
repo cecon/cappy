@@ -17,16 +17,17 @@ interface ListSkillsResult {
 export const listSkillsTool: ToolDefinition<ListSkillsParams, ListSkillsResult> = {
   name: "ListSkills",
   description:
-    "Lists all available skills (built-in + workspace `.cappy/skills/`). " +
-    "Returns name, description, type (built-in or workspace). " +
+    "Lists all available skills across all discovery locations. " +
+    "Sources (ascending priority): built-in → global `~/.cappy/skills/` → `.github/skills/` → `.agent/skills/` → `.code/skills/` → `.cappy/skills/`. " +
+    "Returns name, source, and description for each skill. " +
     "Use this to discover relevant skills before starting a task.",
   parameters: {
     type: "object",
     properties: {
       filter: {
         type: "string",
-        enum: ["builtin", "workspace"],
-        description: 'Optional filter: "builtin" or "workspace". Omit for all.',
+        enum: ["builtin", "global", "external", "workspace"],
+        description: 'Optional filter by source: "builtin", "global", "external", or "workspace". Omit for all.',
       },
     },
     required: [],
@@ -36,10 +37,8 @@ export const listSkillsTool: ToolDefinition<ListSkillsParams, ListSkillsResult> 
     const root = getWorkspaceRoot();
     let skills = await listSkills(root);
 
-    if (params.filter === "builtin") {
-      skills = skills.filter((s) => s.builtIn);
-    } else if (params.filter === "workspace") {
-      skills = skills.filter((s) => !s.builtIn);
+    if (params.filter) {
+      skills = skills.filter((s) => s.source === params.filter);
     }
 
     return { skills, total: skills.length };
@@ -91,7 +90,7 @@ export const readSkillTool: ToolDefinition<ReadSkillParams, ReadSkillResult> = {
     return {
       name: result.meta.name,
       description: result.meta.description,
-      type: result.meta.builtIn ? "built-in" : "workspace",
+      type: result.meta.source,
       content: result.content,
     };
   },
@@ -116,9 +115,10 @@ interface CreateSkillResult {
 export const createSkillTool: ToolDefinition<CreateSkillParams, CreateSkillResult> = {
   name: "CreateSkill",
   description:
-    "Creates a new skill file in `.cappy/skills/`. " +
+    "Creates a new skill file in `.cappy/skills/` (primary workspace location). " +
     "The skill will be available to the agent in future conversations. " +
-    "Use when you notice recurring patterns or the user asks to save knowledge as a skill.",
+    "Use when you notice recurring patterns or the user asks to save knowledge as a skill. " +
+    "Skills in `.cappy/skills/` have the highest priority and override global or external skills with the same name.",
   parameters: {
     type: "object",
     properties: {

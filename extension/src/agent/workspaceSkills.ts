@@ -1,12 +1,34 @@
 import * as fs from "node:fs/promises";
 import { type Dirent } from "node:fs";
 import * as path from "node:path";
+import { homedir } from "node:os";
 
-/** Segmentos da pasta de skills por projeto (sob a raiz do workspace). */
+/**
+ * Pasta primária de skills no workspace (maior prioridade — sobrescreve todas as outras).
+ */
 export const WORKSPACE_SKILLS_SEGMENTS = [".cappy", "skills"] as const;
+
+/**
+ * Pastas externas no workspace que também são varridas por skills.
+ * Cada uma deve conter uma sub-pasta `skills/` com ficheiros `.md`.
+ * Inspirado nos dirs externos do Kilo (.claude, .agents).
+ * Ordem = prioridade crescente (último varre sobrescreve o anterior).
+ */
+export const EXTERNAL_SKILL_DIRS = [".github", ".agent", ".code"] as const;
+
+/**
+ * Pasta global de skills (home do utilizador).
+ * Carregada primeiro — qualquer dir de projeto sobrescreve.
+ */
+export const GLOBAL_SKILLS_DIR = path.join(homedir(), ".cappy", "skills");
 
 /** Limite de caracteres do catálogo injectado no prompt. */
 const MAX_CATALOG_CHARS = 8_000;
+
+/**
+ * Origem da skill — usada no catálogo do system prompt.
+ */
+export type SkillSource = "built-in" | "global" | "external" | "workspace";
 
 /**
  * Metadata extraída do frontmatter YAML de uma skill (primeiras linhas do `.md`).
@@ -16,12 +38,12 @@ export interface SkillMeta {
   name: string;
   /** Descrição de uma linha (extraída de `description:` no frontmatter ou primeira frase). */
   description: string;
-  /** Caminho relativo ao workspace root. */
+  /** Caminho relativo ao workspace root (ou `[global]` / `[built-in]`). */
   relativePath: string;
   /** Caminho absoluto no disco. */
   absolutePath: string;
-  /** true quando é uma skill embarcada (built-in). */
-  builtIn: boolean;
+  /** Origem da skill. */
+  source: SkillSource;
 }
 
 // ─── Built-in skills ────────────────────────────────────────────────
@@ -112,7 +134,13 @@ description: Convenções de testes unitários do projeto
 ## O que são skills?
 
 Skills são blocos de conhecimento em Markdown que expandem as capacidades do Cappy.
-Ficam em \`.cappy/skills/\` no workspace e são carregadas automaticamente.
+São descobertas automaticamente nos seguintes locais (ordem de prioridade crescente):
+
+1. \`~/.cappy/skills/\` — skills globais (home do utilizador)
+2. \`.github/skills/\` — skills do repositório (convenção GitHub)
+3. \`.agent/skills/\` — skills de agentes genéricos
+4. \`.code/skills/\` — skills específicas do editor/ambiente
+5. \`.cappy/skills/\` — skills primárias do workspace (maior prioridade)
 
 ## Quando usar skills
 
@@ -124,7 +152,7 @@ Ficam em \`.cappy/skills/\` no workspace e são carregadas automaticamente.
 
 | Tool | Uso |
 |------|-----|
-| \`ListSkills\` | Lista todas as skills com nome e descrição |
+| \`ListSkills\` | Lista todas as skills com nome, origem e descrição |
 | \`ReadSkill\` | Lê o conteúdo completo de uma skill pelo nome |
 | \`CreateSkill\` | Cria uma nova skill \`.md\` em \`.cappy/skills/\` |
 
@@ -195,53 +223,37 @@ function extractDescription(content: string): string {
 }
 
 /**
- * Deriva o nome da skill a partir do caminho do ficheiro.
+ * Deriva o nome da skill a partir do caminho do ficheiro e da pasta raiz das skills.
  * Se o ficheiro for `SKILL.md`, usa o nome da pasta pai. Senão, usa o nome sem extensão.
  */
 function deriveSkillName(filePath: string, skillsDir: string): string {
   const rel = path.relative(skillsDir, filePath).replace(/\\/gu, "/");
   const base = path.basename(filePath, ".md");
   if (base.toLowerCase() === "skill") {
-    // Usa o nome da pasta pai
-    const parent = path.basename(path.dirname(filePath));
-    return parent;
+    return path.basename(path.dirname(filePath));
   }
-  // Remove subpasta se houver
   return rel.replace(/\.md$/iu, "").replace(/\//gu, "/");
 }
 
-// ─── Public API ─────────────────────────────────────────────────────
-
 /**
- * Retorna a lista de skills do workspace + built-in (metadata apenas, sem conteúdo completo).
+ * Varre uma pasta de skills e popula o mapa de skills fornecido.
+ * Skills com o mesmo nome sobrescrevem as anteriores (maior prioridade).
  */
-export async function listSkills(workspaceRoot: string): Promise<SkillMeta[]> {
-  const resolvedRoot = path.resolve(workspaceRoot);
-  const skillsDir = path.join(resolvedRoot, ...WORKSPACE_SKILLS_SEGMENTS);
-  const result: SkillMeta[] = [];
-
-  // Built-in skills
-  for (const builtin of BUILTIN_SKILLS) {
-    result.push({
-      name: builtin.name,
-      description: builtin.description,
-      relativePath: `[built-in]/${builtin.fileName}`,
-      absolutePath: "",
-      builtIn: true,
-    });
-  }
-
-  // Workspace skills
+async function scanSkillsDir(
+  dir: string,
+  source: SkillSource,
+  workspaceRoot: string,
+  map: Map<string, SkillMeta>,
+): Promise<void> {
+  let isDir = false;
   try {
-    const stat = await fs.stat(skillsDir);
-    if (!stat.isDirectory()) {
-      return result;
-    }
+    isDir = (await fs.stat(dir)).isDirectory();
   } catch {
-    return result;
+    return;
   }
+  if (!isDir) return;
 
-  const files = await collectMarkdownFiles(skillsDir);
+  const files = await collectMarkdownFiles(dir);
   for (const filePath of files) {
     let content: string;
     try {
@@ -249,16 +261,64 @@ export async function listSkills(workspaceRoot: string): Promise<SkillMeta[]> {
     } catch {
       continue;
     }
-    result.push({
-      name: deriveSkillName(filePath, skillsDir),
+
+    const name = deriveSkillName(filePath, dir);
+    const relBase = source === "global"
+      ? `[global]/${path.relative(dir, filePath).replace(/\\/gu, "/")}`
+      : path.relative(workspaceRoot, filePath).replace(/\\/gu, "/");
+
+    map.set(name, {
+      name,
       description: extractDescription(content),
-      relativePath: path.relative(resolvedRoot, filePath).replace(/\\/gu, "/"),
+      relativePath: relBase,
       absolutePath: filePath,
-      builtIn: false,
+      source,
+    });
+  }
+}
+
+// ─── Public API ─────────────────────────────────────────────────────
+
+/**
+ * Retorna a lista de skills disponíveis, com deduplicação por nome.
+ *
+ * Ordem de prioridade (menor → maior; skills de maior prioridade sobrescrevem):
+ * 1. Built-in (sempre presente, menor prioridade)
+ * 2. Global: `~/.cappy/skills/`
+ * 3. Externos: `.github/skills/`, `.agent/skills/`, `.code/skills/`
+ * 4. Primário: `.cappy/skills/` (maior prioridade)
+ */
+export async function listSkills(workspaceRoot: string): Promise<SkillMeta[]> {
+  const resolvedRoot = path.resolve(workspaceRoot);
+
+  // Mapa ordenado: chave = nome normalizado; skills de maior prioridade sobrescrevem
+  const map = new Map<string, SkillMeta>();
+
+  // 1. Built-in (base)
+  for (const builtin of BUILTIN_SKILLS) {
+    map.set(builtin.name, {
+      name: builtin.name,
+      description: builtin.description,
+      relativePath: `[built-in]/${builtin.fileName}`,
+      absolutePath: "",
+      source: "built-in",
     });
   }
 
-  return result;
+  // 2. Global (~/.cappy/skills/)
+  await scanSkillsDir(GLOBAL_SKILLS_DIR, "global", resolvedRoot, map);
+
+  // 3. Externos (.github/skills/, .agent/skills/, .code/skills/)
+  for (const dir of EXTERNAL_SKILL_DIRS) {
+    const skillsDir = path.join(resolvedRoot, dir, "skills");
+    await scanSkillsDir(skillsDir, "external", resolvedRoot, map);
+  }
+
+  // 4. Primário (.cappy/skills/) — maior prioridade
+  const primaryDir = path.join(resolvedRoot, ...WORKSPACE_SKILLS_SEGMENTS);
+  await scanSkillsDir(primaryDir, "workspace", resolvedRoot, map);
+
+  return Array.from(map.values());
 }
 
 /**
@@ -272,7 +332,7 @@ export async function readSkill(workspaceRoot: string, skillName: string): Promi
     return null;
   }
 
-  if (match.builtIn) {
+  if (match.source === "built-in") {
     const builtin = BUILTIN_SKILLS.find((b) => b.name.toLowerCase() === normalizedName);
     if (!builtin) {
       return null;
@@ -289,7 +349,7 @@ export async function readSkill(workspaceRoot: string, skillName: string): Promi
 }
 
 /**
- * Cria uma nova skill no workspace.
+ * Cria uma nova skill no workspace (sempre em `.cappy/skills/`).
  */
 export async function createSkill(
   workspaceRoot: string,
@@ -299,10 +359,8 @@ export async function createSkill(
   const resolvedRoot = path.resolve(workspaceRoot);
   const skillsDir = path.join(resolvedRoot, ...WORKSPACE_SKILLS_SEGMENTS);
 
-  // Garante que a pasta existe
   await fs.mkdir(skillsDir, { recursive: true });
 
-  // Sanitiza o nome para um filename seguro
   const safeName = name
     .trim()
     .toLowerCase()
@@ -317,7 +375,6 @@ export async function createSkill(
   const fileName = safeName.endsWith(".md") ? safeName : `${safeName}.md`;
   const filePath = path.join(skillsDir, fileName);
 
-  // Não sobrescreve skills existentes
   try {
     await fs.access(filePath);
     throw new Error(`Skill "${safeName}" já existe em ${path.relative(resolvedRoot, filePath)}.`);
@@ -335,8 +392,16 @@ export async function createSkill(
   };
 }
 
+/** Rótulo legível para cada origem de skill. */
+const SOURCE_LABEL: Record<SkillSource, string> = {
+  "built-in": "built-in",
+  global: "global",
+  external: "external",
+  workspace: "workspace",
+};
+
 /**
- * Gera o bloco de system prompt com o catálogo leve de skills (nome + descrição).
+ * Gera o bloco de system prompt com o catálogo leve de skills (nome + origem + descrição).
  * Não injeta o conteúdo completo — o agente deve usar ReadSkill para isso.
  */
 export async function loadWorkspaceSkillsPrompt(workspaceRoot: string): Promise<string> {
@@ -348,19 +413,21 @@ export async function loadWorkspaceSkillsPrompt(workspaceRoot: string): Promise<
   const lines: string[] = [
     "# Skills disponíveis",
     "",
-    "O workspace tem skills em `.cappy/skills/`. Antes de executar uma tarefa, " +
-    "verifica se alguma skill é relevante. Usa `ReadSkill` para ler o conteúdo completo.",
+    "Skills são carregadas de (prioridade crescente): " +
+    "`~/.cappy/skills/` (global) → `.github/skills/` → `.agent/skills/` → `.code/skills/` → `.cappy/skills/` (workspace).",
+    "Antes de executar uma tarefa, verifica se alguma skill é relevante. " +
+    "Usa `ReadSkill` para ler o conteúdo completo.",
     "",
-    "| Nome | Tipo | Descrição |",
-    "|------|------|-----------|",
+    "| Nome | Origem | Descrição |",
+    "|------|--------|-----------|",
   ];
 
   let total = lines.join("\n").length;
 
   for (const skill of skills) {
-    const row = `| ${skill.name} | ${skill.builtIn ? "built-in" : "workspace"} | ${skill.description} |`;
+    const row = `| ${skill.name} | ${SOURCE_LABEL[skill.source]} | ${skill.description} |`;
     if (total + row.length + 1 > MAX_CATALOG_CHARS) {
-      lines.push(`| ... | | (${skills.length - lines.length + 6} skills adicionais truncadas) |`);
+      lines.push(`| ... | | (${skills.length - lines.length + 7} skills adicionais truncadas) |`);
       break;
     }
     lines.push(row);

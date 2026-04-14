@@ -13,15 +13,36 @@ const MAX_MESSAGE_SNIPPET_CHARS = 14_000;
 const MAX_COMPLETION_TOKENS = 2_048;
 
 /**
+ * Template de compactação estruturada, inspirado no Kilo.
+ * O modelo preenche cada secção com base no excerto do histórico recebido.
+ */
+const COMPACTION_TEMPLATE = `## Objectivo
+[O que o utilizador quer alcançar?]
+
+## Instruções Importantes
+- [Instruções relevantes dadas pelo utilizador]
+
+## Descobertas
+[O que foi aprendido durante a conversa que é útil para continuar]
+
+## Trabalho Realizado / Em Curso / Por Fazer
+[O que foi completado, o que está em progresso e o que ainda falta]
+
+## Ficheiros / Directórios Relevantes
+[Lista estruturada de ficheiros lidos, editados ou criados que são relevantes para a tarefa]`;
+
+/**
  * Prompt de sistema para compactar histórico omitido no agente principal.
+ * Usa um template estruturado (inspirado no Kilo) para produzir resumos de alta qualidade
+ * que permitem a outro agente continuar o trabalho sem o histórico completo.
  */
 const SANITIZE_SUMMARY_SYSTEM = [
   "És um compressor de contexto para um assistente de programação.",
   "Recebes um excerto do histórico (utilizador, assistente, resultados de tools) que deixa de ser enviado ao modelo por limite de contexto.",
-  "Produz um resumo denso em Markdown com secções: Objectivos, Decisões, Ficheiros/caminhos, Erros ou bloqueios, Próximos passos.",
-  "Inclui nomes de ficheiros, comandos e APIs quando existirem. Omite conversa vazia.",
+  "Produz um resumo detalhado em Markdown seguindo exactamente este template:\n\n" + COMPACTION_TEMPLATE,
+  "Inclui nomes de ficheiros, comandos, APIs e erros concretos quando existirem. Omite conversa vazia.",
   "Escreve no mesmo idioma predominante do excerto. Máximo ~900 palavras.",
-].join(" ");
+].join("\n");
 
 /**
  * Serializa mensagens para o pedido de resumo (truncando saídas de tools longas).

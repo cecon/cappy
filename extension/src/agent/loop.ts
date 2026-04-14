@@ -20,6 +20,7 @@ import {
   estimateMessagesTokens,
   estimateTextTokens,
   getEffectiveInputBudgetTokens,
+  pruneOldToolOutputs,
   SYSTEM_PROMPT_OVERHEAD_TOKENS,
   trimMessagesForBudget,
   type ContextUsagePayload,
@@ -486,22 +487,28 @@ export class AgentLoop extends EventEmitter {
       typeof config.openrouter.reservedOutputTokens === "number" && config.openrouter.reservedOutputTokens >= 512
         ? config.openrouter.reservedOutputTokens
         : DEFAULT_RESERVED_OUTPUT_TOKENS;
-    const effectiveBudget = getEffectiveInputBudgetTokens(contextWindow, reservedOut);
+    const compactionBufferTokens =
+      typeof config.compaction?.bufferTokens === "number" && config.compaction.bufferTokens >= 0
+        ? config.compaction.bufferTokens
+        : undefined;
+    const effectiveBudget = getEffectiveInputBudgetTokens(contextWindow, reservedOut, compactionBufferTokens);
+    const compactionAutoEnabled = config.compaction?.auto !== false;
 
     const sanitized = sanitizeHistory(messages);
+    const pruned = pruneOldToolOutputs(sanitized);
     let validMessages: Message[];
     let didTrimForApi = false;
     let droppedMessageCount = 0;
 
-    if (this.runOptions.silent) {
+    if (this.runOptions.silent || !compactionAutoEnabled) {
       const compactionExtraSilent = 0;
       const trimBudget = Math.max(1024, effectiveBudget - SYSTEM_PROMPT_OVERHEAD_TOKENS - compactionExtraSilent);
-      const tr = trimMessagesForBudget(sanitized, trimBudget);
+      const tr = trimMessagesForBudget(pruned, trimBudget);
       validMessages = tr.messages;
       didTrimForApi = tr.droppedCount > 0;
       droppedMessageCount = tr.droppedCount;
     } else {
-      let work = [...sanitized];
+      let work = [...pruned];
       for (let iter = 0; iter < MAX_CONTEXT_SANITIZE_ITERATIONS; iter += 1) {
         const compactionExtra = estimateTextTokens(getConversationCompactionSummary());
         const trimBudget = Math.max(1024, effectiveBudget - SYSTEM_PROMPT_OVERHEAD_TOKENS - compactionExtra);

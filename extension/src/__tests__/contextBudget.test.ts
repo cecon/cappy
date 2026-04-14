@@ -6,9 +6,12 @@ import {
   getEffectiveInputBudgetTokens,
   isValidOpenAiMessageSequence,
   trimMessagesForBudget,
+  pruneOldToolOutputs,
   DEFAULT_CONTEXT_WINDOW_TOKENS,
   DEFAULT_RESERVED_OUTPUT_TOKENS,
   AUTOCOMPACT_BUFFER_TOKENS,
+  PRUNE_PROTECT_TOKENS,
+  PRUNE_MINIMUM_TOKENS,
   SYSTEM_PROMPT_OVERHEAD_TOKENS,
 } from "../agent/contextBudget";
 import type { Message } from "../agent/types";
@@ -106,10 +109,23 @@ describe("getEffectiveInputBudgetTokens", () => {
     expect(getEffectiveInputBudgetTokens(1_000, 900)).toBe(4096);
   });
 
+  it("usa buffer customizado quando fornecido", () => {
+    const customBuffer = 5_000;
+    const result = getEffectiveInputBudgetTokens(128_000, 8_192, customBuffer);
+    expect(result).toBe(128_000 - 8_192 - customBuffer);
+  });
+
+  it("buffer customizado de 0 remove toda a margem de segurança", () => {
+    const result = getEffectiveInputBudgetTokens(128_000, 8_192, 0);
+    expect(result).toBe(128_000 - 8_192);
+  });
+
   it("verifica constantes exportadas", () => {
     expect(DEFAULT_CONTEXT_WINDOW_TOKENS).toBe(128_000);
     expect(DEFAULT_RESERVED_OUTPUT_TOKENS).toBe(8_192);
     expect(AUTOCOMPACT_BUFFER_TOKENS).toBe(13_000);
+    expect(PRUNE_PROTECT_TOKENS).toBe(40_000);
+    expect(PRUNE_MINIMUM_TOKENS).toBe(20_000);
     expect(SYSTEM_PROMPT_OVERHEAD_TOKENS).toBe(2_000);
   });
 });
@@ -253,5 +269,116 @@ describe("trimMessagesForBudget", () => {
     // budget 0 — nada cabe, última mensagem é assistant
     const result = trimMessagesForBudget(msgs, 0);
     expect(result.messages.length).toBeGreaterThan(0);
+  });
+});
+
+describe("pruneOldToolOutputs", () => {
+  const makeTool = (content: string, id: string): Message => ({
+    role: "tool",
+    content,
+    tool_call_id: id,
+  });
+  const makeAssistantWithCall = (id: string): Message => ({
+    role: "assistant",
+    content: "",
+    tool_calls: [{ id, name: "readFile", arguments: { path: "/foo" } }],
+  });
+  const makeUser = (content: string): Message => ({ role: "user", content });
+
+  it("devolve o array original quando não há tool messages suficientes", () => {
+    const msgs: Message[] = [
+      makeUser("oi"),
+      makeAssistantWithCall("c1"),
+      makeTool("resultado pequeno", "c1"),
+    ];
+    const result = pruneOldToolOutputs(msgs);
+    expect(result).toBe(msgs);
+  });
+
+  it("não poda quando a economia está abaixo de PRUNE_MINIMUM_TOKENS", () => {
+    // Cada tool tem ~10 tokens — muito abaixo de 20 000
+    const msgs: Message[] = [
+      makeUser("hi"),
+      makeAssistantWithCall("c1"),
+      makeTool("x".repeat(40), "c1"),
+      makeUser("segunda"),
+      makeAssistantWithCall("c2"),
+      makeTool("y".repeat(40), "c2"),
+    ];
+    const result = pruneOldToolOutputs(msgs);
+    expect(result).toBe(msgs);
+  });
+
+  it("poda tool outputs antigos quando total supera PRUNE_PROTECT + PRUNE_MINIMUM", () => {
+    // PRUNE_PROTECT = 40 000 tokens; PRUNE_MINIMUM = 20 000 tokens
+    // Precisamos que o "protegido" seja ~40k e o "antigo" seja >= 20k
+    // Cada char ≈ 0.25 tokens → 40k tokens ≈ 160 000 chars
+    const protectedContent = "p".repeat(160_000); // ~40k tokens — preenche a zona protegida
+    const oldContent       = "o".repeat(80_000);  // ~20k tokens — deve ser podado
+
+    const msgs: Message[] = [
+      makeUser("inicio"),
+      makeAssistantWithCall("old"),
+      makeTool(oldContent, "old"),         // antigo — será podado
+      makeUser("recente"),
+      makeAssistantWithCall("new"),
+      makeTool(protectedContent, "new"),   // recente — protegido
+    ];
+
+    const result = pruneOldToolOutputs(msgs);
+
+    // Deve devolver novo array (não o original)
+    expect(result).not.toBe(msgs);
+
+    // Mensagem antiga deve ter o placeholder
+    const oldTool = result.find((m) => m.role === "tool" && m.tool_call_id === "old");
+    expect(oldTool?.content).toBe("[output de tool omitido por poda de contexto]");
+
+    // Mensagem recente deve estar intacta
+    const newTool = result.find((m) => m.role === "tool" && m.tool_call_id === "new");
+    expect(newTool?.content).toBe(protectedContent);
+  });
+
+  it("preserva tool_call_id e demais campos das mensagens podadas", () => {
+    const protectedContent = "p".repeat(160_000);
+    const oldContent       = "o".repeat(80_000);
+
+    const msgs: Message[] = [
+      makeUser("a"),
+      makeAssistantWithCall("old"),
+      makeTool(oldContent, "old"),
+      makeUser("b"),
+      makeAssistantWithCall("new"),
+      makeTool(protectedContent, "new"),
+    ];
+
+    const result = pruneOldToolOutputs(msgs);
+    const podada = result.find((m) => m.role === "tool" && m.tool_call_id === "old");
+
+    expect(podada?.role).toBe("tool");
+    expect(podada?.tool_call_id).toBe("old");
+  });
+
+  it("não altera mensagens user e assistant durante a poda", () => {
+    const protectedContent = "p".repeat(160_000);
+    const oldContent       = "o".repeat(80_000);
+
+    const msgs: Message[] = [
+      makeUser("pergunta original"),
+      makeAssistantWithCall("old"),
+      makeTool(oldContent, "old"),
+      makeUser("segunda pergunta"),
+      makeAssistantWithCall("new"),
+      makeTool(protectedContent, "new"),
+    ];
+
+    const result = pruneOldToolOutputs(msgs);
+
+    const users = result.filter((m) => m.role === "user");
+    expect(users[0]?.content).toBe("pergunta original");
+    expect(users[1]?.content).toBe("segunda pergunta");
+
+    const assistants = result.filter((m) => m.role === "assistant");
+    expect(assistants).toHaveLength(2);
   });
 });

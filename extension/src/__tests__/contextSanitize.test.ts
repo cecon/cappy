@@ -97,6 +97,36 @@ describe("constantes exportadas", () => {
   });
 });
 
+describe("template estruturado de compactação", () => {
+  const longContent = "conteúdo relevante de código e comentários explicativos ".repeat(35);
+
+  it("o prompt de sistema pede as 5 secções do template Kilo", async () => {
+    // Capturamos o argumento passado ao modelo via mock do cliente
+    let capturedMessages: Array<{ role: string; content: string }> = [];
+    const client = {
+      chat: {
+        completions: {
+          create: vi.fn().mockImplementation((params: { messages: Array<{ role: string; content: string }> }) => {
+            capturedMessages = params.messages;
+            return Promise.resolve({ choices: [{ message: { content: "resumo" } }] });
+          }),
+        },
+      },
+    } as unknown as OpenAI;
+
+    const msgs: Message[] = [{ role: "user", content: longContent }];
+    await summarizeDroppedMessagesForMainAgent(client, "gpt-4o", msgs);
+
+    const systemMsg = capturedMessages.find((m) => m.role === "system");
+    expect(systemMsg).toBeDefined();
+    expect(systemMsg!.content).toContain("Objectivo");
+    expect(systemMsg!.content).toContain("Instruções Importantes");
+    expect(systemMsg!.content).toContain("Descobertas");
+    expect(systemMsg!.content).toContain("Trabalho Realizado");
+    expect(systemMsg!.content).toContain("Ficheiros");
+  });
+});
+
 function makeClient(content: string): OpenAI {
   return {
     chat: {

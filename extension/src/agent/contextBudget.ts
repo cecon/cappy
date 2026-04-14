@@ -15,6 +15,18 @@ export const DEFAULT_RESERVED_OUTPUT_TOKENS = 8_192;
  */
 export const AUTOCOMPACT_BUFFER_TOKENS = 13_000;
 
+/**
+ * Tokens de outputs de tool protegidos da poda (contados a partir do final do histórico).
+ * Inspirado no PRUNE_PROTECT do Kilo: os últimos 40k tokens de outputs ficam sempre intactos.
+ */
+export const PRUNE_PROTECT_TOKENS = 40_000;
+
+/**
+ * Economia mínima para que a poda valha a pena (evita substituições sem impacto real).
+ * Inspirado no PRUNE_MINIMUM do Kilo: só poda se libertar pelo menos 20k tokens.
+ */
+export const PRUNE_MINIMUM_TOKENS = 20_000;
+
 /** Margem para prompts de sistema injectados (modo Plain/Ask/Plan + prefixos). */
 export const SYSTEM_PROMPT_OVERHEAD_TOKENS = 2_000;
 
@@ -78,12 +90,17 @@ export function estimateMessagesTokens(messages: Message[]): number {
 
 /**
  * Janela útil para entrada (histórico + system) antes de compactar.
+ *
+ * @param contextWindowTokens Janela total configurada para o modelo.
+ * @param reservedOutputTokens Tokens reservados para a resposta do modelo.
+ * @param compactionBufferTokens Override do buffer de segurança (padrão: `AUTOCOMPACT_BUFFER_TOKENS`).
  */
 export function getEffectiveInputBudgetTokens(
   contextWindowTokens: number,
   reservedOutputTokens: number,
+  compactionBufferTokens: number = AUTOCOMPACT_BUFFER_TOKENS,
 ): number {
-  const raw = contextWindowTokens - reservedOutputTokens - AUTOCOMPACT_BUFFER_TOKENS;
+  const raw = contextWindowTokens - reservedOutputTokens - compactionBufferTokens;
   return Math.max(4096, raw);
 }
 
@@ -190,4 +207,46 @@ export function trimMessagesForBudget(messages: Message[], maxInputTokens: numbe
     droppedCount: Math.max(0, messages.length - tail.length),
     droppedTokenEstimate: estimateMessagesTokens(messages.slice(0, Math.max(0, messages.length - tail.length))),
   };
+}
+
+const PRUNED_TOOL_PLACEHOLDER = "[output de tool omitido por poda de contexto]";
+
+/**
+ * Poda proativa inspirada no `prune()` do Kilo: percorre o histórico de trás para frente,
+ * acumula tokens dos outputs de `tool`. Quando ultrapassa `PRUNE_PROTECT_TOKENS`, os
+ * outputs anteriores são substituídos por um placeholder.
+ *
+ * A poda só é aplicada se a economia estimada for ≥ `PRUNE_MINIMUM_TOKENS`, evitando
+ * trabalho desnecessário. As mensagens `assistant` (com `tool_calls`) e a estrutura de
+ * IDs ficam intactas — só o `content` das mensagens `tool` antigas é comprimido.
+ */
+export function pruneOldToolOutputs(messages: Message[]): Message[] {
+  let protectedAccum = 0;
+  let savedAccum = 0;
+  const toPrune = new Set<number>();
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (!msg || msg.role !== "tool") {
+      continue;
+    }
+    const tokens = estimateTextTokens(msg.content);
+    if (protectedAccum < PRUNE_PROTECT_TOKENS) {
+      protectedAccum += tokens;
+    } else {
+      savedAccum += tokens;
+      toPrune.add(i);
+    }
+  }
+
+  if (savedAccum < PRUNE_MINIMUM_TOKENS) {
+    return messages;
+  }
+
+  return messages.map((msg, i) => {
+    if (!toPrune.has(i)) {
+      return msg;
+    }
+    return { ...msg, content: PRUNED_TOOL_PLACEHOLDER };
+  });
 }

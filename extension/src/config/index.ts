@@ -56,6 +56,24 @@ export interface RagConfig {
 }
 
 /**
+ * Controlo do comportamento de compactação automática do contexto.
+ * Inspirado no bloco `compaction` do Kilo.
+ */
+export interface CompactionConfig {
+  /**
+   * Se `false`, desativa o loop de sanitização LLM (trim sem resumo).
+   * Útil para modelos com janelas de contexto muito grandes ou em testes.
+   * Padrão: `true`.
+   */
+  auto?: boolean | undefined;
+  /**
+   * Buffer de segurança em tokens subtraído da janela antes de calcular o orçamento útil.
+   * Sobrescreve `AUTOCOMPACT_BUFFER_TOKENS` (padrão 13 000).
+   */
+  bufferTokens?: number | undefined;
+}
+
+/**
  * Full Cappy runtime configuration.
  */
 export interface CappyConfig {
@@ -65,6 +83,8 @@ export interface CappyConfig {
     servers: McpServerConfig[];
   };
   rag?: RagConfig;
+  /** Controlo da compactação automática de contexto. */
+  compaction?: CompactionConfig | undefined;
   /** Habilita logs verbosos no Output Channel do Cappy. */
   debug?: boolean | undefined;
 }
@@ -212,6 +232,7 @@ function mergeWithDefaults(raw: unknown): CappyConfig {
         .filter((server) => server.name.length > 0 && server.url.length > 0),
     },
     rag: mergeRagConfig(raw.rag, defaults.rag!),
+    compaction: mergeCompactionConfig(raw.compaction),
     debug: typeof raw.debug === "boolean" ? raw.debug : defaults.debug,
   };
 }
@@ -228,6 +249,14 @@ function mergeRagConfig(raw: unknown, defaults: RagConfig): RagConfig {
     ignorePatterns: Array.isArray(raw.ignorePatterns) ? (raw.ignorePatterns as string[]).filter((p) => typeof p === "string") : defaults.ignorePatterns,
     includeExtensions: Array.isArray(raw.includeExtensions) ? (raw.includeExtensions as string[]).filter((p) => typeof p === "string") : defaults.includeExtensions,
   };
+}
+
+function mergeCompactionConfig(raw: unknown): CompactionConfig | undefined {
+  if (!isRecord(raw)) return undefined;
+  const result: CompactionConfig = {};
+  if (typeof raw.auto === "boolean") result.auto = raw.auto;
+  if (typeof raw.bufferTokens === "number" && raw.bufferTokens >= 0) result.bufferTokens = raw.bufferTokens;
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 /**
