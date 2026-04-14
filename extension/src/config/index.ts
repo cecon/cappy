@@ -18,7 +18,7 @@ interface OpenRouterConfig {
 /**
  * Agent runtime configuration block.
  */
-export type ActiveAgent = "coder" | "planner" | "reviewer";
+export type ActiveAgent = "coder" | "planner" | "reviewer" | "strategist" | "tdd" | "sdd";
 
 /**
  * Agent runtime configuration block.
@@ -277,5 +277,12 @@ function isNodeErrorCode(error: unknown, code: string): boolean {
  * Narrows unknown values to one supported active agent id.
  */
 function isActiveAgent(value: unknown): value is ActiveAgent {
-  return value === "coder" || value === "planner" || value === "reviewer";
+  return (
+    value === "coder" ||
+    value === "planner" ||
+    value === "reviewer" ||
+    value === "strategist" ||
+    value === "tdd" ||
+    value === "sdd"
+  );
 }

@@ -222,7 +222,9 @@ export class AgentLoop extends EventEmitter {
   public abort(): void {
     if (this.runAbort) {
       this.runAbort.abort();
-      this.runAbort = null;
+      // NOTE: do NOT null out runAbort here — the loop checks this.runAbort?.signal.aborted
+      // and nulling it immediately would make those checks return undefined (falsy), effectively
+      // ignoring the abort. The finally block in run() cleans it up after the loop exits.
     }
     // Also reject any pending confirmations so the loop unblocks
     for (const [id, resolver] of this.pendingConfirmations) {
@@ -296,7 +298,7 @@ export class AgentLoop extends EventEmitter {
         let streamAttempt = 0;
         while (true) {
           try {
-            const stream = await this.createStream(history, mergedTools, runConfig);
+            const stream = await this.createStream(history, mergedTools, runConfig, this.runAbort?.signal);
             for await (const chunk of stream) {
               if (this.runAbort?.signal.aborted) {
                 break;
@@ -305,6 +307,11 @@ export class AgentLoop extends EventEmitter {
             }
             break;
           } catch (streamErr) {
+            if (this.runAbort?.signal.aborted) {
+              logInfo("Agent run aborted by user (stream cancelled)");
+              this.emitEvent("stream:done");
+              return history;
+            }
             const errMsg = asError(streamErr).message.toLowerCase();
             const isTransient =
               errMsg.includes("terminated") ||
@@ -322,6 +329,12 @@ export class AgentLoop extends EventEmitter {
             }
             throw streamErr;
           }
+        }
+
+        if (this.runAbort?.signal.aborted) {
+          logInfo("Agent run aborted by user");
+          this.emitEvent("stream:done");
+          break;
         }
 
         void logDebug(`Stream consumed | chunks done, parsing tool calls...`);
@@ -477,7 +490,7 @@ export class AgentLoop extends EventEmitter {
   /**
    * Creates one streaming completion request to OpenRouter.
    */
-  private async createStream(messages: Message[], tools: AgentTool[], config: CappyConfig) {
+  private async createStream(messages: Message[], tools: AgentTool[], config: CappyConfig, signal?: AbortSignal) {
     const { client, model, visionModel } = await this.getClientAndModel();
     const contextWindow =
       typeof config.openrouter.contextWindowTokens === "number" && config.openrouter.contextWindowTokens >= 4096
@@ -604,7 +617,7 @@ export class AgentLoop extends EventEmitter {
         stream: true,
         messages: this.buildOpenAiMessages(validMessages),
         tools: tools.map((tool) => toChatTool(tool)),
-      });
+      }, { signal });
     } catch (error) {
       const errorMessage = asError(error).message;
       if (errorMessage.includes("image input") || errorMessage.includes("image_url")) {
@@ -615,7 +628,7 @@ export class AgentLoop extends EventEmitter {
           stream: true,
           messages: this.buildOpenAiMessages(stripped),
           tools: tools.map((tool) => toChatTool(tool)),
-        });
+        }, { signal });
       }
       if (errorMessage.includes("tool use") || errorMessage.includes("tool_use")) {
         this.emitEvent("stream:system", `Modelo \`${selectedModel}\` não suporta tools. Reenviando com modelo principal.`);
@@ -625,7 +638,7 @@ export class AgentLoop extends EventEmitter {
           stream: true,
           messages: this.buildOpenAiMessages(stripped),
           tools: tools.map((tool) => toChatTool(tool)),
-        });
+        }, { signal });
       }
       throw error;
     }

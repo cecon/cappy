@@ -68,7 +68,7 @@ export type ChatUiMode = "plain" | "agent" | "ask";
 /**
  * Cappy runtime configuration payload.
  */
-export type ActiveAgent = "coder" | "planner" | "reviewer" | "strategist";
+export type ActiveAgent = "coder" | "planner" | "reviewer" | "strategist" | "tdd" | "sdd";
 
 /**
  * Cappy runtime configuration payload.
