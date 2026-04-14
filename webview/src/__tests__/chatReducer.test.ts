@@ -55,6 +55,13 @@ describe("chatReducer — SESSION_RESET", () => {
     const next = chatReducer(state, { type: "SESSION_RESET" });
     expect(next.runtimeConfig).toBe(baseConfig);
   });
+
+  it("limpa toolRows", () => {
+    const toolCall = tc("c1", "bash");
+    let state = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall });
+    state = chatReducer(state, { type: "SESSION_RESET" });
+    expect(state.toolRows).toHaveLength(0);
+  });
 });
 
 describe("chatReducer — STREAM_TOKEN", () => {
@@ -93,30 +100,54 @@ describe("chatReducer — STREAM_SYSTEM", () => {
 describe("chatReducer — TOOL_CONFIRM", () => {
   it("adiciona toolCall a pendingConfirms", () => {
     const toolCall = tc("c1", "bash");
-    const next = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall, showInMessages: false });
+    const next = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall });
     expect(next.pendingConfirms).toHaveLength(1);
     expect(next.pendingConfirms[0]!.id).toBe("c1");
   });
 
   it("não duplica toolCall já presente", () => {
     const toolCall = tc("c1", "bash");
-    let state = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall, showInMessages: false });
-    state = chatReducer(state, { type: "TOOL_CONFIRM", toolCall, showInMessages: false });
+    let state = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall });
+    state = chatReducer(state, { type: "TOOL_CONFIRM", toolCall });
     expect(state.pendingConfirms).toHaveLength(1);
   });
 
-  it("adiciona mensagem quando showInMessages=true", () => {
+  it("adiciona ToolRowItem com status pending", () => {
     const toolCall = tc("c1", "bash");
-    const next = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall, showInMessages: true });
-    expect(next.messages.length).toBeGreaterThan(0);
+    const next = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall });
+    expect(next.toolRows).toHaveLength(1);
+    expect(next.toolRows[0]!.id).toBe("c1");
+    expect(next.toolRows[0]!.status).toBe("pending");
+  });
+
+  it("adiciona placeholder tool slot na lista de mensagens", () => {
+    const toolCall = tc("c1", "bash");
+    const next = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall });
+    const slot = next.messages.find((m) => m.tool_call_id === "c1");
+    expect(slot).toBeDefined();
+    expect(slot!.role).toBe("tool");
   });
 });
 
 describe("chatReducer — TOOL_EXECUTING", () => {
-  it("adiciona mensagem e atualiza activity", () => {
+  it("cria toolRow com status running", () => {
     const toolCall = tc("c1", "readFile");
     const next = chatReducer(initialState, { type: "TOOL_EXECUTING", toolCall });
-    expect(next.messages).toHaveLength(1);
+    expect(next.toolRows).toHaveLength(1);
+    expect(next.toolRows[0]!.status).toBe("running");
+  });
+
+  it("atualiza status para running se toolRow já existe", () => {
+    const toolCall = tc("c1", "bash");
+    let state = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall });
+    state = chatReducer(state, { type: "TOOL_EXECUTING", toolCall });
+    expect(state.toolRows).toHaveLength(1);
+    expect(state.toolRows[0]!.status).toBe("running");
+  });
+
+  it("atualiza activity", () => {
+    const toolCall = tc("c1", "readFile");
+    const next = chatReducer(initialState, { type: "TOOL_EXECUTING", toolCall });
     expect(next.activity).not.toBeNull();
   });
 });
@@ -124,39 +155,42 @@ describe("chatReducer — TOOL_EXECUTING", () => {
 describe("chatReducer — TOOL_RESULT", () => {
   it("remove toolCall de pendingConfirms", () => {
     const toolCall = tc("c1", "bash");
-    let state = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall, showInMessages: false });
+    let state = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall });
     state = chatReducer(state, { type: "TOOL_RESULT", toolCall, result: "ok" });
     expect(state.pendingConfirms).toHaveLength(0);
   });
 
-  it("adiciona mensagem com resultado", () => {
+  it("atualiza toolRow status para done com output", () => {
     const toolCall = tc("c1", "readFile");
-    const next = chatReducer(initialState, { type: "TOOL_RESULT", toolCall, result: "file content" });
-    expect(next.messages).toHaveLength(1);
-    expect(next.messages[0]!.content).toContain("file content");
+    let state = chatReducer(initialState, { type: "TOOL_EXECUTING", toolCall });
+    state = chatReducer(state, { type: "TOOL_RESULT", toolCall, result: "file content" });
+    expect(state.toolRows[0]!.status).toBe("done");
+    expect(state.toolRows[0]!.output).toBe("file content");
   });
 
-  it("inclui fileDiff quando fornecido", () => {
+  it("inclui fileDiff no toolRow quando fornecido", () => {
     const toolCall = tc("c1", "writeFile");
     const fileDiff = { path: "/foo.ts", additions: 1, deletions: 0, hunks: [] };
-    const next = chatReducer(initialState, { type: "TOOL_RESULT", toolCall, result: "done", fileDiff });
-    expect(next.messages[0]!.fileDiff).toBeDefined();
+    let state = chatReducer(initialState, { type: "TOOL_EXECUTING", toolCall });
+    state = chatReducer(state, { type: "TOOL_RESULT", toolCall, result: "done", fileDiff });
+    expect(state.toolRows[0]!.fileDiff).toBeDefined();
+    expect(state.toolRows[0]!.fileDiff!.path).toBe("/foo.ts");
   });
 });
 
 describe("chatReducer — TOOL_REJECTED", () => {
   it("remove toolCall de pendingConfirms", () => {
     const toolCall = tc("c1", "bash");
-    let state = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall, showInMessages: false });
+    let state = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall });
     state = chatReducer(state, { type: "TOOL_REJECTED", toolCall });
     expect(state.pendingConfirms).toHaveLength(0);
   });
 
-  it("adiciona mensagem de rejeição", () => {
+  it("atualiza toolRow status para rejected", () => {
     const toolCall = tc("c1", "bash");
-    const next = chatReducer(initialState, { type: "TOOL_REJECTED", toolCall });
-    expect(next.messages).toHaveLength(1);
-    expect(next.messages[0]!.content).toContain("rejeitada");
+    let state = chatReducer(initialState, { type: "TOOL_CONFIRM", toolCall });
+    state = chatReducer(state, { type: "TOOL_REJECTED", toolCall });
+    expect(state.toolRows[0]!.status).toBe("rejected");
   });
 });
 
@@ -183,24 +217,6 @@ describe("chatReducer — ERROR", () => {
     expect(next.errorMessage).toBe("algo falhou");
     expect(next.activityTone).toBe("error");
     expect(next.activity?.secondary).toContain("algo falhou");
-  });
-});
-
-describe("chatReducer — SHELL_START / SHELL_COMPLETE", () => {
-  it("SHELL_START acrescenta ao agentShellLog", () => {
-    const next = chatReducer(initialState, { type: "SHELL_START", command: "ls", cwd: "/tmp" });
-    expect(next.agentShellLog).toContain("ls");
-    expect(next.agentShellLog).toContain("/tmp");
-  });
-
-  it("SHELL_COMPLETE acrescenta stdout ao log", () => {
-    const next = chatReducer(initialState, { type: "SHELL_COMPLETE", stdout: "file.ts", stderr: "" });
-    expect(next.agentShellLog).toContain("file.ts");
-  });
-
-  it("SHELL_COMPLETE com errorText usa errorText", () => {
-    const next = chatReducer(initialState, { type: "SHELL_COMPLETE", stdout: "out", stderr: "err", errorText: "ERRO" });
-    expect(next.agentShellLog).toContain("ERRO");
   });
 });
 

@@ -13,11 +13,9 @@ export default defineConfig({
       include: [
         "src/bridge/MessageValidators.ts",
         "src/lib/mergeFileDiffs.ts",
-        "src/lib/hitlClassify.ts",
-        "src/lib/hitlPresentation.ts",
+        "src/lib/toolRegistry.ts",
         "src/domain/services/MessageService.ts",
         "src/domain/services/ActivityService.ts",
-        "src/domain/services/ShellLogService.ts",
         "src/hooks/useChatReducer.ts",
         "src/domain/entities/ChatState.ts",
       ],

@@ -3,7 +3,7 @@
  * Extracted from Chat.tsx module-level types and scattered useState definitions.
  */
 
-import type { CappyConfig, ContextUsageSnapshot, Message, ToolCall } from "../../lib/types";
+import type { CappyConfig, ContextUsageSnapshot, FileDiffPayload, Message, ToolCall } from "../../lib/types";
 import type { ContextFile } from "../../components/InputBar";
 
 export type ActivityTone = "working" | "error";
@@ -24,9 +24,29 @@ export interface HitlUiPolicy {
   sessionAutoApproveDestructive: boolean;
 }
 
+/** Lifecycle status of a single tool call in the UI. */
+export type ToolRowStatus = "pending" | "running" | "done" | "rejected";
+
+/**
+ * Tracks the live UI state for one tool call.
+ * Drives the inline ToolPartDisplay accordion — separate from the message log.
+ */
+export interface ToolRowItem {
+  /** Matches the ToolCall.id and the tool_call_id on the placeholder message. */
+  id: string;
+  /** e.g. "bash", "read_file", "str_replace_based_edit" */
+  name: string;
+  input: Record<string, unknown>;
+  output?: string;
+  fileDiff?: FileDiffPayload;
+  status: ToolRowStatus;
+}
+
 /** Full chat panel state managed via useReducer. */
 export interface ChatState {
   messages: Message[];
+  /** Live state for each tool call — rendered as inline accordions in the message list. */
+  toolRows: ToolRowItem[];
   pendingConfirms: ToolCall[];
   isStreaming: boolean;
   errorMessage: string | null;
@@ -37,7 +57,6 @@ export interface ChatState {
   /** Incremented on new session to remount InputBar (clears drafts/attachments). */
   draftSessionKey: number;
   runtimeConfig: CappyConfig | null;
-  agentShellLog: string;
   hitlPolicy: HitlUiPolicy;
 }
 
@@ -48,6 +67,7 @@ export const DEFAULT_HITL_POLICY: HitlUiPolicy = {
 
 export const INITIAL_CHAT_STATE: ChatState = {
   messages: [],
+  toolRows: [],
   pendingConfirms: [],
   isStreaming: false,
   errorMessage: null,
@@ -57,6 +77,5 @@ export const INITIAL_CHAT_STATE: ChatState = {
   contextUsage: null,
   draftSessionKey: 0,
   runtimeConfig: null,
-  agentShellLog: "",
   hitlPolicy: DEFAULT_HITL_POLICY,
 };

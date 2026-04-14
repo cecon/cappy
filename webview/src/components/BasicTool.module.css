@@ -1,0 +1,43 @@
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.shimmer {
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+  min-width: 0;
+  transition: background 120ms;
+}
+
+.trigger:hover {
+  background: var(--bg-hover);
+}
+
+.triggerNoClick {
+  cursor: default;
+}
+
+.triggerNoClick:hover {
+  background: var(--bg-sunken);
+}
+
+.body {
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}

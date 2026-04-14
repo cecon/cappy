@@ -8,14 +8,9 @@ import { useEffect, useRef } from "react";
 import type { Dispatch } from "react";
 import type { ChatAction } from "./useChatReducer";
 import type { HitlUiPolicy } from "../domain/entities/ChatState";
-import { isTerminalHitlPresentation } from "../domain/services/HitlService";
 import { getBridge } from "../lib/vscode-bridge";
 
 const bridge = getBridge();
-
-function isExtensionHost(): boolean {
-  return typeof window.acquireVsCodeApi === "function";
-}
 
 /**
  * Subscribes to the bridge for the lifetime of the component.
@@ -75,12 +70,7 @@ export function useBridgeMessages(
             bridge.send({ type: "tool:approve", toolCallId: message.toolCall.id });
             break;
           }
-          const shellInExtension = isExtensionHost() && isTerminalHitlPresentation(message.toolCall);
-          dispatch({
-            type: "TOOL_CONFIRM",
-            toolCall: message.toolCall,
-            showInMessages: !shellInExtension,
-          });
+          dispatch({ type: "TOOL_CONFIRM", toolCall: message.toolCall });
           break;
         }
 
@@ -116,23 +106,6 @@ export function useBridgeMessages(
 
         case "error":
           dispatch({ type: "ERROR", message: message.message });
-          break;
-
-        case "agent:shell:start":
-          dispatch({
-            type: "SHELL_START",
-            command: message.command,
-            ...(message.cwd !== undefined ? { cwd: message.cwd } : {}),
-          });
-          break;
-
-        case "agent:shell:complete":
-          dispatch({
-            type: "SHELL_COMPLETE",
-            stdout: message.stdout,
-            stderr: message.stderr,
-            ...(message.errorText !== undefined ? { errorText: message.errorText } : {}),
-          });
           break;
       }
     });

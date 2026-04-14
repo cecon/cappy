@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   appendAssistantToken,
   appendToolLogMessage,
+  appendToolSlotMessage,
   getToolLogDetail,
   summarizeToolResult,
 } from "../domain/services/MessageService";
@@ -123,6 +124,41 @@ describe("getToolLogDetail", () => {
     const call: ToolCall = { id: "c1", name: "Grep", arguments: { query: longQuery } };
     const detail = getToolLogDetail(call)!;
     expect(detail.length).toBeLessThanOrEqual(130);
+  });
+});
+
+describe("appendToolSlotMessage", () => {
+  const toolCall: ToolCall = { id: "tc1", name: "bash", arguments: { command: "ls" } };
+
+  it("adiciona mensagem tool com tool_call_id e role tool", () => {
+    const result = appendToolSlotMessage([], toolCall);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.role).toBe("tool");
+    expect(result[0]!.tool_call_id).toBe("tc1");
+    expect(result[0]!.content).toBe("bash");
+  });
+
+  it("é idempotente: não duplica slot com mesmo tool_call_id", () => {
+    const first = appendToolSlotMessage([], toolCall);
+    const second = appendToolSlotMessage(first, toolCall);
+    expect(second).toHaveLength(1);
+    expect(second).toBe(first);
+  });
+
+  it("adiciona slot diferente mesmo que outro slot já exista", () => {
+    const tc2: ToolCall = { id: "tc2", name: "read_file", arguments: { path: "/foo.ts" } };
+    const first = appendToolSlotMessage([], toolCall);
+    const result = appendToolSlotMessage(first, tc2);
+    expect(result).toHaveLength(2);
+    expect(result[1]!.tool_call_id).toBe("tc2");
+  });
+
+  it("preserva mensagens existentes antes do slot", () => {
+    const msgs: Message[] = [{ role: "user", content: "hi" }, { role: "assistant", content: "ok" }];
+    const result = appendToolSlotMessage(msgs, toolCall);
+    expect(result).toHaveLength(3);
+    expect(result[0]!.role).toBe("user");
+    expect(result[1]!.role).toBe("assistant");
   });
 });
 

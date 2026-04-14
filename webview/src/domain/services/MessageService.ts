@@ -6,6 +6,18 @@
 import type { FileDiffPayload, Message, ToolCall } from "../../lib/types";
 import { extractPathArg, extractStringArg } from "./ActivityService";
 
+// ── Tool slot helpers ──────────────────────────────────────────────────────
+
+/**
+ * Appends a single placeholder message for a tool call slot.
+ * The slot message is rendered by ToolPartDisplay using live data from toolRows.
+ * Idempotent: no-op if this tool_call_id already has a slot in the list.
+ */
+export function appendToolSlotMessage(messages: Message[], toolCall: ToolCall): Message[] {
+  if (messages.some((m) => m.tool_call_id === toolCall.id)) return messages;
+  return [...messages, { role: "tool" as const, content: toolCall.name, tool_call_id: toolCall.id }];
+}
+
 // ── Stream helpers ─────────────────────────────────────────────────────────
 
 /**

@@ -1,6 +1,7 @@
 import { ActionIcon, Box, Flex, Group, Menu, Text } from "@mantine/core";
 import { useCallback, useMemo, useState } from "react";
 
+import { registerAllToolRenderers } from "./lib/toolRenderers";
 import { Chat } from "./components/Chat";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { HistoryPanel } from "./components/HistoryPanel";
@@ -63,6 +64,9 @@ const NAV_ITEMS: {
     ),
   },
 ];
+
+// Register tool renderers once at startup (Kilo Code pattern: registerVscodeToolOverrides).
+registerAllToolRenderers();
 
 export default function App(): JSX.Element {
   const [activePanel, setActivePanel] = useState<PanelKey>("chat");

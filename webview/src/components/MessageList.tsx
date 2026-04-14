@@ -1,24 +1,37 @@
-import { Box, Button, Group, Paper, Stack, Text } from "@mantine/core";
-import { useState } from "react";
+import { Box, Paper, Stack, Text } from "@mantine/core";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import type { Message } from "../lib/types";
-import { mergeFileDiffsForDisplay } from "../lib/mergeFileDiffs";
+import type { ToolRowItem } from "../domain/entities/ChatState";
 import { cappyPalette } from "../theme";
 import { CodeBlock } from "./CodeBlock";
 import { CopyButton } from "./CopyButton";
-import { FileDiffMini } from "./FileDiffMini";
+import { ToolPartDisplay } from "./ToolPartDisplay";
 import styles from "./MessageList.module.css";
 
 interface MessageListProps {
   messages: Message[];
+  toolRows: ToolRowItem[];
   isStreaming: boolean;
 }
 
-export function MessageList({ messages, isStreaming }: MessageListProps): JSX.Element {
-  const lastAssistantMessageIndex = findLastAssistantMessageIndex(messages);
-  const grouped = groupMessages(messages);
+// ── Group type ────────────────────────────────────────────────────────────────
+
+type UserGroup = { type: "user"; message: Message };
+type AssistantGroup = {
+  type: "assistant";
+  message: Message;
+  /** Placeholder messages (role:"tool") that belong to this assistant turn. */
+  toolSlots: Message[];
+  isLast: boolean;
+};
+type Group = UserGroup | AssistantGroup;
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export function MessageList({ messages, toolRows, isStreaming }: MessageListProps): JSX.Element {
+  const groups = groupMessages(messages);
 
   return (
     <Stack gap="md" className={styles.container ?? ""} aria-live="polite">
@@ -27,229 +40,187 @@ export function MessageList({ messages, isStreaming }: MessageListProps): JSX.El
           Nenhuma mensagem ainda.
         </Text>
       ) : null}
-      {grouped.map((group, gi) => {
+
+      {groups.map((group, gi) => {
         if (group.type === "user") {
-          const hasImages = group.message.images && group.message.images.length > 0;
-          return (
-            <Box
-              key={`user-${String(gi)}`}
-              component="article"
-              className={styles.messageWrapper ?? ""}
-              style={{ alignSelf: "flex-end", maxWidth: "min(92%, 100%)" }}
-            >
-              <Stack gap={4} align="flex-end">
-                <Text size="10px" tt="uppercase" lts={0.6} c="dimmed">
-                  User
-                </Text>
-                <Paper
-                  radius="md"
-                  p="sm"
-                  style={{
-                    borderRadius: "10px 10px 2px 10px",
-                    background: cappyPalette.bgAccent,
-                    color: cappyPalette.textAccent,
-                    maxWidth: "100%",
-                  }}
-                >
-                  <Stack gap="xs" align="flex-end">
-                    {hasImages ? (
-                      <Group gap={6}>
-                        {group.message.images!.map((img, i) => (
-                          <img
-                            key={i}
-                            src={img.dataUrl}
-                            alt={`Anexo ${String(i + 1)}`}
-                            className={styles.messageImage}
-                          />
-                        ))}
-                      </Group>
-                    ) : null}
-                    <Text size="sm" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                      {group.message.content}
-                    </Text>
-                  </Stack>
-                </Paper>
-                <Box className={styles.copyRowUser ?? ""}>
-                  <CopyButton value={group.message.content} />
-                </Box>
-              </Stack>
-            </Box>
-          );
-        }
-        if (group.type === "tools") {
-          return <ToolGroup key={`tools-${String(gi)}`} messages={group.messages} />;
+          return <UserBubble key={`user-${gi}`} message={group.message} />;
         }
         return (
-          <Box
-            key={`assistant-${String(gi)}`}
-            component="article"
-            w="100%"
-            className={styles.messageWrapper ?? ""}
-            style={{ alignSelf: "flex-start" }}
-          >
-            <Stack gap={4} align="flex-start">
-              <Text size="10px" tt="uppercase" lts={0.6} c="dimmed">
-                Assistant
-              </Text>
-              <Paper
-                radius="md"
-                p="sm"
-                withBorder
-                style={{
-                  borderRadius: "10px 10px 10px 2px",
-                  background: cappyPalette.bgSurface,
-                  borderColor: cappyPalette.borderSurface,
-                  color: cappyPalette.textPrimary,
-                  width: "100%",
-                  maxWidth: "100%",
-                }}
-              >
-                <Group gap={6} align="flex-end" wrap="nowrap" style={{ minWidth: 0 }}>
-                  <Box className={styles.markdown ?? ""} style={{ flex: 1, minWidth: 0 }}>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{ pre: CodeBlock }}
-                    >
-                      {group.message.content}
-                    </ReactMarkdown>
-                  </Box>
-                  {isStreaming && group.originalIndex === lastAssistantMessageIndex ? (
-                    <span className={styles.cursor} aria-hidden="true" />
-                  ) : null}
-                </Group>
-              </Paper>
-              <Box className={styles.copyRowAssistant ?? ""}>
-                <CopyButton value={group.message.content} />
-              </Box>
-            </Stack>
-          </Box>
+          <AssistantTurn
+            key={`assistant-${gi}`}
+            message={group.message}
+            toolSlots={group.toolSlots}
+            toolRows={toolRows}
+            isStreaming={isStreaming && group.isLast}
+          />
         );
       })}
     </Stack>
   );
 }
 
-function ToolGroup({ messages }: { messages: Message[] }): JSX.Element {
-  const [expanded, setExpanded] = useState(false);
-  const summary =
-    messages.length === 1
-      ? truncateToolContent(messages[0]!.content, 80)
-      : `${String(messages.length)} tool calls`;
-  const rawDiffs = messages.map((m) => m.fileDiff).filter((d): d is NonNullable<typeof d> => d !== undefined);
-  const mergedDiffs = mergeFileDiffsForDisplay(rawDiffs);
-  const uniqueFileCount = new Set(rawDiffs.map((d) => d.path)).size;
+// ── UserBubble ────────────────────────────────────────────────────────────────
 
+function UserBubble({ message }: { message: Message }): JSX.Element {
+  const hasImages = message.images && message.images.length > 0;
   return (
-    <Stack gap="xs" style={{ alignSelf: "flex-start", maxWidth: "100%" }}>
-      {mergedDiffs.map((diff, i) => (
-        <FileDiffMini key={`diff-${diff.path}-${String(i)}`} diff={diff} />
-      ))}
-      <Button
-        type="button"
-        variant="default"
-        size="compact-xs"
-        justify="flex-start"
-        h="auto"
-        py={4}
-        px="sm"
-        onClick={() => setExpanded((prev) => !prev)}
-        styles={{
-          root: {
-            background: cappyPalette.bgSunken,
-            borderColor: cappyPalette.borderSubtle,
-          },
-        }}
-      >
-        <Group gap={6} wrap="nowrap">
-          <Text span size="xs" c="dimmed">
-            {expanded ? "▾" : "▸"}
-          </Text>
-          <Text span size="xs" c="dimmed" truncate>
-            {summary}
-          </Text>
-        </Group>
-      </Button>
-      {expanded ? (
-        <Paper withBorder radius="sm" p={0} style={{ maxHeight: 80, overflow: "auto", background: cappyPalette.bgSunken }}>
-          {messages.map((msg, i) => (
-            <Box
-              key={i}
-              className={styles.toolItem ?? ""}
-            >
-              <Text
-                component="pre"
-                size="xs"
-                c="dimmed"
-                p="sm"
-                style={{
-                  margin: 0,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-all",
-                  flex: 1,
-                }}
-              >
-                {msg.content}
-              </Text>
-              <Box className={styles.toolCopyBtn ?? ""}>
-                <CopyButton value={msg.content} />
-              </Box>
-            </Box>
-          ))}
-        </Paper>
-      ) : null}
-      {uniqueFileCount > 0 ? (
-        <Text size="xs" c="dimmed" ml={4}>
-          {uniqueFileCount === 1 ? "1 ficheiro alterado" : `${String(uniqueFileCount)} ficheiros alterados`}
+    <Box
+      component="article"
+      className={styles.messageWrapper ?? ""}
+      style={{ alignSelf: "flex-end", maxWidth: "min(92%, 100%)" }}
+    >
+      <Stack gap={4} align="flex-end">
+        <Text size="10px" tt="uppercase" lts={0.6} c="dimmed">
+          User
         </Text>
-      ) : null}
-    </Stack>
+        <Paper
+          radius="md"
+          p="sm"
+          withBorder={false}
+          style={{
+            borderRadius: "10px 10px 2px 10px",
+            background: cappyPalette.bgAccent,
+            color: cappyPalette.textAccent,
+            maxWidth: "100%",
+          }}
+        >
+          <Stack gap="xs" align="flex-end">
+            {hasImages ? (
+              <Box style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {message.images!.map((img, i) => (
+                  <img
+                    key={i}
+                    src={img.dataUrl}
+                    alt={`Anexo ${i + 1}`}
+                    className={styles.messageImage}
+                  />
+                ))}
+              </Box>
+            ) : null}
+            <Text size="sm" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {message.content}
+            </Text>
+          </Stack>
+        </Paper>
+        <Box className={styles.copyRowUser ?? ""}>
+          <CopyButton value={message.content} />
+        </Box>
+      </Stack>
+    </Box>
   );
 }
 
-type GroupedItem =
-  | { type: "user"; message: Message }
-  | { type: "assistant"; message: Message; originalIndex: number }
-  | { type: "tools"; messages: Message[] };
+// ── AssistantTurn ─────────────────────────────────────────────────────────────
 
-function groupMessages(messages: Message[]): GroupedItem[] {
-  const result: GroupedItem[] = [];
-  let toolBatch: Message[] = [];
+interface AssistantTurnProps {
+  message: Message;
+  toolSlots: Message[];
+  toolRows: ToolRowItem[];
+  isStreaming: boolean;
+}
 
-  const flushTools = () => {
-    if (toolBatch.length > 0) {
-      result.push({ type: "tools", messages: toolBatch });
-      toolBatch = [];
-    }
-  };
+function AssistantTurn({ message, toolSlots, toolRows, isStreaming }: AssistantTurnProps): JSX.Element {
+  return (
+    <Box
+      component="article"
+      w="100%"
+      className={styles.messageWrapper ?? ""}
+      style={{ alignSelf: "flex-start" }}
+    >
+      <Stack gap={4} align="flex-start">
+        <Text size="10px" tt="uppercase" lts={0.6} c="dimmed">
+          Assistant
+        </Text>
+
+        {/* Text bubble — only rendered when there is content */}
+        {message.content.trim() ? (
+          <Paper
+            radius="md"
+            p="sm"
+            withBorder
+            style={{
+              borderRadius: "10px 10px 10px 2px",
+              background: cappyPalette.bgSurface,
+              borderColor: cappyPalette.borderSurface,
+              color: cappyPalette.textPrimary,
+              width: "100%",
+              maxWidth: "100%",
+            }}
+          >
+            <Box style={{ display: "flex", gap: 6, alignItems: "flex-end", minWidth: 0 }}>
+              <Box className={styles.markdown ?? ""} style={{ flex: 1, minWidth: 0 }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock }}>
+                  {message.content}
+                </ReactMarkdown>
+              </Box>
+              {isStreaming ? <span className={styles.cursor} aria-hidden="true" /> : null}
+            </Box>
+          </Paper>
+        ) : isStreaming ? (
+          /* Streaming with no content yet — show cursor only */
+          <span className={styles.cursor} aria-hidden="true" style={{ marginLeft: 4 }} />
+        ) : null}
+
+        {/* Inline tool rows — one per tool slot */}
+        {toolSlots.length > 0 ? (
+          <Stack gap={4} w="100%">
+            {toolSlots.map((slot) => {
+              const row = toolRows.find((r) => r.id === slot.tool_call_id);
+              if (!row) return null;
+              return (
+                <Box key={slot.tool_call_id}>
+                  <ToolPartDisplay row={row} />
+                </Box>
+              );
+            })}
+          </Stack>
+        ) : null}
+
+        <Box className={styles.copyRowAssistant ?? ""}>
+          <CopyButton value={message.content} />
+        </Box>
+      </Stack>
+    </Box>
+  );
+}
+
+// ── Grouping logic ────────────────────────────────────────────────────────────
+
+/**
+ * Groups messages into user bubbles and assistant turns.
+ * Each assistant turn collects the tool slot messages (role:"tool") that follow it.
+ * Mirrors Kilo Code's VscodeSessionTurn grouping pattern.
+ */
+function groupMessages(messages: Message[]): Group[] {
+  const result: Group[] = [];
+  let lastAssistantIndex = -1;
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]!;
-    if (msg.role === "tool") {
-      toolBatch.push(msg);
-    } else {
-      flushTools();
-      if (msg.role === "user") {
-        result.push({ type: "user", message: msg });
-      } else {
-        result.push({ type: "assistant", message: msg, originalIndex: i });
+
+    if (msg.role === "user") {
+      result.push({ type: "user", message: msg });
+      lastAssistantIndex = -1;
+    } else if (msg.role === "assistant") {
+      // Collect any tool slots that immediately follow
+      const toolSlots: Message[] = [];
+      while (i + 1 < messages.length && messages[i + 1]!.role === "tool" && messages[i + 1]!.tool_call_id !== undefined) {
+        i++;
+        toolSlots.push(messages[i]!);
       }
+      lastAssistantIndex = result.length;
+      result.push({ type: "assistant", message: msg, toolSlots, isLast: false });
+    }
+    // role:"tool" without tool_call_id = system log message (STREAM_SYSTEM), skip visual render
+  }
+
+  // Mark the last assistant group as isLast for streaming cursor
+  if (lastAssistantIndex >= 0) {
+    const last = result[lastAssistantIndex]!;
+    if (last.type === "assistant") {
+      result[lastAssistantIndex] = { ...last, isLast: true };
     }
   }
-  flushTools();
+
   return result;
-}
-
-function truncateToolContent(content: string, max: number): string {
-  const oneLine = content.replace(/\n/g, " ").trim();
-  if (oneLine.length <= max) return oneLine;
-  return oneLine.slice(0, max) + "…";
-}
-
-function findLastAssistantMessageIndex(messages: Message[]): number {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index]?.role === "assistant") {
-      return index;
-    }
-  }
-  return -1;
 }
