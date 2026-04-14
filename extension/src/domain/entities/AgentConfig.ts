@@ -2,7 +2,7 @@
  * Configuration and preference entities — no I/O, no external deps.
  */
 
-export type ActiveAgent = "coder" | "planner" | "reviewer";
+export type ActiveAgent = "coder" | "planner" | "reviewer" | "strategist";
 export type HitlPolicy = "confirm_each" | "allow_all";
 export type ChatUiMode = "plain" | "agent" | "ask";
 
