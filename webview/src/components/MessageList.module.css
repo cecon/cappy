@@ -84,23 +84,52 @@
   font-size: 12px;
 }
 
-.markdown table {
-  border-collapse: collapse;
+/* ── ListView — substitui tabelas por cards no estilo mobile ── */
+.tableList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin: 8px 0;
-  width: 100%;
 }
 
-.markdown th,
-.markdown td {
-  border: 1px solid var(--border-surface);
-  padding: 6px 10px;
-  text-align: left;
-  font-size: 12px;
+.tableCard {
+  background: var(--bg-sunken, var(--bg-input));
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 7px 10px;
+  overflow: hidden;
 }
 
-.markdown th {
-  background: var(--bg-input, var(--bg-sunken));
+.tableCardTitle {
+  margin-bottom: 3px;
+}
+
+.tableCardTitleText {
   font-weight: 600;
+  font-size: 12px;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.tableCardRow {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 1px 0;
+}
+
+.tableLabel {
+  color: var(--text-secondary);
+  font-size: 11px;
+  min-width: 56px;
+  flex-shrink: 0;
+}
+
+.tableCardValue {
+  color: var(--text-primary);
+  font-size: 12px;
+  flex: 1;
+  overflow-wrap: anywhere;
 }
 
 .markdown blockquote {

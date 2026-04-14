@@ -418,16 +418,14 @@ export async function loadWorkspaceSkillsPrompt(workspaceRoot: string): Promise<
     "Antes de executar uma tarefa, verifica se alguma skill é relevante. " +
     "Usa `ReadSkill` para ler o conteúdo completo.",
     "",
-    "| Nome | Origem | Descrição |",
-    "|------|--------|-----------|",
   ];
 
   let total = lines.join("\n").length;
 
   for (const skill of skills) {
-    const row = `| ${skill.name} | ${SOURCE_LABEL[skill.source]} | ${skill.description} |`;
+    const row = `- **${skill.name}** (${SOURCE_LABEL[skill.source]}): ${skill.description}`;
     if (total + row.length + 1 > MAX_CATALOG_CHARS) {
-      lines.push(`| ... | | (${skills.length - lines.length + 7} skills adicionais truncadas) |`);
+      lines.push(`- *(${skills.length - lines.length + 5} skills adicionais truncadas)*`);
       break;
     }
     lines.push(row);
