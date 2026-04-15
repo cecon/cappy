@@ -65,20 +65,20 @@
         "title": "Cappy: Clear Chat"
       },
       {
-        "command": "cappy.launchOpenClaude",
-        "title": "Cappy: Launch OpenClaude CLI"
+        "command": "cappy.launchCappy",
+        "title": "Cappy: Launch Cappy CLI"
       },
       {
-        "command": "cappy.launchOpenClaudeWorkspaceRoot",
-        "title": "Cappy: Launch OpenClaude CLI (workspace root)"
+        "command": "cappy.launchCappyWorkspaceRoot",
+        "title": "Cappy: Launch Cappy CLI (workspace root)"
       },
       {
-        "command": "cappy.openOpenClaudeProfile",
-        "title": "Cappy: Open OpenClaude workspace profile"
+        "command": "cappy.openCappyProfile",
+        "title": "Cappy: Open Cappy workspace profile"
       },
       {
-        "command": "cappy.openOpenClaudeRepository",
-        "title": "Cappy: Open OpenClaude repository"
+        "command": "cappy.openCappyRepository",
+        "title": "Cappy: Open Cappy repository"
       },
       {
         "command": "cappy.showLog",
@@ -88,20 +88,20 @@
     "configuration": {
       "title": "Cappy",
       "properties": {
-        "cappy.openClaudeCli.enabled": {
+        "cappy.cli.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable commands that launch the OpenClaude CLI in an integrated terminal."
+          "description": "Enable commands that launch the Cappy CLI in an integrated terminal."
         },
-        "cappy.openClaudeCli.command": {
+        "cappy.cli.command": {
           "type": "string",
-          "default": "npx -y @gitlawb/openclaude",
-          "description": "Shell command run in the terminal (same idea as the OpenClaude VS Code extension)."
+          "default": "npx -y @eduardocecon/cappy",
+          "description": "Shell command run in the terminal to launch the Cappy CLI."
         },
-        "cappy.openClaudeCli.terminalName": {
+        "cappy.cli.terminalName": {
           "type": "string",
-          "default": "OpenClaude",
-          "description": "Integrated terminal tab title for OpenClaude CLI sessions."
+          "default": "Cappy",
+          "description": "Integrated terminal tab title for Cappy CLI sessions."
         }
       }
     }

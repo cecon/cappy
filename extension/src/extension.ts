@@ -2,10 +2,10 @@ import * as vscode from "vscode";
 
 import { createWebviewBridge, type WebviewBridgeOptions } from "./bridge/webview";
 import {
-  launchOpenClaudeCli,
-  openOpenClaudeRepository,
-  openOpenClaudeWorkspaceProfile,
-} from "./openClaudeLauncher";
+  launchCappyCli,
+  openCappyRepository,
+  openCappyWorkspaceProfile,
+} from "./cappyLauncher";
 import { disposeLogger, showLog } from "./utils/logger";
 
 const CHAT_VIEW_ID = "cappy.chatView";
@@ -114,26 +114,26 @@ export function activate(context: vscode.ExtensionContext): void {
     provider.reveal();
   });
 
-  const launchOpenClaudeCommand = vscode.commands.registerCommand("cappy.launchOpenClaude", async () => {
-    await launchOpenClaudeCli({ requireWorkspaceRoot: false });
+  const launchCappyCommand = vscode.commands.registerCommand("cappy.launchCappy", async () => {
+    await launchCappyCli({ requireWorkspaceRoot: false });
   });
 
-  const launchOpenClaudeWorkspaceRootCommand = vscode.commands.registerCommand(
-    "cappy.launchOpenClaudeWorkspaceRoot",
+  const launchCappyWorkspaceRootCommand = vscode.commands.registerCommand(
+    "cappy.launchCappyWorkspaceRoot",
     async () => {
-      await launchOpenClaudeCli({ requireWorkspaceRoot: true });
+      await launchCappyCli({ requireWorkspaceRoot: true });
     },
   );
 
-  const openOpenClaudeProfileCommand = vscode.commands.registerCommand(
-    "cappy.openOpenClaudeProfile",
+  const openCappyProfileCommand = vscode.commands.registerCommand(
+    "cappy.openCappyProfile",
     async () => {
-      await openOpenClaudeWorkspaceProfile();
+      await openCappyWorkspaceProfile();
     },
   );
 
-  const openOpenClaudeRepoCommand = vscode.commands.registerCommand("cappy.openOpenClaudeRepository", async () => {
-    await openOpenClaudeRepository();
+  const openCappyRepoCommand = vscode.commands.registerCommand("cappy.openCappyRepository", async () => {
+    await openCappyRepository();
   });
 
   const showLogCommand = vscode.commands.registerCommand("cappy.showLog", () => {
@@ -145,10 +145,10 @@ export function activate(context: vscode.ExtensionContext): void {
     providerRegistration,
     openChatCommand,
     clearChatCommand,
-    launchOpenClaudeCommand,
-    launchOpenClaudeWorkspaceRootCommand,
-    openOpenClaudeProfileCommand,
-    openOpenClaudeRepoCommand,
+    launchCappyCommand,
+    launchCappyWorkspaceRootCommand,
+    openCappyProfileCommand,
+    openCappyRepoCommand,
     showLogCommand,
   );
   context.subscriptions.push(...extensionDisposables);
@@ -179,7 +179,7 @@ function rewriteAssetUris(html: string, webview: vscode.Webview, webviewRoot: vs
       return `${attribute}="${rawPath}"`;
     }
 
-    const normalizedPath = rawPath.replace(/^\.\//, "");
+    const normalizedPath = rawPath.replace(/^\.\//,  "");
     const assetUri = vscode.Uri.joinPath(webviewRoot, normalizedPath);
     const webviewUri = webview.asWebviewUri(assetUri);
     return `${attribute}="${webviewUri.toString()}"`;
