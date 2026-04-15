@@ -70,13 +70,18 @@ const MCP_DESTRUCTIVE_KEYWORDS = [
 const DESTRUCTIVE_TOOL_SET = new Set<string>(DESTRUCTIVE_TOOLS);
 
 /**
- * Injected while plan mode is active (OpenClaude-style EnterPlanMode).
+ * Builds the plan-mode system prompt dynamically, including the actual session
+ * plan file path so the AI always knows where the plan is stored on disk.
  */
-const PLAN_MODE_SYSTEM_PROMPT =
-  "Você está em PLAN MODE. Explore livremente o código e a web: use Read, Grep, Glob, WebSearch, WebFetch, RAG (ragSearch), MCP tools de leitura e ExploreAgent. " +
-  "Use PlanWrite para registar o plano progressivamente em ficheiro de sessão (fora do projeto). " +
-  "Tentativas de usar Write, writeFile, Edit, Bash ou runTerminal serão bloqueadas automaticamente até chamar ExitPlanMode. " +
-  "Use TodoWrite para rastrear as etapas do plano.";
+function buildPlanModeSystemPrompt(): string {
+  const planPath = getPlanFilePath() ?? "~/.cappy/sessions/<session-id>/plan.md";
+  return (
+    "Você está em PLAN MODE. Explore livremente o código e a web: use Read, Grep, Glob, WebSearch, WebFetch, RAG (ragSearch), MCP tools de leitura e ExploreAgent. " +
+    `Use PlanWrite para registar o plano progressivamente no ficheiro de sessão: ${planPath}. ` +
+    "Tentativas de usar Write, writeFile, Edit, Bash ou runTerminal serão bloqueadas automaticamente até chamar ExitPlanMode. " +
+    "Use TodoWrite para rastrear as etapas do plano."
+  );
+}
 
 interface PendingToolCallState {
   id: string;
@@ -682,7 +687,7 @@ export class AgentLoop extends EventEmitter {
         : [];
     const prefix = this.runOptions.systemPromptPrefix;
     const plan =
-      !this.runOptions.ignorePlanMode && getPlanMode() ? [{ role: "system" as const, content: PLAN_MODE_SYSTEM_PROMPT }] : [];
+      !this.runOptions.ignorePlanMode && getPlanMode() ? [{ role: "system" as const, content: buildPlanModeSystemPrompt() }] : [];
     const extra = prefix && prefix.length > 0 ? [{ role: "system" as const, content: prefix }] : [];
     if (
       modeSystem.length === 0 &&
