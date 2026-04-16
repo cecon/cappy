@@ -22,9 +22,11 @@ import { AgentLoop } from "../../extension/src/agent/loop.js";
 import { toolsRegistry } from "../../extension/src/tools/index.js";
 import { loadConfig } from "../../extension/src/config/index.js";
 import { resetSessionContext } from "../../extension/src/agent/sessionContext.js";
+import { MemoryStore } from "../../extension/src/memory/MemoryStore.js";
 
 import { CliRenderer } from "./CliRenderer.js";
 import { CliHitl, type HitlPolicy } from "./CliHitl.js";
+import { TelemetryCollector } from "../../extension/src/telemetry/TelemetryCollector.js";
 
 // ─── ANSI helpers ──────────────────────────────────────────────────────────────
 
@@ -219,22 +221,42 @@ interface RunOnceOptions {
   maxIterations: number | undefined;
 }
 
+const WRITE_TOOL_NAMES = new Set(["writeFile", "Write", "Edit"]);
+
 async function runOnce(opts: RunOnceOptions): Promise<void> {
   const { loop, renderer, hitl, history, userPrompt, mode, maxIterations } = opts;
 
   history.push({ role: "user", content: userPrompt });
 
+  const telemetry = new TelemetryCollector();
+  let lastUsedTokens = 0;
+
   // Escuta eventos
   loop.on("stream:token", (token) => renderer.onToken(token));
   loop.on("stream:done", () => renderer.onDone());
   loop.on("stream:system", (msg) => renderer.onSystemMessage(msg));
-  loop.on("context:usage", (payload) =>
-    renderer.onContextUsage(payload.usedTokens, payload.limitTokens, payload.didTrimForApi),
-  );
-  loop.on("tool:executing", (tc) => renderer.onToolExecuting(tc.name, tc.arguments));
-  loop.on("tool:result", (tc, result) => renderer.onToolResult(tc.name, result));
-  loop.on("tool:rejected", (tc) => renderer.onToolRejected(tc.name));
-  loop.on("error", (err) => renderer.onError(err));
+  loop.on("context:usage", (payload) => {
+    lastUsedTokens = payload.usedTokens;
+    renderer.onContextUsage(payload.usedTokens, payload.limitTokens, payload.didTrimForApi);
+  });
+  loop.on("tool:executing", (tc) => {
+    telemetry.startStep(tc.name);
+    renderer.onToolExecuting(tc.name, tc.arguments);
+  });
+  loop.on("tool:result", (tc, result) => {
+    telemetry.endStep(tc.name, true);
+    if (WRITE_TOOL_NAMES.has(tc.name) && typeof tc.arguments["path"] === "string") {
+      telemetry.recordModifiedFile(tc.arguments["path"] as string);
+    }
+    renderer.onToolResult(tc.name, result);
+  });
+  loop.on("tool:rejected", (tc) => {
+    telemetry.endStep(tc.name, false, "rejected");
+    renderer.onToolRejected(tc.name);
+  });
+  loop.on("error", (err) => {
+    renderer.onError(err);
+  });
 
   // HITL: intercepta confirmação de tools destrutivas
   loop.on("tool:confirm", async (tc) => {
@@ -251,6 +273,8 @@ async function runOnce(opts: RunOnceOptions): Promise<void> {
   // Filtra tools por modo
   const tools = filterToolsByMode(toolsRegistry, mode);
 
+  let lastAssistantMessage = "";
+
   try {
     const updatedHistory = await loop.run(history as Parameters<typeof loop.run>[0], tools, {
       chatMode: mode,
@@ -260,8 +284,29 @@ async function runOnce(opts: RunOnceOptions): Promise<void> {
     // Atualiza o histórico da sessão com as novas mensagens
     history.length = 0;
     history.push(...(updatedHistory as Message[]));
+
+    // Captura última resposta do assistente para next steps
+    for (let i = updatedHistory.length - 1; i >= 0; i--) {
+      const msg = updatedHistory[i];
+      if (msg && msg.role === "assistant" && typeof msg.content === "string" && msg.content.trim().length > 0) {
+        lastAssistantMessage = msg.content;
+        break;
+      }
+    }
   } catch (err) {
     renderer.onError(err instanceof Error ? err : new Error(String(err)));
+  }
+
+  telemetry.recordTokens(lastUsedTokens, 0);
+
+  // Salva telemetria e exibe resumo de sessão
+  const workspaceRoot = process.env.CAPPY_WORKSPACE_ROOT ?? process.cwd();
+  const sessionDir = `${workspaceRoot}/.cappy/sessions`;
+  void telemetry.save(sessionDir).catch(() => undefined);
+
+  const summary = telemetry.export();
+  if (summary.steps.length > 0) {
+    renderer.renderSessionSummary(summary, lastAssistantMessage);
   }
 
   // Remove listeners para evitar acúmulo no REPL
@@ -297,7 +342,7 @@ async function startRepl(
 
   process.stderr.write(
     `${c(GRAY, "Modo REPL interativo. Digite sua mensagem e pressione Enter.")}\n` +
-      `${c(GRAY, "Comandos: /sair | /limpar | /modo <agent|ask|plain> | /ajuda")}\n\n`,
+      `${c(GRAY, "Comandos: /sair | /limpar | /modo | /plan | /exec | /fix | /tools | /memory | /ajuda")}\n\n`,
   );
 
   const rl = readline.createInterface({
@@ -336,10 +381,18 @@ async function startRepl(
     if (input === "/ajuda" || input === "/help") {
       process.stderr.write(
         `\n${c(BOLD, "Comandos disponíveis:")}\n` +
-          `  ${c(CYAN, "/sair")}          encerra o REPL\n` +
-          `  ${c(CYAN, "/limpar")}        limpa o histórico\n` +
-          `  ${c(CYAN, "/modo <modo>")}   muda o modo (agent | ask | plain)\n` +
-          `  ${c(CYAN, "/ajuda")}         exibe esta ajuda\n\n`,
+          `  ${c(CYAN, "/sair")}                       encerra o REPL\n` +
+          `  ${c(CYAN, "/limpar")}                     limpa o histórico\n` +
+          `  ${c(CYAN, "/modo <agent|ask|plain>")}     muda o modo\n` +
+          `  ${c(CYAN, "/plan [prompt]")}              entra em plan mode (opcional: envia prompt)\n` +
+          `  ${c(CYAN, "/exec")}                       executa o plano atual\n` +
+          `  ${c(CYAN, "/fix [descrição]")}            modo de correção de erros (role: coder)\n` +
+          `  ${c(CYAN, "/tools")}                      lista as tools disponíveis\n` +
+          `  ${c(CYAN, "/memory list")}                lista arquivos de memória\n` +
+          `  ${c(CYAN, "/memory read <nome>")}         exibe conteúdo de um arquivo de memória\n` +
+          `  ${c(CYAN, "/memory write <nome> <txt>")}  cria/sobrescreve um arquivo de memória\n` +
+          `  ${c(CYAN, "/memory delete <nome>")}       remove um arquivo de memória\n` +
+          `  ${c(CYAN, "/ajuda")}                      exibe esta ajuda\n\n`,
       );
       rl.prompt();
       continue;
@@ -349,6 +402,140 @@ async function startRepl(
     if (modeMatch) {
       currentMode = modeMatch[1] as ChatMode;
       process.stderr.write(c(GREEN, `Modo alterado para: ${currentMode}\n\n`));
+      rl.prompt();
+      continue;
+    }
+
+    // /plan [prompt] — entra em plan mode; se prompt fornecido, envia direto
+    if (input === "/plan" || input.startsWith("/plan ")) {
+      const planPrompt = input.slice(6).trim();
+      if (!planPrompt) {
+        process.stderr.write(
+          c(GRAY, "Plan mode: digite seu prompt ou use /plan <prompt> para planear algo.\n\n"),
+        );
+        rl.prompt();
+        continue;
+      }
+      const planInput = `[PLAN MODE] ${planPrompt}`;
+      const loop = new AgentLoop({ workspaceRoot });
+      let aborted = false;
+      const sigintHandler = () => {
+        if (!aborted) { aborted = true; loop.abort(); }
+      };
+      process.on("SIGINT", sigintHandler);
+      try {
+        await runOnce({ ...opts, loop, history, userPrompt: planInput, mode: currentMode });
+      } finally {
+        process.off("SIGINT", sigintHandler);
+      }
+      rl.prompt();
+      continue;
+    }
+
+    // /exec — executa o plano atual
+    if (input === "/exec") {
+      const loop = new AgentLoop({ workspaceRoot });
+      let aborted = false;
+      const sigintHandler = () => {
+        if (!aborted) { aborted = true; loop.abort(); }
+      };
+      process.on("SIGINT", sigintHandler);
+      try {
+        await runOnce({ ...opts, loop, history, userPrompt: "Execute o plano atual.", mode: currentMode });
+      } finally {
+        process.off("SIGINT", sigintHandler);
+      }
+      rl.prompt();
+      continue;
+    }
+
+    // /fix [descrição] — modo de correção de erros
+    if (input === "/fix" || input.startsWith("/fix ")) {
+      const fixContext = input.slice(5).trim();
+      const fixPrompt = fixContext
+        ? `[FIX] Corrija o seguinte problema: ${fixContext}`
+        : "[FIX] Analise os erros e corrija o problema identificado.";
+      const loop = new AgentLoop({ workspaceRoot });
+      let aborted = false;
+      const sigintHandler = () => {
+        if (!aborted) { aborted = true; loop.abort(); }
+      };
+      process.on("SIGINT", sigintHandler);
+      try {
+        await runOnce({ ...opts, loop, history, userPrompt: fixPrompt, mode: currentMode });
+      } finally {
+        process.off("SIGINT", sigintHandler);
+      }
+      rl.prompt();
+      continue;
+    }
+
+    // /tools — lista as tools registradas
+    if (input === "/tools") {
+      const filtered = filterToolsByMode(toolsRegistry, currentMode);
+      process.stderr.write(`\n${c(BOLD, `Tools disponíveis (modo ${currentMode}): ${filtered.length}`)}\n`);
+      for (const tool of filtered) {
+        const desc = tool.description.split("\n")[0]?.slice(0, 80) ?? "";
+        process.stderr.write(`  ${c(CYAN, tool.name.padEnd(22))} ${c(GRAY, desc)}\n`);
+      }
+      process.stderr.write("\n");
+      rl.prompt();
+      continue;
+    }
+
+    // /memory — gestão da memória persistente
+    if (input.startsWith("/memory")) {
+      const memoryStore = new MemoryStore();
+      const memArgs = input.slice(7).trim().split(/\s+/);
+      const memCmd = memArgs[0];
+
+      if (!memCmd || memCmd === "list") {
+        const files = await memoryStore.list(workspaceRoot);
+        if (files.length === 0) {
+          process.stderr.write(c(GRAY, "Nenhum arquivo de memória encontrado.\n\n"));
+        } else {
+          process.stderr.write(`\n${c(BOLD, "Memória persistente:")}\n`);
+          for (const f of files) {
+            process.stderr.write(`  ${c(CYAN, f.name.padEnd(25))} ${c(GRAY, f.summary)}\n`);
+          }
+          process.stderr.write("\n");
+        }
+      } else if (memCmd === "read") {
+        const name = memArgs[1];
+        if (!name) {
+          process.stderr.write(c(YELLOW, "Uso: /memory read <nome>\n\n"));
+        } else {
+          const content = await memoryStore.read(workspaceRoot, name);
+          if (content === null) {
+            process.stderr.write(c(YELLOW, `Arquivo de memória "${name}" não encontrado.\n\n`));
+          } else {
+            process.stderr.write(`\n${c(BOLD, `memory/${name}.md`)}\n${c(GRAY, "─".repeat(50))}\n${content}\n\n`);
+          }
+        }
+      } else if (memCmd === "write") {
+        const name = memArgs[1];
+        const content = memArgs.slice(2).join(" ");
+        if (!name || !content) {
+          process.stderr.write(c(YELLOW, "Uso: /memory write <nome> <conteúdo>\n\n"));
+        } else {
+          await memoryStore.write(workspaceRoot, name, content);
+          process.stderr.write(c(GREEN, `Memória "${name}" salva.\n\n`));
+        }
+      } else if (memCmd === "delete") {
+        const name = memArgs[1];
+        if (!name) {
+          process.stderr.write(c(YELLOW, "Uso: /memory delete <nome>\n\n"));
+        } else {
+          const deleted = await memoryStore.delete(workspaceRoot, name);
+          if (deleted) {
+            process.stderr.write(c(GREEN, `Memória "${name}" removida.\n\n`));
+          } else {
+            process.stderr.write(c(YELLOW, `Arquivo de memória "${name}" não encontrado.\n\n`));
+          }
+        }
+      } else {
+        process.stderr.write(c(YELLOW, "Uso: /memory [list|read|write|delete]\n\n"));
+      }
       rl.prompt();
       continue;
     }

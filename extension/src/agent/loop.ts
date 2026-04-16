@@ -40,6 +40,7 @@ import {
 import type { AgentEvents, AgentTool, Message, ToolCall } from "./types";
 import { recoverToolArgumentsWithLlm } from "./toolArgumentRecovery";
 import { agentRunContext } from "./agentRunContext";
+import { selectModel } from "./modelRouter";
 import {
   ensureDefaultAgentPreferencesFile,
   formatAgentPreferencesPromptBlock,
@@ -140,8 +141,6 @@ export class AgentLoop extends EventEmitter {
     | undefined;
 
   private client: OpenAI | null = null;
-
-  private model: string | null = null;
 
   private visionModel: string | null = null;
 
@@ -487,7 +486,6 @@ export class AgentLoop extends EventEmitter {
       this.agentPreferencesBlock = "";
       // Clear cached client so the next run picks up fresh config (API key, model changes)
       this.client = null;
-      this.model = null;
       this.visionModel = null;
     }
   }
@@ -496,7 +494,7 @@ export class AgentLoop extends EventEmitter {
    * Creates one streaming completion request to OpenRouter.
    */
   private async createStream(messages: Message[], tools: AgentTool[], config: CappyConfig, signal?: AbortSignal) {
-    const { client, model, visionModel } = await this.getClientAndModel();
+    const { client, model, visionModel } = await this.getClientAndModel(config);
     const contextWindow =
       typeof config.openrouter.contextWindowTokens === "number" && config.openrouter.contextWindowTokens >= 4096
         ? config.openrouter.contextWindowTokens
@@ -778,7 +776,7 @@ export class AgentLoop extends EventEmitter {
     let cachedClient: { client: OpenAI; model: string } | null = null;
     const ensureClient = async (): Promise<{ client: OpenAI; model: string }> => {
       if (!cachedClient) {
-        const resolved = await this.getClientAndModel();
+        const resolved = await this.getClientAndModel(config);
         cachedClient = { client: resolved.client, model: resolved.model };
       }
       return cachedClient;
@@ -846,27 +844,29 @@ export class AgentLoop extends EventEmitter {
 
   /**
    * Resolves OpenRouter client and model from workspace config.
+   * Accepts an optional pre-loaded config to avoid redundant disk reads.
+   * The model is resolved via selectModel() to support per-role routing.
    */
-  private async getClientAndModel(): Promise<{ client: OpenAI; model: string; visionModel: string }> {
-    if (this.client && this.model && this.visionModel) {
-      return { client: this.client, model: this.model, visionModel: this.visionModel };
-    }
+  private async getClientAndModel(config?: CappyConfig): Promise<{ client: OpenAI; model: string; visionModel: string }> {
+    const resolvedConfig = config ?? await loadConfig();
 
-    const config = await loadConfig();
-    if (config.openrouter.apiKey.trim().length === 0) {
+    if (resolvedConfig.openrouter.apiKey.trim().length === 0) {
       throw new Error('Campo "openrouter.apiKey" invalido em ~/.cappy/config.json.');
     }
-    if (config.openrouter.model.trim().length === 0) {
+    if (resolvedConfig.openrouter.model.trim().length === 0) {
       throw new Error('Campo "openrouter.model" invalido em ~/.cappy/config.json.');
     }
 
-    this.client = new OpenAI({
-      apiKey: config.openrouter.apiKey,
-      baseURL: "https://openrouter.ai/api/v1",
-    });
-    this.model = config.openrouter.model;
-    this.visionModel = config.openrouter.visionModel;
-    return { client: this.client, model: this.model, visionModel: this.visionModel };
+    if (!this.client || !this.visionModel) {
+      this.client = new OpenAI({
+        apiKey: resolvedConfig.openrouter.apiKey,
+        baseURL: "https://openrouter.ai/api/v1",
+      });
+      this.visionModel = resolvedConfig.openrouter.visionModel;
+    }
+
+    const model = selectModel(resolvedConfig, resolvedConfig.agent.activeAgent, this.runOptions.chatMode);
+    return { client: this.client, model, visionModel: this.visionModel };
   }
 
   /**

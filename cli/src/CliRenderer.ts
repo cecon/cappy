@@ -148,9 +148,73 @@ export class CliRenderer {
       `${c(GRAY, `[ctx: ${c(color, `${pct}%`)}${c(GRAY, ` ${used.toLocaleString()}/${limit.toLocaleString()} tokens`)}${trimNote}${c(GRAY, "]")}`)}\n`,
     );
   }
+
+  /** Exibe um resumo estruturado ao final de uma sessão: ferramentas usadas, arquivos modificados e próximos passos. */
+  renderSessionSummary(summary: { steps: Array<{ tool: string; durationMs: number; success: boolean }>; modifiedFiles: string[]; durationMs: number; totalTokensIn: number }, lastAssistantMessage: string): void {
+    const totalMs = summary.durationMs;
+    const secs = (totalMs / 1000).toFixed(1);
+    const toolCount = summary.steps.length;
+    const successCount = summary.steps.filter((s) => s.success).length;
+
+    process.stderr.write(`\n${c(GRAY, "─".repeat(50))}\n`);
+    process.stderr.write(`${c(BOLD, "Resumo da sessão")} ${c(GRAY, `(${secs}s · ${toolCount} tool${toolCount === 1 ? "" : "s"} · ${summary.totalTokensIn.toLocaleString()} tokens)`)}\n`);
+
+    if (summary.modifiedFiles.length > 0) {
+      process.stderr.write(`\n${c(BOLD, "Arquivos modificados:")}\n`);
+      for (const f of summary.modifiedFiles) {
+        process.stderr.write(`  ${c(GREEN, "✎")} ${c(CYAN, f)}\n`);
+      }
+    }
+
+    if (toolCount > 0 && successCount < toolCount) {
+      const failed = toolCount - successCount;
+      process.stderr.write(`\n${c(YELLOW, `⚠  ${failed} tool${failed === 1 ? "" : "s"} rejeitada${failed === 1 ? "" : "s"} ou com erro`)}\n`);
+    }
+
+    const nextSteps = extractNextSteps(lastAssistantMessage);
+    if (nextSteps.length > 0) {
+      process.stderr.write(`\n${c(BOLD, "Próximos passos sugeridos:")}\n`);
+      for (const step of nextSteps) {
+        process.stderr.write(`  ${c(BLUE, "›")} ${step}\n`);
+      }
+    }
+
+    process.stderr.write(`${c(GRAY, "─".repeat(50))}\n\n`);
+  }
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function extractNextSteps(text: string): string[] {
+  if (!text) return [];
+  const lines = text.split("\n");
+  const steps: string[] = [];
+  const NEXT_STEP_PATTERNS = [
+    /próximo[s]?\s+passo[s]?/i,
+    /next\s+step/i,
+    /a\s+seguir/i,
+    /recomendo/i,
+    /você\s+pode/i,
+    /pode(?:mos)?\s+agora/i,
+  ];
+  for (const line of lines) {
+    const trimmed = line.replace(/^[\s\-*•>]+/, "").trim();
+    if (trimmed.length < 10 || trimmed.length > 200) continue;
+    if (NEXT_STEP_PATTERNS.some((p) => p.test(trimmed))) {
+      steps.push(trimmed);
+      if (steps.length >= 3) break;
+    }
+  }
+  if (steps.length === 0) {
+    // Fallback: últimas linhas não vazias do texto
+    const nonEmpty = lines.filter((l) => l.trim().length > 15).slice(-3);
+    for (const line of nonEmpty) {
+      const trimmed = line.replace(/^[\s\-*•>]+/, "").trim();
+      if (trimmed.length > 0) steps.push(trimmed);
+    }
+  }
+  return steps.slice(0, 3);
+}
 
 function buildArgsPreview(args: Record<string, unknown>): string {
   // Mostra o valor do primeiro campo relevante (command, path, pattern, query…)

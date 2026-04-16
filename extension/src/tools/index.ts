@@ -20,6 +20,7 @@ import type { ToolDefinition } from "./toolTypes";
 import { webFetchTool } from "./webFetch";
 import { webSearchTool } from "./webSearch";
 import { writeFileTool, writeOpenClaudeTool } from "./writeFile";
+import { gitDiffTool, gitStatusTool } from "./gitTools";
 
 /**
  * Full agent surface: OpenClaude-style names plus ExploreAgent subagent and multiagent tools.
@@ -55,4 +56,6 @@ export const toolsRegistry: ToolDefinition<any, unknown>[] = [
   memoryReadTool,
   memoryWriteTool,
   memoryDeleteTool,
+  gitStatusTool,
+  gitDiffTool,
 ];

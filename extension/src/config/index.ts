@@ -3,6 +3,21 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 /**
+ * Per-role model overrides. Any key maps an ActiveAgent role (or "ask" mode) to a specific model string.
+ * Falls back to `openrouter.model` when a role has no override.
+ */
+export interface ModelRoutingConfig {
+  coder?: string | undefined;
+  planner?: string | undefined;
+  reviewer?: string | undefined;
+  strategist?: string | undefined;
+  tdd?: string | undefined;
+  sdd?: string | undefined;
+  /** Usado quando chatMode === "ask" (independente do activeAgent). */
+  ask?: string | undefined;
+}
+
+/**
  * OpenRouter configuration block.
  */
 interface OpenRouterConfig {
@@ -13,6 +28,8 @@ interface OpenRouterConfig {
   contextWindowTokens?: number | undefined;
   /** Tokens reservados para a resposta do modelo. */
   reservedOutputTokens?: number | undefined;
+  /** Mapeamento opcional de role/modo → modelo. Se ausente, usa `model` para tudo. */
+  modelRouting?: ModelRoutingConfig | undefined;
 }
 
 /**
@@ -208,6 +225,7 @@ function mergeWithDefaults(raw: unknown): CappyConfig {
         typeof rawOpenRouter.reservedOutputTokens === "number" && rawOpenRouter.reservedOutputTokens >= 512
           ? rawOpenRouter.reservedOutputTokens
           : defaults.openrouter.reservedOutputTokens,
+      modelRouting: mergeModelRouting(rawOpenRouter.modelRouting),
     },
     agent: {
       activeAgent: isActiveAgent(rawAgent.activeAgent) ? rawAgent.activeAgent : defaults.agent.activeAgent,
@@ -235,6 +253,18 @@ function mergeWithDefaults(raw: unknown): CappyConfig {
     compaction: mergeCompactionConfig(raw.compaction),
     debug: typeof raw.debug === "boolean" ? raw.debug : defaults.debug,
   };
+}
+
+function mergeModelRouting(raw: unknown): ModelRoutingConfig | undefined {
+  if (!isRecord(raw)) return undefined;
+  const ROLE_KEYS = ["coder", "planner", "reviewer", "strategist", "tdd", "sdd", "ask"] as const;
+  const result: ModelRoutingConfig = {};
+  for (const key of ROLE_KEYS) {
+    if (typeof raw[key] === "string" && (raw[key] as string).trim().length > 0) {
+      result[key] = raw[key] as string;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function mergeRagConfig(raw: unknown, defaults: RagConfig): RagConfig {
