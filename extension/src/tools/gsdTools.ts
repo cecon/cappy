@@ -2,26 +2,22 @@
  * GSD2 tools — spec-driven development state machine for Cappy.
  *
  * Tool surface:
- *   GsdPlan         — create/replace the full project plan (milestones + tasks)
- *   GsdStatus       — read current state (read-only)
- *   GsdStartTask    — mark a task as in_progress (manual mode)
- *   GsdCompleteTask — mark a task as completed and save its summary
- *   GsdDecision     — record an architectural decision
- *   GsdAutoMode     — autonomous loop: read state → dispatch sub-agent → advance
+ *   GsdPlan         — create/replace the spec in gsd-plan.json (committed to git)
+ *   GsdStatus       — read merged view of spec + runtime (read-only)
+ *   GsdStartTask    — mark a task as in_progress, get its dispatch context
+ *   GsdCompleteTask — mark a task as completed, persist its summary
+ *   GsdDecision     — record an architectural decision in gsd-plan.json
+ *   GsdAutoMode     — autonomous loop: read state → fresh sub-agent → advance
  */
 
 import { randomUUID } from "node:crypto";
 import type { ToolDefinition } from "./ToolDefinition";
 import { getWorkspaceRoot } from "./workspacePath";
-import {
-  completeTask,
-  createEmptyState,
-  findNextTask,
-  getGsdStateStore,
-  startTask,
-} from "../gsd/GsdStateStore";
+import { getGsdPlanStore } from "../gsd/GsdPlanStore";
+import { getGsdRuntimeStore } from "../gsd/GsdRuntimeStore";
+import { findNextTask, mergeState } from "../gsd/GsdMerge";
 import { getGsdDispatchBuilder } from "../gsd/GsdDispatchBuilder";
-import type { GsdDecision, GsdMilestone, GsdSlice, GsdState, GsdTask } from "../gsd/types";
+import type { GsdDecision, GsdMilestoneSpec, GsdPlanSpec, GsdSliceSpec, GsdTaskSpec } from "../gsd/types";
 import { runForkSubagent } from "../agent/forkSubagent";
 
 // ── GsdPlan ───────────────────────────────────────────────────────────────────
@@ -44,20 +40,20 @@ interface GsdPlanParams {
   milestones: GsdPlanMilestoneInput[];
 }
 
-export const gsdPlanTool: ToolDefinition<GsdPlanParams, { ok: true; statePath: string; taskCount: number }> = {
+export const gsdPlanTool: ToolDefinition<GsdPlanParams, { ok: true; planPath: string; taskCount: number }> = {
   name: "GsdPlan",
   description:
     "Creates or replaces the GSD2 project plan. " +
+    "Writes `gsd-plan.json` at the workspace root — commit this file to share the spec with the team. " +
     "Define the full hierarchy: project → milestones → tasks → slices. " +
-    "Each task should be a self-contained unit of work that a sub-agent can execute in one session. " +
-    "Slices are optional sub-steps within a task. " +
-    "Assign a branch name to each task for git isolation. " +
-    "Calling this resets any existing plan — use GsdStartTask / GsdCompleteTask to advance tasks.",
+    "Each task should be a self-contained unit of work a sub-agent can execute in one session. " +
+    "Assign a branch to each task for git isolation. " +
+    "This only writes the spec; runtime state (who is working on what) is stored separately in ~/.cappy/gsd/.",
   destructive: true,
   parameters: {
     type: "object",
     properties: {
-      project: { type: "string", description: "Project name for this GSD plan." },
+      project: { type: "string", description: "Project name." },
       milestones: {
         type: "array",
         description: "Ordered list of milestones.",
@@ -75,8 +71,8 @@ export const gsdPlanTool: ToolDefinition<GsdPlanParams, { ok: true; statePath: s
                 properties: {
                   id: { type: "string", description: "Short unique id, e.g. 't1'." },
                   title: { type: "string", description: "Task title." },
-                  description: { type: "string", description: "Detailed description of what to implement." },
-                  branch: { type: "string", description: "Git branch name for this task, e.g. 'feat/auth-service'." },
+                  description: { type: "string", description: "What to implement in detail." },
+                  branch: { type: "string", description: "Git branch, e.g. 'feat/auth-service'." },
                   slices: {
                     type: "array",
                     description: "Optional sub-steps.",
@@ -106,47 +102,44 @@ export const gsdPlanTool: ToolDefinition<GsdPlanParams, { ok: true; statePath: s
   },
   async execute(params) {
     const root = getWorkspaceRoot();
-    const store = getGsdStateStore();
 
-    const milestones: GsdMilestone[] = params.milestones.map((m) => ({
+    const milestones: GsdMilestoneSpec[] = params.milestones.map((m) => ({
       id: m.id,
       title: m.title,
       description: m.description ?? "",
-      status: "pending",
-      tasks: m.tasks.map((t): GsdTask => ({
+      tasks: m.tasks.map((t): GsdTaskSpec => ({
         id: t.id,
         title: t.title,
         description: t.description ?? "",
-        status: "pending",
-        milestoneId: m.id,
         ...(t.branch !== undefined ? { branch: t.branch } : {}),
-        slices: (t.slices ?? []).map((s): GsdSlice => ({
+        slices: (t.slices ?? []).map((s): GsdSliceSpec => ({
           id: s.id,
           description: s.description,
-          status: "pending",
         })),
       })),
     }));
 
-    const state: GsdState = {
-      ...createEmptyState(params.project),
+    const plan: GsdPlanSpec = {
+      version: 1,
+      project: params.project,
+      createdAt: new Date().toISOString(),
       milestones,
+      decisions: [],
     };
 
-    await store.save(root, state);
+    await getGsdPlanStore().save(root, plan);
     const taskCount = milestones.reduce((n, m) => n + m.tasks.length, 0);
-    return { ok: true, statePath: ".cappy/gsd/STATE.md", taskCount };
+    return { ok: true, planPath: "gsd-plan.json", taskCount };
   },
 };
 
 // ── GsdStatus ─────────────────────────────────────────────────────────────────
 
-export const gsdStatusTool: ToolDefinition<Record<string, never>, { state: GsdState | null; nextTask: string | null }> = {
+export const gsdStatusTool: ToolDefinition<Record<string, never>, { state: object | null; nextTask: string | null }> = {
   name: "GsdStatus",
   description:
-    "Reads the current GSD2 project state. " +
-    "Returns the full state including milestone/task statuses and the next pending task. " +
-    "Use this to inspect progress without modifying anything.",
+    "Reads the current GSD2 project state — merges the committed spec with the local runtime. " +
+    "Returns milestone/task statuses and the next pending task. Read-only.",
   readOnly: true,
   parameters: {
     type: "object",
@@ -156,8 +149,11 @@ export const gsdStatusTool: ToolDefinition<Record<string, never>, { state: GsdSt
   },
   async execute() {
     const root = getWorkspaceRoot();
-    const state = await getGsdStateStore().load(root);
-    if (!state) return { state: null, nextTask: null };
+    const plan = await getGsdPlanStore().load(root);
+    if (!plan) return { state: null, nextTask: "No plan found. Call GsdPlan first." };
+
+    const runtime = await getGsdRuntimeStore().load(root);
+    const state = mergeState(plan, runtime);
     const next = findNextTask(state);
     const nextTask = next ? `${next.task.id}: ${next.task.title} (milestone: ${next.milestone.title})` : null;
     return { state, nextTask };
@@ -173,9 +169,9 @@ interface GsdStartTaskParams {
 export const gsdStartTaskTool: ToolDefinition<GsdStartTaskParams, { ok: boolean; dispatchContext: string }> = {
   name: "GsdStartTask",
   description:
-    "Marks a task as in_progress and returns a focused dispatch context for the sub-agent. " +
-    "Use this in manual mode before delegating the task to an Agent sub-worker. " +
-    "Pass the returned dispatchContext as the 'context' param of the Agent tool.",
+    "Marks a task as in_progress and returns a focused dispatch context for manual delegation. " +
+    "Pass the returned dispatchContext as the 'context' param of the Agent tool when delegating manually. " +
+    "In autonomous mode, GsdAutoMode handles this automatically.",
   destructive: true,
   parameters: {
     type: "object",
@@ -187,24 +183,21 @@ export const gsdStartTaskTool: ToolDefinition<GsdStartTaskParams, { ok: boolean;
   },
   async execute(params) {
     const root = getWorkspaceRoot();
-    const store = getGsdStateStore();
-    const state = await store.load(root);
-    if (!state) return { ok: false, dispatchContext: "No GSD plan found. Call GsdPlan first." };
+    const plan = await getGsdPlanStore().load(root);
+    if (!plan) return { ok: false, dispatchContext: "No plan found. Call GsdPlan first." };
 
-    const ok = startTask(state, params.task_id);
-    if (!ok) return { ok: false, dispatchContext: `Task '${params.task_id}' not found.` };
+    await getGsdRuntimeStore().startTask(root, params.task_id);
+    const runtime = await getGsdRuntimeStore().load(root);
+    const state = mergeState(plan, runtime);
 
-    await store.save(root, state);
-
-    // Find the task and its milestone for dispatch context.
-    let milestone: GsdMilestone | undefined;
-    let task: GsdTask | undefined;
+    let milestone = null;
+    let task = null;
     for (const m of state.milestones) {
       const t = m.tasks.find((t) => t.id === params.task_id);
       if (t) { milestone = m; task = t; break; }
     }
 
-    if (!milestone || !task) return { ok: true, dispatchContext: "Task started." };
+    if (!milestone || !task) return { ok: false, dispatchContext: `Task '${params.task_id}' not found.` };
 
     const dispatchContext = await getGsdDispatchBuilder().build(root, state, milestone, task);
     return { ok: true, dispatchContext };
@@ -221,9 +214,10 @@ interface GsdCompleteTaskParams {
 export const gsdCompleteTaskTool: ToolDefinition<GsdCompleteTaskParams, { ok: boolean; nextTask: string | null }> = {
   name: "GsdCompleteTask",
   description:
-    "Marks a task as completed and persists its summary for use as context in subsequent tasks. " +
-    "Always call this when you finish a GSD task — the summary is pre-loaded into future sub-agents. " +
-    "Include: files changed, decisions made, issues found, and what the next task needs to know.",
+    "Marks a task as completed and persists its summary as context for subsequent tasks in the same milestone. " +
+    "Always call this when you finish a GSD task. " +
+    "The summary is pre-loaded into future sub-agents' dispatch prompts. " +
+    "Include: files changed, decisions made, issues found, what the next task needs to know.",
   destructive: true,
   parameters: {
     type: "object",
@@ -231,9 +225,7 @@ export const gsdCompleteTaskTool: ToolDefinition<GsdCompleteTaskParams, { ok: bo
       task_id: { type: "string", description: "The task id being completed." },
       summary: {
         type: "string",
-        description:
-          "Detailed summary of the work done. Will be pre-loaded as context for subsequent tasks. " +
-          "Include: files modified, key decisions, open issues, dependencies created.",
+        description: "Detailed summary of the work done. Will be pre-loaded into subsequent sub-agents.",
       },
     },
     required: ["task_id", "summary"],
@@ -241,19 +233,18 @@ export const gsdCompleteTaskTool: ToolDefinition<GsdCompleteTaskParams, { ok: bo
   },
   async execute(params) {
     const root = getWorkspaceRoot();
-    const store = getGsdStateStore();
-    const state = await store.load(root);
-    if (!state) return { ok: false, nextTask: null };
+    const runtimeStore = getGsdRuntimeStore();
 
-    const ok = completeTask(state, params.task_id);
-    if (!ok) return { ok: false, nextTask: null };
+    await runtimeStore.completeTask(root, params.task_id);
+    await runtimeStore.saveTaskSummary(root, params.task_id, params.summary);
 
-    await store.saveTaskSummary(root, params.task_id, params.summary);
-    await store.save(root, state);
+    const plan = await getGsdPlanStore().load(root);
+    if (!plan) return { ok: true, nextTask: null };
 
+    const runtime = await runtimeStore.load(root);
+    const state = mergeState(plan, runtime);
     const next = findNextTask(state);
-    const nextTask = next ? `${next.task.id}: ${next.task.title}` : null;
-    return { ok: true, nextTask };
+    return { ok: true, nextTask: next ? `${next.task.id}: ${next.task.title}` : null };
   },
 };
 
@@ -266,29 +257,26 @@ interface GsdDecisionParams {
   rationale?: string;
 }
 
-export const gsdDecisionTool: ToolDefinition<GsdDecisionParams, { ok: true; id: string }> = {
+export const gsdDecisionTool: ToolDefinition<GsdDecisionParams, { ok: boolean; id: string }> = {
   name: "GsdDecision",
   description:
-    "Records an architectural decision in the GSD decisions register. " +
-    "Decisions are pre-loaded into every subsequent sub-agent's context, " +
-    "ensuring consistent choices across the entire project.",
+    "Records an architectural decision in gsd-plan.json (committed to git). " +
+    "Decisions are pre-loaded into every sub-agent's dispatch context to ensure " +
+    "consistent choices throughout the project.",
   destructive: true,
   parameters: {
     type: "object",
     properties: {
-      title: { type: "string", description: "Short title for the decision, e.g. 'Use Postgres over SQLite'." },
+      title: { type: "string", description: "Short title, e.g. 'Use Postgres over SQLite'." },
       context: { type: "string", description: "Why this decision was needed." },
       decision: { type: "string", description: "What was decided." },
-      rationale: { type: "string", description: "Why this option was chosen over alternatives." },
+      rationale: { type: "string", description: "Why this option over alternatives." },
     },
     required: ["title", "context", "decision"],
     additionalProperties: false,
   },
   async execute(params) {
     const root = getWorkspaceRoot();
-    const store = getGsdStateStore();
-    const state = await store.load(root) ?? createEmptyState("(unnamed)");
-
     const id = `d-${randomUUID().slice(0, 8)}`;
     const decision: GsdDecision = {
       id,
@@ -298,58 +286,55 @@ export const gsdDecisionTool: ToolDefinition<GsdDecisionParams, { ok: true; id: 
       rationale: params.rationale ?? "",
       createdAt: new Date().toISOString(),
     };
-    state.decisions.push(decision);
-    await store.save(root, state);
-    return { ok: true, id };
+    const updated = await getGsdPlanStore().addDecision(root, decision);
+    return { ok: updated !== null, id };
   },
 };
 
 // ── GsdAutoMode ───────────────────────────────────────────────────────────────
 
 interface GsdAutoModeParams {
-  /** Max tasks to run before stopping (default: all pending). */
   max_tasks?: number;
-  /** Max LLM rounds per sub-agent task (default: 30, cap: 80). */
   max_iterations_per_task?: number;
 }
 
 interface GsdAutoModeResult {
   tasksCompleted: number;
   tasksFailed: number;
-  stoppedReason: "all_done" | "max_tasks_reached" | "no_plan" | "task_limit";
+  stoppedReason: "all_done" | "max_tasks_reached" | "no_plan";
   log: string[];
 }
 
 /**
- * GsdAutoMode — the faithful GSD2 autonomous loop.
+ * GsdAutoMode — the faithful GSD2 autonomous development loop.
  *
- * Reads STATE.md → finds next pending task → builds focused dispatch prompt →
- * spawns fresh sub-agent via runForkSubagent → after completion reads updated
- * state → dispatches next task. Repeats until all tasks are done or max_tasks
- * is reached.
+ * For each pending task:
+ *   1. Reads gsd-plan.json (spec) + ~/.cappy/gsd/<hash>/state.json (runtime)
+ *   2. Marks the task as in_progress in the runtime
+ *   3. Builds a focused dispatch prompt (spec + same-milestone summaries + decisions)
+ *   4. Spawns a fresh sub-agent via runForkSubagent with parentHistory: []
+ *      — this is the core of GSD2: every task starts with a clean 200k-token context
+ *   5. After the sub-agent finishes, re-reads the runtime
+ *   6. If the sub-agent called GsdCompleteTask, the task is already marked done
+ *   7. If not, auto-completes with the sub-agent's final message as the summary
+ *   8. Advances to the next task
  *
- * Each sub-agent starts with a CLEAN 0-message history. Context is pre-loaded
- * via the dispatch prompt (task spec + prior summaries + decisions register).
- * This directly mirrors GSD2's "fresh 200k context per task" design.
- *
- * NOTE: This tool is excluded from fork sub-agents (FORK_EXCLUDED_TOOLS) to
- * prevent recursive auto-mode invocations.
+ * NOTE: excluded from fork sub-agents (FORK_EXCLUDED_TOOLS) to prevent recursion.
  */
 export const gsdAutoModeTool: ToolDefinition<GsdAutoModeParams, GsdAutoModeResult> = {
   name: "GsdAutoMode",
   description:
     "Starts the GSD2 autonomous development loop. " +
-    "Reads the project plan, dispatches each pending task to a fresh sub-agent with pre-loaded context, " +
-    "waits for completion, then advances to the next task — automatically, without human intervention. " +
-    "Each sub-agent gets a clean context window (no history inheritance) with exactly the context it needs. " +
-    "Requires GsdPlan to have been called first. " +
-    "Sub-agents must call GsdCompleteTask when done; auto mode reads the updated state after each task.",
+    "Each task gets a fresh sub-agent with a clean context window (no history inheritance) " +
+    "pre-loaded with exactly the context it needs. " +
+    "Reads gsd-plan.json for the spec; runtime state is in ~/.cappy/gsd/ (not committed). " +
+    "Requires GsdPlan to have been called first.",
   parameters: {
     type: "object",
     properties: {
       max_tasks: {
         type: "number",
-        description: "Maximum number of tasks to run before stopping (default: unlimited).",
+        description: "Maximum tasks to run before stopping (default: all pending).",
       },
       max_iterations_per_task: {
         type: "number",
@@ -361,24 +346,24 @@ export const gsdAutoModeTool: ToolDefinition<GsdAutoModeParams, GsdAutoModeResul
   },
   async execute(params) {
     const root = getWorkspaceRoot();
-    const store = getGsdStateStore();
+    const planStore = getGsdPlanStore();
+    const runtimeStore = getGsdRuntimeStore();
     const builder = getGsdDispatchBuilder();
 
     const maxTasks = params.max_tasks ?? Number.MAX_SAFE_INTEGER;
     const maxIter = Math.min(80, Math.max(1, params.max_iterations_per_task ?? 30));
-
     const log: string[] = [];
     let tasksCompleted = 0;
     let tasksFailed = 0;
 
-    let state = await store.load(root);
-    if (!state) {
-      return { tasksCompleted: 0, tasksFailed: 0, stoppedReason: "no_plan", log: ["No GSD plan found. Call GsdPlan first."] };
+    const plan = await planStore.load(root);
+    if (!plan) {
+      return { tasksCompleted: 0, tasksFailed: 0, stoppedReason: "no_plan", log: ["No gsd-plan.json found. Call GsdPlan first."] };
     }
 
     while (tasksCompleted + tasksFailed < maxTasks) {
-      // Re-read state after each task to pick up GsdCompleteTask writes.
-      state = (await store.load(root))!;
+      const runtime = await runtimeStore.load(root);
+      const state = mergeState(plan, runtime);
       const next = findNextTask(state);
 
       if (!next) {
@@ -389,35 +374,33 @@ export const gsdAutoModeTool: ToolDefinition<GsdAutoModeParams, GsdAutoModeResul
       const { milestone, task } = next;
       log.push(`[START] ${task.id}: ${task.title}`);
 
-      // Mark task as in_progress before dispatch.
-      startTask(state, task.id);
-      await store.save(root, state);
+      await runtimeStore.startTask(root, task.id);
 
-      // Build fresh, focused dispatch prompt — no history inheritance.
-      const dispatchPrompt = await builder.build(root, state, milestone, task);
+      const dispatchContext = await builder.build(
+        root,
+        mergeState(plan, await runtimeStore.load(root)),
+        milestone,
+        task,
+      );
 
       try {
         const result = await runForkSubagent({
           agentId: `gsd-${task.id}-${randomUUID().slice(0, 6)}`,
           task: `Execute GSD task: ${task.title}`,
-          context: dispatchPrompt,
+          context: dispatchContext,
           parentHistory: [], // FRESH CONTEXT — core of GSD2
           workspaceRoot: root,
           maxIterations: maxIter,
         });
 
-        // Re-read state to see if sub-agent called GsdCompleteTask.
-        state = (await store.load(root))!;
-        const taskAfter = state.milestones
-          .flatMap((m) => m.tasks)
-          .find((t) => t.id === task.id);
+        // Re-read runtime to check if sub-agent called GsdCompleteTask.
+        const runtimeAfter = await runtimeStore.load(root);
+        const taskStatus = runtimeAfter.tasks[task.id]?.status;
 
-        if (taskAfter?.status !== "completed") {
-          // Sub-agent didn't call GsdCompleteTask — mark completed with its result as summary.
+        if (taskStatus !== "completed") {
           log.push(`[WARN] ${task.id}: sub-agent did not call GsdCompleteTask — auto-completing.`);
-          completeTask(state, task.id);
-          await store.saveTaskSummary(root, task.id, result.result.slice(0, 2000));
-          await store.save(root, state);
+          await runtimeStore.completeTask(root, task.id);
+          await runtimeStore.saveTaskSummary(root, task.id, result.result.slice(0, 2000));
         }
 
         tasksCompleted++;
@@ -425,11 +408,7 @@ export const gsdAutoModeTool: ToolDefinition<GsdAutoModeParams, GsdAutoModeResul
       } catch (err) {
         tasksFailed++;
         log.push(`[FAIL] ${task.id}: ${err instanceof Error ? err.message : String(err)}`);
-        // Mark blocked so the loop can continue with remaining tasks.
-        state = (await store.load(root))!;
-        const failedTask = state.milestones.flatMap((m) => m.tasks).find((t) => t.id === task.id);
-        if (failedTask) failedTask.status = "blocked";
-        await store.save(root, state);
+        await runtimeStore.blockTask(root, task.id);
       }
     }
 
