@@ -16,3 +16,5 @@ webview/node_modules/.vite/
 .DS_Store
 
 .husky/_/
+
+.cappy/
