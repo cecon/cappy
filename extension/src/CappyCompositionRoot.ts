@@ -21,6 +21,8 @@ import { debounce } from "./utils/debounce";
 import { RagIndexer } from "./rag/RagIndexer";
 import { setRagIndexer } from "./tools/ragSearchTool";
 import { MemoryStore, setMemoryStore } from "./memory/MemoryStore";
+import { GsdStateStore, setGsdStateStore } from "./gsd/GsdStateStore";
+import { GsdDispatchBuilder, setGsdDispatchBuilder } from "./gsd/GsdDispatchBuilder";
 
 // ── VS Code logger adapter ─────────────────────────────────────────────────
 
@@ -64,6 +66,11 @@ export function createCappyBridge(
     const memoryStore = new MemoryStore();
     setMemoryStore(memoryStore);
     void memoryStore.ensureDefaults(workspaceRoot);
+
+    const gsdStore = new GsdStateStore();
+    setGsdStateStore(gsdStore);
+    const gsdDispatch = new GsdDispatchBuilder(gsdStore);
+    setGsdDispatchBuilder(gsdDispatch);
   }
 
   // ── RAG indexer (background, only when enabled) ──────────────────────────

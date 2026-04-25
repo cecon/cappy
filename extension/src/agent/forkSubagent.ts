@@ -7,7 +7,7 @@ import type { ToolDefinition } from "../tools/toolTypes";
  * Names of tools excluded from forked subagents to prevent recursion.
  * Children cannot spawn further workers, create teams, or re-fork.
  */
-const FORK_EXCLUDED_TOOLS = new Set<string>(["Agent", "TeamCreate", "SendMessage"]);
+const FORK_EXCLUDED_TOOLS = new Set<string>(["Agent", "TeamCreate", "SendMessage", "GsdAutoMode"]);
 
 /**
  * Returns the full tool registry minus fork/swarm tools (anti-recursion guard).

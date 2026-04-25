@@ -11,6 +11,14 @@ import { readFileTool, readOpenClaudeTool } from "./readFile";
 import { bashTool, runTerminalTool } from "./runTerminal";
 import { memoryDeleteTool, memoryListTool, memoryReadTool, memoryWriteTool } from "./memoryTools";
 import { ragSearchTool } from "./ragSearchTool";
+import {
+  gsdAutoModeTool,
+  gsdCompleteTaskTool,
+  gsdDecisionTool,
+  gsdPlanTool,
+  gsdStartTaskTool,
+  gsdStatusTool,
+} from "./gsdTools";
 import { searchCodeTool } from "./searchCode";
 import { sendMessageTool } from "./sendMessageTool";
 import { createSkillTool, listSkillsTool, readSkillTool } from "./skillTools";
@@ -55,4 +63,10 @@ export const toolsRegistry: ToolDefinition<any, unknown>[] = [
   memoryReadTool,
   memoryWriteTool,
   memoryDeleteTool,
+  gsdPlanTool,
+  gsdStatusTool,
+  gsdStartTaskTool,
+  gsdCompleteTaskTool,
+  gsdDecisionTool,
+  gsdAutoModeTool,
 ];
