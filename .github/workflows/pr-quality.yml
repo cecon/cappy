@@ -75,7 +75,7 @@ jobs:
               VIOLATIONS+=("$rel ($lines lines)")
               FAILED=1
             fi
-          done < <(find extension/src webview/src cli/src -name "*.ts" -o -name "*.tsx" -print0 2>/dev/null)
+          done < <(find extension/src webview/src cli/src \( -name "*.ts" -o -name "*.tsx" \) -print0 2>/dev/null)
 
           if [[ ${#VIOLATIONS[@]} -gt 0 ]]; then
             echo ""
