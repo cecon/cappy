@@ -1,0 +1,86 @@
+name: PR Quality Gates
+
+# ── Runs on every PR targeting main ─────────────────────────────────────────
+# Direct pushes to main are blocked by branch protection rules.
+# Configure in GitHub → Settings → Branches:
+#   - Branch name pattern: main
+#   - ✓ Require a pull request before merging
+#   - ✓ Require status checks to pass before merging
+#     → Add: "typecheck", "line-limit"
+#   - ✓ Do not allow bypassing the above settings
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+
+  line-limit:
+    name: File line limit (300)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check 300-line limit
+        shell: bash
+        run: |
+          EXCEPTIONS_FILE=".github/line-limit-exceptions.txt"
+          LIMIT=300
+          FAILED=0
+          VIOLATIONS=()
+
+          # Load known exceptions (pre-existing tech debt, to be addressed gradually)
+          declare -A EXCEPTIONS
+          if [[ -f "$EXCEPTIONS_FILE" ]]; then
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+              EXCEPTIONS["$line"]=1
+            done < "$EXCEPTIONS_FILE"
+          fi
+
+          # Check every source file
+          while IFS= read -r -d '' file; do
+            lines=$(wc -l < "$file")
+            rel="${file#./}"
+
+            if [[ "${EXCEPTIONS[$rel]+_}" ]]; then
+              # Exception: check it's not getting WORSE (must stay ≤ current ceiling)
+              ceiling=$(grep -m1 "^$rel" "$EXCEPTIONS_FILE" 2>/dev/null | awk '{print $2}')
+              if [[ -n "$ceiling" && "$lines" -gt "$ceiling" ]]; then
+                echo "::error file=$rel::$rel grew past its exception ceiling ($lines > $ceiling lines). Refactor before adding more code."
+                FAILED=1
+              else
+                echo "::notice file=$rel::$rel is an exception ($lines lines) — scheduled for refactor."
+              fi
+              continue
+            fi
+
+            if [[ "$lines" -gt "$LIMIT" ]]; then
+              echo "::error file=$rel::$rel has $lines lines (limit: $LIMIT). Split the file or move to .github/line-limit-exceptions.txt with its current count."
+              VIOLATIONS+=("$rel ($lines lines)")
+              FAILED=1
+            fi
+          done < <(find extension/src webview/src cli/src -name "*.ts" -o -name "*.tsx" -print0 2>/dev/null)
+
+          if [[ ${#VIOLATIONS[@]} -gt 0 ]]; then
+            echo ""
+            echo "Files exceeding $LIMIT lines:"
+            for v in "${VIOLATIONS[@]}"; do echo "  - $v"; done
+          fi
+
+          exit $FAILED
