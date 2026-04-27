@@ -1,4 +1,5 @@
-import { Box, Group, Loader, Paper, Stack, Text } from "@mantine/core";
+import { ActionIcon, Box, Group, Loader, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { IconFileExport } from "@tabler/icons-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { CAPPY_NEW_SESSION_EVENT } from "../lib/session-events";
@@ -15,6 +16,7 @@ import { StageProgressBar } from "./StageProgressBar";
 import { WorkersPanel } from "./WorkersPanel";
 import { PipelineDAGView } from "./PipelineDAGView";
 import { PipelineLauncher } from "./PipelineLauncher";
+import { AgentTrace } from "./AgentTrace";
 import { cappyPalette } from "../theme";
 
 const bridge = getBridge();
@@ -94,6 +96,31 @@ export function Chat(): JSX.Element {
     [dispatch, state.runtimeConfig],
   );
 
+  function handleExport(): void {
+    const date = new Date().toLocaleString("pt-BR");
+    const lines: string[] = [`# Conversa Cappy`, ``, `> Exportado em: ${date}`, ``];
+
+    for (const msg of state.messages) {
+      if (msg.role === "user") {
+        lines.push(`## Usuário`, ``, msg.content, ``);
+      } else if (msg.role === "assistant") {
+        if (msg.content) lines.push(`## Cappy`, ``, msg.content, ``);
+        if (msg.tool_calls) {
+          for (const tc of msg.tool_calls) {
+            lines.push(`### Tool: \`${tc.name}\``, ``, `**Input:**`, "```json", JSON.stringify(tc.arguments, null, 2), "```", ``);
+          }
+        }
+      } else if (msg.role === "tool" && msg.tool_call_id) {
+        const row = state.toolRows.find((r) => r.id === msg.tool_call_id);
+        if (row?.output) {
+          lines.push(`**Output (\`${row.name}\`):**`, "```", row.output.slice(0, 2000), "```", ``);
+        }
+      }
+    }
+
+    bridge.send({ type: "conversation:export", markdown: lines.join("\n") });
+  }
+
   const firstPending = state.pendingConfirms[0] ?? null;
   const showPipelineLauncher = !state.isStreaming && !state.pipeline && state.pipelineTemplates.length > 0;
 
@@ -110,6 +137,16 @@ export function Chat(): JSX.Element {
           : <StageProgressBar pipeline={state.pipeline} />
       ) : null}
 
+      {state.messages.length > 0 && !state.isStreaming && (
+        <Group px={6} py={2} justify="flex-end" style={{ flexShrink: 0 }}>
+          <Tooltip label="Exportar conversa como Markdown" position="left" withArrow>
+            <ActionIcon variant="subtle" size="xs" color="dimmed" onClick={handleExport} aria-label="Exportar conversa">
+              <IconFileExport size={13} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+      )}
+
       <Box
         ref={messagesScrollRef}
         flex={1}
@@ -122,6 +159,12 @@ export function Chat(): JSX.Element {
 
       <WorkersPanel toolRows={state.toolRows} />
       <PipelineDAGView toolRows={state.toolRows} pipeline={state.pipeline} />
+
+      {state.toolRows.length > 0 && !state.isStreaming && (
+        <Box px={4} pb={2}>
+          <AgentTrace toolRows={state.toolRows} />
+        </Box>
+      )}
 
       <Stack gap="sm" style={{ flexShrink: 0, minWidth: 0 }}>
         {firstPending ? (
