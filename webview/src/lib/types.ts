@@ -102,3 +102,31 @@ export interface ContextUsageSnapshot {
   didTrimForApi: boolean;
   droppedMessageCount: number;
 }
+
+/** Lifecycle status of a single pipeline stage in the UI. */
+export type PipelineStageStatus = "pending" | "running" | "done" | "awaiting-approval";
+
+/** Minimal stage descriptor mirrored from the host pipeline events. */
+export interface PipelineStageInfo {
+  id: string;
+  name: string;
+  status: PipelineStageStatus;
+  requiresApproval?: boolean;
+}
+
+/** Full pipeline UI state — derived from pipeline:* bridge events. */
+export interface PipelineUiState {
+  id: string;
+  name: string;
+  stages: PipelineStageInfo[];
+  currentStageIndex: number;
+  /** true while awaiting pipeline:advance (requiresApproval gate). */
+  awaitingApproval: boolean;
+}
+
+/** Brief template descriptor returned by pipeline:templates. */
+export interface PipelineTemplate {
+  id: string;
+  name: string;
+  stageCount: number;
+}

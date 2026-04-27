@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import type { ContextUsagePayload } from "../agent/contextBudget";
 import { AgentLoop } from "../agent/loop";
-import type { AgentTool, Message, PlanStatePayload, ToolCall } from "../agent/types";
+import { BUILT_IN_PIPELINES, PipelineRunner } from "../agent/PipelineRunner";
+import type { AgentTool, Message, PipelineDefinition, PlanStatePayload, ToolCall } from "../agent/types";
 import { resetSessionContext } from "../agent/sessionContext";
 import { loadAgentPreferences } from "../agent/agentPreferences";
 import { type CappyConfig, loadConfig, saveConfig } from "../config";
@@ -53,7 +54,15 @@ export type HostToWebviewMessage =
     }
   | { type: "error"; message: string }
   /** Plan mode lifecycle: entered, content updated, or exited. */
-  | { type: "plan:state"; active: boolean; filePath: string | null; content: string | null };
+  | { type: "plan:state"; active: boolean; filePath: string | null; content: string | null }
+  /** Pipeline orchestration lifecycle events. */
+  | { type: "pipeline:start"; pipeline: { id: string; name: string; stages: Array<{ id: string; name: string; requiresApproval?: boolean }> } }
+  | { type: "pipeline:stage:start"; stageId: string; stageName: string; stageIndex: number; totalStages: number }
+  | { type: "pipeline:stage:done"; stageId: string; stageIndex: number; totalStages: number }
+  | { type: "pipeline:stage:approve"; stageId: string; stageName: string; stageIndex: number }
+  | { type: "pipeline:done" }
+  /** Send the list of built-in pipeline templates to the webview. */
+  | { type: "pipeline:templates"; templates: Array<{ id: string; name: string; stageCount: number }> };
 
 /**
  * Message sent from webview to extension host.
@@ -72,7 +81,15 @@ export type WebviewToHostMessage =
   | { type: "file:open"; path: string }
   | { type: "config:load" }
   | { type: "config:save"; config: CappyConfig }
-  | { type: "mcp:list" };
+  | { type: "mcp:list" }
+  /** Start a pipeline run with a named template and initial messages. */
+  | { type: "pipeline:run"; pipelineId: string; messages: Message[]; mode?: ChatUiMode }
+  /** Advance past a requiresApproval gate to the next pipeline stage. */
+  | { type: "pipeline:advance" }
+  /** Abort the running pipeline. */
+  | { type: "pipeline:abort" }
+  /** Request the list of available pipeline templates. */
+  | { type: "pipeline:list" };
 
 /**
  * Opções do bridge; use `onNewSession` para nova sessão sem reentrância de comandos.
@@ -96,10 +113,13 @@ export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBr
   }
   /** Estado espelhado no webview para auto-aprovar HITL na camada UI. */
   const hitlUiSessionState = { sessionAutoApproveDestructive: false };
+  const mcpCallHandler = async (serverName: string, toolName: string, args: Record<string, unknown>) =>
+    mcpManager.callTool(serverName, toolName, args);
   const agentLoop = new AgentLoop({
     ...(workspaceRoot ? { workspaceRoot } : {}),
-    onMcpCall: async (serverName, toolName, args) => mcpManager.callTool(serverName, toolName, args),
+    onMcpCall: mcpCallHandler,
   });
+  const pipelineRunner = new PipelineRunner();
   const tools = toolsRegistry as unknown as AgentTool[];
   const bridgeDisposables: vscode.Disposable[] = [];
 
@@ -177,6 +197,62 @@ export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBr
   agentLoop.on("error", errorListener);
   agentLoop.on("context:usage", contextUsageListener);
 
+  // ── PipelineRunner listeners ──────────────────────────────────────────────
+  pipelineRunner.on("pipeline:start", (pipeline) => {
+    void postToWebview(webview, {
+      type: "pipeline:start",
+      pipeline: {
+        id: pipeline.id,
+        name: pipeline.name,
+        stages: pipeline.stages.map((s) => {
+          const stageInfo: { id: string; name: string; requiresApproval?: boolean } = { id: s.id, name: s.name };
+          if (s.requiresApproval !== undefined) stageInfo.requiresApproval = s.requiresApproval;
+          return stageInfo;
+        }),
+      },
+    });
+  });
+  pipelineRunner.on("pipeline:stage:start", (stage, index, total) => {
+    void postToWebview(webview, {
+      type: "pipeline:stage:start",
+      stageId: stage.id,
+      stageName: stage.name,
+      stageIndex: index,
+      totalStages: total,
+    });
+  });
+  pipelineRunner.on("pipeline:stage:done", (stage, index, total) => {
+    void postToWebview(webview, {
+      type: "pipeline:stage:done",
+      stageId: stage.id,
+      stageIndex: index,
+      totalStages: total,
+    });
+  });
+  pipelineRunner.on("pipeline:stage:approve", (stage, index) => {
+    void postToWebview(webview, {
+      type: "pipeline:stage:approve",
+      stageId: stage.id,
+      stageName: stage.name,
+      stageIndex: index,
+    });
+  });
+  pipelineRunner.on("pipeline:done", () => {
+    void postToWebview(webview, { type: "pipeline:done" });
+    void postToWebview(webview, { type: "stream:done" });
+  });
+  // Pipeline forwards the same AgentLoop events to the webview
+  pipelineRunner.on("stream:token", streamTokenListener);
+  pipelineRunner.on("stream:done", streamDoneListener);
+  pipelineRunner.on("stream:system", streamSystemListener);
+  pipelineRunner.on("tool:confirm", toolConfirmListener);
+  pipelineRunner.on("tool:executing", toolExecutingListener);
+  pipelineRunner.on("tool:result", toolResultListener);
+  pipelineRunner.on("tool:rejected", toolRejectedListener);
+  pipelineRunner.on("plan:state", planStateListener);
+  pipelineRunner.on("error", errorListener);
+  pipelineRunner.on("context:usage", contextUsageListener);
+
   void pushHitlPolicyToWebview(webview, workspaceRoot, hitlUiSessionState);
 
   // ── RAG indexer (background, only when enabled) ───────────────────────────
@@ -214,7 +290,7 @@ export function createWebviewBridge(webview: vscode.Webview, options?: WebviewBr
 
   bridgeDisposables.push(
     webview.onDidReceiveMessage((raw: unknown) => {
-      void handleWebviewMessage(raw, agentLoop, webview, tools, mcpManager, options, workspaceRoot, hitlUiSessionState);
+      void handleWebviewMessage(raw, agentLoop, pipelineRunner, webview, tools, mcpManager, options, workspaceRoot, hitlUiSessionState);
     }),
   );
 
@@ -289,11 +365,12 @@ async function pushHitlPolicyToWebview(
 }
 
 /**
- * Handles one inbound webview message and forwards to the AgentLoop.
+ * Handles one inbound webview message and forwards to the AgentLoop or PipelineRunner.
  */
 async function handleWebviewMessage(
   raw: unknown,
   agentLoop: AgentLoop,
+  pipelineRunner: PipelineRunner,
   webview: vscode.Webview,
   tools: AgentTool[],
   mcpManager: McpManager,
@@ -322,9 +399,48 @@ async function handleWebviewMessage(
     return;
   }
 
+  if (raw.type === "pipeline:run") {
+    const pipeline = BUILT_IN_PIPELINES.find((p) => p.id === raw.pipelineId);
+    if (!pipeline) {
+      await postToWebview(webview, { type: "error", message: `Pipeline desconhecido: ${raw.pipelineId}` });
+      return;
+    }
+    try {
+      const toolsForRun = selectToolsForChatMode("agent", tools);
+      const mcpList = mcpManager.listTools();
+      logInfo(`pipeline:run received | pipelineId=${raw.pipelineId} msgs=${raw.messages.length}`);
+      const pipelineRunOpts: import("../agent/PipelineRunner").PipelineRunOptions = { tools: toolsForRun, mcpTools: mcpToolsForChatMode("agent", mcpList) };
+      if (workspaceRoot !== undefined) pipelineRunOpts.workspaceRoot = workspaceRoot;
+      pipelineRunOpts.onMcpCall = async (serverName, toolName, args) => mcpManager.callTool(serverName, toolName, args);
+      await pipelineRunner.run(pipeline, raw.messages, pipelineRunOpts);
+    } catch (err) {
+      logError(`Pipeline error in bridge: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return;
+  }
+
+  if (raw.type === "pipeline:advance") {
+    pipelineRunner.advance();
+    return;
+  }
+
+  if (raw.type === "pipeline:abort") {
+    pipelineRunner.abort();
+    return;
+  }
+
+  if (raw.type === "pipeline:list") {
+    await postToWebview(webview, {
+      type: "pipeline:templates",
+      templates: BUILT_IN_PIPELINES.map((p) => ({ id: p.id, name: p.name, stageCount: p.stages.length })),
+    });
+    return;
+  }
+
   if (raw.type === "chat:stop") {
-    logInfo("chat:stop received, aborting agent loop");
+    logInfo("chat:stop received, aborting agent loop and pipeline");
     agentLoop.abort();
+    pipelineRunner.abort();
     return;
   }
 
@@ -359,7 +475,8 @@ async function handleWebviewMessage(
   }
 
   if (raw.type === "tool:approve") {
-    if (!agentLoop.approve(raw.toolCallId)) {
+    const ok = agentLoop.approve(raw.toolCallId) || pipelineRunner.approve(raw.toolCallId);
+    if (!ok) {
       await postToWebview(webview, {
         type: "error",
         message: `Confirmacao pendente nao encontrada: ${raw.toolCallId}`,
@@ -369,7 +486,9 @@ async function handleWebviewMessage(
   }
 
   if (raw.type === "hitl:approveSession") {
-    if (!agentLoop.approveSessionAutoDestructive(raw.toolCallId)) {
+    const ok = agentLoop.approveSessionAutoDestructive(raw.toolCallId) ||
+      pipelineRunner.approveSessionAutoDestructive(raw.toolCallId);
+    if (!ok) {
       await postToWebview(webview, {
         type: "error",
         message: `Confirmacao pendente nao encontrada: ${raw.toolCallId}`,
@@ -390,7 +509,8 @@ async function handleWebviewMessage(
       return;
     }
     try {
-      const ok = await agentLoop.persistAllowAllDestructive(raw.toolCallId);
+      const ok = await agentLoop.persistAllowAllDestructive(raw.toolCallId) ||
+        await pipelineRunner.persistAllowAllDestructive(raw.toolCallId);
       if (!ok) {
         await postToWebview(webview, {
           type: "error",
@@ -510,6 +630,14 @@ function isWebviewToHostMessage(value: unknown): value is WebviewToHostMessage {
 
   if (value.type === "file:open") {
     return typeof value.path === "string" && value.path.trim().length > 0;
+  }
+
+  if (value.type === "pipeline:run") {
+    return typeof value.pipelineId === "string" && Array.isArray(value.messages);
+  }
+
+  if (value.type === "pipeline:advance" || value.type === "pipeline:abort" || value.type === "pipeline:list") {
+    return true;
   }
 
   return false;

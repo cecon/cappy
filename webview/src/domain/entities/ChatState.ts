@@ -3,7 +3,7 @@
  * Extracted from Chat.tsx module-level types and scattered useState definitions.
  */
 
-import type { CappyConfig, ContextUsageSnapshot, FileDiffPayload, Message, ToolCall } from "../../lib/types";
+import type { CappyConfig, ContextUsageSnapshot, FileDiffPayload, Message, PipelineTemplate, PipelineUiState, ToolCall } from "../../lib/types";
 import type { ContextFile } from "../../components/InputBar";
 
 export type ActivityTone = "working" | "error";
@@ -64,6 +64,10 @@ export interface ChatState {
   planContent: string | null;
   /** Absolute path of the session plan file on disk (null = not yet created). */
   planFilePath: string | null;
+  /** Active pipeline state (null when no pipeline is running). */
+  pipeline: PipelineUiState | null;
+  /** Available pipeline templates from the host. */
+  pipelineTemplates: PipelineTemplate[];
 }
 
 export const DEFAULT_HITL_POLICY: HitlUiPolicy = {
@@ -87,4 +91,6 @@ export const INITIAL_CHAT_STATE: ChatState = {
   planMode: false,
   planContent: null,
   planFilePath: null,
+  pipeline: null,
+  pipelineTemplates: [],
 };
