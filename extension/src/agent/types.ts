@@ -62,6 +62,29 @@ export interface AgentEvents {
   error: (err: Error) => void;
 }
 
+/** One stage in a pipeline — maps to a single AgentLoop run. */
+export interface PipelineStage {
+  id: string;
+  name: string;
+  /** Extra instruction appended to the system prompt for this stage only. */
+  systemPromptSuffix?: string;
+  /** If set, only these tool names are available (whitelist overrides blockedTools). */
+  allowedTools?: string[];
+  /** Tools excluded from this stage (blacklist). Ignored when allowedTools is present. */
+  blockedTools?: string[];
+  /** When true, the runner pauses after this stage and waits for `pipeline:advance` before continuing. */
+  requiresApproval?: boolean;
+  /** Max LLM rounds for this stage (undefined = config default). */
+  maxIterations?: number;
+}
+
+/** An ordered sequence of stages that the PipelineRunner executes end-to-end. */
+export interface PipelineDefinition {
+  id: string;
+  name: string;
+  stages: PipelineStage[];
+}
+
 /**
  * JSON schema used by function tools.
  */

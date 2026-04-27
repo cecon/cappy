@@ -11,22 +11,27 @@ import { InputBar, type ContextFile } from "./InputBar";
 import { MessageList } from "./MessageList";
 import { PermissionDock } from "./PermissionDock";
 import { PlanModePanel } from "./PlanModePanel";
+import { StageProgressBar } from "./StageProgressBar";
+import { WorkersPanel } from "./WorkersPanel";
+import { PipelineDAGView } from "./PipelineDAGView";
 import { cappyPalette } from "../theme";
 
 const bridge = getBridge();
 
 /**
  * Chat container: manages history, stream state and pending HITL confirmations.
- * Layout (Kilo Code style):
- *   ┌─ scroll area (flex 1) ───────────────┐
- *   │  MessageList (user + assistant turns  │
- *   │  with inline ToolPartDisplay rows)    │
- *   └──────────────────────────────────────┘
- *   ┌─ PermissionDock (when pending) ──────┐  fixed below scroll, above input
- *   └──────────────────────────────────────┘
- *   ┌─ activity bar ───────────────────────┐
- *   │  InputBar                            │
- *   └──────────────────────────────────────┘
+ * Layout:
+ *   ┌─ StageProgressBar (pipeline active) ───────┐
+ *   ├─ scroll area (flex 1) ─────────────────────┤
+ *   │  MessageList                               │
+ *   ├─ WorkersPanel (workers active) ────────────┤
+ *   ├─ PipelineDAGView (collapsible) ────────────┤
+ *   ├─ PermissionDock (when pending) ────────────┤
+ *   ├─ PlanModePanel (plan mode) ────────────────┤
+ *   ├─ Pipeline launcher (idle, templates loaded) ┤
+ *   ├─ activity bar ──────────────────────────────┤
+ *   │  InputBar                                  │
+ *   └─────────────────────────────────────────────┘
  */
 export function Chat(): JSX.Element {
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -35,6 +40,11 @@ export function Chat(): JSX.Element {
 
   useBridgeMessages(dispatch, state.hitlPolicy);
   const availableModels = useModelOptions(state.runtimeConfig?.openrouter.model);
+
+  // Request pipeline templates once on mount
+  useEffect(() => {
+    bridge.send({ type: "pipeline:list" });
+  }, []);
 
   useEffect(() => {
     const onNewSession = () => dispatch({ type: "SESSION_RESET" });
@@ -74,9 +84,24 @@ export function Chat(): JSX.Element {
     setActivityTick(0);
   }
 
+  function handlePipelineSend(pipelineId: string, text: string): void {
+    const userMsg: Message = { role: "user", content: text };
+    const newMessages = [...state.messages, userMsg];
+    dispatch({ type: "SEND_START", messages: newMessages, mode: "agent" });
+    bridge.send({ type: "pipeline:run", pipelineId, messages: newMessages });
+    setActivityTick(0);
+  }
+
   function handleStop(): void {
+    if (state.pipeline) {
+      bridge.send({ type: "pipeline:abort" });
+    }
     bridge.send({ type: "chat:stop" });
     dispatch({ type: "STOP" });
+  }
+
+  function handlePipelineAdvance(): void {
+    bridge.send({ type: "pipeline:advance" });
   }
 
   const handleApprove = useCallback((id: string) => bridge.send({ type: "tool:approve", toolCallId: id }), []);
@@ -105,8 +130,12 @@ export function Chat(): JSX.Element {
     [dispatch, state.runtimeConfig],
   );
 
-  // First pending confirm is shown in the dock (FIFO).
   const firstPending = state.pendingConfirms[0] ?? null;
+
+  const showPipelineLauncher =
+    !state.isStreaming &&
+    !state.pipeline &&
+    state.pipelineTemplates.length > 0;
 
   return (
     <Stack
@@ -115,6 +144,15 @@ export function Chat(): JSX.Element {
       style={{ minHeight: 0, minWidth: "var(--cappy-chat-min-width, 320px)", width: "100%", boxSizing: "border-box" }}
       justify="space-between"
     >
+      {/* ── Stage progress bar (pipeline active) ── */}
+      {state.pipeline ? (
+        state.pipeline.awaitingApproval ? (
+          <StageProgressBar pipeline={state.pipeline} onAdvance={handlePipelineAdvance} />
+        ) : (
+          <StageProgressBar pipeline={state.pipeline} />
+        )
+      ) : null}
+
       {/* ── Scroll area: message list ── */}
       <Box
         ref={messagesScrollRef}
@@ -129,6 +167,12 @@ export function Chat(): JSX.Element {
           />
         </Stack>
       </Box>
+
+      {/* ── Workers panel (parallel agents active) ── */}
+      <WorkersPanel toolRows={state.toolRows} />
+
+      {/* ── DAG view (collapsible, pipeline or workers) ── */}
+      <PipelineDAGView toolRows={state.toolRows} pipeline={state.pipeline} />
 
       {/* ── Fixed bottom area ── */}
       <Stack gap="sm" style={{ flexShrink: 0, minWidth: 0 }}>
@@ -158,6 +202,14 @@ export function Chat(): JSX.Element {
               onApprove={() => handleSend("O plano está aprovado. Pode implementar.", "agent")}
             />
           </Box>
+        ) : null}
+
+        {/* Pipeline launcher — quick template buttons shown when idle */}
+        {showPipelineLauncher ? (
+          <PipelineLauncher
+            templates={state.pipelineTemplates}
+            onLaunch={handlePipelineSend}
+          />
         ) : null}
 
         {/* Activity badge */}
@@ -230,5 +282,113 @@ export function Chat(): JSX.Element {
         </Box>
       </Stack>
     </Stack>
+  );
+}
+
+// ── Pipeline launcher ─────────────────────────────────────────────────────────
+
+interface PipelineLauncherProps {
+  templates: Array<{ id: string; name: string; stageCount: number }>;
+  onLaunch: (pipelineId: string, text: string) => void;
+}
+
+function PipelineLauncher({ templates, onLaunch }: PipelineLauncherProps): JSX.Element {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [text, setText] = useState("");
+
+  const selectedTemplate = templates.find((t) => t.id === selected);
+
+  function handleConfirm(): void {
+    if (!selected || !text.trim()) return;
+    onLaunch(selected, text.trim());
+    setSelected(null);
+    setText("");
+  }
+
+  return (
+    <Box
+      px={8}
+      py={6}
+      style={{
+        background: cappyPalette.bgSunken,
+        borderTop: `1px solid ${cappyPalette.borderSubtle}`,
+      }}
+    >
+      <Text size="xs" c="dimmed" tt="uppercase" lts={0.5} mb={6}>
+        Pipeline
+      </Text>
+
+      {/* Template selector chips */}
+      <Group gap={4} mb={selected ? 6 : 0}>
+        {templates.map((t) => (
+          <Box
+            key={t.id}
+            component="button"
+            onClick={() => setSelected(selected === t.id ? null : t.id)}
+            px={8}
+            py={3}
+            style={{
+              background: selected === t.id ? `${cappyPalette.accentFill}22` : "transparent",
+              border: `1px solid ${selected === t.id ? cappyPalette.accentFill : cappyPalette.borderSurface}`,
+              borderRadius: 999,
+              color: selected === t.id ? cappyPalette.textAccent : cappyPalette.textSecondary,
+              fontSize: "0.7rem",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {t.name}
+            <Text component="span" size="xs" c="dimmed" ml={4}>
+              ({t.stageCount} stages)
+            </Text>
+          </Box>
+        ))}
+      </Group>
+
+      {/* Input + launch when a template is selected */}
+      {selectedTemplate ? (
+        <Group gap={4} align="flex-end" mt={4}>
+          <Box
+            component="input"
+            value={text}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setText(e.target.value)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleConfirm(); }
+            }}
+            placeholder={`Descreva a tarefa para "${selectedTemplate.name}"…`}
+            style={{
+              flex: 1,
+              background: cappyPalette.bgBase,
+              border: `1px solid ${cappyPalette.borderSurface}`,
+              borderRadius: 6,
+              color: cappyPalette.textPrimary,
+              fontSize: "0.75rem",
+              padding: "4px 8px",
+              outline: "none",
+            }}
+          />
+          <Box
+            component="button"
+            onClick={handleConfirm}
+            disabled={!text.trim()}
+            px={10}
+            py={4}
+            style={{
+              background: text.trim() ? cappyPalette.accentFill : cappyPalette.bgSurface,
+              border: "none",
+              borderRadius: 6,
+              color: text.trim() ? "#fff" : cappyPalette.textMuted,
+              fontSize: "0.7rem",
+              fontWeight: 600,
+              cursor: text.trim() ? "pointer" : "not-allowed",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            Iniciar
+          </Box>
+        </Group>
+      ) : null}
+    </Box>
   );
 }

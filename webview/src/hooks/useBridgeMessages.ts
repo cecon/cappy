@@ -108,6 +108,43 @@ export function useBridgeMessages(
           dispatch({ type: "PLAN_STATE", active: message.active, content: message.content, filePath: message.filePath });
           break;
 
+        case "pipeline:start":
+          dispatch({
+            type: "PIPELINE_START",
+            pipeline: {
+              id: message.pipeline.id,
+              name: message.pipeline.name,
+              currentStageIndex: 0,
+              awaitingApproval: false,
+              stages: message.pipeline.stages.map((s) => {
+                const info: import("../lib/types").PipelineStageInfo = { id: s.id, name: s.name, status: "pending" };
+                if (s.requiresApproval !== undefined) info.requiresApproval = s.requiresApproval;
+                return info;
+              }),
+            },
+          });
+          break;
+
+        case "pipeline:stage:start":
+          dispatch({ type: "PIPELINE_STAGE_START", stageId: message.stageId, stageIndex: message.stageIndex });
+          break;
+
+        case "pipeline:stage:done":
+          dispatch({ type: "PIPELINE_STAGE_DONE", stageId: message.stageId, stageIndex: message.stageIndex });
+          break;
+
+        case "pipeline:stage:approve":
+          dispatch({ type: "PIPELINE_STAGE_APPROVE", stageId: message.stageId, stageIndex: message.stageIndex });
+          break;
+
+        case "pipeline:done":
+          dispatch({ type: "PIPELINE_DONE" });
+          break;
+
+        case "pipeline:templates":
+          dispatch({ type: "PIPELINE_TEMPLATES", templates: message.templates });
+          break;
+
         case "error":
           dispatch({ type: "ERROR", message: message.message });
           break;
