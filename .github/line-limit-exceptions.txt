@@ -1,0 +1,18 @@
+# Files exempt from the 300-line limit — pre-existing tech debt.
+# Format: <relative-path> <ceiling>
+# The ceiling is the line count at the time this entry was added.
+# CI will FAIL if a file GROWS past its ceiling.
+# Remove entries here only after splitting the file under 300 lines.
+
+extension/src/agent/loop.ts 1505
+extension/src/bridge/webview.ts 680
+webview/src/components/ConfigPanel.tsx 620
+webview/src/components/InputBar.tsx 619
+extension/src/tools/searchCode.ts 574
+cli/src/index.ts 477
+extension/src/agent/workspaceSkills.ts 436
+webview/src/lib/vscode-bridge.ts 415
+extension/src/rag/VectorStore.ts 388
+extension/src/__tests__/contextBudget.test.ts 384
+extension/src/rag/RagIndexer.ts 352
+webview/src/__tests__/chatReducer.test.ts 346
