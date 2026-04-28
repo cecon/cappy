@@ -16,6 +16,8 @@ import { FormEvent, KeyboardEvent, useCallback, useMemo, useRef, useState } from
 
 import type { ChatUiMode, ContextUsageSnapshot, ImageAttachment, PipelineTemplate } from "../lib/types";
 import { cappyPalette } from "../theme";
+import { ContextRing } from "./ContextRing";
+import { PipelineToggle, type PipelineState } from "./PipelineToggle";
 
 export interface ContextFile {
   path: string;
@@ -90,8 +92,7 @@ export function InputBar({
 }: InputBarProps): JSX.Element {
   const [value, setValue] = useState("");
   const [chatMode, setChatMode] = useState<ChatUiMode>("agent");
-  const [pipelineEnabled, setPipelineEnabled] = useState(false);
-  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
+  const [pipelineState, setPipelineState] = useState<PipelineState>({ enabled: false, templateId: null });
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -118,20 +119,6 @@ export function InputBar({
   }, [contextFiles.length, contextUsage, isStreaming, value.length]);
   const contextRatio = contextMetrics.previewUsed / contextMetrics.limitTokens;
   const progressPct = Math.min(100, Math.max(0, contextRatio * 100));
-
-  const hasPipelines = pipelineTemplates && pipelineTemplates.length > 0 && onPipelineSend;
-
-  function handleTogglePipeline(): void {
-    if (pipelineEnabled) {
-      setPipelineEnabled(false);
-      setSelectedPipelineId(null);
-    } else {
-      setPipelineEnabled(true);
-      if (pipelineTemplates && pipelineTemplates.length > 0 && !selectedPipelineId) {
-        setSelectedPipelineId(pipelineTemplates[0].id);
-      }
-    }
-  }
 
   /**
    * Handles submit from input form.
@@ -182,8 +169,8 @@ export function InputBar({
     if ((!text && images.length === 0) || isStreaming) {
       return;
     }
-    if (pipelineEnabled && selectedPipelineId && onPipelineSend && text) {
-      onPipelineSend(selectedPipelineId, text);
+    if (pipelineState.enabled && pipelineState.templateId && onPipelineSend && text) {
+      onPipelineSend(pipelineState.templateId, text);
       setValue("");
       setImages([]);
       return;
@@ -339,8 +326,8 @@ export function InputBar({
             onKeyDown={handleTextareaKeyDown}
             onPaste={handlePaste}
             placeholder={
-              pipelineEnabled
-                ? `Pipeline ${pipelineTemplates?.find((t) => t.id === selectedPipelineId)?.name ?? ""} — descreva a tarefa…`
+              pipelineState.enabled
+                ? `Pipeline ${pipelineTemplates?.find((t) => t.id === pipelineState.templateId)?.name ?? ""} — descreva a tarefa…`
                 : chatMode === "plain"
                   ? "Mensagem em texto puro (sem tools)"
                   : chatMode === "ask"
@@ -462,7 +449,7 @@ export function InputBar({
               overflow: "hidden",
             }}
           >
-            {!pipelineEnabled ? (
+            {!pipelineState.enabled ? (
               <Select
                 size="xs"
                 w={92}
@@ -480,40 +467,8 @@ export function InputBar({
               />
             ) : null}
 
-            {hasPipelines ? (
-              <>
-                <ActionIcon
-                  variant={pipelineEnabled ? "filled" : "subtle"}
-                  color={pipelineEnabled ? "ideAccent" : "gray"}
-                  size="sm"
-                  aria-label={pipelineEnabled ? "Desativar pipeline" : "Ativar pipeline"}
-                  title={pipelineEnabled ? "Desativar pipeline" : "Ativar pipeline"}
-                  disabled={isStreaming}
-                  onClick={handleTogglePipeline}
-                  style={{ flexShrink: 0 }}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
-                    <circle cx="4" cy="12" r="2.2" />
-                    <circle cx="12" cy="12" r="2.2" />
-                    <circle cx="20" cy="12" r="2.2" />
-                    <path d="M6.2 12h3.6M14.2 12h3.6" />
-                  </svg>
-                </ActionIcon>
-
-                {pipelineEnabled && pipelineTemplates && pipelineTemplates.length > 1 ? (
-                  <Select
-                    size="xs"
-                    w={110}
-                    style={{ flexShrink: 0 }}
-                    data={pipelineTemplates.map((t) => ({ value: t.id, label: t.name }))}
-                    value={selectedPipelineId}
-                    onChange={(v) => { if (v) setSelectedPipelineId(v); }}
-                    disabled={isStreaming}
-                    aria-label="Template de pipeline"
-                    comboboxProps={{ withinPortal: true }}
-                  />
-                ) : null}
-              </>
+            {pipelineTemplates && pipelineTemplates.length > 0 && onPipelineSend ? (
+              <PipelineToggle templates={pipelineTemplates} isStreaming={isStreaming} onChange={setPipelineState} />
             ) : null}
 
             <Select
@@ -639,50 +594,9 @@ export function InputBar({
   );
 }
 
-/**
- * Finds the token being typed after the last @.
- */
 function getAtToken(inputValue: string): string {
   const lastAtIndex = inputValue.lastIndexOf("@");
-  if (lastAtIndex < 0) {
-    return "";
-  }
+  if (lastAtIndex < 0) return "";
   const token = inputValue.slice(lastAtIndex + 1);
-  if (token.includes(" ")) {
-    return "";
-  }
-  return token.trim();
-}
-
-interface ContextRingProps {
-  ratio: number;
-}
-
-/**
- * Renders the context usage ring with color thresholds.
- */
-function ContextRing({ ratio }: ContextRingProps): JSX.Element {
-  const clampedRatio = Math.max(0, Math.min(1, ratio));
-  const normalizedRadius = 7.6;
-  const circumference = 2 * Math.PI * normalizedRadius;
-  const strokeOffset = circumference - circumference * clampedRatio;
-  const strokeColor =
-    clampedRatio < 0.6 ? cappyPalette.textAccent : clampedRatio < 0.85 ? cappyPalette.amber : cappyPalette.redSoft;
-
-  return (
-    <svg viewBox="0 0 24 24" width={18} height={18} style={{ transform: "rotate(-90deg)" }} aria-hidden="true">
-      <circle cx="12" cy="12" r={normalizedRadius} fill="none" stroke={cappyPalette.borderSurface} strokeWidth={2.2} />
-      <circle
-        cx="12"
-        cy="12"
-        r={normalizedRadius}
-        fill="none"
-        stroke={strokeColor}
-        strokeWidth={2.2}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={strokeOffset}
-      />
-    </svg>
-  );
+  return token.includes(" ") ? "" : token.trim();
 }

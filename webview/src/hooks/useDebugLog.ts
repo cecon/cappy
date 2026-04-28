@@ -56,7 +56,7 @@ export function useDebugLog(innerDispatch: Dispatch<ChatAction>): {
           const last = prev[prev.length - 1];
           if (last?.type === "STREAM_TOKEN") {
             const match = last.detail.match(/\+(\d+)chars/);
-            const accumulated = match ? parseInt(match[1], 10) : 0;
+            const accumulated = match?.[1] ? parseInt(match[1], 10) : 0;
             return [
               ...prev.slice(0, -1),
               { ...last, detail: `+${accumulated + action.token.length}chars` },
