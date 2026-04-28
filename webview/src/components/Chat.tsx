@@ -16,14 +16,18 @@ import { StageProgressBar } from "./StageProgressBar";
 import { WorkersPanel } from "./WorkersPanel";
 import { PipelineDAGView } from "./PipelineDAGView";
 import { AgentTrace } from "./AgentTrace";
+import { DebugPanel } from "./DebugPanel";
+import { useDebugLog } from "../hooks/useDebugLog";
 import { cappyPalette } from "../theme";
 
 const bridge = getBridge();
 
 export function Chat(): JSX.Element {
   const messagesScrollRef = useRef<HTMLDivElement>(null);
-  const [state, dispatch] = useChatReducer();
+  const [state, innerDispatch] = useChatReducer();
+  const { debugLog, dispatch, clearLog } = useDebugLog(innerDispatch);
   const [activityTick, setActivityTick] = useState(0);
+  const [showDebug, setShowDebug] = useState(false);
 
   useBridgeMessages(dispatch, state.hitlPolicy);
   const availableModels = useModelOptions(state.runtimeConfig?.openrouter.model);
@@ -135,15 +139,29 @@ export function Chat(): JSX.Element {
           : <StageProgressBar pipeline={state.pipeline} />
       ) : null}
 
-      {state.messages.length > 0 && !state.isStreaming && (
-        <Group px={6} py={2} justify="flex-end" style={{ flexShrink: 0 }}>
+      <Group px={6} py={2} justify="flex-end" style={{ flexShrink: 0 }}>
+        <Tooltip label="Debug" position="left" withArrow>
+          <ActionIcon
+            variant={showDebug ? "filled" : "subtle"}
+            color={showDebug ? "orange" : "dimmed"}
+            size="xs"
+            aria-label="Abrir painel de debug"
+            onClick={() => setShowDebug((v) => !v)}
+          >
+            <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
+            </svg>
+          </ActionIcon>
+        </Tooltip>
+        {state.messages.length > 0 && !state.isStreaming && (
           <Tooltip label="Exportar conversa como Markdown" position="left" withArrow>
             <ActionIcon variant="subtle" size="xs" color="dimmed" onClick={handleExport} aria-label="Exportar conversa">
               <IconFileExport size={13} />
             </ActionIcon>
           </Tooltip>
-        </Group>
-      )}
+        )}
+      </Group>
 
       <Box
         ref={messagesScrollRef}
@@ -163,6 +181,8 @@ export function Chat(): JSX.Element {
           <AgentTrace toolRows={state.toolRows} />
         </Box>
       )}
+
+      {showDebug ? <DebugPanel log={debugLog} state={state} onClear={clearLog} /> : null}
 
       <Stack gap="sm" style={{ flexShrink: 0, minWidth: 0 }}>
         {firstPending ? (
