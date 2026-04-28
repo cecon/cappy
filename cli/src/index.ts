@@ -26,6 +26,7 @@ import { CliRenderer } from "./CliRenderer.js";
 import { CliHitl, type HitlPolicy } from "./CliHitl.js";
 import { c, BOLD, CYAN, GRAY, GREEN, RED, YELLOW } from "./cliColors.js";
 import { runInit } from "./cliInit.js";
+import { buildSystemPromptPrefix, loadCappyMd } from "./cliWorkspaceContext.js";
 import {
   runOnce, runCliPipeline, BUILT_IN_PIPELINES,
   type ChatMode, type RunOnceOptions, type Message,
@@ -304,6 +305,7 @@ async function startRepl(
           hitlPolicy: opts.hitl.getPolicy(),
           maxIterations: opts.maxIterations,
           verbose,
+          systemPromptPrefix: opts.systemPromptPrefix,
         });
       } finally {
         rl.resume();
@@ -400,6 +402,13 @@ async function main(): Promise<void> {
 
   const renderer = new CliRenderer(opts.verbose);
   const hitl = new CliHitl(opts.hitlPolicy);
+  const [cappyMd, systemPromptPrefixRaw] = await Promise.all([
+    loadCappyMd(opts.workspaceRoot),
+    buildSystemPromptPrefix(opts.workspaceRoot),
+  ]);
+  const systemPromptPrefix = systemPromptPrefixRaw ?? undefined;
+  const gitOk = fs.existsSync(path.join(opts.workspaceRoot, ".git"));
+  process.stderr.write(c(GRAY, `[ctx: CAPPY.md ${cappyMd ? c(GREEN, "✓") : c(GRAY, "–")}  git ${gitOk ? c(GREEN, "✓") : c(GRAY, "–")}]\n`));
 
   // ── Modo pipeline: --pipeline <id> "tarefa" ────────────────────────────────
   if (opts.pipeline) {
@@ -414,6 +423,7 @@ async function main(): Promise<void> {
       hitlPolicy: opts.hitlPolicy,
       maxIterations: opts.maxIterations,
       verbose: opts.verbose,
+      systemPromptPrefix,
     });
     return;
   }
@@ -423,6 +433,7 @@ async function main(): Promise<void> {
     hitl,
     mode: opts.mode,
     maxIterations: opts.maxIterations,
+    systemPromptPrefix,
   };
 
   // ── Modo single-shot: prompt passado via args ──────────────────────────────

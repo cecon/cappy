@@ -11,6 +11,7 @@ export interface PipelineRunOptions {
   tools: AgentTool[];
   mcpTools?: McpTool[];
   workspaceRoot?: string;
+  systemPromptPrefix?: string;
   onMcpCall?: (serverName: string, toolName: string, args: Record<string, unknown>) => Promise<string>;
 }
 
@@ -214,7 +215,15 @@ export class PipelineRunner extends EventEmitter {
       }
 
       const runOpts: { systemPromptPrefix?: string; maxLlmRounds?: number; mcpTools?: import("../mcp/client").McpTool[] } = {};
-      if (stage.systemPromptSuffix !== undefined) runOpts.systemPromptPrefix = stage.systemPromptSuffix;
+      const stagePrefix = stage.systemPromptSuffix;
+      const globalPrefix = options.systemPromptPrefix;
+      if (globalPrefix && stagePrefix) {
+        runOpts.systemPromptPrefix = `${globalPrefix}\n\n---\n\n${stagePrefix}`;
+      } else if (globalPrefix) {
+        runOpts.systemPromptPrefix = globalPrefix;
+      } else if (stagePrefix) {
+        runOpts.systemPromptPrefix = stagePrefix;
+      }
       if (stage.maxIterations !== undefined) runOpts.maxLlmRounds = stage.maxIterations;
       if (options.mcpTools !== undefined) runOpts.mcpTools = options.mcpTools;
 

@@ -38,6 +38,7 @@ export interface RunOnceOptions {
   userPrompt: string;
   mode: ChatMode;
   maxIterations: number | undefined;
+  systemPromptPrefix?: string;
 }
 
 export async function runOnce(opts: RunOnceOptions): Promise<void> {
@@ -69,6 +70,7 @@ export async function runOnce(opts: RunOnceOptions): Promise<void> {
     const updated = await loop.run(history as Parameters<typeof loop.run>[0], tools, {
       chatMode: mode,
       maxLlmRounds: maxIterations,
+      systemPromptPrefix: opts.systemPromptPrefix,
     });
     history.length = 0;
     history.push(...(updated as Message[]));
@@ -88,6 +90,7 @@ export async function runCliPipeline(opts: {
   hitlPolicy: HitlPolicy;
   maxIterations?: number;
   verbose: boolean;
+  systemPromptPrefix?: string;
 }): Promise<void> {
   const { pipelineId, userPrompt, workspaceRoot, hitlPolicy, maxIterations, verbose } = opts;
 
@@ -169,6 +172,7 @@ export async function runCliPipeline(opts: {
     await runner.run(pipelineDef, [{ role: "user", content: userPrompt }], {
       tools: toolsRegistry,
       workspaceRoot,
+      systemPromptPrefix: opts.systemPromptPrefix,
     });
   } finally {
     process.off("SIGINT", sigintHandler);
