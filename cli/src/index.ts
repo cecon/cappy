@@ -25,21 +25,8 @@ import { resetSessionContext } from "../../extension/src/agent/sessionContext.js
 
 import { CliRenderer } from "./CliRenderer.js";
 import { CliHitl, type HitlPolicy } from "./CliHitl.js";
-
-// ─── ANSI helpers ──────────────────────────────────────────────────────────────
-
-const ESC = "\x1b[";
-const RESET = `${ESC}0m`;
-const BOLD = `${ESC}1m`;
-const CYAN = `${ESC}36m`;
-const GRAY = `${ESC}90m`;
-const GREEN = `${ESC}32m`;
-const RED = `${ESC}31m`;
-const YELLOW = `${ESC}33m`;
-
-function c(color: string, text: string): string {
-  return `${color}${text}${RESET}`;
-}
+import { c, BOLD, CYAN, GRAY, GREEN, RED, YELLOW } from "./cliColors.js";
+import { runInit } from "./cliInit.js";
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -150,9 +137,13 @@ function printHelp(): void {
 ${c(BOLD + CYAN, "Cappy CLI")} — agente de IA autônomo no terminal
 
 ${c(BOLD, "USO")}
+  cappy init             # configuração inicial interativa
   cappy [opções] [prompt]
   echo "prompt" | cappy [opções]
-  cappy [opções]        # modo REPL interativo
+  cappy [opções]         # modo REPL interativo
+
+${c(BOLD, "COMANDOS")}
+  ${c(CYAN, "init")}                    Guia de setup: API Key, modelo, detecção de stack
 
 ${c(BOLD, "OPÇÕES")}
   ${c(CYAN, "-m, --mode <modo>")}       Modo do agente: ${c(GREEN, "agent")} (padrão) | ${c(YELLOW, "ask")} | plain
@@ -165,6 +156,7 @@ ${c(BOLD, "OPÇÕES")}
   ${c(CYAN, "-h, --help")}              Exibe esta ajuda
 
 ${c(BOLD, "EXEMPLOS")}
+  cappy init
   cappy "explica o arquivo src/index.ts"
   cappy --mode ask "quais funções existem?"
   cappy --allow-all "refatora utils.ts removendo duplicatas"
@@ -174,7 +166,7 @@ ${c(BOLD, "EXEMPLOS")}
 
 ${c(BOLD, "CONFIGURAÇÃO")}
   O Cappy lê ${c(CYAN, "~/.cappy/config.json")} (criado automaticamente).
-  Defina ${c(CYAN, "openrouter.apiKey")} e ${c(CYAN, "openrouter.model")} para usar o agente.
+  Execute ${c(CYAN, "cappy init")} para configurar de forma guiada.
 
 `);
 }
@@ -380,6 +372,11 @@ async function startRepl(
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  if (process.argv[2] === "init") {
+    await runInit();
+    return;
+  }
+
   const opts = parseArgs(process.argv);
 
   if (opts.showVersion) {

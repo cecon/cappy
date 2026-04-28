@@ -89,7 +89,9 @@ export type WebviewToHostMessage =
   /** Abort the running pipeline. */
   | { type: "pipeline:abort" }
   /** Request the list of available pipeline templates. */
-  | { type: "pipeline:list" };
+  | { type: "pipeline:list" }
+  /** Export the current conversation as a Markdown file. */
+  | { type: "conversation:export"; markdown: string };
 
 /**
  * Opções do bridge; use `onNewSession` para nova sessão sem reentrância de comandos.
@@ -575,6 +577,20 @@ async function handleWebviewMessage(
     }
     return;
   }
+
+  if (raw.type === "conversation:export") {
+    const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/gu, "-");
+    const defaultName = `cappy-${ts}.md`;
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    const saveOptions: vscode.SaveDialogOptions = { filters: { Markdown: ["md"] }, title: "Exportar conversa como Markdown" };
+    if (folder) saveOptions.defaultUri = vscode.Uri.joinPath(folder.uri, defaultName);
+    const uri = await vscode.window.showSaveDialog(saveOptions);
+    if (uri) {
+      await vscode.workspace.fs.writeFile(uri, Buffer.from(raw.markdown, "utf-8"));
+      void vscode.window.showInformationMessage(`Conversa exportada: ${uri.fsPath}`);
+    }
+    return;
+  }
 }
 
 /**
@@ -638,6 +654,10 @@ function isWebviewToHostMessage(value: unknown): value is WebviewToHostMessage {
 
   if (value.type === "pipeline:advance" || value.type === "pipeline:abort" || value.type === "pipeline:list") {
     return true;
+  }
+
+  if (value.type === "conversation:export") {
+    return typeof value.markdown === "string";
   }
 
   return false;

@@ -36,7 +36,8 @@ export type OutgoingMessage =
   | { type: "pipeline:run"; pipelineId: string; messages: Message[]; mode?: ChatUiMode }
   | { type: "pipeline:advance" }
   | { type: "pipeline:abort" }
-  | { type: "pipeline:list" };
+  | { type: "pipeline:list" }
+  | { type: "conversation:export"; markdown: string };
 
 /**
  * Inbound messages received from host in the webview.
