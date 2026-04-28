@@ -15,7 +15,6 @@ import { PlanModePanel } from "./PlanModePanel";
 import { StageProgressBar } from "./StageProgressBar";
 import { WorkersPanel } from "./WorkersPanel";
 import { PipelineDAGView } from "./PipelineDAGView";
-import { PipelineLauncher } from "./PipelineLauncher";
 import { AgentTrace } from "./AgentTrace";
 import { cappyPalette } from "../theme";
 
@@ -122,7 +121,6 @@ export function Chat(): JSX.Element {
   }
 
   const firstPending = state.pendingConfirms[0] ?? null;
-  const showPipelineLauncher = !state.isStreaming && !state.pipeline && state.pipelineTemplates.length > 0;
 
   return (
     <Stack
@@ -191,10 +189,6 @@ export function Chat(): JSX.Element {
           </Box>
         ) : null}
 
-        {showPipelineLauncher ? (
-          <PipelineLauncher templates={state.pipelineTemplates} onLaunch={handlePipelineSend} />
-        ) : null}
-
         {state.activity ? (
           <Paper
             p="sm"
@@ -243,6 +237,8 @@ export function Chat(): JSX.Element {
             modelOptions={availableModels}
             onModelChange={handleModelChange}
             configReady={state.runtimeConfig !== null}
+            pipelineTemplates={state.pipelineTemplates}
+            onPipelineSend={handlePipelineSend}
           />
         </Box>
       </Stack>

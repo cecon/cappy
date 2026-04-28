@@ -14,7 +14,7 @@ import {
 } from "@mantine/core";
 import { FormEvent, KeyboardEvent, useCallback, useMemo, useRef, useState } from "react";
 
-import type { ChatUiMode, ContextUsageSnapshot, ImageAttachment } from "../lib/types";
+import type { ChatUiMode, ContextUsageSnapshot, ImageAttachment, PipelineTemplate } from "../lib/types";
 import { cappyPalette } from "../theme";
 
 export interface ContextFile {
@@ -39,6 +39,10 @@ interface InputBarProps {
   onModelChange: (modelId: string) => void;
   /** Enquanto a config inicial não chegou do host. */
   configReady?: boolean;
+  /** Pipeline templates disponíveis para modo pipeline. */
+  pipelineTemplates?: PipelineTemplate[];
+  /** Chamado ao enviar em modo pipeline. */
+  onPipelineSend?: (pipelineId: string, text: string) => void;
 }
 
 const MODE_ITEMS: { id: ChatUiMode; label: string; hint: string }[] = [
@@ -81,9 +85,13 @@ export function InputBar({
   modelOptions,
   onModelChange,
   configReady = true,
+  pipelineTemplates,
+  onPipelineSend,
 }: InputBarProps): JSX.Element {
   const [value, setValue] = useState("");
   const [chatMode, setChatMode] = useState<ChatUiMode>("agent");
+  const [pipelineEnabled, setPipelineEnabled] = useState(false);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -110,6 +118,20 @@ export function InputBar({
   }, [contextFiles.length, contextUsage, isStreaming, value.length]);
   const contextRatio = contextMetrics.previewUsed / contextMetrics.limitTokens;
   const progressPct = Math.min(100, Math.max(0, contextRatio * 100));
+
+  const hasPipelines = pipelineTemplates && pipelineTemplates.length > 0 && onPipelineSend;
+
+  function handleTogglePipeline(): void {
+    if (pipelineEnabled) {
+      setPipelineEnabled(false);
+      setSelectedPipelineId(null);
+    } else {
+      setPipelineEnabled(true);
+      if (pipelineTemplates && pipelineTemplates.length > 0 && !selectedPipelineId) {
+        setSelectedPipelineId(pipelineTemplates[0].id);
+      }
+    }
+  }
 
   /**
    * Handles submit from input form.
@@ -158,6 +180,12 @@ export function InputBar({
   function submitCurrentValue(): void {
     const text = value.trim();
     if ((!text && images.length === 0) || isStreaming) {
+      return;
+    }
+    if (pipelineEnabled && selectedPipelineId && onPipelineSend && text) {
+      onPipelineSend(selectedPipelineId, text);
+      setValue("");
+      setImages([]);
       return;
     }
     onSend(text || "(imagem)", chatMode, images.length > 0 ? images : undefined);
@@ -311,11 +339,13 @@ export function InputBar({
             onKeyDown={handleTextareaKeyDown}
             onPaste={handlePaste}
             placeholder={
-              chatMode === "plain"
-                ? "Mensagem em texto puro (sem tools)"
-                : chatMode === "ask"
-                  ? "Pergunta: leitura e pesquisa no código e na web"
-                  : "/ para comandos, @ para contexto — agente com ferramentas"
+              pipelineEnabled
+                ? `Pipeline ${pipelineTemplates?.find((t) => t.id === selectedPipelineId)?.name ?? ""} — descreva a tarefa…`
+                : chatMode === "plain"
+                  ? "Mensagem em texto puro (sem tools)"
+                  : chatMode === "ask"
+                    ? "Pergunta: leitura e pesquisa no código e na web"
+                    : "/ para comandos, @ para contexto — agente com ferramentas"
             }
             minRows={3}
             autosize
@@ -432,21 +462,60 @@ export function InputBar({
               overflow: "hidden",
             }}
           >
-            <Select
-              size="xs"
-              w={92}
-              style={{ flexShrink: 0 }}
-              data={modeSelectData}
-              value={chatMode}
-              onChange={(value) => {
-                if (value === "plain" || value === "agent" || value === "ask") {
-                  setChatMode(value);
-                }
-              }}
-              disabled={isStreaming}
-              aria-label="Modo do chat"
-              comboboxProps={{ withinPortal: true }}
-            />
+            {!pipelineEnabled ? (
+              <Select
+                size="xs"
+                w={92}
+                style={{ flexShrink: 0 }}
+                data={modeSelectData}
+                value={chatMode}
+                onChange={(value) => {
+                  if (value === "plain" || value === "agent" || value === "ask") {
+                    setChatMode(value);
+                  }
+                }}
+                disabled={isStreaming}
+                aria-label="Modo do chat"
+                comboboxProps={{ withinPortal: true }}
+              />
+            ) : null}
+
+            {hasPipelines ? (
+              <>
+                <ActionIcon
+                  variant={pipelineEnabled ? "filled" : "subtle"}
+                  color={pipelineEnabled ? "ideAccent" : "gray"}
+                  size="sm"
+                  aria-label={pipelineEnabled ? "Desativar pipeline" : "Ativar pipeline"}
+                  title={pipelineEnabled ? "Desativar pipeline" : "Ativar pipeline"}
+                  disabled={isStreaming}
+                  onClick={handleTogglePipeline}
+                  style={{ flexShrink: 0 }}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+                    <circle cx="4" cy="12" r="2.2" />
+                    <circle cx="12" cy="12" r="2.2" />
+                    <circle cx="20" cy="12" r="2.2" />
+                    <path d="M6.2 12h3.6M14.2 12h3.6" />
+                  </svg>
+                </ActionIcon>
+
+                {pipelineEnabled && pipelineTemplates && pipelineTemplates.length > 1 ? (
+                  <Select
+                    size="xs"
+                    w={110}
+                    style={{ flexShrink: 0 }}
+                    data={pipelineTemplates.map((t) => ({ value: t.id, label: t.name }))}
+                    value={selectedPipelineId}
+                    onChange={(v) => { if (v) setSelectedPipelineId(v); }}
+                    disabled={isStreaming}
+                    aria-label="Template de pipeline"
+                    comboboxProps={{ withinPortal: true }}
+                  />
+                ) : null}
+              </>
+            ) : null}
+
             <Select
               size="xs"
               style={{ flex: "1 1 0", minWidth: 0 }}
