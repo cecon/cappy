@@ -66,9 +66,9 @@ export class Spinner {
 
 export class CliRenderer {
   private readonly spinner = new Spinner();
-
-  /** Chamado quando o primeiro token chega — inicia o print do texto. */
   private streamingStarted = false;
+
+  constructor(private readonly verbose = false) {}
 
   /**
    * Imprime um token de streaming diretamente no stdout (sem newline).
@@ -97,26 +97,29 @@ export class CliRenderer {
     process.stderr.write(`\n${c(YELLOW, "⚠")}  ${c(DIM, message)}\n`);
   }
 
-  /** Uma tool vai ser executada. */
   onToolExecuting(toolName: string, args: Record<string, unknown>): void {
     this.spinner.stop();
     this.streamingStarted = false;
-    const preview = buildArgsPreview(args);
-    process.stderr.write(
-      `\n${c(BLUE, "🔧")} ${c(BOLD, toolName)}${preview ? c(GRAY, `  ${preview}`) : ""}\n`,
-    );
+    if (this.verbose) {
+      const json = JSON.stringify(args, null, 2).split("\n").map((l) => `   ${c(GRAY, l)}`).join("\n");
+      process.stderr.write(`\n${c(BLUE, "🔧")} ${c(BOLD, toolName)}\n${json}\n`);
+    } else {
+      const preview = buildArgsPreview(args);
+      process.stderr.write(`\n${c(BLUE, "🔧")} ${c(BOLD, toolName)}${preview ? c(GRAY, `  ${preview}`) : ""}\n`);
+    }
     this.spinner.start("executando...");
   }
 
-  /** Resultado de uma tool (resumido). */
   onToolResult(toolName: string, result: string): void {
     this.spinner.stop();
-    const lines = result.split("\n").filter((l) => l.trim().length > 0);
-    const preview = lines.slice(0, 3).join(" ↩ ").slice(0, 120);
-    const suffix = result.length > 120 ? c(GRAY, ` … (+${result.length - 120} chars)`) : "";
-    process.stderr.write(
-      `   ${c(GREEN, "✓")} ${c(DIM, toolName)}${c(GRAY, ":")} ${preview}${suffix}\n`,
-    );
+    if (this.verbose) {
+      process.stderr.write(`   ${c(GREEN, "✓")} ${c(DIM, toolName)}:\n${result}\n`);
+    } else {
+      const lines = result.split("\n").filter((l) => l.trim().length > 0);
+      const preview = lines.slice(0, 3).join(" ↩ ").slice(0, 120);
+      const suffix = result.length > 120 ? c(GRAY, ` … (+${result.length - 120} chars)`) : "";
+      process.stderr.write(`   ${c(GREEN, "✓")} ${c(DIM, toolName)}${c(GRAY, ":")} ${preview}${suffix}\n`);
+    }
   }
 
   /** Uma tool destrutiva foi rejeitada pelo usuário. */
