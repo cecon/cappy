@@ -1,4 +1,4 @@
-name: Cappy Publish Extension
+name: Cappy Publish
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  publish:
+  publish-extension:
     runs-on: ubuntu-latest
 
     steps:
@@ -54,3 +54,44 @@ jobs:
         run: |
           cd extension
           pnpm dlx ovsx publish "eduardocecon.cappy-${{ steps.version.outputs.version }}.vsix" -p "${{ secrets.OVSX_PAT }}"
+
+  publish-cli:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Build CLI
+        run: pnpm run cli:build
+
+      - name: Set CLI version (3.2.x, patch <= 999)
+        id: cli-version
+        shell: bash
+        run: |
+          node -e "const fs=require('fs'); const p='./cli/package.json'; const pkg=JSON.parse(fs.readFileSync(p,'utf8')); const targetMajor=3; const targetMinor=2; const patch=Number.parseInt(process.env.GITHUB_RUN_NUMBER||'0',10); if(!Number.isFinite(patch) || patch < 0){throw new Error('Invalid GITHUB_RUN_NUMBER for patch version');} if(patch > 999){throw new Error('Patch overflow: GITHUB_RUN_NUMBER exceeds 999. Bump minor version.');} pkg.version=targetMajor + '.' + targetMinor + '.' + patch; fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + pkg.version + '\n'); console.log('Publishing CLI version:', pkg.version);"
+
+      - name: Publish CLI to npm
+        run: |
+          cd cli
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
