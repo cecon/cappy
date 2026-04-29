@@ -3,7 +3,16 @@ import type { ContextUsagePayload } from "../agent/contextBudget";
 import { AgentLoop } from "../agent/loop";
 import { BUILT_IN_PIPELINES, PipelineRunner } from "../agent/PipelineRunner";
 import type { AgentTool, Message, PipelineDefinition, PlanStatePayload, ToolCall } from "../agent/types";
-import { resetSessionContext } from "../agent/sessionContext";
+import {
+  clearActivePlan,
+  createActivePlan,
+  getActivePlan,
+  type Plan,
+  replaceActivePlanSpec,
+  resetSessionContext,
+  updateActivePlanStatus,
+} from "../agent/sessionContext";
+import { generatePlanSpec, regeneratePlanSpec } from "../agent/plannerAgent";
 import { loadAgentPreferences } from "../agent/agentPreferences";
 import { type CappyConfig, loadConfig, saveConfig } from "../config";
 import { McpManager, type McpTool } from "../mcp/client";
@@ -62,7 +71,11 @@ export type HostToWebviewMessage =
   | { type: "pipeline:stage:approve"; stageId: string; stageName: string; stageIndex: number }
   | { type: "pipeline:done" }
   /** Send the list of built-in pipeline templates to the webview. */
-  | { type: "pipeline:templates"; templates: Array<{ id: string; name: string; stageCount: number }> };
+  | { type: "pipeline:templates"; templates: Array<{ id: string; name: string; stageCount: number }> }
+  /** Syncs the active plan state to the webview (null = no plan). */
+  | { type: "plan:sync"; plan: Plan | null }
+  /** Notifies the webview that plan generation is in progress. */
+  | { type: "plan:generating" };
 
 /**
  * Message sent from webview to extension host.
@@ -91,7 +104,15 @@ export type WebviewToHostMessage =
   /** Request the list of available pipeline templates. */
   | { type: "pipeline:list" }
   /** Export the current conversation as a Markdown file. */
-  | { type: "conversation:export"; markdown: string };
+  | { type: "conversation:export"; markdown: string }
+  /** Generate a new spec.md plan from a user intent. Fails if a plan already exists. */
+  | { type: "plan:generate"; intent: string }
+  /** Approve the active plan (status → approved). */
+  | { type: "plan:approve" }
+  /** Send the active plan back for review with a reason (status → failed). */
+  | { type: "plan:review"; reason: string }
+  /** Regenerate the spec after review, incorporating the review reason. */
+  | { type: "plan:regen"; reason: string };
 
 /**
  * Opções do bridge; use `onNewSession` para nova sessão sem reentrância de comandos.
@@ -578,6 +599,70 @@ async function handleWebviewMessage(
     return;
   }
 
+  if (raw.type === "plan:generate") {
+    const existingPlan = getActivePlan();
+    if (existingPlan !== null) {
+      await postToWebview(webview, {
+        type: "error",
+        message: "Já existe um plano ativo nesta sessão. Aprove ou revise o plano atual antes de gerar um novo.",
+      });
+      return;
+    }
+    await postToWebview(webview, { type: "plan:generating" });
+    try {
+      const config = await loadConfig();
+      const specMd = await generatePlanSpec(raw.intent, config);
+      const plan = createActivePlan(specMd);
+      await postToWebview(webview, { type: "plan:sync", plan });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao gerar o plano.";
+      await postToWebview(webview, { type: "error", message });
+    }
+    return;
+  }
+
+  if (raw.type === "plan:approve") {
+    try {
+      const plan = updateActivePlanStatus("approved");
+      await postToWebview(webview, { type: "plan:sync", plan });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao aprovar o plano.";
+      await postToWebview(webview, { type: "error", message });
+    }
+    return;
+  }
+
+  if (raw.type === "plan:review") {
+    try {
+      const plan = updateActivePlanStatus("failed");
+      await postToWebview(webview, { type: "plan:sync", plan });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao enviar revisão do plano.";
+      await postToWebview(webview, { type: "error", message });
+    }
+    return;
+  }
+
+  if (raw.type === "plan:regen") {
+    const currentPlan = getActivePlan();
+    if (currentPlan === null) {
+      await postToWebview(webview, { type: "error", message: "Nenhum plano ativo para regenerar." });
+      return;
+    }
+    await postToWebview(webview, { type: "plan:generating" });
+    try {
+      const config = await loadConfig();
+      const newSpecMd = await regeneratePlanSpec(currentPlan.specMd, raw.reason, config);
+      clearActivePlan();
+      const plan = createActivePlan(newSpecMd);
+      await postToWebview(webview, { type: "plan:sync", plan });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao regenerar o plano.";
+      await postToWebview(webview, { type: "error", message });
+    }
+    return;
+  }
+
   if (raw.type === "conversation:export") {
     const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/gu, "-");
     const defaultName = `cappy-${ts}.md`;
@@ -658,6 +743,22 @@ function isWebviewToHostMessage(value: unknown): value is WebviewToHostMessage {
 
   if (value.type === "conversation:export") {
     return typeof value.markdown === "string";
+  }
+
+  if (value.type === "plan:generate") {
+    return typeof value.intent === "string" && value.intent.trim().length > 0;
+  }
+
+  if (value.type === "plan:approve") {
+    return true;
+  }
+
+  if (value.type === "plan:review") {
+    return typeof value.reason === "string" && value.reason.trim().length > 0;
+  }
+
+  if (value.type === "plan:regen") {
+    return typeof value.reason === "string" && value.reason.trim().length > 0;
   }
 
   return false;

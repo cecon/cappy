@@ -12,6 +12,7 @@ import { InputBar, type ContextFile } from "./InputBar";
 import { MessageList } from "./MessageList";
 import { PermissionDock } from "./PermissionDock";
 import { PlanModePanel } from "./PlanModePanel";
+import { PlannerPanel } from "./PlannerPanel";
 import { StageProgressBar } from "./StageProgressBar";
 import { WorkersPanel } from "./WorkersPanel";
 import { PipelineDAGView } from "./PipelineDAGView";
@@ -98,6 +99,18 @@ export function Chat(): JSX.Element {
     },
     [dispatch, state.runtimeConfig],
   );
+
+  function handlePlanApprove(): void {
+    bridge.send({ type: "plan:approve" });
+  }
+
+  function handlePlanReview(reason: string): void {
+    bridge.send({ type: "plan:review", reason });
+  }
+
+  function handlePlanRegen(reason: string): void {
+    bridge.send({ type: "plan:regen", reason });
+  }
 
   function handleExport(): void {
     const date = new Date().toLocaleString("pt-BR");
@@ -194,6 +207,18 @@ export function Chat(): JSX.Element {
               onApproveSession={handleApproveSession}
               onApprovePersist={handleApprovePersist}
               remainingCount={state.pendingConfirms.length - 1}
+            />
+          </Box>
+        ) : null}
+
+        {(state.activePlan !== null || state.isPlanGenerating) ? (
+          <Box px={4}>
+            <PlannerPanel
+              plan={state.activePlan}
+              isGenerating={state.isPlanGenerating}
+              onApprove={handlePlanApprove}
+              onReview={handlePlanReview}
+              onRegen={handlePlanRegen}
             />
           </Box>
         ) : null}

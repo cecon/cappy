@@ -4,7 +4,7 @@
  */
 
 import { useReducer } from "react";
-import type { CappyConfig, ChatUiMode, ContextUsageSnapshot, FileDiffPayload, Message, PipelineTemplate, PipelineUiState } from "../lib/types";
+import type { CappyConfig, ChatUiMode, ContextUsageSnapshot, FileDiffPayload, Message, Plan, PipelineTemplate, PipelineUiState } from "../lib/types";
 import type { ContextFile } from "../components/InputBar";
 import {
   INITIAL_CHAT_STATE,
@@ -50,7 +50,9 @@ export type ChatAction =
   | { type: "PIPELINE_STAGE_DONE"; stageId: string; stageIndex: number }
   | { type: "PIPELINE_STAGE_APPROVE"; stageId: string; stageIndex: number }
   | { type: "PIPELINE_DONE" }
-  | { type: "PIPELINE_TEMPLATES"; templates: PipelineTemplate[] };
+  | { type: "PIPELINE_TEMPLATES"; templates: PipelineTemplate[] }
+  | { type: "PLAN_SYNC"; plan: Plan | null }
+  | { type: "PLAN_GENERATING" };
 
 // ── Reducer helpers ────────────────────────────────────────────────────────
 
@@ -99,6 +101,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         planMode: false,
         planContent: null,
         planFilePath: null,
+        activePlan: null,
+        isPlanGenerating: false,
       };
 
     case "STREAM_TOKEN":
@@ -279,6 +283,12 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case "PIPELINE_TEMPLATES":
       return { ...state, pipelineTemplates: action.templates };
+
+    case "PLAN_SYNC":
+      return { ...state, activePlan: action.plan, isPlanGenerating: false };
+
+    case "PLAN_GENERATING":
+      return { ...state, isPlanGenerating: true };
 
     default:
       return state;

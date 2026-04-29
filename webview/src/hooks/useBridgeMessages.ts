@@ -145,6 +145,14 @@ export function useBridgeMessages(
           dispatch({ type: "PIPELINE_TEMPLATES", templates: message.templates });
           break;
 
+        case "plan:generating":
+          dispatch({ type: "PLAN_GENERATING" });
+          break;
+
+        case "plan:sync":
+          dispatch({ type: "PLAN_SYNC", plan: message.plan });
+          break;
+
         case "error":
           dispatch({ type: "ERROR", message: message.message });
           break;

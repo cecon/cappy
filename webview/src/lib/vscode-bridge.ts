@@ -5,6 +5,7 @@ import type {
   FileDiffPayload,
   McpTool,
   Message,
+  Plan,
   PipelineTemplate,
   ToolCall,
 } from "./types";
@@ -37,7 +38,15 @@ export type OutgoingMessage =
   | { type: "pipeline:advance" }
   | { type: "pipeline:abort" }
   | { type: "pipeline:list" }
-  | { type: "conversation:export"; markdown: string };
+  | { type: "conversation:export"; markdown: string }
+  /** Generate a new spec.md plan from a user intent. */
+  | { type: "plan:generate"; intent: string }
+  /** Approve the active plan. */
+  | { type: "plan:approve" }
+  /** Send the active plan back for review. */
+  | { type: "plan:review"; reason: string }
+  /** Regenerate the spec incorporating review feedback. */
+  | { type: "plan:regen"; reason: string };
 
 /**
  * Inbound messages received from host in the webview.
@@ -68,7 +77,11 @@ export type IncomingMessage =
   | { type: "pipeline:stage:done"; stageId: string; stageIndex: number; totalStages: number }
   | { type: "pipeline:stage:approve"; stageId: string; stageName: string; stageIndex: number }
   | { type: "pipeline:done" }
-  | { type: "pipeline:templates"; templates: PipelineTemplate[] };
+  | { type: "pipeline:templates"; templates: PipelineTemplate[] }
+  /** Planner is generating a spec. */
+  | { type: "plan:generating" }
+  /** Active plan state synced from extension. */
+  | { type: "plan:sync"; plan: Plan | null };
 
 /**
  * Bridge contract used by the webview UI.
@@ -324,6 +337,14 @@ function isIncomingMessage(value: unknown): value is IncomingMessage {
 
   if (value.type === "pipeline:templates") {
     return Array.isArray(value.templates);
+  }
+
+  if (value.type === "plan:generating") {
+    return true;
+  }
+
+  if (value.type === "plan:sync") {
+    return value.plan === null || (isRecord(value.plan) && typeof value.plan.id === "string");
   }
 
   return false;

@@ -7,6 +7,17 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
+// ── Plan (Spec contract) ───────────────────────────────────────────────────
+
+export type PlanStatus = "draft" | "waiting_approval" | "approved" | "in_execution" | "failed";
+
+export interface Plan {
+  id: string;
+  specMd: string;
+  status: PlanStatus;
+  createdAt: Date;
+}
+
 export type TodoStatus = "pending" | "in_progress" | "completed";
 
 /**
@@ -31,6 +42,7 @@ let sessionId: string = generateSessionId();
 let planMode = false;
 let planFilePath: string | null = null;
 let planContent: string | null = null;
+let activePlan: Plan | null = null;
 
 let todos: TodoItem[] = [];
 
@@ -54,6 +66,7 @@ export function resetSessionContext(): void {
   planMode = false;
   planFilePath = null;
   planContent = null;
+  activePlan = null;
   todos = [];
   readPaths.clear();
   conversationCompactionSummary = "";
@@ -180,4 +193,48 @@ export function replaceTodos(next: TodoItem[]): { oldTodos: TodoItem[]; newTodos
   const allDone = next.length > 0 && next.every((item) => item.status === "completed");
   todos = allDone ? [] : [...next];
   return { oldTodos, newTodos: [...todos] };
+}
+
+// ── Plan management ────────────────────────────────────────────────────────
+
+/** Returns the active plan for this session, or null if none exists. */
+export function getActivePlan(): Plan | null {
+  return activePlan;
+}
+
+/** Creates and stores a new plan in draft status. Throws if a plan already exists. */
+export function createActivePlan(specMd: string): Plan {
+  if (activePlan !== null) {
+    throw new Error("Já existe um plano ativo nesta sessão. Aprove ou revise o plano atual antes de gerar um novo.");
+  }
+  activePlan = {
+    id: Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6),
+    specMd,
+    status: "waiting_approval",
+    createdAt: new Date(),
+  };
+  return activePlan;
+}
+
+/** Updates the status of the active plan. Throws if no plan exists. */
+export function updateActivePlanStatus(status: PlanStatus): Plan {
+  if (activePlan === null) {
+    throw new Error("Nenhum plano ativo encontrado nesta sessão.");
+  }
+  activePlan = { ...activePlan, status };
+  return activePlan;
+}
+
+/** Replaces the active plan spec (used when regenerating after review). */
+export function replaceActivePlanSpec(specMd: string): Plan {
+  if (activePlan === null) {
+    throw new Error("Nenhum plano ativo encontrado nesta sessão.");
+  }
+  activePlan = { ...activePlan, specMd, status: "waiting_approval", createdAt: new Date() };
+  return activePlan;
+}
+
+/** Clears the active plan (allows generating a new one). */
+export function clearActivePlan(): void {
+  activePlan = null;
 }
