@@ -5,20 +5,17 @@
   "packageManager": "pnpm@10.27.0",
   "workspaces": [
     "extension",
-    "webview",
     "cli"
   ],
   "scripts": {
-    "dev": "pnpm --filter @cappy/webview dev",
-    "dev:vite": "pnpm --filter @cappy/webview dev",
-    "build": "pnpm --filter cappy build && pnpm --filter @cappy/webview build",
+    "build": "pnpm --filter @eduardocecon/cappy build && pnpm --filter cappy build",
     "package": "pnpm run build && cd extension && pnpm exec vsce package --no-dependencies --allow-package-all-secrets --allow-package-env-file -o eduardocecon.cappy-$(node -p \"require('./package.json').version\").vsix",
     "typecheck": "pnpm -r --if-present typecheck",
-    "cli:build": "pnpm --filter @cappy/cli build",
-    "cli:start": "pnpm --filter @cappy/cli dev"
+    "test": "pnpm -r --if-present test",
+    "cli:build": "pnpm --filter @eduardocecon/cappy build",
+    "cli:dev": "pnpm --filter @eduardocecon/cappy dev"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1"
   }
 }
