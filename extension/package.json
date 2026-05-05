@@ -49,11 +49,6 @@
     "views": {
       "cappy-sidebar": [
         {
-          "type": "webview",
-          "id": "cappy.chatView",
-          "name": "Cappy"
-        },
-        {
           "type": "tree",
           "id": "cappy.sessions",
           "name": "Sessions"
@@ -74,65 +69,54 @@
     ],
     "commands": [
       {
-        "command": "cappy.openChat",
-        "title": "Cappy: Open Chat"
-      },
-      {
-        "command": "cappy.clearChat",
-        "title": "Cappy: Clear Chat"
-      },
-      {
         "command": "cappy.newSession",
-        "title": "Cappy: New Session"
+        "title": "Cappy: New Session",
+        "icon": "$(add)"
       },
       {
         "command": "cappy.openSessions",
-        "title": "Cappy: Open Session…"
+        "title": "Cappy: Open Session…",
+        "icon": "$(folder-opened)"
       },
       {
         "command": "cappy.deleteSession",
-        "title": "Cappy: Delete Session…"
+        "title": "Cappy: Delete Session…",
+        "icon": "$(trash)"
       },
       {
-        "command": "cappy.launchOpenClaude",
-        "title": "Cappy: Launch OpenClaude CLI"
-      },
-      {
-        "command": "cappy.launchOpenClaudeWorkspaceRoot",
-        "title": "Cappy: Launch OpenClaude CLI (workspace root)"
-      },
-      {
-        "command": "cappy.openOpenClaudeProfile",
-        "title": "Cappy: Open OpenClaude workspace profile"
-      },
-      {
-        "command": "cappy.openOpenClaudeRepository",
-        "title": "Cappy: Open OpenClaude repository"
+        "command": "cappy.refreshSessions",
+        "title": "Cappy: Refresh Sessions",
+        "icon": "$(refresh)"
       },
       {
         "command": "cappy.showLog",
         "title": "Cappy: Show Output Log"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "cappy.newSession",
+          "when": "view == cappy.sessions",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cappy.refreshSessions",
+          "when": "view == cappy.sessions",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "cappy.deleteSession",
+          "when": "view == cappy.sessions && viewItem == cappy.session",
+          "group": "modify"
+        }
+      ]
+    },
     "configuration": {
       "title": "Cappy",
-      "properties": {
-        "cappy.openClaudeCli.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable commands that launch the OpenClaude CLI in an integrated terminal."
-        },
-        "cappy.openClaudeCli.command": {
-          "type": "string",
-          "default": "npx -y @gitlawb/openclaude",
-          "description": "Shell command run in the terminal (same idea as the OpenClaude VS Code extension)."
-        },
-        "cappy.openClaudeCli.terminalName": {
-          "type": "string",
-          "default": "OpenClaude",
-          "description": "Integrated terminal tab title for OpenClaude CLI sessions."
-        }
-      }
+      "properties": {}
     }
   },
   "scripts": {
