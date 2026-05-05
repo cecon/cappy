@@ -52,9 +52,26 @@
           "type": "webview",
           "id": "cappy.chatView",
           "name": "Cappy"
+        },
+        {
+          "type": "tree",
+          "id": "cappy.sessions",
+          "name": "Sessions"
         }
       ]
     },
+    "customEditors": [
+      {
+        "viewType": "cappy.session",
+        "displayName": "Cappy Session",
+        "selector": [
+          {
+            "filenamePattern": "*.cappy"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "commands": [
       {
         "command": "cappy.openChat",
@@ -63,6 +80,18 @@
       {
         "command": "cappy.clearChat",
         "title": "Cappy: Clear Chat"
+      },
+      {
+        "command": "cappy.newSession",
+        "title": "Cappy: New Session"
+      },
+      {
+        "command": "cappy.openSessions",
+        "title": "Cappy: Open Session…"
+      },
+      {
+        "command": "cappy.deleteSession",
+        "title": "Cappy: Delete Session…"
       },
       {
         "command": "cappy.launchOpenClaude",

@@ -6,6 +6,9 @@ import {
   openOpenClaudeRepository,
   openOpenClaudeWorkspaceProfile,
 } from "./openClaudeLauncher";
+import { CappyEditorProvider } from "./session/CappyEditorProvider";
+import { SessionStore } from "./session/SessionStore";
+import { SessionsTreeProvider } from "./session/sessionsTreeView";
 import { disposeLogger, showLog } from "./utils/logger";
 
 const CHAT_VIEW_ID = "cappy.chatView";
@@ -140,6 +143,78 @@ export function activate(context: vscode.ExtensionContext): void {
     showLog();
   });
 
+  const sessionStore = new SessionStore();
+  const sessionsTree = new SessionsTreeProvider(sessionStore);
+  const editorRegistration = CappyEditorProvider.register(context, sessionStore);
+  const treeRegistration = vscode.window.registerTreeDataProvider("cappy.sessions", sessionsTree);
+
+  const newSessionCommand = vscode.commands.registerCommand("cappy.newSession", async () => {
+    const config = vscode.workspace.getConfiguration("cappy");
+    const primaryModel = config.get<string>("model", "openai/gpt-5");
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
+    const { paths } = await sessionStore.createSession({ primaryModel, workspaceRoot });
+    const uri = vscode.Uri.file(paths.chat);
+    await vscode.commands.executeCommand("vscode.openWith", uri, CappyEditorProvider.viewType);
+    sessionsTree.refresh();
+  });
+
+  const openSessionsCommand = vscode.commands.registerCommand("cappy.openSessions", async () => {
+    const list = await sessionStore.listSessions();
+    if (list.length === 0) {
+      const choice = await vscode.window.showInformationMessage(
+        "No Cappy sessions yet.",
+        "New Session",
+      );
+      if (choice === "New Session") {
+        await vscode.commands.executeCommand("cappy.newSession");
+      }
+      return;
+    }
+    const pick = await vscode.window.showQuickPick(
+      list.map((s) => ({
+        label: s.metadata.preview.title || s.id,
+        description: new Date(s.metadata.updatedAt).toLocaleString(),
+        detail: `${s.metadata.preview.messageCount} messages · ${s.metadata.totals.llmCalls} llm calls`,
+        sessionId: s.id,
+        chatPath: s.paths.chat,
+      })),
+      { placeHolder: "Open a Cappy session" },
+    );
+    if (!pick) {
+      return;
+    }
+    await vscode.commands.executeCommand(
+      "vscode.openWith",
+      vscode.Uri.file(pick.chatPath),
+      CappyEditorProvider.viewType,
+    );
+  });
+
+  const deleteSessionCommand = vscode.commands.registerCommand("cappy.deleteSession", async (item: { id?: string } | undefined) => {
+    let id = item?.id;
+    if (!id) {
+      const list = await sessionStore.listSessions();
+      const pick = await vscode.window.showQuickPick(
+        list.map((s) => ({ label: s.metadata.preview.title || s.id, description: s.id, sessionId: s.id })),
+        { placeHolder: "Delete which session?" },
+      );
+      id = pick?.sessionId;
+    }
+    if (!id) {
+      return;
+    }
+    const confirm = await vscode.window.showWarningMessage(
+      `Delete session ${id}? This cannot be undone.`,
+      { modal: true },
+      "Delete",
+    );
+    if (confirm !== "Delete") {
+      return;
+    }
+    await sessionStore.deleteSession(id);
+    sessionsTree.refresh();
+  });
+
   extensionDisposables.push(
     provider,
     providerRegistration,
@@ -150,6 +225,11 @@ export function activate(context: vscode.ExtensionContext): void {
     openOpenClaudeProfileCommand,
     openOpenClaudeRepoCommand,
     showLogCommand,
+    editorRegistration,
+    treeRegistration,
+    newSessionCommand,
+    openSessionsCommand,
+    deleteSessionCommand,
   );
   context.subscriptions.push(...extensionDisposables);
 }
