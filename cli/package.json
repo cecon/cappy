@@ -13,16 +13,24 @@
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node18 --outfile=dist/index.js --external:vscode --banner:js=\"#!/usr/bin/env node\"",
     "dev": "node --import tsx/esm src/index.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "diff": "^8.0.4",
+    "node-pty": "^1.1.0",
     "openai": "^6.34.0"
   },
   "devDependencies": {
+    "@types/diff": "^8.0.0",
     "@types/node": "^25.5.2",
     "@types/vscode": "^1.105.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "esbuild": "^0.28.0",
     "tsx": "^4.19.4",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^2.1.9"
   }
 }

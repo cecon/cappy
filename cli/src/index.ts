@@ -16,11 +16,10 @@ import * as readline from "node:readline";
 import * as path from "node:path";
 import * as fs from "node:fs";
 
-// Re-exporta os módulos do pacote extension diretamente por caminho relativo.
-// O esbuild faz bundle de tudo, eliminando a necessidade de instalar o pacote.
-import { AgentLoop } from "../../extension/src/agent/loop.js";
-import { loadConfig } from "../../extension/src/config/index.js";
-import { resetSessionContext } from "../../extension/src/agent/sessionContext.js";
+// Cappy CLI is now self-contained: agent loop, tools, MCP, hooks all live here.
+import { AgentLoop } from "./agent/loop.js";
+import { loadConfig } from "./config/index.js";
+import { resetSessionContext } from "./agent/sessionContext.js";
 
 import { CliRenderer } from "./CliRenderer.js";
 import { CliHitl, type HitlPolicy } from "./CliHitl.js";
@@ -28,7 +27,7 @@ import { c, BOLD, CYAN, GRAY, GREEN, RED, YELLOW } from "./cliColors.js";
 import { runInit } from "./cliInit.js";
 import { buildSystemPromptPrefix, loadCappyMd } from "./cliWorkspaceContext.js";
 import {
-  runOnce, runCliPipeline, BUILT_IN_PIPELINES,
+  runOnce,
   type ChatMode, type RunOnceOptions, type Message,
 } from "./cliPipeline.js";
 
@@ -40,7 +39,6 @@ interface CliOptions {
   hitlPolicy: HitlPolicy;
   workspaceRoot: string;
   maxIterations: number | undefined;
-  pipeline: string | undefined;
   verbose: boolean;
   showVersion: boolean;
   showHelp: boolean;
@@ -57,7 +55,6 @@ function parseArgs(argv: string[]): CliOptions {
     hitlPolicy: "confirm_each",
     workspaceRoot: process.cwd(),
     maxIterations: undefined,
-    pipeline: undefined,
     verbose: false,
     showVersion: false,
     showHelp: false,
@@ -117,15 +114,6 @@ function parseArgs(argv: string[]): CliOptions {
       opts.maxIterations = val;
       continue;
     }
-    if (arg === "--pipeline" || arg === "-p") {
-      const val = args[++i];
-      if (!val) {
-        process.stderr.write("--pipeline requer um id. Use --help para ver os disponíveis.\n");
-        process.exit(1);
-      }
-      opts.pipeline = val;
-      continue;
-    }
     if (arg === "--verbose" || arg === "-V") {
       opts.verbose = true;
       continue;
@@ -166,7 +154,6 @@ ${c(BOLD, "COMANDOS")}
 
 ${c(BOLD, "OPÇÕES")}
   ${c(CYAN, "-m, --mode <modo>")}       Modo do agente: ${c(GREEN, "agent")} (padrão) | ${c(YELLOW, "ask")} | plain
-  ${c(CYAN, "-p, --pipeline <id>")}     Executa um pipeline multi-stage (ver PIPELINES)
   ${c(CYAN, "-V, --verbose")}           Exibe args e resultados completos de cada tool
   ${c(CYAN, "-w, --workspace <dir>")}   Diretório raiz do workspace (padrão: cwd)
   ${c(CYAN, "--allow-all")}             Aprova automaticamente todas as tools destrutivas
@@ -176,14 +163,10 @@ ${c(BOLD, "OPÇÕES")}
   ${c(CYAN, "-v, --version")}           Exibe a versão
   ${c(CYAN, "-h, --help")}              Exibe esta ajuda
 
-${c(BOLD, "PIPELINES")}
-  ${BUILT_IN_PIPELINES.map((p) => `${c(CYAN, p.id.padEnd(24))} ${p.stages.length} stages: ${p.stages.map((s: { name: string }) => s.name).join(" → ")}`).join("\n  ")}
-
 ${c(BOLD, "EXEMPLOS")}
   cappy init
   cappy "explica o arquivo src/index.ts"
   cappy --mode ask "quais funções existem?"
-  cappy --pipeline feature "adiciona suporte a dark mode"
   cappy --allow-all "refatora utils.ts removendo duplicatas"
   cappy --workspace ~/projetos/meu-app "analisa o projeto"
   cappy --verbose "refatora o módulo auth"
@@ -276,40 +259,8 @@ async function startRepl(
           `  ${c(CYAN, "/sair")}                     encerra o REPL\n` +
           `  ${c(CYAN, "/limpar")}                   limpa o histórico\n` +
           `  ${c(CYAN, "/modo <modo>")}              muda o modo (agent | ask | plain)\n` +
-          `  ${c(CYAN, "/pipelines")}                lista pipelines disponíveis\n` +
-          `  ${c(CYAN, "/pipeline <id> <tarefa>")}   executa um pipeline multi-stage\n` +
           `  ${c(CYAN, "/ajuda")}                    exibe esta ajuda\n\n`,
       );
-      rl.prompt();
-      continue;
-    }
-
-    if (input === "/pipelines") {
-      const lines = BUILT_IN_PIPELINES.map(
-        (p) => `  ${c(CYAN, p.id.padEnd(16))} ${p.stages.length} stages: ${p.stages.map((s: { name: string }) => s.name).join(" → ")}`,
-      ).join("\n");
-      process.stderr.write(`\n${c(BOLD, "Pipelines disponíveis:")}\n${lines}\n\n`);
-      rl.prompt();
-      continue;
-    }
-
-    const pipelineMatch = input.match(/^\/pipeline\s+(\S+)\s+(.+)$/);
-    if (pipelineMatch) {
-      const [, pipelineId, task] = pipelineMatch as [string, string, string];
-      rl.pause();
-      try {
-        await runCliPipeline({
-          pipelineId,
-          userPrompt: task,
-          workspaceRoot,
-          hitlPolicy: opts.hitl.getPolicy(),
-          maxIterations: opts.maxIterations,
-          verbose,
-          systemPromptPrefix: opts.systemPromptPrefix,
-        });
-      } finally {
-        rl.resume();
-      }
       rl.prompt();
       continue;
     }
@@ -410,31 +361,15 @@ async function main(): Promise<void> {
   const gitOk = fs.existsSync(path.join(opts.workspaceRoot, ".git"));
   process.stderr.write(c(GRAY, `[ctx: CAPPY.md ${cappyMd ? c(GREEN, "✓") : c(GRAY, "–")}  git ${gitOk ? c(GREEN, "✓") : c(GRAY, "–")}]\n`));
 
-  // ── Modo pipeline: --pipeline <id> "tarefa" ────────────────────────────────
-  if (opts.pipeline) {
-    if (!opts.prompt) {
-      process.stderr.write(c(RED, "✗") + " --pipeline requer um prompt. Ex: cappy --pipeline feature \"adiciona dark mode\"\n");
-      process.exit(1);
-    }
-    await runCliPipeline({
-      pipelineId: opts.pipeline,
-      userPrompt: opts.prompt,
-      workspaceRoot: opts.workspaceRoot,
-      hitlPolicy: opts.hitlPolicy,
-      maxIterations: opts.maxIterations,
-      verbose: opts.verbose,
-      systemPromptPrefix,
-    });
-    return;
-  }
-
-  const runnerOpts = {
+  const runnerOpts: Omit<RunOnceOptions, "loop" | "history" | "userPrompt"> = {
     renderer,
     hitl,
     mode: opts.mode,
     maxIterations: opts.maxIterations,
-    systemPromptPrefix,
   };
+  if (systemPromptPrefix !== undefined) {
+    runnerOpts.systemPromptPrefix = systemPromptPrefix;
+  }
 
   // ── Modo single-shot: prompt passado via args ──────────────────────────────
   if (opts.prompt) {

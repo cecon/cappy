@@ -2,7 +2,7 @@ import * as readline from "node:readline";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
-import { defaultConfig, loadConfig, saveConfig } from "../../extension/src/config/index.js";
+import { defaultConfig, loadConfig, saveConfig } from "./config/index.js";
 import { c, BOLD, CYAN, GRAY, GREEN, RED, YELLOW } from "./cliColors.js";
 
 function detectStack(dir: string): string | null {

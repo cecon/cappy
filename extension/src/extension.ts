@@ -1,89 +1,63 @@
 import * as vscode from "vscode";
 
-import { CappyEditorProvider } from "./session/CappyEditorProvider";
-import { SessionStore } from "./session/SessionStore";
-import { SessionsTreeProvider, SessionTreeItem } from "./session/sessionsTreeView";
-import { disposeLogger, showLog } from "./utils/logger";
+import {
+  SessionTreeItem,
+  SessionsTreeProvider,
+  deleteSessionFolder,
+} from "./session/sessionsTreeView";
 
 const extensionDisposables: vscode.Disposable[] = [];
 
 /**
- * Activates the Cappy extension. Cada sessão é uma pasta em
- * `~/.cappy/sessions/<id>/` com um `chat.cappy` aberto via custom editor;
- * o sidebar lista as sessões. Sem chat antigo, sem launcher externo.
+ * Activates the Cappy extension. The extension is a thin shell around the
+ * `cappy` CLI: it lists sessions from `~/.cappy/sessions/` and spawns the CLI
+ * inside the integrated terminal. All agent / LLM / tool work lives in the CLI.
  */
 export function activate(context: vscode.ExtensionContext): void {
-  const sessionStore = new SessionStore();
-  const sessionsTree = new SessionsTreeProvider(sessionStore);
-
-  const editorRegistration = CappyEditorProvider.register(context, sessionStore);
+  const sessionsTree = new SessionsTreeProvider();
   const treeRegistration = vscode.window.registerTreeDataProvider("cappy.sessions", sessionsTree);
 
-  const newSessionCommand = vscode.commands.registerCommand("cappy.newSession", async () => {
-    const config = vscode.workspace.getConfiguration("cappy");
-    const primaryModel = config.get<string>("model", "openai/gpt-5");
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
-    const { paths } = await sessionStore.createSession({ primaryModel, workspaceRoot });
-    await vscode.commands.executeCommand(
-      "vscode.openWith",
-      vscode.Uri.file(paths.chat),
-      CappyEditorProvider.viewType,
-    );
+  const terminals = new Map<string, vscode.Terminal>();
+
+  const newSessionCommand = vscode.commands.registerCommand("cappy.newSession", () => {
+    const term = spawnCli([], "Cappy");
+    terminals.set("__new__", term);
     sessionsTree.refresh();
   });
 
-  const openSessionsCommand = vscode.commands.registerCommand("cappy.openSessions", async () => {
-    const list = await sessionStore.listSessions();
-    if (list.length === 0) {
-      const choice = await vscode.window.showInformationMessage(
-        "No Cappy sessions yet.",
-        "New Session",
-      );
-      if (choice === "New Session") {
-        await vscode.commands.executeCommand("cappy.newSession");
+  const resumeSessionCommand = vscode.commands.registerCommand(
+    "cappy.resumeSession",
+    (sessionId: string | undefined) => {
+      if (!sessionId) {
+        return;
       }
-      return;
-    }
-    const pick = await vscode.window.showQuickPick(
-      list.map((s) => ({
-        label: s.metadata.preview.title || s.id,
-        description: new Date(s.metadata.updatedAt).toLocaleString(),
-        detail: `${s.metadata.preview.messageCount} messages · ${s.metadata.totals.llmCalls} llm calls`,
-        sessionId: s.id,
-        chatPath: s.paths.chat,
-      })),
-      { placeHolder: "Open a Cappy session" },
-    );
-    if (!pick) {
-      return;
-    }
-    await vscode.commands.executeCommand(
-      "vscode.openWith",
-      vscode.Uri.file(pick.chatPath),
-      CappyEditorProvider.viewType,
-    );
+      const existing = terminals.get(sessionId);
+      if (existing && existing.exitStatus === undefined) {
+        existing.show();
+        return;
+      }
+      const term = spawnCli(["--resume", sessionId], `Cappy: ${sessionId}`);
+      terminals.set(sessionId, term);
+    },
+  );
+
+  const openSessionsCommand = vscode.commands.registerCommand("cappy.openSessions", async () => {
+    await vscode.commands.executeCommand("workbench.view.extension.cappy-sidebar");
+    sessionsTree.refresh();
+  });
+
+  const refreshSessionsCommand = vscode.commands.registerCommand("cappy.refreshSessions", () => {
+    sessionsTree.refresh();
   });
 
   const deleteSessionCommand = vscode.commands.registerCommand(
     "cappy.deleteSession",
-    async (item: SessionTreeItem | { id?: string } | undefined) => {
+    async (item: SessionTreeItem | { sessionId?: string } | undefined) => {
       let id: string | undefined;
       if (item instanceof SessionTreeItem) {
-        id = item.session.id;
-      } else if (item && typeof item === "object" && typeof item.id === "string") {
-        id = item.id;
-      }
-      if (!id) {
-        const list = await sessionStore.listSessions();
-        const pick = await vscode.window.showQuickPick(
-          list.map((s) => ({
-            label: s.metadata.preview.title || s.id,
-            description: s.id,
-            sessionId: s.id,
-          })),
-          { placeHolder: "Delete which session?" },
-        );
-        id = pick?.sessionId;
+        id = item.sessionId;
+      } else if (item && typeof item === "object" && typeof item.sessionId === "string") {
+        id = item.sessionId;
       }
       if (!id) {
         return;
@@ -96,29 +70,48 @@ export function activate(context: vscode.ExtensionContext): void {
       if (confirm !== "Delete") {
         return;
       }
-      await sessionStore.deleteSession(id);
+      await deleteSessionFolder(id);
+      const term = terminals.get(id);
+      term?.dispose();
+      terminals.delete(id);
       sessionsTree.refresh();
     },
   );
 
-  const refreshSessionsCommand = vscode.commands.registerCommand("cappy.refreshSessions", () => {
-    sessionsTree.refresh();
-  });
-
-  const showLogCommand = vscode.commands.registerCommand("cappy.showLog", () => {
-    showLog();
+  const closedSub = vscode.window.onDidCloseTerminal((t) => {
+    for (const [id, term] of terminals) {
+      if (term === t) {
+        terminals.delete(id);
+        sessionsTree.refresh();
+        break;
+      }
+    }
   });
 
   extensionDisposables.push(
-    editorRegistration,
     treeRegistration,
     newSessionCommand,
+    resumeSessionCommand,
     openSessionsCommand,
-    deleteSessionCommand,
     refreshSessionsCommand,
-    showLogCommand,
+    deleteSessionCommand,
+    closedSub,
   );
   context.subscriptions.push(...extensionDisposables);
+}
+
+function spawnCli(args: string[], name: string): vscode.Terminal {
+  const config = vscode.workspace.getConfiguration("cappy");
+  const command = config.get<string>("cli.command", "cappy");
+  const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const terminal = vscode.window.createTerminal({
+    name,
+    ...(cwd ? { cwd } : {}),
+  });
+  const escaped = args.map((a) => (/\s/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a)).join(" ");
+  terminal.show(true);
+  terminal.sendText(escaped.length > 0 ? `${command} ${escaped}` : command);
+  return terminal;
 }
 
 export function deactivate(): void {
@@ -126,5 +119,4 @@ export function deactivate(): void {
     const disposable = extensionDisposables.pop();
     disposable?.dispose();
   }
-  disposeLogger();
 }
