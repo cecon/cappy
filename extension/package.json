@@ -5,14 +5,14 @@
   "description": "Your autonomous AI dev companion — VS Code shell for the cappy CLI",
   "publisher": "eduardocecon",
   "icon": "media/icon.png",
-  "homepage": "https://github.com/eduardocecon/cappy#readme",
+  "homepage": "https://github.com/cecon/cappy#readme",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/eduardocecon/cappy"
+    "url": "https://github.com/cecon/cappy.git"
   },
   "bugs": {
-    "url": "https://github.com/eduardocecon/cappy/issues"
+    "url": "https://github.com/cecon/cappy/issues"
   },
   "keywords": [
     "ai",

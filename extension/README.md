@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="media/icon.png" alt="Cappy" width="120" />
+  <img src="https://raw.githubusercontent.com/cecon/cappy/main/extension/media/icon.png" alt="Cappy" width="120" />
 </p>
 
 <h1 align="center">Cappy</h1>
@@ -11,10 +11,10 @@
 
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy">
-    <img src="https://img.shields.io/visual-studio-marketplace/v/eduardocecon.cappy?style=for-the-badge&label=Marketplace&color=007ACC" alt="VS Code Marketplace" />
+    <img src="https://vsmarketplacebadges.dev/version-short/eduardocecon.cappy.svg?label=Marketplace&style=for-the-badge&color=007ACC" alt="VS Code Marketplace" />
   </a>
   <a href="https://marketplace.visualstudio.com/items?itemName=eduardocecon.cappy">
-    <img src="https://img.shields.io/visual-studio-marketplace/d/eduardocecon.cappy?style=for-the-badge&label=Downloads&color=4CC61E" alt="Downloads" />
+    <img src="https://vsmarketplacebadges.dev/downloads-short/eduardocecon.cappy.svg?label=Downloads&style=for-the-badge&color=4CC61E" alt="Downloads" />
   </a>
   <a href="https://github.com/cecon/cappy/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/cecon/cappy?style=for-the-badge&color=yellow" alt="License" />
