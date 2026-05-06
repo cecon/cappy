@@ -13,6 +13,20 @@ import type { HostToWebview, WebviewToHost } from "./protocol.js";
 
 type Permission = "confirm_each" | "allow_all" | "deny_all";
 
+interface RpcSessionSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
+interface RpcHistoryMessage {
+  id: string;
+  role: "user" | "assistant" | "system" | "tool";
+  text: string;
+  createdAt: number;
+}
+
 type RpcRequest =
   | { type: "init"; workspace?: string; mode?: "agent" | "ask" | "plain"; permissionMode?: Permission }
   | {
@@ -22,12 +36,17 @@ type RpcRequest =
       mentions: { uri: string; label: string; range?: { startLine: number; endLine: number } }[];
     }
   | { type: "session.new" }
+  | { type: "session.list" }
+  | { type: "session.resume"; sessionId: string }
+  | { type: "session.delete"; sessionId: string }
   | { type: "abort" }
   | { type: "hitl.response"; toolCallId: string; approved: boolean }
   | { type: "shutdown" };
 
 type RpcEvent =
   | { type: "ready"; version: string; workspace: string }
+  | { type: "session.opened"; sessionId: string; history: RpcHistoryMessage[] }
+  | { type: "session.list"; sessions: RpcSessionSummary[] }
   | { type: "stream.start"; messageId: string }
   | { type: "stream.delta"; messageId: string; text: string }
   | { type: "stream.tool"; messageId: string; tool: { id: string; name: string; input: unknown } }
@@ -119,6 +138,23 @@ export class CliBridge implements vscode.Disposable {
     else this.buffered.push({ type: "session.new" });
   }
 
+  public listSessions(): void {
+    if (this.ready) this.write({ type: "session.list" });
+    else this.buffered.push({ type: "session.list" });
+  }
+
+  public resumeSession(sessionId: string): void {
+    const req: RpcRequest = { type: "session.resume", sessionId };
+    if (this.ready) this.write(req);
+    else this.buffered.push(req);
+  }
+
+  public deleteSession(sessionId: string): void {
+    const req: RpcRequest = { type: "session.delete", sessionId };
+    if (this.ready) this.write(req);
+    else this.buffered.push(req);
+  }
+
   public dispose(): void {
     if (this.child) {
       try {
@@ -191,6 +227,12 @@ function translateOutbound(msg: WebviewToHost): RpcRequest | null {
       };
     case "session.new":
       return { type: "session.new" };
+    case "session.list":
+      return { type: "session.list" };
+    case "session.resume":
+      return { type: "session.resume", sessionId: msg.sessionId };
+    case "session.delete":
+      return { type: "session.delete", sessionId: msg.sessionId };
     case "hitl.response":
       return { type: "hitl.response", toolCallId: msg.toolCallId, approved: msg.approved };
     case "abort":
@@ -202,6 +244,27 @@ function translateOutbound(msg: WebviewToHost): RpcRequest | null {
 
 function translateInbound(event: RpcEvent): HostToWebview | null {
   switch (event.type) {
+    case "session.opened":
+      return {
+        type: "session.opened",
+        sessionId: event.sessionId,
+        history: event.history.map((h) => ({
+          id: h.id,
+          role: h.role,
+          text: h.text,
+          createdAt: h.createdAt,
+        })),
+      };
+    case "session.list":
+      return {
+        type: "session.list",
+        sessions: event.sessions.map((s) => ({
+          id: s.id,
+          title: s.title,
+          updatedAt: s.updatedAt,
+          messageCount: s.messageCount,
+        })),
+      };
     case "stream.start":
       return { type: "stream.start", messageId: event.messageId };
     case "stream.delta":

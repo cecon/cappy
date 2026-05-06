@@ -17,11 +17,27 @@ import { resetSessionContext } from "./agent/sessionContext.js";
 import { loadConfig } from "./config/index.js";
 import { buildSystemPromptPrefix, loadCappyMd } from "./cliWorkspaceContext.js";
 import { filterToolsByMode, type ChatMode, type Message } from "./cliPipeline.js";
+import { SessionStore } from "./session/SessionStore.js";
+import { CAPPY_EVENT_VERSION, type ChatEvent } from "./session/sessionTypes.js";
 import { toolsRegistry } from "./tools/index.js";
 
-/* ── wire types (mirrored in extension/src/chat/protocol.ts) ─────────────── */
+/* ── wire types (mirrored in extension/src/chat/cliBridge.ts) ────────────── */
 
 type Permission = "confirm_each" | "allow_all" | "deny_all";
+
+export interface SessionSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
+export interface HistoryMessage {
+  id: string;
+  role: "user" | "assistant" | "system" | "tool";
+  text: string;
+  createdAt: number;
+}
 
 export type RpcRequest =
   | { type: "init"; workspace?: string; mode?: ChatMode; permissionMode?: Permission }
@@ -32,12 +48,17 @@ export type RpcRequest =
       mentions: { uri: string; label: string; range?: { startLine: number; endLine: number } }[];
     }
   | { type: "session.new" }
+  | { type: "session.list" }
+  | { type: "session.resume"; sessionId: string }
+  | { type: "session.delete"; sessionId: string }
   | { type: "abort" }
   | { type: "hitl.response"; toolCallId: string; approved: boolean }
   | { type: "shutdown" };
 
 export type RpcEvent =
   | { type: "ready"; version: string; workspace: string }
+  | { type: "session.opened"; sessionId: string; history: HistoryMessage[] }
+  | { type: "session.list"; sessions: SessionSummary[] }
   | { type: "stream.start"; messageId: string }
   | { type: "stream.delta"; messageId: string; text: string }
   | { type: "stream.tool"; messageId: string; tool: { id: string; name: string; input: unknown } }
@@ -55,7 +76,7 @@ export type RpcEvent =
   | { type: "system"; message: string }
   | { type: "error"; message: string };
 
-/* ── main ─────────────────────────────────────────────────────────────────── */
+/* ── state ────────────────────────────────────────────────────────────────── */
 
 interface RpcState {
   workspace: string;
@@ -65,6 +86,9 @@ interface RpcState {
   systemPromptPrefix: string | undefined;
   pendingHitl: Map<string, (approved: boolean) => void>;
   activeLoop: AgentLoop | null;
+  store: SessionStore;
+  currentSessionId: string | null;
+  primaryModel: string;
 }
 
 function emit(event: RpcEvent): void {
@@ -81,11 +105,29 @@ function readVersion(): string {
   }
 }
 
+function nowEvent(): { v: typeof CAPPY_EVENT_VERSION; t: number } {
+  return { v: CAPPY_EVENT_VERSION, t: Date.now() };
+}
+
+async function ensureSession(state: RpcState): Promise<string> {
+  if (state.currentSessionId) {
+    return state.currentSessionId;
+  }
+  const listing = await state.store.createSession({
+    primaryModel: state.primaryModel,
+    workspaceRoot: state.workspace,
+  });
+  state.currentSessionId = listing.id;
+  emit({ type: "session.opened", sessionId: listing.id, history: [] });
+  return listing.id;
+}
+
+/* ── main ─────────────────────────────────────────────────────────────────── */
+
 export async function runRpc(opts: { workspace?: string }): Promise<void> {
   const workspace = path.resolve(opts.workspace ?? process.cwd());
   process.env.CAPPY_WORKSPACE_ROOT = workspace;
 
-  // Validate config & workspace before announcing ready.
   let config;
   try {
     config = await loadConfig();
@@ -118,6 +160,9 @@ export async function runRpc(opts: { workspace?: string }): Promise<void> {
     systemPromptPrefix: systemPromptPrefixRaw ?? undefined,
     pendingHitl: new Map(),
     activeLoop: null,
+    store: new SessionStore(),
+    currentSessionId: null,
+    primaryModel: config.openrouter.model,
   };
 
   emit({ type: "ready", version: readVersion(), workspace });
@@ -147,13 +192,66 @@ async function handleRequest(req: RpcRequest, state: RpcState): Promise<void> {
       return;
 
     case "session.new":
+      // Close current (if any) and reset in-memory state; the next user.message
+      // will lazily create a fresh session via ensureSession.
+      if (state.currentSessionId) {
+        await state.store
+          .setStatus(state.currentSessionId, "closed")
+          .catch(() => undefined);
+      }
+      state.currentSessionId = null;
       state.history = [];
       resetSessionContext();
       return;
 
+    case "session.list": {
+      const listings = await state.store.listSessions();
+      emit({
+        type: "session.list",
+        sessions: listings.map((l) => ({
+          id: l.id,
+          title: l.metadata.preview.title || l.id,
+          updatedAt: l.metadata.updatedAt,
+          messageCount: l.metadata.preview.messageCount,
+        })),
+      });
+      return;
+    }
+
+    case "session.resume": {
+      const events = await state.store.readEvents(req.sessionId);
+      const history: HistoryMessage[] = [];
+      const agentHistory: Message[] = [];
+      for (const ev of events) {
+        if (ev.kind === "user:message") {
+          history.push({ id: ev.id, role: "user", text: ev.content, createdAt: ev.t });
+          agentHistory.push({ role: "user", content: ev.content });
+        } else if (ev.kind === "assistant:message") {
+          history.push({ id: ev.id, role: "assistant", text: ev.content, createdAt: ev.t });
+          // Note: tool_calls are intentionally dropped on resume — the agent
+          // re-plans tool usage based on the recovered transcript.
+          agentHistory.push({ role: "assistant", content: ev.content });
+        }
+      }
+      state.currentSessionId = req.sessionId;
+      state.history = agentHistory;
+      resetSessionContext();
+      emit({ type: "session.opened", sessionId: req.sessionId, history });
+      return;
+    }
+
+    case "session.delete": {
+      await state.store.deleteSession(req.sessionId);
+      if (state.currentSessionId === req.sessionId) {
+        state.currentSessionId = null;
+        state.history = [];
+        resetSessionContext();
+      }
+      return;
+    }
+
     case "abort":
       state.activeLoop?.abort();
-      // Reject any outstanding HITL prompts.
       for (const resolve of state.pendingHitl.values()) {
         resolve(false);
       }
@@ -182,16 +280,29 @@ async function runTurn(
   req: Extract<RpcRequest, { type: "user.message" }>,
   state: RpcState,
 ): Promise<void> {
+  const sessionId = await ensureSession(state);
+
   const userText = buildUserText(req);
   state.history.push({ role: "user", content: userText });
+
+  const userMessageId = `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  await appendEvent(state, sessionId, {
+    ...nowEvent(),
+    kind: "user:message",
+    id: userMessageId,
+    content: userText,
+  });
 
   const messageId = `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const loop = new AgentLoop({ workspaceRoot: state.workspace });
   state.activeLoop = loop;
 
+  let assistantText = "";
+
   emit({ type: "stream.start", messageId });
 
   loop.on("stream:token", (token) => {
+    assistantText += token;
     emit({ type: "stream.delta", messageId, text: token });
   });
   loop.on("stream:system", (msg) => {
@@ -203,6 +314,13 @@ async function runTurn(
       messageId,
       tool: { id: tc.id, name: tc.name, input: tc.arguments },
     });
+    void appendEvent(state, sessionId, {
+      ...nowEvent(),
+      kind: "tool:executing",
+      toolCallId: tc.id,
+      name: tc.name,
+      arguments: tc.arguments,
+    });
   });
   loop.on("tool:result", (tc: ToolCall, result: string) => {
     emit({
@@ -210,12 +328,23 @@ async function runTurn(
       messageId,
       result: { id: tc.id, ok: true, output: result },
     });
+    void appendEvent(state, sessionId, {
+      ...nowEvent(),
+      kind: "tool:result",
+      toolCallId: tc.id,
+      result,
+    });
   });
   loop.on("tool:rejected", (tc: ToolCall) => {
     emit({
       type: "stream.toolResult",
       messageId,
       result: { id: tc.id, ok: false, error: "rejected by user" },
+    });
+    void appendEvent(state, sessionId, {
+      ...nowEvent(),
+      kind: "tool:rejected",
+      toolCallId: tc.id,
     });
   });
   loop.on("tool:confirm", (tc: ToolCall) => {
@@ -261,7 +390,23 @@ async function runTurn(
   } finally {
     loop.removeAllListeners();
     state.activeLoop = null;
+    if (assistantText.length > 0) {
+      await appendEvent(state, sessionId, {
+        ...nowEvent(),
+        kind: "assistant:message",
+        id: messageId,
+        content: assistantText,
+      });
+    }
     emit({ type: "stream.end", messageId });
+  }
+}
+
+async function appendEvent(state: RpcState, sessionId: string, event: ChatEvent): Promise<void> {
+  try {
+    await state.store.appendEvent(sessionId, event);
+  } catch (err) {
+    emit({ type: "system", message: `failed to persist event: ${(err as Error).message}` });
   }
 }
 

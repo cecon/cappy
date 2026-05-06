@@ -49,6 +49,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.view?.show?.(true);
   }
 
+  public resumeSession(sessionId: string): void {
+    this.reveal();
+    this.ensureBridge().resumeSession(sessionId);
+  }
+
+  public refreshSessionList(): void {
+    this.bridge?.listSessions();
+  }
+
   private ensureBridge(): CliBridge {
     if (this.bridge) return this.bridge;
     this.bridge = new CliBridge({
@@ -81,6 +90,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       case "session.new":
         this.bridge?.newSession();
+        return;
+
+      case "session.list":
+        this.ensureBridge().listSessions();
+        return;
+
+      case "session.resume":
+        this.ensureBridge().resumeSession(msg.sessionId);
+        return;
+
+      case "session.delete":
+        this.ensureBridge().deleteSession(msg.sessionId);
         return;
 
       case "abort":

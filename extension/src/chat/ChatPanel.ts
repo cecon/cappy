@@ -57,6 +57,15 @@ export class ChatPanel {
     void this.panel.webview.postMessage(msg);
   }
 
+  public reveal(): void {
+    this.panel.reveal();
+  }
+
+  public resumeSession(sessionId: string): void {
+    this.reveal();
+    this.ensureBridge().resumeSession(sessionId);
+  }
+
   private ensureBridge(): CliBridge {
     if (this.bridge) return this.bridge;
     this.bridge = new CliBridge({
@@ -87,6 +96,15 @@ export class ChatPanel {
         return;
       case "session.new":
         this.bridge?.newSession();
+        return;
+      case "session.list":
+        this.ensureBridge().listSessions();
+        return;
+      case "session.resume":
+        this.ensureBridge().resumeSession(msg.sessionId);
+        return;
+      case "session.delete":
+        this.ensureBridge().deleteSession(msg.sessionId);
         return;
       case "abort":
         this.bridge?.abort();

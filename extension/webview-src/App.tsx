@@ -12,6 +12,7 @@ import type {
 import { Composer } from "./components/Composer.js";
 import { HitlCard } from "./components/HitlCard.js";
 import { MessageList } from "./components/MessageList.js";
+import { SessionsPanel } from "./components/SessionsPanel.js";
 import { onHostMessage, postToHost } from "./vscodeApi.js";
 
 const DEFAULT_SETTINGS: WebviewSettings = {
@@ -34,6 +35,7 @@ export function App(): JSX.Element {
   const [composerFocusToken, setComposerFocusToken] = useState(0);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [pendingHitl, setPendingHitl] = useState<PendingHitl | null>(null);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
 
   useEffect(() => {
     const off = onHostMessage((msg: HostToWebview) => {
@@ -49,6 +51,9 @@ export function App(): JSX.Element {
         case "session.opened":
           setSessionId(msg.sessionId);
           setMessages(msg.history);
+          setStreamingMessageId(null);
+          setPendingHitl(null);
+          setSessionsOpen(false);
           return;
         case "session.list":
           setSessions(msg.sessions);
@@ -172,6 +177,24 @@ export function App(): JSX.Element {
     setPendingHitl(null);
   };
 
+  const openSessions = (): void => {
+    postToHost({ type: "session.list" });
+    setSessionsOpen(true);
+  };
+
+  const handleResumeSession = (id: string): void => {
+    postToHost({ type: "session.resume", sessionId: id });
+  };
+
+  const handleDeleteSession = (id: string): void => {
+    postToHost({ type: "session.delete", sessionId: id });
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    if (id === sessionId) {
+      setSessionId(null);
+      setMessages([]);
+    }
+  };
+
   return (
     <div className="cappy-shell">
       <header className="cappy-header">
@@ -202,8 +225,8 @@ export function App(): JSX.Element {
           <button
             type="button"
             className="cappy-icon-button"
-            title="Sessions"
-            onClick={() => postToHost({ type: "session.list" })}
+            title="Past conversations"
+            onClick={openSessions}
           >
             <span className="codicon codicon-history" />
           </button>
@@ -217,6 +240,15 @@ export function App(): JSX.Element {
         )}
         {pendingHitl ? (
           <HitlCard tool={pendingHitl.tool} onDecide={handleHitlDecision} />
+        ) : null}
+        {sessionsOpen ? (
+          <SessionsPanel
+            sessions={sessions}
+            currentSessionId={sessionId}
+            onResume={handleResumeSession}
+            onDelete={handleDeleteSession}
+            onClose={() => setSessionsOpen(false)}
+          />
         ) : null}
       </main>
       <footer className="cappy-footer">

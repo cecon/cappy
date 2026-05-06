@@ -91,17 +91,36 @@ export function activate(context: vscode.ExtensionContext): void {
     terminals.set("__new__", term);
     sessionsTree.refresh();
   });
-  registerCommand("cappy.resumeSession", (sessionId: string | undefined) => {
+  registerCommand("cappy.resumeSession", async (sessionId: string | undefined) => {
     if (!sessionId) {
       return;
     }
-    const existing = terminals.get(sessionId);
-    if (existing && existing.exitStatus === undefined) {
-      existing.show();
+    const useTerminal = vscode.workspace
+      .getConfiguration("cappy")
+      .get<boolean>("useTerminal", false);
+
+    if (useTerminal) {
+      const existing = terminals.get(sessionId);
+      if (existing && existing.exitStatus === undefined) {
+        existing.show();
+        return;
+      }
+      const term = spawnCli(["--resume", sessionId], `Cappy: ${sessionId}`);
+      terminals.set(sessionId, term);
       return;
     }
-    const term = spawnCli(["--resume", sessionId], `Cappy: ${sessionId}`);
-    terminals.set(sessionId, term);
+
+    // Native chat: open the preferred surface and resume in-bridge.
+    const preferred = vscode.workspace
+      .getConfiguration("cappy")
+      .get<"sidebar" | "panel">("preferredLocation", "sidebar");
+    if (preferred === "panel") {
+      const panel = ChatPanel.createOrShow(context.extensionUri);
+      panel.resumeSession(sessionId);
+    } else {
+      await vscode.commands.executeCommand("workbench.view.extension.cappy-sidebar");
+      chatProvider.resumeSession(sessionId);
+    }
   });
 
   /* ── sessions tree ──────────────────────────────────────────────────── */
