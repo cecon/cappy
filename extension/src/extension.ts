@@ -100,15 +100,23 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(...extensionDisposables);
 }
 
-function spawnCli(args: string[], name: string): vscode.Terminal {
+function spawnCli(
+  args: string[],
+  name: string,
+  viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active,
+): vscode.Terminal {
   const config = vscode.workspace.getConfiguration("cappy");
   const command = config.get<string>("cli.command", "cappy");
   const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   const terminal = vscode.window.createTerminal({
     name,
     ...(cwd ? { cwd } : {}),
+    location: { viewColumn },
+    isTransient: true,
   });
-  const escaped = args.map((a) => (/\s/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a)).join(" ");
+  const escaped = args
+    .map((a) => (/\s/.test(a) ? `'${a.replace(/'/g, "'\\''")}'` : a))
+    .join(" ");
   terminal.show(true);
   terminal.sendText(escaped.length > 0 ? `${command} ${escaped}` : command);
   return terminal;
