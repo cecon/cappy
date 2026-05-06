@@ -25,6 +25,7 @@ import { CliRenderer } from "./CliRenderer.js";
 import { CliHitl, type HitlPolicy } from "./CliHitl.js";
 import { c, BOLD, CYAN, GRAY, GREEN, RED, YELLOW } from "./cliColors.js";
 import { runInit } from "./cliInit.js";
+import { runRpc } from "./cliRpc.js";
 import { buildSystemPromptPrefix, loadCappyMd } from "./cliWorkspaceContext.js";
 import {
   runOnce,
@@ -43,6 +44,7 @@ interface CliOptions {
   showVersion: boolean;
   showHelp: boolean;
   noColor: boolean;
+  rpc: boolean;
 }
 
 // ─── Parse de argumentos ───────────────────────────────────────────────────────
@@ -59,6 +61,7 @@ function parseArgs(argv: string[]): CliOptions {
     showVersion: false,
     showHelp: false,
     noColor: Boolean(process.env.NO_COLOR) || !process.stdout.isTTY,
+    rpc: false,
   };
 
   const promptParts: string[] = [];
@@ -84,6 +87,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--no-color") {
       opts.noColor = true;
+      continue;
+    }
+    if (arg === "--rpc") {
+      opts.rpc = true;
       continue;
     }
     if (arg === "--mode" || arg === "-m") {
@@ -160,6 +167,7 @@ ${c(BOLD, "OPÇÕES")}
   ${c(CYAN, "--deny-all")}              Nega automaticamente todas as tools destrutivas
   ${c(CYAN, "--max-iterations <n>")}    Limite de rodadas do agente por stage/mensagem
   ${c(CYAN, "--no-color")}              Desativa cores ANSI
+  ${c(CYAN, "--rpc")}                   Modo JSON-RPC sobre stdio (usado pela extensão VS Code)
   ${c(CYAN, "-v, --version")}           Exibe a versão
   ${c(CYAN, "-h, --help")}              Exibe esta ajuda
 
@@ -314,6 +322,12 @@ async function main(): Promise<void> {
 
   if (opts.showHelp) {
     printHelp();
+    return;
+  }
+
+  // RPC mode: stdio JSON-RPC for the VS Code extension (or any other client).
+  if (opts.rpc) {
+    await runRpc({ workspace: opts.workspaceRoot });
     return;
   }
 
