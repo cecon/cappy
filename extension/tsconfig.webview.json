@@ -1,13 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": [
-      "ES2022"
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
     ],
-    "rootDir": "src",
-    "outDir": "dist",
+    "jsx": "react-jsx",
+    "noEmit": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -15,17 +17,17 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "types": [
-      "node",
-      "vscode"
+      "react",
+      "react-dom"
     ]
   },
   "include": [
-    "src/**/*.ts"
+    "webview-src/**/*.ts",
+    "webview-src/**/*.tsx",
+    "src/chat/protocol.ts"
   ],
   "exclude": [
-    "dist",
-    "out",
     "node_modules",
-    "webview-src"
+    "out"
   ]
 }

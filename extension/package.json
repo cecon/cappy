@@ -28,7 +28,8 @@
     "Chat"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onWebviewPanel:cappyChatPanel"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -44,6 +45,11 @@
     "views": {
       "cappy-sidebar": [
         {
+          "type": "webview",
+          "id": "cappy.chat",
+          "name": "Chat"
+        },
+        {
           "type": "tree",
           "id": "cappy.sessions",
           "name": "Sessions"
@@ -52,8 +58,52 @@
     },
     "commands": [
       {
+        "command": "cappy.chat.openTab",
+        "title": "Cappy: Open Chat in New Tab",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "cappy.chat.openSidebar",
+        "title": "Cappy: Open Chat in Sidebar",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "cappy.chat.newConversation",
+        "title": "Cappy: New Chat",
+        "icon": "$(add)"
+      },
+      {
+        "command": "cappy.chat.focus",
+        "title": "Cappy: Focus Chat Input"
+      },
+      {
+        "command": "cappy.chat.blur",
+        "title": "Cappy: Blur Chat Input"
+      },
+      {
+        "command": "cappy.chat.insertAtMention",
+        "title": "Cappy: Insert @-Mention Reference"
+      },
+      {
+        "command": "cappy.chat.acceptProposedDiff",
+        "title": "Cappy: Accept Proposed Changes",
+        "enablement": "cappy.viewingProposedDiff",
+        "icon": "$(check)"
+      },
+      {
+        "command": "cappy.chat.rejectProposedDiff",
+        "title": "Cappy: Reject Proposed Changes",
+        "enablement": "cappy.viewingProposedDiff",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "cappy.terminal.open",
+        "title": "Cappy: Open in Terminal",
+        "icon": "$(terminal)"
+      },
+      {
         "command": "cappy.newSession",
-        "title": "Cappy: New Session",
+        "title": "Cappy: New Terminal Session",
         "icon": "$(add)"
       },
       {
@@ -76,8 +126,39 @@
         "icon": "$(refresh)"
       }
     ],
+    "keybindings": [
+      {
+        "command": "cappy.chat.insertAtMention",
+        "key": "alt+k",
+        "mac": "alt+k",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "cappy.chat.openTab",
+        "key": "ctrl+alt+c",
+        "mac": "cmd+alt+c"
+      },
+      {
+        "command": "cappy.chat.newConversation",
+        "key": "ctrl+n",
+        "mac": "cmd+n",
+        "win": "ctrl+n",
+        "linux": "ctrl+n",
+        "when": "config.cappy.enableNewConversationShortcut && (activeWebviewPanelId == 'cappyChatPanel' || focusedView == 'cappy.chat')"
+      }
+    ],
     "menus": {
       "view/title": [
+        {
+          "command": "cappy.chat.newConversation",
+          "when": "view == cappy.chat",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cappy.chat.openTab",
+          "when": "view == cappy.chat",
+          "group": "navigation@2"
+        },
         {
           "command": "cappy.newSession",
           "when": "view == cappy.sessions",
@@ -95,6 +176,18 @@
           "when": "view == cappy.sessions && viewItem == cappy.session",
           "group": "modify"
         }
+      ],
+      "editor/title": [
+        {
+          "command": "cappy.chat.acceptProposedDiff",
+          "when": "cappy.viewingProposedDiff",
+          "group": "navigation"
+        },
+        {
+          "command": "cappy.chat.rejectProposedDiff",
+          "when": "cappy.viewingProposedDiff",
+          "group": "navigation"
+        }
       ]
     },
     "configuration": {
@@ -103,20 +196,97 @@
         "cappy.cli.command": {
           "type": "string",
           "default": "cappy",
-          "description": "Shell command run in the integrated terminal to launch the Cappy CLI. Override if cappy is not on PATH (e.g. \"npx -y @eduardocecon/cappy\")."
+          "description": "Shell command run to launch the Cappy CLI. Override if cappy is not on PATH (e.g. \"npx -y @eduardocecon/cappy\")."
+        },
+        "cappy.useTerminal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Launch Cappy in the integrated terminal instead of the native chat UI."
+        },
+        "cappy.preferredLocation": {
+          "type": "string",
+          "enum": [
+            "sidebar",
+            "panel"
+          ],
+          "enumDescriptions": [
+            "Sidebar (Activity Bar)",
+            "Panel (New Editor Tab)"
+          ],
+          "default": "sidebar",
+          "description": "Where Cappy chat opens by default."
+        },
+        "cappy.useCtrlEnterToSend": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use Ctrl/Cmd+Enter to send. When off, Enter sends and Shift+Enter inserts a newline."
+        },
+        "cappy.respectGitIgnore": {
+          "type": "boolean",
+          "default": true,
+          "description": "Respect .gitignore when listing files for @-mentions."
+        },
+        "cappy.autosave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save dirty files before Cappy reads or writes them."
+        },
+        "cappy.enableNewConversationShortcut": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Ctrl/Cmd+N to start a new conversation when the Cappy chat is focused."
+        },
+        "cappy.environmentVariables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Environment variable name"
+              },
+              "value": {
+                "type": "string",
+                "description": "Environment variable value"
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ]
+          },
+          "default": [],
+          "description": "Environment variables passed to the Cappy CLI process."
+        },
+        "cappy.initialPermissionMode": {
+          "type": "string",
+          "enum": [
+            "confirm_each",
+            "allow_all",
+            "deny_all"
+          ],
+          "default": "confirm_each",
+          "description": "Initial human-in-the-loop policy for new conversations."
         }
       }
     }
   },
   "scripts": {
     "vscode:prepublish": "pnpm run build",
-    "build": "pnpm run build:ext",
-    "build:ext": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node18 --external:vscode --outfile=out/extension.js",
-    "watch": "tsc -watch -p tsconfig.json --outDir out",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "build": "node esbuild.config.mjs --production",
+    "build:dev": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.webview.json --noEmit"
+  },
+  "dependencies": {
+    "@vscode/codicons": "^0.0.36",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "@types/vscode": "~1.105.0",
     "@vscode/vsce": "3.7.1",
     "esbuild": "^0.28.0",
