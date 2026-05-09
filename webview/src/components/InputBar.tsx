@@ -14,10 +14,9 @@ import {
 } from "@mantine/core";
 import { FormEvent, KeyboardEvent, useCallback, useMemo, useRef, useState } from "react";
 
-import type { ChatUiMode, ContextUsageSnapshot, ImageAttachment, PipelineTemplate } from "../lib/types";
+import type { ChatUiMode, ContextUsageSnapshot, ImageAttachment } from "../lib/types";
 import { cappyPalette } from "../theme";
 import { ContextRing } from "./ContextRing";
-import { PipelineToggle, type PipelineState } from "./PipelineToggle";
 
 export interface ContextFile {
   path: string;
@@ -41,10 +40,6 @@ interface InputBarProps {
   onModelChange: (modelId: string) => void;
   /** Enquanto a config inicial não chegou do host. */
   configReady?: boolean;
-  /** Pipeline templates disponíveis para modo pipeline. */
-  pipelineTemplates?: PipelineTemplate[];
-  /** Chamado ao enviar em modo pipeline. */
-  onPipelineSend?: (pipelineId: string, text: string) => void;
 }
 
 const MODE_ITEMS: { id: ChatUiMode; label: string; hint: string }[] = [
@@ -87,12 +82,9 @@ export function InputBar({
   modelOptions,
   onModelChange,
   configReady = true,
-  pipelineTemplates,
-  onPipelineSend,
 }: InputBarProps): JSX.Element {
   const [value, setValue] = useState("");
   const [chatMode, setChatMode] = useState<ChatUiMode>("agent");
-  const [pipelineState, setPipelineState] = useState<PipelineState>({ enabled: false, templateId: null });
   const [showContextTooltip, setShowContextTooltip] = useState(false);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -167,12 +159,6 @@ export function InputBar({
   function submitCurrentValue(): void {
     const text = value.trim();
     if ((!text && images.length === 0) || isStreaming) {
-      return;
-    }
-    if (pipelineState.enabled && pipelineState.templateId && onPipelineSend && text) {
-      onPipelineSend(pipelineState.templateId, text);
-      setValue("");
-      setImages([]);
       return;
     }
     onSend(text || "(imagem)", chatMode, images.length > 0 ? images : undefined);
@@ -326,13 +312,11 @@ export function InputBar({
             onKeyDown={handleTextareaKeyDown}
             onPaste={handlePaste}
             placeholder={
-              pipelineState.enabled
-                ? `Pipeline ${pipelineTemplates?.find((t) => t.id === pipelineState.templateId)?.name ?? ""} — descreva a tarefa…`
-                : chatMode === "plain"
-                  ? "Mensagem em texto puro (sem tools)"
-                  : chatMode === "ask"
-                    ? "Pergunta: leitura e pesquisa no código e na web"
-                    : "/ para comandos, @ para contexto — agente com ferramentas"
+              chatMode === "plain"
+                ? "Mensagem em texto puro (sem tools)"
+                : chatMode === "ask"
+                  ? "Pergunta: leitura e pesquisa no código e na web"
+                  : "/ para comandos, @ para contexto — agente com ferramentas"
             }
             minRows={3}
             autosize
@@ -449,27 +433,21 @@ export function InputBar({
               overflow: "hidden",
             }}
           >
-            {!pipelineState.enabled ? (
-              <Select
-                size="xs"
-                w={92}
-                style={{ flexShrink: 0 }}
-                data={modeSelectData}
-                value={chatMode}
-                onChange={(value) => {
-                  if (value === "plain" || value === "agent" || value === "ask") {
-                    setChatMode(value);
-                  }
-                }}
-                disabled={isStreaming}
-                aria-label="Modo do chat"
-                comboboxProps={{ withinPortal: true }}
-              />
-            ) : null}
-
-            {pipelineTemplates && pipelineTemplates.length > 0 && onPipelineSend ? (
-              <PipelineToggle templates={pipelineTemplates} isStreaming={isStreaming} onChange={setPipelineState} />
-            ) : null}
+            <Select
+              size="xs"
+              w={92}
+              style={{ flexShrink: 0 }}
+              data={modeSelectData}
+              value={chatMode}
+              onChange={(value) => {
+                if (value === "plain" || value === "agent" || value === "ask") {
+                  setChatMode(value);
+                }
+              }}
+              disabled={isStreaming}
+              aria-label="Modo do chat"
+              comboboxProps={{ withinPortal: true }}
+            />
 
             <Select
               size="xs"

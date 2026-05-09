@@ -5,7 +5,6 @@ import type {
   FileDiffPayload,
   McpTool,
   Message,
-  PipelineTemplate,
   ToolCall,
 } from "./types";
 
@@ -33,10 +32,6 @@ export type OutgoingMessage =
   | { type: "config:save"; config: CappyConfig }
   | { type: "mcp:list" }
   | { type: "history:load"; sessionId: string }
-  | { type: "pipeline:run"; pipelineId: string; messages: Message[]; mode?: ChatUiMode }
-  | { type: "pipeline:advance" }
-  | { type: "pipeline:abort" }
-  | { type: "pipeline:list" }
   | { type: "conversation:export"; markdown: string };
 
 /**
@@ -62,13 +57,7 @@ export type IncomingMessage =
   | { type: "agent:shell:complete"; command: string; stdout: string; stderr: string; errorText?: string }
   | ({ type: "hitl:policy" } & HitlUiPolicy)
   /** Plan mode lifecycle: entered, content updated, or exited. */
-  | { type: "plan:state"; active: boolean; filePath: string | null; content: string | null }
-  | { type: "pipeline:start"; pipeline: { id: string; name: string; stages: Array<{ id: string; name: string; requiresApproval?: boolean }> } }
-  | { type: "pipeline:stage:start"; stageId: string; stageName: string; stageIndex: number; totalStages: number }
-  | { type: "pipeline:stage:done"; stageId: string; stageIndex: number; totalStages: number }
-  | { type: "pipeline:stage:approve"; stageId: string; stageName: string; stageIndex: number }
-  | { type: "pipeline:done" }
-  | { type: "pipeline:templates"; templates: PipelineTemplate[] };
+  | { type: "plan:state"; active: boolean; filePath: string | null; content: string | null };
 
 /**
  * Bridge contract used by the webview UI.
@@ -291,39 +280,6 @@ function isIncomingMessage(value: unknown): value is IncomingMessage {
       (value.filePath === null || typeof value.filePath === "string") &&
       (value.content === null || typeof value.content === "string")
     );
-  }
-
-  if (value.type === "pipeline:start") {
-    return isRecord(value.pipeline) && typeof value.pipeline.id === "string" && Array.isArray(value.pipeline.stages);
-  }
-
-  if (value.type === "pipeline:stage:start") {
-    return (
-      typeof value.stageId === "string" &&
-      typeof value.stageName === "string" &&
-      typeof value.stageIndex === "number" &&
-      typeof value.totalStages === "number"
-    );
-  }
-
-  if (value.type === "pipeline:stage:done") {
-    return typeof value.stageId === "string" && typeof value.stageIndex === "number";
-  }
-
-  if (value.type === "pipeline:stage:approve") {
-    return (
-      typeof value.stageId === "string" &&
-      typeof value.stageName === "string" &&
-      typeof value.stageIndex === "number"
-    );
-  }
-
-  if (value.type === "pipeline:done") {
-    return true;
-  }
-
-  if (value.type === "pipeline:templates") {
-    return Array.isArray(value.templates);
   }
 
   return false;

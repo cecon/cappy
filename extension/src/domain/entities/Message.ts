@@ -36,7 +36,7 @@ export interface FileDiffPayload {
   hunks: Array<{ lines: DiffLine[] }>;
 }
 
-/** Canonical message used throughout the agent pipeline. */
+/** Canonical message used throughout the agent loop. */
 export interface Message {
   role: MessageRole;
   content: string;

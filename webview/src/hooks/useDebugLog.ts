@@ -6,14 +6,13 @@ export interface DebugEntry {
   ts: number;
   type: string;
   detail: string;
-  category: "send" | "stream" | "tool" | "pipeline" | "error" | "system";
+  category: "send" | "stream" | "tool" | "error" | "system";
 }
 
 function categorize(type: string): DebugEntry["category"] {
   if (type === "SEND_START" || type === "STOP") return "send";
   if (type.startsWith("STREAM_")) return "stream";
   if (type.startsWith("TOOL_")) return "tool";
-  if (type.startsWith("PIPELINE_")) return "pipeline";
   if (type === "ERROR") return "error";
   return "system";
 }
@@ -27,10 +26,6 @@ function summarize(action: ChatAction): string {
     case "TOOL_EXECUTING": return action.toolCall.name;
     case "TOOL_RESULT": return `${action.toolCall.name} → ${action.result.length}chars`;
     case "TOOL_REJECTED": return action.toolCall.name;
-    case "PIPELINE_START": return action.pipeline.name;
-    case "PIPELINE_STAGE_START": return `[${action.stageIndex}] ${action.stageId}`;
-    case "PIPELINE_STAGE_DONE": return `[${action.stageIndex}] ${action.stageId}`;
-    case "PIPELINE_STAGE_APPROVE": return `[${action.stageIndex}] aguardando aprovação`;
     case "ERROR": return action.message.slice(0, 100);
     case "CONFIG_LOADED": return `model=${action.config.openrouter.model}`;
     case "CONTEXT_USAGE": return `${action.snapshot.usedTokens.toLocaleString()}/${action.snapshot.limitTokens.toLocaleString()} tokens`;

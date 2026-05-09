@@ -4,7 +4,7 @@
  */
 
 import { useReducer } from "react";
-import type { CappyConfig, ChatUiMode, ContextUsageSnapshot, FileDiffPayload, Message, PipelineTemplate, PipelineUiState } from "../lib/types";
+import type { CappyConfig, ChatUiMode, ContextUsageSnapshot, FileDiffPayload, Message } from "../lib/types";
 import type { ContextFile } from "../components/InputBar";
 import {
   INITIAL_CHAT_STATE,
@@ -44,13 +44,7 @@ export type ChatAction =
   | { type: "MODEL_CHANGE"; modelId: string }
   | { type: "ADD_CONTEXT_FILE"; file: ContextFile }
   | { type: "REMOVE_CONTEXT_FILE"; path: string }
-  | { type: "PLAN_STATE"; active: boolean; content: string | null; filePath: string | null }
-  | { type: "PIPELINE_START"; pipeline: PipelineUiState }
-  | { type: "PIPELINE_STAGE_START"; stageId: string; stageIndex: number }
-  | { type: "PIPELINE_STAGE_DONE"; stageId: string; stageIndex: number }
-  | { type: "PIPELINE_STAGE_APPROVE"; stageId: string; stageIndex: number }
-  | { type: "PIPELINE_DONE" }
-  | { type: "PIPELINE_TEMPLATES"; templates: PipelineTemplate[] };
+  | { type: "PLAN_STATE"; active: boolean; content: string | null; filePath: string | null };
 
 // ── Reducer helpers ────────────────────────────────────────────────────────
 
@@ -219,66 +213,6 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case "PLAN_STATE":
       return { ...state, planMode: action.active, planContent: action.content, planFilePath: action.filePath };
-
-    case "PIPELINE_START":
-      return { ...state, pipeline: action.pipeline };
-
-    case "PIPELINE_STAGE_START": {
-      if (!state.pipeline) return state;
-      return {
-        ...state,
-        pipeline: {
-          ...state.pipeline,
-          currentStageIndex: action.stageIndex,
-          awaitingApproval: false,
-          stages: state.pipeline.stages.map((s) =>
-            s.id === action.stageId ? { ...s, status: "running" } : s,
-          ),
-        },
-      };
-    }
-
-    case "PIPELINE_STAGE_DONE": {
-      if (!state.pipeline) return state;
-      return {
-        ...state,
-        pipeline: {
-          ...state.pipeline,
-          stages: state.pipeline.stages.map((s) =>
-            s.id === action.stageId ? { ...s, status: "done" } : s,
-          ),
-        },
-      };
-    }
-
-    case "PIPELINE_STAGE_APPROVE": {
-      if (!state.pipeline) return state;
-      return {
-        ...state,
-        pipeline: {
-          ...state.pipeline,
-          awaitingApproval: true,
-          stages: state.pipeline.stages.map((s) =>
-            s.id === action.stageId ? { ...s, status: "awaiting-approval" } : s,
-          ),
-        },
-      };
-    }
-
-    case "PIPELINE_DONE":
-      return {
-        ...state,
-        pipeline: state.pipeline
-          ? {
-              ...state.pipeline,
-              awaitingApproval: false,
-              stages: state.pipeline.stages.map((s) => ({ ...s, status: "done" })),
-            }
-          : null,
-      };
-
-    case "PIPELINE_TEMPLATES":
-      return { ...state, pipelineTemplates: action.templates };
 
     default:
       return state;

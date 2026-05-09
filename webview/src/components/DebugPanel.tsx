@@ -14,7 +14,6 @@ const CATEGORY_COLOR: Record<DebugEntry["category"], string> = {
   send: "blue",
   stream: "teal",
   tool: "grape",
-  pipeline: "orange",
   error: "red",
   system: "gray",
 };
@@ -129,14 +128,6 @@ export function DebugPanel({ log, state, onClear }: DebugPanelProps): JSX.Elemen
               <StateRow label="tools" value={`${toolSummary.total} — done:${toolSummary.done} running:${toolSummary.running} pending:${toolSummary.pending} rejected:${toolSummary.rejected}`} />
               <StateRow label="pendingConfirms" value={String(state.pendingConfirms.length)} highlight={state.pendingConfirms.length > 0} />
               <StateRow label="errorMessage" value={state.errorMessage ?? "—"} highlight={state.errorMessage !== null} />
-              <StateRow
-                label="pipeline"
-                value={
-                  state.pipeline
-                    ? `${state.pipeline.name} — stage ${state.pipeline.currentStageIndex + 1}/${state.pipeline.stages.length}${state.pipeline.awaitingApproval ? " (aguardando)" : ""}`
-                    : "—"
-                }
-              />
               <StateRow
                 label="contextUsage"
                 value={

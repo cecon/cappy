@@ -1,7 +1,3 @@
-/**
- * Tool names that represent spawned sub-agents (coordinator pattern).
- * Used by WorkersPanel and PipelineDAGView to detect parallel work.
- */
 export const AGENT_TOOL_NAMES = new Set(["Agent", "agentTool", "ExploreAgent", "TeamCreate"]);
 
 /**

@@ -12,9 +12,7 @@ import { InputBar, type ContextFile } from "./InputBar";
 import { MessageList } from "./MessageList";
 import { PermissionDock } from "./PermissionDock";
 import { PlanModePanel } from "./PlanModePanel";
-import { StageProgressBar } from "./StageProgressBar";
 import { WorkersPanel } from "./WorkersPanel";
-import { PipelineDAGView } from "./PipelineDAGView";
 import { AgentTrace } from "./AgentTrace";
 import { DebugPanel } from "./DebugPanel";
 import { useDebugLog } from "../hooks/useDebugLog";
@@ -31,8 +29,6 @@ export function Chat(): JSX.Element {
 
   useBridgeMessages(dispatch, state.hitlPolicy);
   const availableModels = useModelOptions(state.runtimeConfig?.openrouter.model);
-
-  useEffect(() => { bridge.send({ type: "pipeline:list" }); }, []);
 
   useEffect(() => {
     const onNewSession = () => dispatch({ type: "SESSION_RESET" });
@@ -69,16 +65,7 @@ export function Chat(): JSX.Element {
     setActivityTick(0);
   }
 
-  function handlePipelineSend(pipelineId: string, text: string): void {
-    const userMsg: Message = { role: "user", content: text };
-    const newMessages = [...state.messages, userMsg];
-    dispatch({ type: "SEND_START", messages: newMessages, mode: "agent" });
-    bridge.send({ type: "pipeline:run", pipelineId, messages: newMessages });
-    setActivityTick(0);
-  }
-
   function handleStop(): void {
-    if (state.pipeline) bridge.send({ type: "pipeline:abort" });
     bridge.send({ type: "chat:stop" });
     dispatch({ type: "STOP" });
   }
@@ -133,12 +120,6 @@ export function Chat(): JSX.Element {
       style={{ minHeight: 0, minWidth: "var(--cappy-chat-min-width, 320px)", width: "100%", boxSizing: "border-box" }}
       justify="space-between"
     >
-      {state.pipeline ? (
-        state.pipeline.awaitingApproval
-          ? <StageProgressBar pipeline={state.pipeline} onAdvance={() => bridge.send({ type: "pipeline:advance" })} />
-          : <StageProgressBar pipeline={state.pipeline} />
-      ) : null}
-
       <Group px={6} py={2} justify="flex-end" style={{ flexShrink: 0 }}>
         <Tooltip label="Debug" position="left" withArrow>
           <ActionIcon
@@ -174,7 +155,6 @@ export function Chat(): JSX.Element {
       </Box>
 
       <WorkersPanel toolRows={state.toolRows} />
-      <PipelineDAGView toolRows={state.toolRows} pipeline={state.pipeline} />
 
       {state.toolRows.length > 0 && !state.isStreaming && (
         <Box px={4} pb={2}>
@@ -257,8 +237,6 @@ export function Chat(): JSX.Element {
             modelOptions={availableModels}
             onModelChange={handleModelChange}
             configReady={state.runtimeConfig !== null}
-            pipelineTemplates={state.pipelineTemplates}
-            onPipelineSend={handlePipelineSend}
           />
         </Box>
       </Stack>
