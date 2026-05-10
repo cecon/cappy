@@ -8,15 +8,13 @@
 
 import path from "node:path";
 
-import type { ToolDefinition } from "./ToolDefinition";
+import type { ToolDefinition } from "./toolTypes";
 import type { RagSearchMatch } from "../rag/types";
 import { tokenizeForLexical } from "../rag/lexicalTokenizer";
 import { getWorkspaceRoot } from "./workspacePath";
 
-// The RagIndexer singleton is set by CappyCompositionRoot after it creates one.
 let _indexer: import("../rag/RagIndexer").RagIndexer | undefined;
 
-/** Called by CappyCompositionRoot to inject the running indexer. */
 export function setRagIndexer(indexer: import("../rag/RagIndexer").RagIndexer): void {
   _indexer = indexer;
 }
@@ -105,7 +103,6 @@ export const ragSearchTool: ToolDefinition<RagSearchParams, RagSearchResult> = {
     // We call embedSingle via the shared EmbeddingService.
     let queryEmbedding: number[];
     try {
-      // Access config via the process env set by CappyCompositionRoot.
       const model = process.env.CAPPY_RAG_MODEL ?? "text-embedding-3-small";
       const dims = parseInt(process.env.CAPPY_RAG_DIMS ?? "512", 10);
       queryEmbedding = await embeddingService.embedSingle(params.query, model, dims);

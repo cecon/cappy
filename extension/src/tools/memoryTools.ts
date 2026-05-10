@@ -9,7 +9,7 @@
  */
 
 import { getMemoryStore } from "../memory/MemoryStore";
-import type { ToolDefinition } from "./ToolDefinition";
+import type { ToolDefinition } from "./toolTypes";
 import { getWorkspaceRoot } from "./workspacePath";
 
 // ── MemoryList ──────────────────────────────────────────────────────────────

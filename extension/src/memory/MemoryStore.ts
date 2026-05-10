@@ -143,22 +143,11 @@ export class MemoryStore {
   }
 }
 
-// ── Module-level singleton (same pattern as RagIndexer / ragSearchTool) ─────
-
 let _memoryStore: MemoryStore | undefined;
 
-/** Called by CappyCompositionRoot to inject the singleton. */
-export function setMemoryStore(store: MemoryStore): void {
-  _memoryStore = store;
-}
-
-/**
- * Returns the module-level MemoryStore instance.
- * Throws if called before `setMemoryStore()`.
- */
 export function getMemoryStore(): MemoryStore {
   if (_memoryStore === undefined) {
-    throw new Error("MemoryStore not initialised. Call setMemoryStore() in CappyCompositionRoot first.");
+    _memoryStore = new MemoryStore();
   }
   return _memoryStore;
 }
